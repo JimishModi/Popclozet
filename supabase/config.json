@@ -1,0 +1,17 @@
+{
+    "projectId": "your-project-id",
+    "name": "PopClozet Customer App",
+    "db": {
+        "host": "db.your-project.supabase.co",
+        "port": 5432,
+        "database": "postgres",
+        "user": "postgres"
+    },
+    "api": {
+        "url": "https://your-project.supabase.co",
+        "port": 443
+    },
+    "studio": {
+        "port": 54323
+    }
+}

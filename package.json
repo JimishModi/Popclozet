@@ -1,0 +1,23 @@
+{
+  "name": "popclozet-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.29.2",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "dev:rider": "pnpm --filter @popclozet/rider-app dev",
+    "dev:customer": "pnpm --filter @popclozet/customer-app dev",
+    "build:rider": "pnpm --filter @popclozet/rider-app build",
+    "build:customer": "pnpm --filter @popclozet/customer-app build"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "framer-motion": "^10.18.0",
+    "lucide-react": "^0.563.0"
+  }
+}
