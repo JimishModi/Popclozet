@@ -25,15 +25,14 @@ import { useOfflineSync } from "./hooks/useOfflineSync";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
+import NetworkStatusBanner from "./components/NetworkStatusBanner";
 
 // Lazy pages
 const CartPage = lazy(() => import("./pages/CartPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
 const ChromaticClosetPage = lazy(() => import("./pages/ChromaticClosetPage"));
-const MoodPage = lazy(() => import("./pages/MoodPage"));
 const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
-const GenderCategoryPage = lazy(() => import("./pages/GenderCategoryPage"));
 const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
 const ClosetPage = lazy(() => import("./pages/ClosetPage"));
 const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
@@ -42,14 +41,10 @@ const SignUpPage = lazy(() => import("./pages/SignUpPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
 const CreateAccountPage = lazy(() => import("./pages/CreateAccountPage"));
-
-// Map & Location pages
 const MapLocationPage = lazy(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
-
-// Onboarding pages
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 
@@ -58,17 +53,20 @@ import QRHygienePage from "./pages/QRHygienePage";
 import QRScannerPage from "./pages/QRScannerPage";
 import ProductIntakePage from "./pages/ProductIntakePage";
 import AdminHygieneDashboard from "./pages/AdminHygieneDashboard";
-import QRHygieneTestPage from "./pages/QRHygieneTestPage";
 import ProductQRGalleryPage from "./pages/ProductQRGalleryPage";
 import MobileProductDetailPage from "./pages/MobileProductDetailPage";
 import OfflinePage from "./pages/OfflinePage";
 import NotFound from "./pages/NotFound";
-
-// Delivery partner screens
-import OrderDeliveredPage from "./pages/OrderDeliveredPage";
-import PickupTrackingPage from "./pages/PickupTrackingPage";
-import PickupConfirmationPage from "./pages/PickupConfirmationPage";
+import AuthCallback from "./pages/AuthCallback";
 import OrdersPage from "./pages/OrdersPage";
+import GenderCategoryPage from "./pages/GenderCategoryPage";
+import MoodPage from "./pages/MoodPage";
+import PickupConfirmationPage from "./pages/PickupConfirmationPage";
+import PickupTrackingPage from "./pages/PickupTrackingPage";
+import OrderDeliveredPage from "./pages/OrderDeliveredPage";
+import VirtualTryOnPage from "./pages/VirtualTryOnPage";
+import WelcomeGridPage from "./pages/WelcomeGridPage";
+import WelcomeGridPage2 from "./pages/WelcomeGridPage2";
 
 const queryClient = new QueryClient();
 
@@ -85,7 +83,6 @@ function App() {
     }
   }, [showWelcome]);
 
-  // 🔑 LOCATION BOOTSTRAP LOGIC
   useEffect(() => {
     const hasGps = localStorage.getItem("user_location");
     const hasManual = localStorage.getItem("service_availability");
@@ -97,189 +94,98 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-  <SupabaseAuthProvider>
-    <AuthGate>
-      <CartProvider>
-          <WishlistProvider>
-            <FlyToCartProvider>
-              <TooltipProvider>
+      <SupabaseAuthProvider>
 
-                {/* SYSTEM LEVEL */}
-                <ScrollProgress />
-                <Toaster />
-                <Sonner />
+        {/* 🔴 THIS MUST BE ABOVE AUTHGATE */}
+        <NetworkStatusBanner />
 
-                {/* GPS REQUEST (NON-BLOCKING) */}
-                <LocationGate />
+        <AuthGate>
+          <CartProvider>
+            <WishlistProvider>
+              <FlyToCartProvider>
+                <TooltipProvider>
 
-                {/* MANUAL FALLBACK */}
-                <CitySelectorModal
-                  open={showCitySelector}
-                  onClose={() => setShowCitySelector(false)}
-                />
+                  {/* SYSTEM UI */}
+                  <ScrollProgress />
+                  <Toaster />
+                  <Sonner />
 
-                {showWelcome && (
-                  <WelcomeScreen onComplete={() => setShowWelcome(false)} />
-                )}
+                  {/* LOCATION */}
+                  <LocationGate />
+                  <CitySelectorModal
+                    open={showCitySelector}
+                    onClose={() => setShowCitySelector(false)}
+                  />
 
-                <StyleAssistant />
-                <OfflineIndicator />
-                <InstallPrompt />
-                <SyncNotifications />
+                  {showWelcome && (
+                    <WelcomeScreen onComplete={() => setShowWelcome(false)} />
+                  )}
 
-                <AnimatePresence mode="wait">
-  <div key={location.pathname}>
-    <Routes location={location}>
+                  <StyleAssistant />
+                  <OfflineIndicator />
+                  <InstallPrompt />
+                  <SyncNotifications />
 
-                      <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
-                      <Route path="/home" element={<PageTransition><MobileHome /></PageTransition>} />
+                  {/* ROUTES */}
+                  <AnimatePresence mode="wait">
+                    <div key={location.pathname}>
+                      <Routes location={location}>
+                        <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+                        <Route path="/home" element={<PageTransition><MobileHome /></PageTransition>} />
 
-                      {/* Onboarding Routes */}
-                      <Route path="/welcome" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-zinc-900">Loading...</div>}><WelcomePage /></Suspense></PageTransition>} />
-                      <Route path="/onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-zinc-900">Loading...</div>}><OnboardingPage /></Suspense></PageTransition>} />
+                        <Route path="/signin" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignInPage /></Suspense></PageTransition>} />
+                        <Route path="/signup" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignUpPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/login" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><LoginPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/otp" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OtpVerificationPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/create-account" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CreateAccountPage /></Suspense></PageTransition>} />
 
-                      {/* Auth Routes */}
-                      <Route path="/signin" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignInPage /></Suspense></PageTransition>} />
-                      <Route path="/signup" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignUpPage /></Suspense></PageTransition>} />
-                      <Route path="/auth/login" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><LoginPage /></Suspense></PageTransition>} />
-                      <Route path="/auth/otp" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OtpVerificationPage /></Suspense></PageTransition>} />
-                      <Route path="/auth/create-account" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CreateAccountPage /></Suspense></PageTransition>} />
+                        <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
+                        <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
+                        <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
+                        <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
 
-                      <Route path="/qr-hygiene" element={<PageTransition><QRHygienePage /></PageTransition>} />
-                      <Route path="/qr-scanner" element={<PageTransition><QRScannerPage /></PageTransition>} />
-                      <Route path="/product-intake" element={<PageTransition><ProductIntakePage /></PageTransition>} />
-                      <Route path="/admin/hygiene" element={<PageTransition><AdminHygieneDashboard /></PageTransition>} />
-                      <Route path="/products/qr-gallery" element={<PageTransition><ProductQRGalleryPage /></PageTransition>} />
-                      <Route path="/test-qr" element={<QRHygieneTestPage />} />
+                        <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />
+                        <Route path="/tracking/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><DeliveryTrackingPage /></Suspense></PageTransition>} />
 
-                      <Route path="/product/:productId" element={<PageTransition><MobileProductDetailPage /></PageTransition>} />
+                        {/* Additional explicit routes for all pages to avoid accidental 404s */}
+                        <Route path="/collections" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CollectionsPage /></Suspense></PageTransition>} />
+                        <Route path="/shop/:gender" element={<PageTransition><CategoryProductsPage /></PageTransition>} />
+                        <Route path="/category" element={<PageTransition><CategoryProductsPage /></PageTransition>} />
+                        <Route path="/closet" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><ClosetPage /></Suspense></PageTransition>} />
+                        <Route path="/live-closet" element={<PageTransition><LiveClosetPage /></PageTransition>} />
+                        <Route path="/product/:id" element={<PageTransition><MobileProductDetailPage /></PageTransition>} />
+                        <Route path="/how-it-works" element={<PageTransition><HowItWorksPage /></PageTransition>} />
+                        <Route path="/qr-hygiene" element={<PageTransition><QRHygienePage /></PageTransition>} />
+                        <Route path="/qr-scanner" element={<PageTransition><QRScannerPage /></PageTransition>} />
+                        <Route path="/product-intake" element={<PageTransition><ProductIntakePage /></PageTransition>} />
+                        <Route path="/admin/hygiene" element={<PageTransition><AdminHygieneDashboard /></PageTransition>} />
+                        <Route path="/product-qr-gallery" element={<PageTransition><ProductQRGalleryPage /></PageTransition>} />
+                        <Route path="/schedule-return" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><ScheduleReturnPage /></Suspense></PageTransition>} />
+                        <Route path="/pickup-confirmation" element={<PageTransition><PickupConfirmationPage /></PageTransition>} />
+                        <Route path="/pickup-tracking/:pickupId" element={<PageTransition><PickupTrackingPage /></PageTransition>} />
+                        <Route path="/order-delivered/:orderId" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
+                        <Route path="/virtual-try-on" element={<PageTransition><VirtualTryOnPage /></PageTransition>} />
+                        <Route path="/welcome" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><WelcomePage /></Suspense></PageTransition>} />
+                        <Route path="/welcome-grid" element={<PageTransition><WelcomeGridPage /></PageTransition>} />
+                        <Route path="/welcome-grid-2" element={<PageTransition><WelcomeGridPage2 /></PageTransition>} />
+                        <Route path="/gender" element={<PageTransition><GenderCategoryPage /></PageTransition>} />
+                        <Route path="/mood" element={<PageTransition><MoodPage /></PageTransition>} />
+                        <Route path="/onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OnboardingPage /></Suspense></PageTransition>} />
 
-                      <Route path="/chromatic" element={<PageTransition><ChromaticClosetPage /></PageTransition>} />
-                      <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
-                      <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/callback" element={<PageTransition><AuthCallback /></PageTransition>} />
 
-                      <Route
-                        path="/closet"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                              <ClosetPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
+                        <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
+                        <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
+                      </Routes>
+                    </div>
+                  </AnimatePresence>
 
-                      <Route
-                        path="/closet/live"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                              <LiveClosetPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
+                </TooltipProvider>
+              </FlyToCartProvider>
+            </WishlistProvider>
+          </CartProvider>
+        </AuthGate>
 
-                      <Route
-                        path="/closet/return"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                              <ScheduleReturnPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-
-                      <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
-                      <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
-                      <Route path="/how-it-works" element={<PageTransition><HowItWorksPage /></PageTransition>} />
-
-                      <Route
-                        path="/collections"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                              <CollectionsPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-
-                      <Route path="/shop/:gender" element={
-                        <PageTransition>
-                          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                            <CategoryProductsPage />
-                          </Suspense>
-                        </PageTransition>
-                      } />
-
-                      {/* Map & Location routes */}
-                      <Route
-                        path="/map"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading map...</div>}>
-                              <MapLocationPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-                      <Route
-                        path="/tracking/:orderId"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                              <DeliveryTrackingPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-
-                      {/* Delivery Partner Screens */}
-                      <Route
-                        path="/order/:orderId/delivered"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                              <OrderDeliveredPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-                      <Route
-                        path="/pickup/:orderId"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                              <PickupTrackingPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-                      <Route
-                        path="/pickup/:orderId/confirm"
-                        element={
-                          <PageTransition>
-                            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}>
-                              <PickupConfirmationPage />
-                            </Suspense>
-                          </PageTransition>
-                        }
-                      />
-
-                      <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
-                      <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
-
-                          </Routes>
-  </div>
-</AnimatePresence>
-
-              </TooltipProvider>
-            </FlyToCartProvider>
-          </WishlistProvider>
-        </CartProvider>
-      </AuthGate>
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );

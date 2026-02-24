@@ -5,6 +5,10 @@ import path from 'path'
 export default defineConfig({
     plugins: [react()],
 
+    optimizeDeps: {
+        disabled: true
+    },
+
     // Load .env from monorepo root
     envDir: path.resolve(__dirname, '../..'),
 

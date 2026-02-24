@@ -1,19 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
-import { ChevronLeft, SlidersHorizontal, Heart } from "lucide-react";
+import { ChevronLeft, SlidersHorizontal, Heart, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@popclozet/api-client";
+import type { Product } from "@/services/productService";
 
-// Mock product data
+// Mock product data fallback
 const MOCK_PRODUCTS = [
-    { id: "1", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
-    { id: "2", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
-    { id: "3", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
-    { id: "4", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
-    { id: "5", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
-    { id: "6", title: "Haldi Outfit", brand: "Fabindia", price: 699, image: "" },
+    { id: "1", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    { id: "2", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    { id: "3", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    { id: "4", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    { id: "5", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    { id: "6", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
 ];
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -26,7 +28,11 @@ const CategoryProductsPage: React.FC = () => {
     const [searchParams] = useSearchParams();
 
     const categoryTitle = searchParams.get("title") || "Products";
+    const category = searchParams.get("category") || "";
+    const gender = searchParams.get("?category");
 
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
     const [wishlist, setWishlist] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>("size");
@@ -35,6 +41,35 @@ const CategoryProductsPage: React.FC = () => {
     const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
     const [priceRange, setPriceRange] = useState({ min: 100, max: 1200 });
     const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        fetchProducts();
+    }, [category, categoryTitle]);
+
+    const fetchProducts = async () => {
+        setLoading(true);
+        try {
+            // Show ALL products (no category filtering for now)
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .limit(100);
+
+            if (error) throw error;
+            // Map the database fields
+            const mappedProducts = (data || []).map(p => ({
+                ...p,
+                price: p.rental_price,
+                imageUrl: p.images?.[0] || '',
+            }));
+            setProducts(mappedProducts);
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -107,38 +142,54 @@ const CategoryProductsPage: React.FC = () => {
 
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
-                <div className="grid grid-cols-2 gap-3">
-                    {MOCK_PRODUCTS.map((product, index) => (
-                        <motion.div
-                            key={product.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            onClick={() => handleProductClick(product.id)}
-                            className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
-                        >
-                            <div className="aspect-[3/4] bg-[#2A2A2E] relative">
-                                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
-                                <button
-                                    onClick={(e) => toggleWishlist(product.id, e)}
-                                    className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
-                                >
-                                    <Heart
-                                        className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
-                                            ? "text-[#FF4D6D] fill-[#FF4D6D]"
-                                            : "text-white"
-                                            }`}
-                                    />
-                                </button>
-                            </div>
-                            <div className="p-3">
-                                <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.title}</h3>
-                                <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                <span className="text-base font-bold text-white">₹{product.price}</span>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
+                {loading ? (
+                    <div className="flex justify-center items-center py-20">
+                        <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                        {products.map((product, index) => (
+                            <motion.div
+                                key={product.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                onClick={() => handleProductClick(product.id)}
+                                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
+                            >
+                                <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
+                                    {product.images && product.images[0] ? (
+                                        <img
+                                            src={product.images[0]}
+                                            alt={product.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                                            <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => toggleWishlist(product.id, e)}
+                                        className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                                    >
+                                        <Heart
+                                            className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
+                                                ? "text-[#FF4D6D] fill-[#FF4D6D]"
+                                                : "text-white"
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                                <div className="p-3">
+                                    <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
+                                    <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
+                                    <span className="text-base font-bold text-white">₹{product.rental_price}</span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Filter Modal */}

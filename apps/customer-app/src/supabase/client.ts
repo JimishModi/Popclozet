@@ -1,13 +1,8 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+/**
+ * Use the shared supabase client from the monorepo package.
+ * This avoids hardcoded demo credentials and ensures apps use the same config.
+ */
+import { supabase as sharedSupabase } from '@popclozet/api-client';
 
-const SUPABASE_URL = "https://rmhetvmgjqxfmcidxvrz.supabase.co";
-const SUPABASE_KEY = "sb_publishable_07TnsACnZ96coI2pkYdpAg_6czNptvh";
-
-const hasValidEnv = Boolean(SUPABASE_URL && SUPABASE_KEY);
-
-// Only create the client if env vars are present so the app doesn't crash when backend is offline.
-export const supabase: SupabaseClient | null = hasValidEnv
-  ? createClient(SUPABASE_URL as string, SUPABASE_KEY as string)
-  : null;
-
-export const isSupabaseConfigured = hasValidEnv;
+export const supabase = sharedSupabase;
+export const isSupabaseConfigured = Boolean(sharedSupabase);

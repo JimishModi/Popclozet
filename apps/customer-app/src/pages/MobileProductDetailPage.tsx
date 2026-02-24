@@ -1,12 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, Heart, ShoppingBag } from "lucide-react";
+import { ChevronLeft, Heart, ShoppingBag, Loader } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
-import { getProductById } from "@/config/products";
+import { supabase } from "@popclozet/api-client";
+import type { Product } from "@/services/productService";
 import shareButtonIcon from "@/assets/icons/share-button.svg";
 import starRatingIcon from "@/assets/icons/star-rating.svg";
 import deliveryTruckIcon from "@/assets/icons/delivery-truck.svg";
@@ -62,19 +63,53 @@ const RulerIcon = () => (
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 
 const MobileProductDetailPage: React.FC = () => {
-    const { productId } = useParams<{ productId: string }>();
+    const { id: productId } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { addToCart } = useCart();
     const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
+    const [product, setProduct] = useState<Product | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    // Get product from config
-    const product = productId ? getProductById(productId) : null;
+    useEffect(() => {
+        const fetchProduct = async () => {
+            if (!productId) {
+                setLoading(false);
+                return;
+            }
+            try {
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .eq('id', productId)
+                    .single();
 
-    // Calculate savings
-    const originalPrice = product ? product.price : 4000;
-    const rentalPrice = product ? Math.round(product.price * 0.15) : 699;
+                if (error || !data) {
+                    console.error('Product not found:', error);
+                    setProduct(null);
+                } else {
+                    setProduct({
+                        ...data,
+                        price: data.rental_price,
+                        rentalPrice: data.rental_price,
+                        imageUrl: data.images?.[0] || '',
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching product:', err);
+                setProduct(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProduct();
+    }, [productId]);
+
+    // Calculate savings - use rental_price directly from product
+    const originalPrice = product?.price || 4000;
+    const rentalPrice = product?.rentalPrice || product?.price || 699;
     const savingsPercent = Math.round(
         ((originalPrice - rentalPrice) / originalPrice) * 100
     );
@@ -93,6 +128,16 @@ const MobileProductDetailPage: React.FC = () => {
             addToCart(product.id);
         }
     };
+
+    if (loading) {
+        return (
+            <MobileShell className="bg-[#111111] text-white">
+                <div className="flex-1 flex items-center justify-center">
+                    <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
+                </div>
+            </MobileShell>
+        );
+    }
 
     if (!product) {
         return (
@@ -153,11 +198,17 @@ const MobileProductDetailPage: React.FC = () => {
                     <div className="flex">
                         {/* Main image area */}
                         <div className="flex-1 bg-[#232323] aspect-[344/360]">
-                            <img
-                                src={product.image}
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                            />
+                            {product.imageUrl || product.images?.[0] ? (
+                                <img
+                                    src={product.imageUrl || product.images?.[0]}
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center">
+                                    <div className="text-zinc-500">No image</div>
+                                </div>
+                            )}
                         </div>
                         {/* Side strip with share button */}
                         <div className="w-[52px] bg-[#232323] flex flex-col items-center pt-3">

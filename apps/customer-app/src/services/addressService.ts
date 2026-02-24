@@ -143,14 +143,14 @@ export async function saveAddress(
   // If setting as default, unset other defaults first
   if (isDefault) {
     await supabase
-      .from('user_addresses')
+      .from('addresses')
       .update({ is_default: false })
       .eq('user_id', userId)
       .eq('is_default', true);
   }
 
   const { data, error } = await supabase
-    .from('user_addresses')
+    .from('addresses')
     .insert({
       user_id: userId,
       label,
@@ -180,7 +180,7 @@ export async function getUserAddresses(userId: string): Promise<SavedAddress[]> 
   }
 
   const { data, error } = await supabase
-    .from('user_addresses')
+    .from('addresses')
     .select('*')
     .eq('user_id', userId)
     .order('is_default', { ascending: false })
@@ -199,7 +199,7 @@ export async function getDefaultAddress(userId: string): Promise<SavedAddress | 
   if (!supabase) return null;
 
   const { data, error } = await supabase
-    .from('user_addresses')
+    .from('addresses')
     .select('*')
     .eq('user_id', userId)
     .eq('is_default', true)
@@ -217,7 +217,7 @@ export async function updateAddress(
   if (!supabase) return false;
 
   const { error } = await supabase
-    .from('user_addresses')
+    .from('addresses')
     .update(updates)
     .eq('id', addressId);
 
@@ -229,7 +229,7 @@ export async function deleteAddress(addressId: string): Promise<boolean> {
   if (!supabase) return false;
 
   const { error } = await supabase
-    .from('user_addresses')
+    .from('addresses')
     .delete()
     .eq('id', addressId);
 

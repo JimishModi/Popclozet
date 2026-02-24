@@ -7,13 +7,617 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string
+          user_id?: string
+          full_name?: string | null
+          phone?: string | null
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+          gender?: string | null
+          email?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Insert: {
+          id: string
+          user_id?: string
+          full_name?: string | null
+          phone?: string | null
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+          gender?: string | null
+          email?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string | null
+          phone?: string | null
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+          gender?: string | null
+          email?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cart: {
+        Row: {
+          id: string
+          user_id: string
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      cart_items: {
+        Row: {
+          id: string
+          cart_id: string
+          item_id: string
+          quantity: number
+          days: number
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          cart_id: string
+          item_id: string
+          quantity?: number
+          days?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cart_id?: string
+          item_id?: string
+          quantity?: number
+          days?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      items: {
+        Row: {
+          id: string
+          title: string
+          brand?: string | null
+          category?: string | null
+          gender?: string | null
+          description?: string | null
+          rental_price_per_day: number
+          deposit_amount?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          name?: string | null
+          price?: number | null
+          event_category?: string | null
+          rating?: number | null
+          is_available?: boolean
+        }
+        Insert: {
+          id?: string
+          title: string
+          brand?: string | null
+          category?: string | null
+          gender?: string | null
+          description?: string | null
+          rental_price_per_day: number
+          deposit_amount?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          name?: string | null
+          price?: number | null
+          event_category?: string | null
+          rating?: number | null
+          is_available?: boolean
+        }
+        Update: {
+          id?: string
+          title?: string
+          brand?: string | null
+          category?: string | null
+          gender?: string | null
+          description?: string | null
+          rental_price_per_day?: number
+          deposit_amount?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          name?: string | null
+          price?: number | null
+          event_category?: string | null
+          rating?: number | null
+          is_available?: boolean
+        }
+        Relationships: []
+      }
+      addresses: {
+        Row: {
+          id: string
+          user_id: string
+          label?: string | null
+          full_address: string
+          latitude?: number | null
+          longitude?: number | null
+          geohash?: string | null
+          is_default?: boolean
+          created_at?: string
+          city?: string | null
+          postalCode?: string | null
+          country?: string | null
+          postal_code?: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          label?: string | null
+          full_address: string
+          latitude?: number | null
+          longitude?: number | null
+          geohash?: string | null
+          is_default?: boolean
+          created_at?: string
+          city?: string | null
+          postalCode?: string | null
+          country?: string | null
+          postal_code?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          label?: string | null
+          full_address?: string
+          latitude?: number | null
+          longitude?: number | null
+          geohash?: string | null
+          is_default?: boolean
+          created_at?: string
+          city?: string | null
+          postalCode?: string | null
+          country?: string | null
+          postal_code?: string | null
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          id: string
+          user_id: string
+          delivery_address_id?: string | null
+          rental_start_date: string
+          rental_end_date: string
+          total_amount: number
+          deposit_amount?: number
+          lifecycle_state?: string
+          delivery_eta?: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          delivery_address_id?: string | null
+          rental_start_date: string
+          rental_end_date: string
+          total_amount: number
+          deposit_amount?: number
+          lifecycle_state?: string
+          delivery_eta?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          delivery_address_id?: string | null
+          rental_start_date?: string
+          rental_end_date?: string
+          total_amount?: number
+          deposit_amount?: number
+          lifecycle_state?: string
+          delivery_eta?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          id: string
+          order_id: string
+          product_id: string
+          size?: string | null
+          rental_price: number
+          deposit_amount?: number
+          rental_duration_days?: number
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          product_id: string
+          size?: string | null
+          rental_price: number
+          deposit_amount?: number
+          rental_duration_days?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          product_id?: string
+          size?: string | null
+          rental_price?: number
+          deposit_amount?: number
+          rental_duration_days?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      payment_intents: {
+        Row: {
+          id: string
+          user_id: string
+          rental_id: string
+          amount: number
+          payment_type: string
+          status?: string
+          gateway_ref?: string | null
+          created_at?: string
+          expires_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          rental_id: string
+          amount: number
+          payment_type: string
+          status?: string
+          gateway_ref?: string | null
+          created_at?: string
+          expires_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          rental_id?: string
+          amount?: number
+          payment_type?: string
+          status?: string
+          gateway_ref?: string | null
+          created_at?: string
+          expires_at?: string
+        }
+        Relationships: []
+      }
+      deliveries: {
+        Row: {
+          id: string
+          rental_id: string
+          warehouse_id?: string | null
+          delivery_type: "pickup" | "drop" | "return"
+          status?: string
+          assigned_rider?: string | null
+          scheduled_date?: string | null
+          completed_at?: string | null
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          rental_id: string
+          warehouse_id?: string | null
+          delivery_type: "pickup" | "drop" | "return"
+          status?: string
+          assigned_rider?: string | null
+          scheduled_date?: string | null
+          completed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          rental_id?: string
+          warehouse_id?: string | null
+          delivery_type?: "pickup" | "drop" | "return"
+          status?: string
+          assigned_rider?: string | null
+          scheduled_date?: string | null
+          completed_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      rider_locations: {
+        Row: {
+          rider_id: string
+          lat: number
+          lng: number
+          updated_at?: string
+        }
+        Insert: {
+          rider_id: string
+          lat: number
+          lng: number
+          updated_at?: string
+        }
+        Update: {
+          rider_id?: string
+          lat?: number
+          lng?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type?: string
+          title: string
+          message: string
+          order_id?: string | null
+          metadata?: Json | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type?: string
+          title: string
+          message: string
+          order_id?: string | null
+          metadata?: Json | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          message?: string
+          order_id?: string | null
+          metadata?: Json | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          id: string
+          user_id: string
+          push_enabled?: boolean
+          orders_delivery?: boolean
+          new_arrivals?: boolean
+          price_drops?: boolean
+          promotions?: boolean
+          wishlist_updates?: boolean
+          rental_reminders?: boolean
+          general_updates?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          push_enabled?: boolean
+          orders_delivery?: boolean
+          new_arrivals?: boolean
+          price_drops?: boolean
+          promotions?: boolean
+          wishlist_updates?: boolean
+          rental_reminders?: boolean
+          general_updates?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          push_enabled?: boolean
+          orders_delivery?: boolean
+          new_arrivals?: boolean
+          price_drops?: boolean
+          promotions?: boolean
+          wishlist_updates?: boolean
+          rental_reminders?: boolean
+          general_updates?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      device_registrations: {
+        Row: {
+          id: string
+          user_id: string
+          device_id: string
+          device_name?: string | null
+          platform?: string
+          push_subscription?: Json | null
+          last_active_at?: string
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_id: string
+          device_name?: string | null
+          platform?: string
+          push_subscription?: Json | null
+          last_active_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_id?: string
+          device_name?: string | null
+          platform?: string
+          push_subscription?: Json | null
+          last_active_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      physical_units: {
+        Row: {
+          id: string
+          item_id: string
+          size: string
+          unit_code?: string | null
+          status?: string
+          condition?: string
+          warehouse_id?: string | null
+          created_at?: string
+          warehouse_city?: string | null
+          inventory_id?: string | null
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          size: string
+          unit_code?: string | null
+          status?: string
+          condition?: string
+          warehouse_id?: string | null
+          created_at?: string
+          warehouse_city?: string | null
+          inventory_id?: string | null
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          size?: string
+          unit_code?: string | null
+          status?: string
+          condition?: string
+          warehouse_id?: string | null
+          created_at?: string
+          warehouse_city?: string | null
+          inventory_id?: string | null
+        }
+        Relationships: []
+      }
+      rentals: {
+        Row: {
+          id: string
+          user_id: string
+          inventory_id?: string | null
+          physical_unit_id?: string | null
+          start_date: string
+          end_date: string
+          status?: string
+          delivery_address?: string | null
+          created_at?: string
+          expires_at?: string
+          booking_period?: unknown
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          inventory_id?: string | null
+          physical_unit_id?: string | null
+          start_date: string
+          end_date: string
+          status?: string
+          delivery_address?: string | null
+          created_at?: string
+          expires_at?: string
+          booking_period?: unknown
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          inventory_id?: string | null
+          physical_unit_id?: string | null
+          start_date?: string
+          end_date?: string
+          status?: string
+          delivery_address?: string | null
+          created_at?: string
+          expires_at?: string
+          booking_period?: unknown
+        }
+        Relationships: []
+      }
+      warehouses: {
+        Row: {
+          id: string
+          name: string
+          city: string
+          address?: string | null
+          pincode?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          city: string
+          address?: string | null
+          pincode?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          city?: string
+          address?: string | null
+          pincode?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      inventory: {
+        Row: {
+          id: string
+          item_id: string
+          size?: string | null
+          total_stock?: number | null
+          available_stock?: number | null
+          created_at?: string
+          is_active?: boolean
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          size?: string | null
+          total_stock?: number | null
+          available_stock?: number | null
+          created_at?: string
+          is_active?: boolean
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          size?: string | null
+          total_stock?: number | null
+          available_stock?: number | null
+          created_at?: string
+          is_active?: boolean
+        }
+        Relationships: []
+      }
       email_signups: {
         Row: {
           created_at: string
@@ -36,48 +640,36 @@ export type Database = {
         Relationships: []
       }
     }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    Views: {}
+    Functions: {}
+    Enums: {}
+    CompositeTypes: {}
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type PublicSchema = Database["public"]
 
 export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+  PublicTableNameOrOptions extends
+    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends {
+    schema: keyof Database
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
+        PublicSchema["Views"])
+    ? (PublicSchema["Tables"] &
+        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -85,24 +677,22 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+  PublicTableNameOrOptions extends
+    | keyof PublicSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends {
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -110,24 +700,22 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+  PublicTableNameOrOptions extends
+    | keyof PublicSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends {
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -135,41 +723,31 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+  PublicEnumNameOrOptions extends
+    | keyof PublicSchema["Enums"]
+    | { schema: keyof Database },
+  EnumName extends PublicEnumNameOrOptions extends {
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+> = PublicEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
+    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const

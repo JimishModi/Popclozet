@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { useAuth } from "@/context/SupabaseAuthContext";
@@ -17,10 +17,21 @@ export default function CreateAccountPage() {
   const location = useLocation();
   const state = location.state as LocationState | null;
 
-  const { updateProfile } = useAuth();
+  const { updateProfile, user } = useAuth();
 
   const [name, setName] = useState(state?.name || "");
   const [email, setEmail] = useState(state?.email || "");
+
+  useEffect(() => {
+    // If no state provided (OAuth redirect), prefill from authenticated user
+    if (user) {
+      if (!state?.email && user.email) setEmail(user.email);
+      if (!state?.name) {
+        const metaName = (user as any).user_metadata?.full_name || (user as any).user_metadata?.name;
+        if (metaName) setName(metaName);
+      }
+    }
+  }, [user, state]);
   const [gender, setGender] = useState<Gender | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

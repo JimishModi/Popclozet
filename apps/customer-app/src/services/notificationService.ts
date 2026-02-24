@@ -1,188 +1,289 @@
-// src/services/notificationService.ts
-// In-app notifications with Supabase — RLS-safe (no userId params for read/write)
+/**
+ * Notifications Service
+ * Handle user notifications and preferences
+ */
 
-import { supabase } from '@popclozet/api-client';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { supabase } from "@popclozet/api-client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export type NotificationType =
-    | 'order_confirmed'
-    | 'out_for_delivery'
-    | 'delivered'
-    | 'pickup_scheduled'
-    | 'pickup_completed'
-    | 'return_scheduled'
-    | 'return_completed'
-    | 'general';
+  | "general"
+  | "order_update"
+  | "delivery_update"
+  | "price_drop"
+  | "new_arrival"
+  | "rental_reminder"
+  | "order_confirmed"
+  | "out_for_delivery"
+  | "delivered"
+  | "pickup_scheduled"
+  | "pickup_completed"
+  | "return_scheduled"
+  | "return_completed";
 
 export interface Notification {
-    id: string;
-    user_id: string;
-    type: NotificationType;
-    title: string;
-    message: string;
-    order_id: string | null;
-    is_read: boolean;
-    created_at: string;
+  id: string;
+  user_id: string;
+  type?: string;
+  title: string;
+  message: string;
+  order_id?: string | null;
+  metadata?: any;
+  is_read?: boolean;
+  created_at?: string;
 }
 
-// Notification templates
-const NOTIFICATION_TEMPLATES: Record<NotificationType, { title: string; message: string }> = {
-    order_confirmed: {
-        title: 'Order Confirmed! 🎉',
-        message: 'Your rental order has been confirmed. We\'ll notify you when it\'s out for delivery.',
-    },
-    out_for_delivery: {
-        title: 'On the way! 🚗',
-        message: 'Your order is out for delivery. Track it in real-time on the map.',
-    },
-    delivered: {
-        title: 'Delivered! ✅',
-        message: 'Your rental has been delivered. Enjoy your outfit!',
-    },
-    pickup_scheduled: {
-        title: 'Pickup Scheduled 📦',
-        message: 'Your pickup has been scheduled. We\'ll be there soon!',
-    },
-    pickup_completed: {
-        title: 'Pickup Complete ✅',
-        message: 'We\'ve picked up your rental items. Thank you!',
-    },
-    return_scheduled: {
-        title: 'Return Scheduled 🔄',
-        message: 'Your return pickup has been scheduled.',
-    },
-    return_completed: {
-        title: 'Return Complete ✅',
-        message: 'Your items have been returned successfully.',
-    },
-    general: {
-        title: 'PopClozet',
-        message: 'You have a new notification.',
-    },
-};
-
-/* ================================
-   CREATE  (RLS-safe: user_id from auth)
-================================ */
-
-export async function createNotification(
-    type: NotificationType = 'general',
-    orderId?: string,
-    customTitle?: string,
-    customMessage?: string
-): Promise<Notification> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const template = NOTIFICATION_TEMPLATES[type];
-
-    const { data, error } = await supabase
-        .from('notifications')
-        .insert({
-            user_id: user.id,
-            type,
-            title: customTitle ?? template.title,
-            message: customMessage ?? template.message,
-            order_id: orderId ?? null,
-            is_read: false,
-        })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('❌ createNotification failed', error);
-        throw error;
-    }
-
-    return data;
+export interface NotificationPreferences {
+  user_id: string;
+  push_enabled?: boolean;
+  orders_delivery?: boolean;
+  new_arrivals?: boolean;
+  price_drops?: boolean;
+  promotions?: boolean;
+  wishlist_updates?: boolean;
+  rental_reminders?: boolean;
+  general_updates?: boolean;
 }
 
-/* ================================
-   READ  (RLS-safe: no userId param)
-================================ */
+/**
+ * Get all notifications for current user
+ */
+export async function getNotifications(limit: number = 50): Promise<Notification[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-export async function getNotifications(limit = 20): Promise<Notification[]> {
-    const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
-    if (error) {
-        console.error('Failed to fetch notifications:', error);
-        return [];
-    }
+  if (error) {
+    console.error("Error fetching notifications:", error);
+    throw error;
+  }
 
-    return data ?? [];
+  return data ?? [];
 }
 
+/**
+ * Get unread notification count
+ */
 export async function getUnreadCount(): Promise<number> {
-    const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_read', false);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    if (error) {
-        console.error('Failed to fetch unread count:', error);
-        return 0;
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("*", { count: "exact" })
+    .eq("user_id", user.id)
+    .eq("is_read", false);
+
+  if (error) {
+    console.error("Error fetching unread count:", error);
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+/**
+ * Mark notification as read
+ */
+export async function markAsRead(notificationId: string): Promise<Notification> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notificationId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error marking notification as read:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Mark all notifications as read
+ */
+export async function markAllAsRead(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", user.id)
+    .eq("is_read", false);
+
+  if (error) {
+    console.error("Error marking all as read:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete notification
+ */
+export async function deleteNotification(notificationId: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("id", notificationId);
+
+  if (error) {
+    console.error("Error deleting notification:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get notification preferences
+ */
+export async function getNotificationPreferences(): Promise<NotificationPreferences | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("notification_preferences")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching preferences:", error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Update notification preferences
+ */
+export async function updateNotificationPreferences(
+  updates: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("notification_preferences")
+    .update(updates)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating preferences:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Subscribe to real-time notifications
+ */
+export function subscribeToNotifications(
+  onNewNotification: (notification: Notification) => void
+): RealtimeChannel {
+  const channel = supabase.auth.getSession().then(({ data }) => {
+    if (!data.session?.user.id) {
+      throw new Error("Not authenticated");
     }
 
-    return count ?? 0;
+    return supabase
+      .channel(`notifications:${data.session.user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${data.session.user.id}`,
+        },
+        (payload) => {
+          onNewNotification(payload.new as Notification);
+        }
+      )
+      .subscribe();
+  });
+
+  return channel as any;
 }
 
-/* ================================
-   UPDATE  (RLS-safe)
-================================ */
-
-export async function markAsRead(notificationId: string): Promise<boolean> {
-    const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId);
-
-    return !error;
+/**
+ * Unsubscribe from notifications
+ */
+export async function unsubscribeFromNotifications(
+  channel: RealtimeChannel
+): Promise<void> {
+  await supabase.removeChannel(channel);
 }
 
-export async function markAllAsRead(): Promise<boolean> {
-    const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('is_read', false);
+/**
+ * Register device for push notifications
+ */
+export async function registerDevice(
+  deviceId: string,
+  deviceName: string,
+  pushSubscription?: PushSubscription
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    return !error;
+  const { error } = await supabase.from("device_registrations").insert({
+    user_id: user.id,
+    device_id: deviceId,
+    device_name: deviceName,
+    platform: "web",
+    push_subscription: pushSubscription
+      ? JSON.parse(JSON.stringify(pushSubscription))
+      : null,
+  });
+
+  if (error) {
+    console.error("Error registering device:", error);
+    throw error;
+  }
 }
 
-/* ================================
-   REALTIME  (needs userId for filter)
-================================ */
+/**
+ * Create a notification for a user
+ */
+async function createNotification(
+  type: NotificationType,
+  orderId?: string,
+  customTitle?: string,
+  customMessage?: string
+): Promise<Notification> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-export async function subscribeToNotifications(
-    onNewNotification: (notification: Notification) => void
-): Promise<RealtimeChannel | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert({
+      user_id: user.id,
+      type,
+      title: customTitle || `Notification (${type})`,
+      message: customMessage || `You have a new ${type} notification`,
+      order_id: orderId || null,
+      is_read: false,
+    })
+    .select()
+    .single();
 
-    const channel = supabase
-        .channel(`notifications:${user.id}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`,
-            },
-            (payload) => {
-                onNewNotification(payload.new as Notification);
-            }
-        )
-        .subscribe();
+  if (error) {
+    console.error("Error creating notification:", error);
+    throw error;
+  }
 
-    return channel;
-}
-
-export function unsubscribeFromNotifications(channel: RealtimeChannel) {
-    supabase?.removeChannel(channel);
+  return data;
 }
 
 /* ================================

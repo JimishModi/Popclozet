@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@popclozet/api-client";
+import { getCurrentProfile, updateProfile as serviceUpdateProfile, createProfile } from "@/services/profileService";
 import type { UserProfile } from "@popclozet/domain-contracts";
 
 interface AuthContextType {
@@ -37,19 +38,19 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
     try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", u.id)
-        .maybeSingle();
+      const profileData = await getCurrentProfile();
 
-      if (!data) {
+      if (!profileData) {
         setNeedsOnboarding(true);
         setProfile(null);
       } else {
-        setNeedsOnboarding(false);
-        setProfile(data);
+        setNeedsOnboarding(!profileData.onboarding_completed);
+        setProfile(profileData as any);
       }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      setNeedsOnboarding(true);
+      setProfile(null);
     } finally {
       setLoading(false);
     }
@@ -58,23 +59,51 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   /* ---------- SESSION INIT ---------- */
   useEffect(() => {
 
-    // initial load (refresh)
-    supabase.auth.getSession().then(({ data }) => {
-      const sess = data.session;
+    // Handle OAuth redirect callback if present in URL (supabase returns session in URL)
+    (async () => {
+      try {
+        const maybeSession = await (supabase.auth as any).getSessionFromUrl?.();
+        // supabase may return { data: { session } } or { data }
+        const sess = maybeSession?.data?.session || maybeSession?.session || null;
 
-      if (!sess) {
+        if (sess) {
+          setSession(sess);
+          setUser(sess.user);
+          if (!initialized.current) {
+            initialized.current = true;
+            await fetchProfile(sess.user);
+          }
+          // remove auth fragments/queries from URL to avoid confusing router
+          try {
+            const clean = window.location.origin + window.location.pathname + window.location.search;
+            window.history.replaceState({}, document.title, clean);
+          } catch (e) {
+            // ignore
+          }
+          return;
+        }
+
+        // initial load (refresh) when no OAuth callback present
+        const { data } = await supabase.auth.getSession();
+        const current = data.session;
+
+        if (!current) {
+          setLoading(false);
+          return;
+        }
+
+        setSession(current);
+        setUser(current.user);
+
+        if (!initialized.current) {
+          initialized.current = true;
+          fetchProfile(current.user);
+        }
+      } catch (err) {
+        console.error('Error during auth session init:', err);
         setLoading(false);
-        return;
       }
-
-      setSession(sess);
-      setUser(sess.user);
-
-      if (!initialized.current) {
-        initialized.current = true;
-        fetchProfile(sess.user);
-      }
-    });
+    })();
 
     // listen ONLY for real login
     const { data: { subscription } } =
@@ -122,25 +151,38 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo: `${window.location.origin}/auth/callback` }
     });
   };
 
   /* ---------- PROFILE SAVE ---------- */
   const updateProfile = async (updates: any) => {
     if (!user) throw new Error("No authenticated user");
+    try {
+      // If a profile exists, update it; otherwise create a new one with required fields.
+      const current = await getCurrentProfile();
 
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({
-        id: user.id,
-        ...updates,
-      });
+      if (current) {
+        // use server helper that updates by user_id
+        const updated = await serviceUpdateProfile(updates);
+        setProfile(updated as any);
+      } else {
+        // ensure phone is present for DB NOT NULL constraints
+        const created = await createProfile({
+          full_name: updates.full_name || "",
+          phone: updates.phone || (user.phone || ""),
+          role: (updates.role as string) || "customer",
+        });
 
-    if (error) throw error;
+        setProfile(created as any);
+      }
 
-    // IMPORTANT: stabilize routing
-    await fetchProfile(user);
+      // stabilize routing / loading
+      setNeedsOnboarding(false);
+    } catch (error) {
+      console.error("Error upserting profile:", error);
+      throw error;
+    }
   };
 
   /* ---------- SIGN OUT ---------- */

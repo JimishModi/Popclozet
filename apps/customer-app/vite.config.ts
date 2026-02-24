@@ -188,6 +188,10 @@ export default defineConfig({
   },
 
   optimizeDeps: {
+    // Disable dependency pre-bundling to avoid esbuild/spawned-process memory OOM
+    // on low-memory/dev Windows environments. This makes cold-starts slower
+    // but prevents the esbuild Go runtime from being invoked during dev.
+    disabled: true,
     exclude: [
       "@popclozet/api-client",
       "@popclozet/auth",

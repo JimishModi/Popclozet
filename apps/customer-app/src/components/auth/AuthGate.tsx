@@ -17,6 +17,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       "/signin",
       "/signup",
       "/auth/login",
+      "/auth/callback",
+      "/auth/create-account",
       "/auth/otp"
     ];
 

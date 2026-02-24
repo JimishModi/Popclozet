@@ -23,6 +23,13 @@ import { offlineQueueService } from './offlineQueueService';
 // Types
 // =====================================================
 
+// ===== UI Bridge (IMPORTANT) =====
+export const syncUIBus = new EventTarget();
+
+function emitUI(event: "syncing" | "completed" | "error") {
+    syncUIBus.dispatchEvent(new Event(event));
+}
+
 export interface SyncStatus {
     isSyncing: boolean;
     lastSyncTime: number | null;
@@ -173,6 +180,7 @@ class SyncEngine {
         this.currentProgress = 0; // Reset progress
         this.totalItems = 0; // Reset total items
         this.emitEvent({ type: 'sync_started', timestamp: Date.now() });
+        emitUI("syncing");
 
         try {
             console.log('🔄 Starting full sync...');
@@ -197,6 +205,7 @@ class SyncEngine {
                 timestamp: Date.now(),
                 data: { lastSyncTime: this.lastSyncTime }
             });
+            emitUI("completed");
 
         } catch (error) {
             console.error('❌ Sync failed:', error);
@@ -205,6 +214,7 @@ class SyncEngine {
                 timestamp: Date.now(),
                 data: { error: error instanceof Error ? error.message : 'Unknown error' }
             });
+            emitUI("error");
         } finally {
             this.syncInProgress = false; // Changed from isSyncing
         }

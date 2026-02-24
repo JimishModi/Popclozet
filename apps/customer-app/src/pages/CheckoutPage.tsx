@@ -156,24 +156,28 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Insert order
+      // 2) Insert order (status will use DEFAULT value 'pending')
       console.log('[Checkout] Creating order with addressId:', addressId);
       const rentalDays = 4;
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(Date.now() + rentalDays * 86400000)
+        .toISOString()
+        .split("T")[0];
+      const deliveryEta = new Date(
+        Date.now() + (deliveryInfo.eta?.minutes || 60) * 60000
+      ).toISOString();
+
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
           user_id: userId,
           delivery_address_id: addressId,
-          rental_start_date: new Date().toISOString().split("T")[0],
-          rental_end_date: new Date(Date.now() + rentalDays * 86400000)
-            .toISOString()
-            .split("T")[0],
+          rental_start_date: startDate,
+          rental_end_date: endDate,
           total_amount: total,
           deposit_amount: Math.round(subtotal * 0.3),
-          status: "pending",
-          delivery_eta: new Date(
-            Date.now() + (deliveryInfo.eta?.minutes || 60) * 60000
-          ).toISOString(),
+          delivery_eta: deliveryEta,
+          // DON'T send status - let database use DEFAULT 'pending'
         })
         .select("id")
         .single();
@@ -195,6 +199,7 @@ export default function CheckoutPage() {
           rental_duration_days: rentalDays,
         };
       });
+      
       supabase.from("order_items").insert(orderItems).then(({ error: e }) => {
         if (e) console.warn("Order items note:", e.message);
         else console.log('[Checkout] Order items inserted successfully');

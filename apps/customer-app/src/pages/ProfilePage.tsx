@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
   const quickStats = [
     { label: "Orders", value: "12", icon: ShoppingBag, href: "/orders" },
     { label: "Wishlist", value: "8", icon: Heart, href: "/closet?tab=wishlist" },
@@ -93,10 +93,10 @@ const ProfilePage: React.FC = () => {
 
               <div className="flex-1">
                 <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-1">
-                  {user ? `Hi, ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}` : 'Welcome!'}
+                  {user ? `Hi, ${profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}` : 'Welcome!'}
                 </h1>
                 <p className="text-sm text-zinc-500 mb-3">
-                  {user ? user.email : 'Sign in to unlock your closet'}
+                  {user ? (profile?.phone || user.email || 'Signed in') : 'Sign in to unlock your closet'}
                 </p>
                 {!user && (
                   <button
