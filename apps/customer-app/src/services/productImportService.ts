@@ -34,7 +34,7 @@ class ProductImportService {
         for (const configProduct of PRODUCTS) {
             try {
                 // Check if product exists by name and gender (more reliable than ID)
-                const existingByName = await this.findProductByNameAndGender(configProduct.name, configProduct.gender);
+                const existingByName = await this.findProductByNameAndGender(configProduct.name, configProduct.gender || 'womens');
                 if (existingByName) {
                     console.log(`⏭️  Product ${configProduct.name} already exists with ID ${existingByName.id}, ensuring QR code and SOP exist...`);
 
@@ -106,8 +106,8 @@ class ProductImportService {
                     description: `${configProduct.category} ${configProduct.gender} ${configProduct.eventCategory} outfit`,
                     price: configProduct.price,
                     rental_price: Math.round(configProduct.price * 0.3), // 30% of price as rental
-                    gender: configProduct.gender,
-                    event_category: configProduct.eventCategory,
+                    gender: configProduct.gender || 'womens',
+                    event_category: configProduct.eventCategory || configProduct.category,
                     image_url: configProduct.image,
                     video_url: configProduct.video || null,
                     color: configProduct.color,
@@ -250,9 +250,9 @@ class ProductImportService {
         const imported = PRODUCTS.filter(p => importedIds.has(p.id)).length;
 
         const byGender = {
-            mens: PRODUCTS.filter(p => p.gender === 'mens').length,
-            womens: PRODUCTS.filter(p => p.gender === 'womens').length,
-            unisex: PRODUCTS.filter(p => p.gender === 'unisex').length,
+            mens: PRODUCTS.filter(p => (p.gender || 'womens') === 'mens').length,
+            womens: PRODUCTS.filter(p => (p.gender || 'womens') === 'womens').length,
+            unisex: PRODUCTS.filter(p => (p.gender || 'womens') === 'unisex').length,
         };
 
         return {

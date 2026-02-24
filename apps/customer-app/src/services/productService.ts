@@ -31,6 +31,12 @@ export interface Product {
     rentalCount?: number;
     lastCleanedAt?: string;
     conditionStatus?: 'excellent' | 'good' | 'fair' | 'needs_repair';
+    // Sizing & certification fields
+    hygieneCertified?: boolean;
+    fitType?: 'Slim' | 'Regular' | 'Relaxed';
+    stretchLevel?: 'None' | 'Low' | 'Medium' | 'High';
+    fabricComposition?: string;
+    images?: string[];
 }
 
 // IndexedDB Schema for offline storage
@@ -57,6 +63,7 @@ interface ProductDB extends DBSchema {
     metadata: {
         key: string;
         value: {
+            key: string;
             lastSync: number;
             version: number;
         };

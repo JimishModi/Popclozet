@@ -84,10 +84,34 @@ interface PopClozetDB extends DBSchema {
         };
         indexes: { 'by-resolution': string; 'by-timestamp': number };
     };
+    receipts: {
+        key: string;
+        value: ReceiptData;
+    };
+}
+
+export interface ReceiptData {
+    orderId: string;
+    userId: string;
+    items: Array<{
+        name: string;
+        size: string;
+        rentalPrice: number;
+        quantity: number;
+        days: number;
+    }>;
+    subtotal: number;
+    deliveryFee: number;
+    deposit: number;
+    total: number;
+    deliveryAddress: string;
+    rentalStartDate: string;
+    rentalEndDate: string;
+    placedAt: string;
 }
 
 const DB_NAME = 'PopClozet';
-const DB_VERSION = 2; // Incremented for schema changes
+const DB_VERSION = 3; // v3: added receipts store for offline PDF generation
 
 let dbInstance: IDBPDatabase<PopClozetDB> | null = null;
 
@@ -155,6 +179,11 @@ export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
                 });
                 conflictStore.createIndex('by-resolution', 'resolution');
                 conflictStore.createIndex('by-timestamp', 'timestamp');
+            }
+
+            // Create receipts store (new in v3) for offline PDF generation
+            if (!db.objectStoreNames.contains('receipts')) {
+                db.createObjectStore('receipts', { keyPath: 'orderId' });
             }
         },
     });
@@ -409,6 +438,23 @@ export async function getResolvedConflicts() {
     const db = await initDB();
     const all = await db.getAll('conflict_log');
     return all.filter(c => c.resolution !== 'pending');
+}
+
+// Receipt operations (offline-first PDF generation)
+export async function saveReceiptDB(data: ReceiptData): Promise<void> {
+    const db = await initDB();
+    await db.put('receipts', data);
+    console.log(`🧾 Receipt saved for order: ${data.orderId}`);
+}
+
+export async function getReceiptDB(orderId: string): Promise<ReceiptData | undefined> {
+    const db = await initDB();
+    return await db.get('receipts', orderId);
+}
+
+export async function getAllReceiptsDB(): Promise<ReceiptData[]> {
+    const db = await initDB();
+    return await db.getAll('receipts');
 }
 
 // Get sync status summary

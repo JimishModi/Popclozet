@@ -2,14 +2,28 @@
 // Real-time delivery tracking page
 
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, Share2, Phone, MessageCircle } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { DeliveryTracker } from '@/components/map/DeliveryTracker';
+import { ReceiptDownloadButton } from '@/components/receipt/ReceiptDownloadButton';
+import { getDeliveryOtp } from '@/services/deliveryOtpService';
+import type { ProximityStatus } from '@/services/geofenceSubscription';
 
 export default function DeliveryTrackingPage() {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
+
+    const [otp, setOtp] = useState<string | null>(null);
+    const [proximity, setProximity] = useState<ProximityStatus>('far');
+
+    // Load delivery OTP
+    useEffect(() => {
+        if (orderId) {
+            getDeliveryOtp(orderId).then(setOtp).catch(() => { });
+        }
+    }, [orderId]);
 
     if (!orderId) {
         return (
@@ -56,6 +70,8 @@ export default function DeliveryTrackingPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Compact receipt download in header */}
+                    <ReceiptDownloadButton orderId={orderId} compact />
                     <button
                         onClick={handleShare}
                         className="p-2 rounded-full hover:bg-white/10"
@@ -69,8 +85,40 @@ export default function DeliveryTrackingPage() {
             <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
                 <DeliveryTracker orderId={orderId} />
 
+                {/* Receipt download card */}
+                <div className="mt-6">
+                    <ReceiptDownloadButton orderId={orderId} />
+                </div>
+
+                {/* Delivery OTP */}
+                {otp && (
+                    <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-[#f2546d]/10 to-[#ff6078]/10 border border-[#f2546d]/30">
+                        <h3 className="text-sm font-semibold text-white mb-1">Delivery Code</h3>
+                        <p className="text-xs text-zinc-400 mb-3">Share this code with your rider to confirm delivery</p>
+                        <div className="flex items-center justify-center gap-3">
+                            {otp.split('').map((digit, i) => (
+                                <div key={i} className="w-12 h-14 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                                    <span className="text-2xl font-bold text-[#f2546d]">{digit}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Proximity Badge */}
+                {proximity !== 'far' && (
+                    <div className={`mt-4 p-3 rounded-xl text-center text-sm font-medium ${proximity === 'nearby'
+                        ? 'bg-green-500/20 border border-green-500/30 text-green-400'
+                        : 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400'
+                        }`}>
+                        {proximity === 'nearby'
+                            ? '🎉 Your rider is almost at your door!'
+                            : '🏍️ Your rider is on the way!'}
+                    </div>
+                )}
+
                 {/* Contact options */}
-                <div className="mt-6 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+                <div className="mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
                     <h3 className="text-sm font-semibold text-white mb-3">Need Help?</h3>
                     <div className="flex gap-3">
                         <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 text-white text-sm font-medium hover:bg-zinc-700 transition-colors">
@@ -99,3 +147,4 @@ export default function DeliveryTrackingPage() {
         </MobileShell>
     );
 }
+

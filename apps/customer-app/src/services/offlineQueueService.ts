@@ -16,7 +16,8 @@ export type MutationOperation =
     | 'update_cart'
     | 'add_to_wishlist'
     | 'remove_from_wishlist'
-    | 'email_signup';
+    | 'email_signup'
+    | 'checkout';
 
 export interface ReservationPayload {
     inventoryItemId?: string;
@@ -180,6 +181,10 @@ class OfflineQueueService {
                 console.log('Synced email signup');
                 break;
 
+            case 'checkout':
+                await this.processCheckoutRetry(mutation.data);
+                break;
+
             default:
                 console.warn(`Unknown mutation type: ${mutation.action}`);
         }
@@ -261,6 +266,45 @@ class OfflineQueueService {
                 console.error('❌ Background sync registration failed:', error);
             }
         }
+    }
+
+    /**
+     * Process a queued checkout retry
+     */
+    private async processCheckoutRetry(payload: Record<string, any>): Promise<void> {
+        const { deliveryAddressId, rentalStartDate, rentalEndDate, totalAmount, depositAmount, cartItems, userId } = payload;
+
+        const { data: order, error } = await supabase
+            .from('orders')
+            .insert({
+                user_id: userId,
+                delivery_address_id: deliveryAddressId,
+                rental_start_date: rentalStartDate,
+                rental_end_date: rentalEndDate,
+                total_amount: totalAmount,
+                deposit_amount: depositAmount,
+                lifecycle_state: 'placed',
+            })
+            .select()
+            .single();
+
+        if (error) throw new Error(`Checkout retry failed: ${error.message}`);
+
+        const orderItems = (cartItems || []).map((item: any) => ({
+            order_id: order.id,
+            product_id: item.item_id,
+            size: item.size || 'One Size',
+            rental_price: item.rentalPrice || 0,
+            deposit_amount: item.depositAmount || 0,
+            rental_duration_days: item.days || 3,
+        }));
+
+        if (orderItems.length > 0) {
+            const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+            if (itemsError) throw new Error(`Checkout items failed: ${itemsError.message}`);
+        }
+
+        console.log('✅ Checkout retry succeeded for order:', order.id);
     }
 
     // =====================================================

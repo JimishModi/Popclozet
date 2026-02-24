@@ -34,6 +34,8 @@ export interface RiderProfile {
   joinedAt: string;
   isVerified: boolean;
   documentsStatus: DocumentsStatus;
+  maxVolumeLiters: number;
+  canCarryHanging: boolean;
 }
 
 export interface RiderSettings {
@@ -88,6 +90,8 @@ export async function getRiderProfile(
         insurance: 'verified',
         idProof: 'verified',
       },
+      maxVolumeLiters: 50,
+      canCarryHanging: true,
     };
   }
 
@@ -125,6 +129,8 @@ export async function getRiderProfile(
       insurance: 'pending',
       idProof: 'pending',
     },
+    maxVolumeLiters: data.max_volume_liters ?? 50,
+    canCarryHanging: data.can_carry_hanging ?? true,
   };
 }
 

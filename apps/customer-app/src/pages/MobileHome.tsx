@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import popclozetLogo from "@/logo/logo.png";
+import { AboutUsProcess } from "@/components/ui/AboutUsProcess";
 
 // --- Mock Data ---
 
@@ -42,59 +43,12 @@ const FEATURED_SLIDES = [
     { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80" },
 ];
 
-const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
-    {
-        id: 0, title: "Post Cleaning", icon: (
-            /* Garment bag / hanger icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 4V2M10 8C10 8 10 5 14 5C18 5 18 8 18 8M8 8L14 24L20 8H8Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M6 8H22" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M9 12H19M10 16H18M11 20H17" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
-    },
-    {
-        id: 1, title: "Sanitization", icon: (
-            /* Spray bottle icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10 10H16V8H12V5H16V3H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M17 5H20L21 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="9" y="10" width="8" height="4" rx="1" stroke="white" strokeWidth="1.5" />
-                <path d="M10 14L9 25C9 25.5523 9.44772 26 10 26H16C16.5523 26 17 25.5523 17 25L16 14" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="22" cy="10" r="1" fill="white" opacity="0.5" />
-                <circle cx="24" cy="7" r="0.7" fill="white" opacity="0.4" />
-                <circle cx="20" cy="8" r="0.7" fill="white" opacity="0.3" />
-            </svg>
-        ),
-    },
-    {
-        id: 2, title: "Pre Cleaning", icon: (
-            /* Cleaning brush / bucket icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 14H21L19 26H9L7 14Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 14H23" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M14 2V14" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M10 6L14 2L18 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M11 18V22M14 17V23M17 18V22" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
-    },
-    {
-        id: 3, title: "Quality Check", icon: (
-            /* Shield with checkmark icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 2L4 7V13C4 19.63 8.28 25.79 14 27C19.72 25.79 24 19.63 24 13V7L14 2Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M9.5 14.5L12.5 17.5L18.5 11.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        ),
-    },
-];
+
 
 const MobileHome: React.FC = () => {
     const navigate = useNavigate();
     const [activeSlide, setActiveSlide] = useState(1);
     const [activeGender, setActiveGender] = useState<"women" | "men">("women");
-    const [activeAboutSlide, setActiveAboutSlide] = useState(0);
     const [userLocation, setUserLocation] = useState("Detecting...");
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
     const { user } = useAuth();
@@ -150,13 +104,7 @@ const MobileHome: React.FC = () => {
         detectLocation();
     }, []);
 
-    // Auto-switch About Us slides
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setActiveAboutSlide((prev) => (prev + 1) % ABOUT_US_SLIDES.length);
-        }, 3000);
-        return () => clearInterval(interval);
-    }, []);
+
 
     return (
         <MobileShell className="bg-[#111111] text-white">
@@ -405,62 +353,9 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
-                {/* ─── ABOUT US: Card with Progress Dots ─── */}
-                <section className="px-5 mt-8">
-                    <div className="bg-[#232323] rounded-2xl px-6 py-6">
-                        {/* Header */}
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-white tracking-tight">
-                                About Us
-                            </h2>
-                            <ChevronRight className="w-4 h-4 text-zinc-400" />
-                        </div>
-
-                        {/* Inner card */}
-                        <div className="bg-[#191919] rounded-2xl px-6 py-6">
-                            {/* Icon + Title */}
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-12 h-12 rounded-xl bg-[#232323] border border-zinc-700/50 flex items-center justify-center text-2xl">
-                                    {ABOUT_US_SLIDES[activeAboutSlide].icon}
-                                </div>
-                                <span className="text-base font-bold text-white tracking-tight">
-                                    {ABOUT_US_SLIDES[activeAboutSlide].title}
-                                </span>
-                            </div>
-
-                            {/* Progress indicator: dots connected by lines */}
-                            <div className="flex items-center w-full">
-                                {ABOUT_US_SLIDES.map((slide, idx) => (
-                                    <React.Fragment key={slide.id}>
-                                        {/* Dot */}
-                                        <motion.div
-                                            className={cn(
-                                                "w-4 h-4 rounded-full flex-shrink-0 transition-colors duration-300",
-                                                idx < activeAboutSlide
-                                                    ? "bg-[#f2546d]"
-                                                    : idx === activeAboutSlide
-                                                        ? "bg-white"
-                                                        : "bg-[#3a3a3a]"
-                                            )}
-                                            animate={idx === activeAboutSlide ? { scale: [1, 1.15, 1] } : {}}
-                                            transition={{ duration: 1.5, repeat: Infinity }}
-                                        />
-                                        {/* Connecting line (except after last dot) */}
-                                        {idx < ABOUT_US_SLIDES.length - 1 && (
-                                            <div className="flex-1 h-px mx-1">
-                                                <div
-                                                    className={cn(
-                                                        "h-full transition-colors duration-300",
-                                                        idx < activeAboutSlide ? "bg-[#f2546d]/60" : "bg-zinc-700"
-                                                    )}
-                                                />
-                                            </div>
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                {/* ─── ABOUT US: Process & Brand ─── */}
+                <section className="mt-8">
+                    <AboutUsProcess />
                 </section>
 
 

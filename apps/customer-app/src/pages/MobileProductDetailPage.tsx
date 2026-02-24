@@ -342,8 +342,8 @@ const MobileProductDetailPage: React.FC = () => {
                                             isSelected
                                                 ? "bg-[#f2546d] text-[#611624]"
                                                 : isDisabled
-                                                ? "text-[#616161]"
-                                                : "text-white"
+                                                    ? "text-[#616161]"
+                                                    : "text-white"
                                         )}
                                         style={dmSans}
                                     >
@@ -467,6 +467,24 @@ const MobileProductDetailPage: React.FC = () => {
                                 Dry Cleaned
                             </span>
                         </div>
+                        {product.hygieneCertified && (
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="w-10 h-9 flex items-center justify-center">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                        <path d="M9 12l2 2 4-4" />
+                                    </svg>
+                                </div>
+                                <span
+                                    className="text-sm font-normal text-[#4ade80] tracking-[-0.42px] leading-[16.8px] text-center"
+                                    style={dmSans}
+                                >
+                                    Sealed &
+                                    <br />
+                                    Sanitized
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* ─── REVIEWS ─── */}

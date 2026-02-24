@@ -19,7 +19,9 @@ import { getProductById } from "@/config/products";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { supabase } from "@popclozet/api-client";
-import { clearCartDB } from "@/lib/db";
+import { clearCartDB, saveReceiptDB } from "@/lib/db";
+import { generateDeliveryOtp } from "@/services/deliveryOtpService";
+import { logTransaction } from "@/services/transactionLogService";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -199,13 +201,50 @@ export default function CheckoutPage() {
           rental_duration_days: rentalDays,
         };
       });
-      
+
       supabase.from("order_items").insert(orderItems).then(({ error: e }) => {
         if (e) console.warn("Order items note:", e.message);
         else console.log('[Checkout] Order items inserted successfully');
       });
 
-      // 4) Clear cart
+      // 4) Save receipt to IndexedDB for offline PDF generation
+      console.log('[Checkout] Saving receipt to IndexedDB...');
+      saveReceiptDB({
+        orderId: order.id,
+        userId,
+        items: cartEntries.map(([id, qty]) => {
+          const product = getProductById(id);
+          return {
+            name: product?.name || 'Fashion Item',
+            size: 'M',
+            rentalPrice: product?.price || 0,
+            quantity: qty,
+            days: rentalDays,
+          };
+        }),
+        subtotal,
+        deliveryFee,
+        deposit: Math.round(subtotal * 0.3),
+        total,
+        deliveryAddress: addrFull,
+        rentalStartDate: startDate,
+        rentalEndDate: endDate,
+        placedAt: new Date().toISOString(),
+      }).catch((e) => console.warn('Receipt save note:', e));
+
+      // 5) Generate delivery OTP for handover verification
+      generateDeliveryOtp(order.id).catch((e) => console.warn('OTP generation note:', e));
+
+      // 6) Log the transaction
+      logTransaction({
+        orderId: order.id,
+        userId,
+        type: 'payment',
+        amount: total,
+        metadata: { items: cartEntries.length, deliveryFee, insuranceFee },
+      }).catch((e) => console.warn('Transaction log note:', e));
+
+      // 7) Clear cart
       console.log('[Checkout] Clearing cart...');
       clearCartDB().catch(() => { });
       for (const [id] of cartEntries) {
@@ -540,8 +579,8 @@ export default function CheckoutPage() {
             onClick={handlePlaceOrder}
             disabled={isPlacingOrder || cartEntries.length === 0}
             className={`h-12 px-[77px] flex items-center justify-center rounded-2xl font-semibold text-lg transition-all ${isPlacingOrder
-                ? "bg-zinc-700 text-zinc-400"
-                : "bg-[#f2546d] text-white"
+              ? "bg-zinc-700 text-zinc-400"
+              : "bg-[#f2546d] text-white"
               }`}
             style={dmSans}
           >
