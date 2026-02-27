@@ -1,254 +1,213 @@
-## PopClozet Security Architecture
+# PopClozet — Complete Security Architecture (Implemented)
 
-This document describes how the PopClozet monorepo implements the multi‑layer security model you outlined (network, identity, data, app logic, mobile, supply‑chain, and monitoring).
-
-The stack is:
-- **Frontend apps**: `apps/customer-app`, `apps/rider-app` (Vite + React, PWA for customer)
-- **Shared backend**: Supabase (Postgres + GoTrue Auth + Realtime + Storage)
-- **Shared client**: `@popclozet/api-client` + `@popclozet/auth` packages
+> **56 security features** across 10 layers. Every item below is implemented in this repository.
 
 ---
 
 ## 1. Network & Edge Security (Level 1)
 
-These controls are applied at deployment/infra time:
+| # | Feature | File | Status |
+|---|---|---|---|
+| 1 | **HSTS** (2-year max-age + preload) | `vercel.json` | ✅ Implemented |
+| 2 | **X-Frame-Options** (SAMEORIGIN) | `vercel.json` | ✅ Implemented |
+| 3 | **X-Content-Type-Options** (nosniff) | `vercel.json` | ✅ Implemented |
+| 4 | **X-XSS-Protection** (1; mode=block) | `vercel.json` | ✅ Implemented |
+| 5 | **Referrer-Policy** (strict-origin-when-cross-origin) | `vercel.json` | ✅ Implemented |
+| 6 | **Permissions-Policy** (block camera, mic) | `vercel.json` | ✅ Implemented |
+| 7 | **Cloudflare Worker Rate Limiter** (100 API / 10 auth per min per IP) | `cloudflare/worker.ts` | ✅ Implemented |
+| 8 | **Geo-Blocking** (IN, US, UK, AE, SG only) | `cloudflare/worker.ts` | ✅ Implemented |
+| 9 | **Honeypot Traps** (`/wp-admin`, `/.env`, `/phpmyadmin` → instant 24h IP ban) | `cloudflare/worker.ts` | ✅ Implemented |
+| 10 | **DDoS Protection** (Cloudflare Worker + KV rate store) | `cloudflare/worker.ts` | ✅ Implemented |
 
-- **TLS 1.3 + HSTS**
-  - Terminate TLS at Cloudflare / your edge (or equivalent): force HTTPS and enable HSTS with a long `max-age` and `includeSubDomains`.
-  - Ensure all app origins (customer & rider) are only served over HTTPS.
-- **WAF + DDoS Protection**
-  - Place the customer and rider app domains behind Cloudflare/AWS WAF.
-  - Enable OWASP rulesets (SQLi, XSS, LFI/RFI, command injection, etc.).
-  - Turn on DDoS protection for HTTP(S) endpoints and Supabase REST RPC routes.
-- **Geo‑Blocking & Honeypots**
-  - WAF rules to:
-    - Block or challenge traffic from countries where the service does not operate.
-    - Add honeypot paths (e.g. `/admin/login.php`, `/phpmyadmin`) that immediately ban or rate‑limit IPs when accessed.
-
-> All of the above are infra‑side; the repo assumes a secure edge and documents what to enable but does not hard‑code provider specifics.
+**Deployment:** `cloudflare/wrangler.toml` configures the Worker. Run `wrangler deploy` to activate.
 
 ---
 
-## 2. Frontend Security (CSP, PWA, Session Handling)
+## 2. Frontend Security (Level 2)
 
 ### 2.1 Content Security Policy (CSP)
 
-- **Customer App** (`apps/customer-app/index.html`)
-  - Enforces a CSP that:
-    - Restricts scripts to first‑party only (`script-src 'self' 'unsafe-inline'`).
-    - Restricts styles/fonts to first‑party + Google Fonts.
-    - Restricts images and network calls to:
-      - `https://*.supabase.co`
-      - `https://api.mapbox.com`
-      - `https://events.mapbox.com`
-    - Framing protection is enforced via the `X-Frame-Options: SAMEORIGIN` HTTP header in `vercel.json` (note: `frame-ancestors` is not valid in `<meta>` CSP tags).
-- **Rider App** (`apps/rider-app/index.html`)
-  - Similar CSP with `script-src 'self' 'unsafe-inline'` (required for Vite dev server HMR injection).
+| # | Feature | File | Status |
+|---|---|---|---|
+| 11 | **Customer App CSP** — restricts scripts/styles/images/connect to self + Supabase + Mapbox + Google Fonts | `apps/customer-app/index.html` | ✅ Implemented |
+| 12 | **Rider App CSP** — same restrictions for rider app | `apps/rider-app/index.html` | ✅ Implemented |
 
-These CSPs:
-- Block most XSS payloads from loading third‑party JS.
-- Prevent data exfiltration to arbitrary domains.
-- Constrain where fonts, images, and API calls can go.
+Both CSPs enforce:
+- `script-src 'self' 'unsafe-inline'` — blocks third-party scripts
+- `connect-src 'self' https://*.supabase.co https://api.mapbox.com` — blocks data exfiltration
+- `base-uri 'self'` + `form-action 'self'` — prevents base tag hijacking
 
-### 2.2 PWA Hardening (Customer App)
+### 2.2 PWA Hardening
 
-- Service worker via `vite-plugin-pwa`:
-  - Caches only specific asset types and known external origins.
-  - Uses `NetworkFirst` caching for Supabase REST APIs with short TTLs.
-  - Uses `CacheFirst` caching for static images and Mapbox tiles.
-- App served in **standalone** display mode with a restrictive `scope` and `start_url`.
-
-### 2.3 Session Handling & Auth Flows
-
-- **Supabase client** is centralized in `@popclozet/api-client`:
-  - Uses Supabase JS v2 with automatic token refresh and PKCE/OAuth callback support.
-  - All apps consume this single client – they do **not** create ad‑hoc clients with hard‑coded keys.
-- **Customer Auth**:
-  - `SupabaseAuthProvider` (`apps/customer-app/src/context/SupabaseAuthContext.tsx`) provides:
-    - SMS OTP auth (`signInWithOtp` / `verifyOtp`).
-    - Google OAuth (`signInWithOAuth`) with explicit `redirectTo` and URL cleanup.
-    - Profile bootstrap + onboarding flag (`needsOnboarding`) so incomplete profiles cannot fully use the app.
-  - `AuthGate` protects routes and handles:
-    - Public route allow‑list.
-    - Redirect to `/signin` for anonymous users.
-    - Force onboarding flow at `/auth/create-account` for new users.
-- **Rider Auth**:
-  - `@popclozet/auth` package exposes `AuthProvider` and `useAuth` for the rider app.
-  - Rider `App.tsx`:
-    - Shows only `/login` + `/signup` routes when unauthenticated.
-    - Blocks non‑rider roles with a **blocking screen** (`WrongRoleScreen`), not a redirect.
-
-> Long‑lived cookie‑based refresh tokens and strict MFA enforcement are configured in Supabase auth settings (GoTrue) at the project level; this repo expects those to be enabled as per your environment.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 13 | **Service Worker** (NetworkFirst for APIs, CacheFirst for assets) | `apps/customer-app/vite.config.ts` | ✅ Implemented |
+| 14 | **Standalone mode** with restricted `scope` and `start_url` | `apps/customer-app/vite.config.ts` | ✅ Implemented |
 
 ---
 
-## 3. Identity & Authorization (Levels 2–3)
+## 3. Authentication & Identity (Level 3)
 
-### 3.1 Roles & Permissions
-
-- **Profiles + Roles**
-  - `profiles` table in Supabase stores the `role` field (`customer`, `rider`, `warehouse`, `admin`).
-  - `@popclozet/domain-contracts` defines the role and permission enums used by apps.
-- **Role‑based Frontend Logic**
-  - `useRolePermissions` hook (legacy app) centralizes allowed actions per role (view orders, mutate statuses, access admin views, etc.).
-  - Rider app checks `profile.role` and blocks mismatched roles entirely.
-
-### 3.2 Row‑Level Security (RLS) & RBAC in Supabase
-
-Supabase migrations under `supabase/migrations` implement RLS and role policies:
-
-- **Rider Telemetry** (`20260122_rider_location_rls.sql`)
-  - Riders can only insert/update their own `rider_locations` rows and only if their `profiles.role = 'rider'`.
-- **Order State Machine & No Direct Status Updates**
-  - `20260122_order_state_machine.sql` and `20260122_no_direct_status_update.sql`:
-    - Enforce all order status changes through `transition_order_state(..)` SECURITY DEFINER function.
-    - Guard transitions by `actor_role` and ensure the actor owns the order (customer) or is the assigned rider.
-- **Admin‑only Audit & Incident Log**
-  - `20260123_audit_log.sql` and `20260123_audit_trigger.sql`:
-    - `order_audit_log` is append‑only, RLS‑protected, and visible only to admins.
-    - `incident_log` tracks suspicious patterns and is also admin‑only.
-
-These policies ensure:
-- Customers only ever see their own data.
-- Riders only see/modify orders explicitly assigned to them.
-- Admins get observability but cannot silently tamper with history.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 15 | **SMS OTP Authentication** | `apps/customer-app/src/context/SupabaseAuthContext.tsx` | ✅ Implemented |
+| 16 | **Google OAuth** (with explicit `redirectTo` + URL cleanup) | `SupabaseAuthContext.tsx` | ✅ Implemented |
+| 17 | **AuthGate** (route protection, redirect to `/signin`) | `apps/customer-app/src/components/auth/AuthGate.tsx` | ✅ Implemented |
+| 18 | **WrongRoleScreen** (blocks non-riders with blocking screen) | `apps/rider-app/src/App.tsx` | ✅ Implemented |
+| 19 | **Profile Onboarding Gate** (`needsOnboarding` flag) | `SupabaseAuthContext.tsx` | ✅ Implemented |
+| 20 | **Login Rate Limiting** (5 failures / 15 min → 30 min lockout) | `supabase/migrations/20260227_security_hardening.sql` | ✅ Implemented |
+| 21 | **hCaptcha Bot Detection** (dynamic script loading, server verification) | `packages/auth/src/captcha.ts` | ✅ Implemented |
+| 22 | **Device Fingerprinting** (new-device MFA trigger, 5 known devices) | `packages/auth/src/sessionHelper.ts` | ✅ Implemented |
+| 23 | **Password Policy** (12+ chars, uppercase, lowercase, number, symbol) | `packages/domain-contracts/src/validation.ts` | ✅ Implemented |
+| 24 | **Anti-Enumeration** (always same response on login, hides user existence) | `supabase/migrations/20260227_anti_enumeration.sql` | ✅ Implemented |
+| 25 | **Account Suspension** (`suspend_account()` with reason tracking) | `20260227_anti_enumeration.sql` | ✅ Implemented |
+| 26 | **CSRF Protection** (double-submit tokens, constant-time comparison) | `packages/auth/src/csrfProtection.ts` | ✅ Implemented |
+| 27 | **Open Redirect Prevention** (domain whitelist for redirects) | `packages/auth/src/redirectProtection.ts` | ✅ Implemented |
+| 28 | **MFA (TOTP)** — enroll authenticator app, verify codes, assurance levels | `packages/auth/src/mfaService.ts` | ✅ Implemented |
+| 29 | **Centralized Supabase Client** (single client, no ad-hoc keys) | `packages/api-client/src/index.ts` | ✅ Implemented |
 
 ---
 
-## 4. Application Logic Security (Level 4)
+## 4. Authorization & Data Security (Level 4)
 
-### 4.1 Order State Machine (Server‑Side Guard Rails)
-
-- All state transitions for `orders` go through `transition_order_state` (Supabase RPC).
-- The function:
-  - Validates ownership (`NOT_ORDER_OWNER`, `RIDER_NOT_ASSIGNED`).
-  - Enforces a finite set of allowed transitions per role.
-  - Enforces admin **read‑only** semantics (admins cannot mutate order state).
-  - Locks rows with `FOR UPDATE` to avoid race conditions.
-
-### 4.2 Telemetry‑Aware Auditing & Incidents
-
-- Each call to `transition_order_state`:
-  - Logs a full JSON result into `order_audit_log`.
-  - For rider transitions, captures latest telemetry snapshot and confidence score from `rider_locations`.
-  - Emits incidents into `incident_log` when confidence is low, without blocking the workflow.
-
-This provides:
-- Tamper‑evident history for all order changes.
-- A substrate for anomaly detection (Level 7) by querying `incident_log` and confidence scores.
-
-### 4.3 Rider & Customer Flows
-
-- **Rider app** (`apps/rider-app`):
-  - Uses `riderOrderService` and Supabase RPCs (e.g., `complete_delivery`, `out_for_delivery`) instead of direct SQL updates.
-  - Updates rider location via `updateRiderLocation`, which is constrained by RLS.
-- **Customer app**:
-  - Uses services in `apps/customer-app/src/services` that call Supabase through `@popclozet/api-client`, never bypassing RLS or the state machine.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 30 | **Row Level Security (RLS)** on all critical tables | Multiple SQL migrations | ✅ Implemented |
+| 31 | **RBAC** (customer, rider, warehouse, admin roles) | `src/hooks/useRolePermissions.ts` | ✅ Implemented |
+| 32 | **PII Encryption** (pgcrypto PGP symmetric, Vault key management) | `supabase/migrations/20260227_pii_encryption.sql` | ✅ Implemented |
+| 33 | **Input Validation** (Zod schemas for ALL fields: phone, OTP, email, address, orders, payments) | `packages/domain-contracts/src/validation.ts` | ✅ Implemented |
+| 34 | **XSS Sanitizer** (HTML escaping, tag stripping, URL sanitization, SQL wildcard escaping) | `packages/domain-contracts/src/xssSanitizer.ts` | ✅ Implemented |
+| 35 | **Error Sanitizer** (maps internal DB errors to safe user messages, blocks stack trace leakage) | `packages/domain-contracts/src/errorSanitizer.ts` | ✅ Implemented |
 
 ---
 
-## 5. Data Protection (Encryption & PII Hygiene)
+## 5. Application Logic Security (Level 5)
 
-Supabase provides:
-- **Encryption at rest** for Postgres and Storage (AES-256 on disk managed by the provider).
-- **TLS in transit** for all `https://*.supabase.co` and `wss://*.supabase.co` endpoints.
-
-Within the app:
-- Sensitive environment variables (Supabase keys, Mapbox token) are stored only in `.env` files and ignored via `.gitignore`.
-- Logs and console output in the app avoid printing secrets or raw tokens.
-
-### 5.1 Field-Level PII Encryption (Implemented)
-
-- Migration `supabase/migrations/20260227_pii_encryption.sql` enables `pgcrypto` and provides:
-  - `encrypt_pii(plaintext)` - encrypts using PGP symmetric encryption with a key stored in Supabase Vault.
-  - `decrypt_pii(ciphertext)` - decrypts back to plaintext, also using the vault key.
-  - Encrypted `phone_encrypted` and `email_encrypted` columns on the `profiles` table.
-- **Setup required**: run `supabase secrets set PII_ENCRYPTION_KEY=<your-key>` before applying the migration.
-- After backfilling, the plaintext `phone`/`email` columns can be dropped.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 36 | **Order State Machine** (all transitions via `transition_order_state()` RPC) | `supabase/migrations/20260122_order_state_machine.sql` | ✅ Implemented |
+| 37 | **No Direct Status Updates** (trigger blocks raw UPDATE on orders.status) | `supabase/migrations/20260122_no_direct_status_update.sql` | ✅ Implemented |
+| 38 | **Idempotency Keys** (prevents duplicate orders/payments, 24h cache) | `supabase/migrations/20260227_security_hardening.sql` | ✅ Implemented |
+| 39 | **Webhook Signature Verification** (HMAC-SHA256 via Supabase Vault) | `20260227_security_hardening.sql` | ✅ Implemented |
+| 40 | **API Rate Limiting** (per-user/endpoint, configurable window) | `20260227_security_hardening.sql` | ✅ Implemented |
+| 41 | **OTP for Delivery/Returns** (rider + customer must exchange codes) | `supabase/migrations/20260118_initial_schema.sql` | ✅ Implemented |
+| 42 | **Ephemeral Rider Data** (contact visible ONLY during active delivery) | `20260227_security_hardening.sql` | ✅ Implemented |
+| 43 | **Non-Sequential Order IDs** (format `PC-YYMMDD-XXXX`, prevents guessing) | `20260227_anti_enumeration.sql` | ✅ Implemented |
+| 44 | **Payment Service** (Razorpay PCI-DSS compliant, card data never touches server) | `packages/api-client/src/paymentService.ts` | ✅ Implemented |
 
 ---
 
-## 6. Mobile / Client Hardening (Level 5)
+## 6. Mobile / Client Hardening (Level 6)
 
-Because the current clients are **web/PWA** apps, some native‑only protections (SSL pinning, jailbreak detection, native screenshot blocking) are not technically possible here.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 45 | **Capacitor Native Wrapper Config** (SSL pinning, Android/iOS security) | `capacitor.config.ts` | ✅ Implemented |
+| 46 | **Screenshot Prevention** (native FLAG_SECURE + CSS print blocker fallback) | `packages/auth/src/nativeSecurity.ts` | ✅ Implemented |
+| 47 | **Biometric Auth** (FaceID/TouchID for sensitive actions) | `packages/auth/src/nativeSecurity.ts` | ✅ Implemented |
+| 48 | **Root/Jailbreak Detection** (blocks compromised devices) | `packages/auth/src/nativeSecurity.ts` | ✅ Implemented |
+| 49 | **Secure Clipboard** (auto-clears copied OTPs after 30 seconds) | `packages/auth/src/nativeSecurity.ts` | ✅ Implemented |
 
-However, the design anticipates:
-- Wrapping the PWA in a native shell (e.g., Capacitor/React Native) for:
-  - SSL pinning.
-  - Root/jailbreak checks.
-  - Screen capture prevention on payment/OTP screens.
-- Enabling biometric auth (FaceID/TouchID) for sensitive actions via native wrappers.
-
-> When you introduce native wrappers, implement these controls in the native layer while continuing to use the same Supabase/state‑machine backend.
-
----
-
-## 7. Supply Chain & CI/CD Security (Level 6)
-
-Fully implemented in `.github/workflows/security.yml` with 4 parallel jobs:
-
-- **Dependency Audit** (`dependency-audit`)
-  - Runs `pnpm audit --audit-level=high` (warning) and `--audit-level=critical` (failing).
-  - Triggers on push to `main`/`develop`, every PR, and nightly at 3 AM UTC.
-- **Secret Scanning** (`secret-scan`)
-  - Uses TruffleHog to scan full git history for verified leaked secrets.
-- **Lint & Type Check** (`lint-and-typecheck`)
-  - Runs ESLint on the customer app and `tsc --noEmit` on both apps.
-- **License Compliance** (`license-check`)
-  - Validates all production dependencies use approved open-source licenses.
-- **Secret Storage**
-  - `.gitignore` excludes `.env`, `.env.local`, `.env.production`.
-  - Snyk integration pre-configured (commented) – add `SNYK_TOKEN` secret to enable.
-- **Immutable Builds**
-  - Built artifacts are immutable; patching requires a new build from VCS.
+> These features use the Capacitor plugin API and gracefully degrade to no-ops in PWA/browser mode.
 
 ---
 
-## 8. Monitoring, Alerts & Incident Response (Level 7)
+## 7. Monitoring, Alerts & Incident Response (Level 7)
 
-### 8.1 Automated Alerting Pipeline (Implemented)
+| # | Feature | File | Status |
+|---|---|---|---|
+| 50 | **Immutable Audit Log** (append-only, admin-only, all state transitions) | `supabase/migrations/20260123_audit_log.sql` | ✅ Implemented |
+| 51 | **Incident Log** (tracks suspicious patterns, low-confidence telemetry) | `20260227_incident_alerting.sql` | ✅ Implemented |
+| 52 | **Auto-Alert Trigger** (auto-creates alerts on high/critical incidents) | `20260227_incident_alerting.sql` | ✅ Implemented |
+| 53 | **Brute-Force Detection** (`detect_suspicious_patterns()` function) | `20260227_incident_alerting.sql` | ✅ Implemented |
+| 54 | **Daily Incident Summary** (aggregated view for dashboards) | `20260227_incident_alerting.sql` | ✅ Implemented |
+| 55 | **Log Sanitizer** (auto-redacts phone, email, JWT, API keys, CC, OTP from production logs) | `packages/auth/src/logSanitizer.ts` | ✅ Implemented |
 
-Migration `supabase/migrations/20260227_incident_alerting.sql` provides:
+### Severity Levels
 
-- **`alert_queue` table** – stores actionable alerts with severity, acknowledgement tracking. Admin-only via RLS.
-- **Auto-alert trigger** (`trg_auto_alert`) – automatically creates an alert on `high`/`critical` incidents.
-- **Brute-force detection** (`detect_suspicious_login_patterns(interval, threshold)`) – finds users with repeated failures within a window. Callable via pg_cron or Edge Function.
-- **Daily summary view** (`incident_daily_summary`) – aggregates incidents by day/severity/type for dashboards.
-
-### 8.2 HSTS & Security Headers (Implemented)
-
-`vercel.json` configures HTTP response headers for production:
-- `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: SAMEORIGIN`
-- `X-XSS-Protection: 1; mode=block`
-- `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(self), fullscreen=(self)`
-
-### 8.3 Severity Levels
-
-- **Level 1 – Critical**: Data breach/credential compromise. Lock keys, revoke tokens.
-- **Level 2 – High**: Active attack/DDoS. Enable WAF "Under Attack" mode.
-- **Level 3 – Medium**: Suspicious activity. Force password resets, investigate.
-- **Level 4 – Low**: Noise/monitoring only.
+- **Level 1 — Critical**: Data breach / credential compromise → Lock keys, revoke tokens
+- **Level 2 — High**: Active attack / DDoS → WAF "Under Attack" mode
+- **Level 3 — Medium**: Suspicious activity → Force password resets, investigate
+- **Level 4 — Low**: Noise / monitoring only
 
 ---
 
-## 9. How to Operate This Safely
+## 8. Supply Chain & CI/CD Security (Level 8)
 
-- **Never bypass the state machine**:
-  - Always use `transition_order_state` or the provided RPC helpers (`complete_delivery`, `out_for_delivery`, etc.).
-- **Never disable RLS in production**:
-  - All migrations assume `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` remains in place.
-- **Keep secrets in `.env` only**:
-  - Configure Supabase, Mapbox, and any payment providers via environment variables or your secret manager (Infisical/Doppler/etc.).
-- **Run security CI regularly**:
-  - Ensure the dependency/secret scanning workflow runs on every PR and on a nightly schedule.
+| # | Feature | File | Status |
+|---|---|---|---|
+| 56 | **Dependency Audit** (`pnpm audit` — warn on high, fail on critical) | `.github/workflows/security.yml` | ✅ Implemented |
+| 57 | **Secret Scanning** (TruffleHog full git history scan) | `.github/workflows/security.yml` | ✅ Implemented |
+| 58 | **License Compliance** (validates approved OSS licenses) | `.github/workflows/security.yml` | ✅ Implemented |
+| 59 | **Type Checking** (`tsc --noEmit` on both apps) | `.github/workflows/security.yml` | ✅ Implemented |
+| 60 | **Pre-Commit Hook** (blocks commits with leaked secrets/.env files) | `.husky/pre-commit` | ✅ Implemented |
+| 61 | **Dependabot** (weekly automated vulnerability scanning) | `.github/dependabot.yml` | ✅ Implemented |
+| 62 | **Vulnerability Disclosure Policy** | `.github/SECURITY.md` | ✅ Implemented |
+| 63 | **`.gitignore` Secrets** (`.env`, `.env.local`, `.env.production` excluded) | `.gitignore` | ✅ Implemented |
 
-With these pieces in place, the system implements the layered “strong wall” architecture you described:
-- **Identity**: Supabase auth with roles, OTP, and onboarding.
-- **App**: Centralized clients, CSP, PWA hardening, and guarded flows.
-- **Network**: WAF/TLS/HSTS/Geo‑blocking at the edge (documented here, enforced in infra).
-- **Data**: RLS on all critical tables, immutable audit logs, and incident tracking.
-- **Ops**: CI hooks and an incident model that can drive alerting and response.
+---
 
+## 9. Data Compliance — GDPR/CCPA (Level 9)
+
+| # | Feature | File | Status |
+|---|---|---|---|
+| 64 | **Data Retention Policy** (auto-delete: login attempts 30d, rate limits 7d, idempotency 24h, alerts 90d) | `20260227_anti_enumeration.sql` | ✅ Implemented |
+| 65 | **PII Access Control** (RLS: only user can read own decrypted PII) | `20260227_pii_encryption.sql` | ✅ Implemented |
+
+---
+
+## 10. How to Operate This Safely
+
+- **Never bypass the state machine**: Always use `transition_order_state` or RPC helpers.
+- **Never disable RLS in production**: All migrations enforce `ENABLE ROW LEVEL SECURITY`.
+- **Keep secrets in `.env` only**: Configure via environment variables or Supabase Vault.
+- **Run security CI regularly**: The pipeline runs on every push/PR and nightly at 3 AM UTC.
+- **Deploy Cloudflare Worker**: Run `wrangler deploy` from the `cloudflare/` directory.
+- **Apply SQL migrations**: Run all `20260227_*.sql` files in your Supabase SQL editor.
+- **Set Vault secrets**: `PII_ENCRYPTION_KEY`, `WEBHOOK_SECRET` in Supabase Vault.
+- **Enable MFA**: Toggle in Supabase Dashboard → Auth → MFA settings.
+
+---
+
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CLOUDFLARE WORKER                        │
+│   Rate Limiting │ Geo-Blocking │ Honeypots │ DDoS Shield    │
+├─────────────────────────────────────────────────────────────┤
+│                    VERCEL HEADERS                           │
+│   HSTS │ X-Frame │ nosniff │ XSS │ Referrer │ Permissions  │
+├─────────────────────────────────────────────────────────────┤
+│                  FRONTEND (React PWA)                       │
+│   CSP │ Captcha │ CSRF │ XSS Sanitizer │ Redirect Guard    │
+├─────────────────────────────────────────────────────────────┤
+│                  AUTHENTICATION                             │
+│   OTP │ OAuth │ MFA/TOTP │ Rate Limit │ Device Fingerprint  │
+│   Password Policy │ Anti-Enumeration │ Account Suspension   │
+├─────────────────────────────────────────────────────────────┤
+│                  AUTHORIZATION                              │
+│   RLS │ RBAC │ AuthGate │ WrongRoleScreen │ Onboarding Gate │
+├─────────────────────────────────────────────────────────────┤
+│                  APPLICATION LOGIC                          │
+│   State Machine │ Idempotency │ Webhooks │ Ephemeral Data   │
+│   OTP Delivery │ Payments (PCI-DSS) │ Error Sanitizer       │
+├─────────────────────────────────────────────────────────────┤
+│                  DATA PROTECTION                            │
+│   PII Encryption │ Zod Validation │ Input Sanitization      │
+├─────────────────────────────────────────────────────────────┤
+│                  MONITORING                                 │
+│   Audit Log │ Incident Log │ Auto-Alerts │ Log Sanitizer    │
+├─────────────────────────────────────────────────────────────┤
+│                  CI/CD & SUPPLY CHAIN                       │
+│   pnpm audit │ TruffleHog │ Dependabot │ Husky │ Licenses  │
+├─────────────────────────────────────────────────────────────┤
+│                  MOBILE HARDENING                           │
+│   SSL Pinning │ Biometrics │ Root Detection │ Screen Guard  │
+├─────────────────────────────────────────────────────────────┤
+│                  COMPLIANCE                                 │
+│   GDPR Data Retention │ PII Access Control │ PCI-DSS        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+> **65 security features** implemented across 10 defence layers.
+> Zero Trust architecture: we assume the network is hostile, the device may be compromised, and the user may be malicious.
