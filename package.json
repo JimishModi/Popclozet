@@ -10,10 +10,12 @@
     "dev:rider": "pnpm --filter @popclozet/rider-app dev",
     "dev:customer": "pnpm --filter @popclozet/customer-app dev",
     "build:rider": "pnpm --filter @popclozet/rider-app build",
-    "build:customer": "pnpm --filter @popclozet/customer-app build"
+    "build:customer": "pnpm --filter @popclozet/customer-app build",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^22.19.10",
+    "husky": "^9.1.7",
     "typescript": "^5.9.3",
     "vite": "^5.4.21"
   },

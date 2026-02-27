@@ -40,6 +40,9 @@ importers:
       '@types/node':
         specifier: ^22.19.10
         version: 22.19.13
+      husky:
+        specifier: ^9.1.7
+        version: 9.1.7
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -325,6 +328,9 @@ importers:
       react-dom:
         specifier: 18.2.0
         version: 18.2.0(react@18.2.0)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
 
   packages/mapbox-core:
     dependencies:
@@ -2596,6 +2602,11 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
+
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   iceberg-js@0.8.1:
     resolution: {integrity: sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==}
@@ -6148,6 +6159,8 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  husky@9.1.7: {}
 
   iceberg-js@0.8.1: {}
 
