@@ -1,0 +1,36 @@
+{
+  "name": "popclozet-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.29.2",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "dev:rider": "pnpm --filter @popclozet/rider-app dev",
+    "dev:customer": "pnpm --filter @popclozet/customer-app dev",
+    "build:rider": "pnpm --filter @popclozet/rider-app build",
+    "build:customer": "pnpm --filter @popclozet/customer-app build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.10",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.97.0",
+    "clsx": "^2.1.1",
+    "csv-parse": "^6.1.0",
+    "framer-motion": "^10.18.0",
+    "fs-extra": "^11.3.3",
+    "lucide-react": "^0.563.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@supabase/supabase-js": "2.97.0",
+      "@supabase/realtime-js": "2.97.0"
+    }
+  }
+}
