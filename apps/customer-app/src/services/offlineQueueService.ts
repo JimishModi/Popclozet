@@ -288,6 +288,45 @@ class OfflineQueueService {
         // Return optimistic ID
         return { mutationId };
     }
+
+    /**
+     * Get recently viewed items from local storage (offline-friendly)
+     */
+    async getRecentlyViewed(): Promise<any[]> {
+        try {
+            const raw = localStorage.getItem('popclozet_recently_viewed');
+            return raw ? JSON.parse(raw) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Get saved/wishlist items from local storage (offline-friendly)
+     */
+    async getSavedItems(): Promise<any[]> {
+        try {
+            const raw = localStorage.getItem('popclozet_saved_items');
+            return raw ? JSON.parse(raw) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Get queue status (pending/processing counts)
+     */
+    async getQueueStatus(): Promise<{ pending: number; processing: number }> {
+        try {
+            const items = await getUnsyncedQueueItemsDB();
+            return {
+                pending: items.length,
+                processing: 0,
+            };
+        } catch {
+            return { pending: 0, processing: 0 };
+        }
+    }
 }
 
 // Export singleton instance

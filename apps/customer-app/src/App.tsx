@@ -57,6 +57,8 @@ import ProductQRGalleryPage from "./pages/ProductQRGalleryPage";
 import MobileProductDetailPage from "./pages/MobileProductDetailPage";
 import OfflinePage from "./pages/OfflinePage";
 import NotFound from "./pages/NotFound";
+import SearchResultsPage from "./pages/SearchResultsPage";
+import BrandsPage from "./pages/BrandsPage";
 
 import OrdersPage from "./pages/OrdersPage";
 import GenderCategoryPage from "./pages/GenderCategoryPage";
@@ -172,7 +174,8 @@ function App() {
                         <Route path="/mood" element={<PageTransition><MoodPage /></PageTransition>} />
                         <Route path="/onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OnboardingPage /></Suspense></PageTransition>} />
 
-
+                        <Route path="/search" element={<PageTransition><SearchResultsPage /></PageTransition>} />
+                        <Route path="/brands" element={<PageTransition><BrandsPage /></PageTransition>} />
 
                         <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
                         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

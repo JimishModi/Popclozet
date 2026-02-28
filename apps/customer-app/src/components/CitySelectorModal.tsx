@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 interface Props {
   open: boolean;
   onClose: () => void;
+  onSelectCity?: (city: CityOption) => void;
 }
 
 type CityOption = "Mumbai" | "Other";

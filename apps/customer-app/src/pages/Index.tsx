@@ -69,7 +69,7 @@ const Index = () => {
       if (res.success === false) {
         const errMsg = typeof res.error === 'string'
           ? res.error
-          : res.error?.message || "Something went wrong. Please try again.";
+          : (res.error as any)?.message || "Something went wrong. Please try again.";
 
         if (/duplicate|23505|already exists|unique/i.test(String(errMsg))) {
           setHeroSuccess(true);

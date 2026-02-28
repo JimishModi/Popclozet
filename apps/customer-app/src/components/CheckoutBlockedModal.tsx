@@ -3,7 +3,7 @@ import { X, MapPin } from "lucide-react";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSelectCity: () => void;
+  onSelectCity?: () => void;
 }
 
 export function CheckoutBlockedModal({
@@ -45,7 +45,7 @@ export function CheckoutBlockedModal({
 
         {/* Primary action */}
         <button
-          onClick={onSelectCity}
+          onClick={onSelectCity || onClose}
           className="w-full py-3 rounded-full bg-[#ff4d6d] font-semibold flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4" />

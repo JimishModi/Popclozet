@@ -10,6 +10,9 @@ export interface Product {
     leadTimeMinutes?: number;
     color: string;
     video?: string;
+    gender?: string;
+    eventCategory?: string;
+    sizes?: string[];
 }
 
 export const PRODUCTS: Product[] = [
