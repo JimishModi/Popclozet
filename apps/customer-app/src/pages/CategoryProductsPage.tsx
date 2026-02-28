@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -8,18 +8,148 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
 
-// Mock product data fallback
+// Mock product data fallback with proper categorization
+const JACKET_BRANDS = ["Zara", "H&M", "Mango", "Forever 21", "Uniqlo", "Gap"];
+const SHOE_BRANDS = ["Nike", "Adidas", "Puma", "Reebok", "Vans"];
+const ACCESSORY_BRANDS = ["Fossil", "Coach", "Guess", "Michael Kors"];
+const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+const SHOE_SIZES = ["6", "7", "8", "9", "10", "11"];
+
 const MOCK_PRODUCTS = [
-    { id: "1", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
-    { id: "2", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
-    { id: "3", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
-    { id: "4", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
-    { id: "5", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
-    { id: "6", name: "Haldi Outfit", brand: "Fabindia", rental_price: 699, images: [] },
+    // 6 Jackets: 3 womens, 3 mens
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `jacket-womens-${i + 1}`,
+        name: `Jacket - Womens ${i + 1}`,
+        brand: JACKET_BRANDS[Math.floor(Math.random() * JACKET_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (1500 - 400)) + 400,
+        price: Math.floor(Math.random() * (1500 - 400)) + 400,
+        rentalPrice: Math.floor(Math.random() * (1500 - 400)) + 400,
+        images: [],
+        sizes: [SIZES[Math.floor(Math.random() * SIZES.length)]],
+        category: "jackets",
+        eventCategory: "casual" as const,
+        color: "Black",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "womens",
+    })),
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `jacket-mens-${i + 1}`,
+        name: `Jacket - Mens ${i + 1}`,
+        brand: JACKET_BRANDS[Math.floor(Math.random() * JACKET_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (1500 - 400)) + 400,
+        price: Math.floor(Math.random() * (1500 - 400)) + 400,
+        rentalPrice: Math.floor(Math.random() * (1500 - 400)) + 400,
+        images: [],
+        sizes: [SIZES[Math.floor(Math.random() * SIZES.length)]],
+        category: "jackets",
+        eventCategory: "casual" as const,
+        color: "Black",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "mens",
+    })),
+    
+    // 6 Shoes: 3 womens, 3 mens
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `shoe-womens-${i + 1}`,
+        name: `Shoe - Womens ${i + 1}`,
+        brand: SHOE_BRANDS[Math.floor(Math.random() * SHOE_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (1000 - 300)) + 300,
+        price: Math.floor(Math.random() * (1000 - 300)) + 300,
+        rentalPrice: Math.floor(Math.random() * (1000 - 300)) + 300,
+        images: [],
+        sizes: [SHOE_SIZES[Math.floor(Math.random() * SHOE_SIZES.length)]],
+        category: "footwear",
+        eventCategory: "casual" as const,
+        color: "White",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "womens",
+    })),
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `shoe-mens-${i + 1}`,
+        name: `Shoe - Mens ${i + 1}`,
+        brand: SHOE_BRANDS[Math.floor(Math.random() * SHOE_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (1000 - 300)) + 300,
+        price: Math.floor(Math.random() * (1000 - 300)) + 300,
+        rentalPrice: Math.floor(Math.random() * (1000 - 300)) + 300,
+        images: [],
+        sizes: [SHOE_SIZES[Math.floor(Math.random() * SHOE_SIZES.length)]],
+        category: "footwear",
+        eventCategory: "casual" as const,
+        color: "White",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "mens",
+    })),
+    
+    // 6 Accessories: 3 womens, 3 mens
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `accessory-womens-${i + 1}`,
+        name: `Accessory - Womens ${i + 1}`,
+        brand: ACCESSORY_BRANDS[Math.floor(Math.random() * ACCESSORY_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (800 - 200)) + 200,
+        price: Math.floor(Math.random() * (800 - 200)) + 200,
+        rentalPrice: Math.floor(Math.random() * (800 - 200)) + 200,
+        images: [],
+        sizes: [],
+        category: "accessories",
+        eventCategory: "casual" as const,
+        color: "Silver",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "womens",
+    })),
+    ...Array.from({ length: 3 }, (_, i) => ({
+        id: `accessory-mens-${i + 1}`,
+        name: `Accessory - Mens ${i + 1}`,
+        brand: ACCESSORY_BRANDS[Math.floor(Math.random() * ACCESSORY_BRANDS.length)],
+        rental_price: Math.floor(Math.random() * (800 - 200)) + 200,
+        price: Math.floor(Math.random() * (800 - 200)) + 200,
+        rentalPrice: Math.floor(Math.random() * (800 - 200)) + 200,
+        images: [],
+        sizes: [],
+        category: "accessories",
+        eventCategory: "casual" as const,
+        color: "Silver",
+        rating: 4.5,
+        imageUrl: "",
+        gender: "mens",
+    })),
 ];
 
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
-const BRANDS = ["Zara", "H&M", "Mango", "Forever 21", "Uniqlo", "Gap"];
+// category-specific configuration: sizes, brands, and inventory count
+interface CategoryConfig {
+    sizes: string[];
+    brands: string[];
+    inventory: number;
+}
+
+const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
+    jackets: {
+        sizes: ["XS", "S", "M", "L", "XL", "XXL"],
+        brands: ["Zara", "H&M", "Mango", "Forever 21", "Uniqlo", "Gap"],
+        inventory: 15,
+    },
+    footwear: {
+        sizes: ["6", "7", "8", "9", "10", "11"],
+        brands: ["Nike", "Adidas", "Puma", "Reebok", "Vans"],
+        inventory: 10,
+    },
+    accessories: {
+        sizes: [],
+        brands: ["Fossil", "Coach", "Guess", "Michael Kors"],
+        inventory: 10,
+    },
+};
+
+// simple inventory counts by category key
+const INVENTORY: Record<string, number> = {
+    jackets: 15,
+    footwear: 10,
+    accessories: 10,
+};
 
 type FilterTab = "size" | "price" | "brand";
 
@@ -29,7 +159,9 @@ const CategoryProductsPage: React.FC = () => {
 
     const categoryTitle = searchParams.get("title") || "Products";
     const category = searchParams.get("category") || "";
-    const gender = searchParams.get("?category");
+
+    // derive config for the current category
+    const config = CATEGORY_CONFIG[category] || { sizes: [], brands: [], inventory: 0 };
 
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -42,30 +174,106 @@ const CategoryProductsPage: React.FC = () => {
     const [priceRange, setPriceRange] = useState({ min: 100, max: 1200 });
     const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        fetchProducts();
-    }, [category, categoryTitle]);
+    const [nameQuery, setNameQuery] = useState(""); // text search by name
 
-    const fetchProducts = async () => {
+    // extract gender from path (/shop/womens or /shop/mens)
+    const pathSegments = window.location.pathname.split("/");
+    const genderFromPath = pathSegments[2]?.split("?")[0] || "";
+
+    // reset filter state whenever the *category* itself changes
+    // (we don't want to re‑reset on every filter change because doing so would
+    // generate new Set/objects and trigger an infinite render loop)
+    useEffect(() => {
+        resetFilters();
+    }, [category]);
+
+    // whenever any filter parameter or the active category/gender changes,
+    // refetch products from the server
+    useEffect(() => {
+        // build filter object from current state
+        fetchProducts({
+            category,
+            gender: genderFromPath,
+            nameQuery,
+            priceMin: priceRange.min,
+            priceMax: priceRange.max,
+            brands: Array.from(selectedBrands),
+            sizes: Array.from(selectedSizes),
+        });
+    }, [category, genderFromPath, nameQuery, priceRange, selectedBrands, selectedSizes]);
+
+    interface ProductFilters {
+        category?: string;
+        gender?: string;
+        nameQuery?: string;
+        priceMin?: number;
+        priceMax?: number;
+        brands?: string[];
+        sizes?: string[];
+    }
+
+    const fetchProducts = async (filters: ProductFilters = {}) => {
         setLoading(true);
         try {
-            // Show ALL products (no category filtering for now)
-            const { data, error } = await supabase
-                .from('products')
-                .select('*')
-                .limit(100);
+            // build supabase query using filters
+            let query: any = supabase.from('products').select('*').limit(100);
 
+            if (filters.category) {
+                query = query.eq('category', filters.category);
+            }
+            if (filters.nameQuery && filters.nameQuery.trim() !== '') {
+                query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
+            }
+            if (filters.priceMin != null) {
+                query = query.gte('price', filters.priceMin);
+            }
+            if (filters.priceMax != null) {
+                query = query.lte('price', filters.priceMax);
+            }
+            if (filters.brands && filters.brands.length > 0) {
+                query = query.in('brand', filters.brands);
+            }
+            if (filters.sizes && filters.sizes.length > 0) {
+                query = query.overlaps('sizes', filters.sizes);
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
-            // Map the database fields
-            const mappedProducts = (data || []).map(p => ({
-                ...p,
-                price: p.rental_price,
-                imageUrl: p.images?.[0] || '',
-            }));
-            setProducts(mappedProducts);
-        } catch (error) {
-            console.error('Error fetching products:', error);
-            setProducts([]);
+
+            if (data && Array.isArray(data)) {
+                const mapped = data.map((p: any) => ({
+                    ...p,
+                    price: p.rental_price ?? p.price,
+                    imageUrl: p.images?.[0] || '',
+                }));
+                setProducts(mapped as Product[]);
+            } else {
+                setProducts([]);
+            }
+        } catch (err) {
+            console.warn('📦 Supabase fetch failed, using mock dataset', err);
+            // apply client-side filtering to mocks
+            let list: any[] = MOCK_PRODUCTS;
+            if (filters.category) {
+                list = list.filter((p: any) => p.category === filters.category);
+            }
+            if (filters.nameQuery) {
+                const q = filters.nameQuery.toLowerCase();
+                list = list.filter((p: any) => p.name.toLowerCase().includes(q));
+            }
+            if (filters.priceMin != null) {
+                list = list.filter((p: any) => (p.price || p.rental_price) >= filters.priceMin!);
+            }
+            if (filters.priceMax != null) {
+                list = list.filter((p: any) => (p.price || p.rental_price) <= filters.priceMax!);
+            }
+            if (filters.brands && filters.brands.length) {
+                list = list.filter((p: any) => filters.brands!.includes(p.brand));
+            }
+            if (filters.sizes && filters.sizes.length) {
+                list = list.filter((p: any) => p.sizes && p.sizes.some((sz: string) => filters.sizes!.includes(sz)));
+            }
+            setProducts(list as any);
         } finally {
             setLoading(false);
         }
@@ -113,9 +321,51 @@ const CategoryProductsPage: React.FC = () => {
     };
 
     const handleApplyFilters = () => {
+        // nothing special required because filteredProducts is memoized
         setShowFilters(false);
-        // Filter logic would go here
     };
+
+    function resetFilters() {
+        setSelectedSizes(new Set());
+        setSelectedBrands(new Set());
+        setPriceRange({ min: 100, max: 1200 });
+        setNameQuery("");
+    }
+
+    const filteredProducts = useMemo(() => {
+        let filtered = [...products];
+
+        // Filter by category ONLY - this is the main filter
+        if (category) {
+            filtered = filtered.filter((p: any) => p.category === category);
+        }
+        // Filter by name query
+        if (nameQuery.trim() !== "") {
+            const q = nameQuery.trim().toLowerCase();
+            filtered = filtered.filter((p: any) => p.name.toLowerCase().includes(q));
+        }
+
+        // Filter by price
+        filtered = filtered.filter((p: any) => {
+            const price = p.price || p.rental_price || 0;
+            return price >= priceRange.min && price <= priceRange.max;
+        });
+
+        // Filter by brands
+        if (selectedBrands.size > 0) {
+            filtered = filtered.filter((p: any) => selectedBrands.has(p.brand));
+        }
+
+        // Filter by sizes
+        if (selectedSizes.size > 0) {
+            filtered = filtered.filter((p: any) => {
+                if (!p.sizes || p.sizes.length === 0) return false;
+                return p.sizes.some((sz: string) => selectedSizes.has(sz));
+            });
+        }
+
+        return filtered;
+    }, [products, category, selectedSizes, selectedBrands, priceRange, nameQuery]);
 
     return (
         <MobileShell className="bg-[#050505] text-white">
@@ -126,16 +376,30 @@ const CategoryProductsPage: React.FC = () => {
                         <button onClick={() => navigate(-1)} className="p-1 -ml-1">
                             <ChevronLeft className="w-6 h-6 text-white" />
                         </button>
-                        <h1 className="text-xl font-bold tracking-tight text-white capitalize">
-                            {categoryTitle}
-                        </h1>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-bold tracking-tight text-white capitalize">
+                                {categoryTitle}
+                            </h1>
+
+                            {/* name search */}
+                            <input
+                                type="text"
+                                value={nameQuery}
+                                onChange={(e) => setNameQuery(e.target.value)}
+                                placeholder="Search by name"
+                                className="mt-1 px-3 py-1 rounded bg-[#1C1C1E] text-white text-sm"
+                            />
+                        </div>
                     </div>
 
                     <button
                         onClick={() => setShowFilters(true)}
-                        className="p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                        className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                     >
                         <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
+                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || priceRange.min !== 100 || priceRange.max !== 1200 || nameQuery.trim() !== "") && (
+                            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
+                        )}
                     </button>
                 </div>
             </div>
@@ -146,9 +410,13 @@ const CategoryProductsPage: React.FC = () => {
                     <div className="flex justify-center items-center py-20">
                         <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
                     </div>
+                ) : filteredProducts.length === 0 ? (
+                    <div className="text-center py-20 text-zinc-400">
+                        No products available.
+                    </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-3">
-                        {products.map((product, index) => (
+                        {filteredProducts.map((product, index) => (
                             <motion.div
                                 key={product.id}
                                 initial={{ opacity: 0, y: 20 }}
@@ -184,7 +452,7 @@ const CategoryProductsPage: React.FC = () => {
                                 <div className="p-3">
                                     <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
                                     <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                    <span className="text-base font-bold text-white">₹{product.rental_price}</span>
+                                    <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
                                 </div>
                             </motion.div>
                         ))}
@@ -216,7 +484,13 @@ const CategoryProductsPage: React.FC = () => {
                             <div className="bg-[#2A2A2E] rounded-b-3xl px-5 py-5 shadow-2xl">
                                 {/* Tab pills – 3 equal width */}
                                 <div className="flex items-center gap-3 mb-5">
-                                    {(["size", "price", "brand"] as FilterTab[]).map((tab) => (
+                                    {(["size", "price", "brand"] as FilterTab[])
+                                    .filter((tab) => {
+                                        if (tab === "size") return config.sizes.length > 0;
+                                        if (tab === "brand") return config.brands.length > 0;
+                                        return true; // price always
+                                    })
+                                    .map((tab) => (
                                         <button
                                             key={tab}
                                             onClick={() => setActiveFilterTab(tab)}
@@ -233,9 +507,9 @@ const CategoryProductsPage: React.FC = () => {
                                 </div>
 
                                 {/* === Size Tab === */}
-                                {activeFilterTab === "size" && (
+                                {activeFilterTab === "size" && config.sizes.length > 0 && (
                                     <div className="grid grid-cols-4 gap-2.5">
-                                        {SIZES.map((size) => {
+                                        {config.sizes.map((size) => {
                                             const isSelected = selectedSizes.has(size);
                                             return (
                                                 <button
@@ -354,7 +628,7 @@ const CategoryProductsPage: React.FC = () => {
                                 {activeFilterTab === "brand" && (
                                     <div>
                                         <div className="grid grid-cols-3 gap-2.5">
-                                            {BRANDS.map((brand) => (
+                                            {config.brands.map((brand) => (
                                                 <button
                                                     key={brand}
                                                     onClick={() => toggleBrand(brand)}
@@ -367,11 +641,29 @@ const CategoryProductsPage: React.FC = () => {
                                                 />
                                             ))}
                                         </div>
-                                        <button className="mt-3 text-[#FF4D6D] text-sm font-semibold w-full text-right pr-1">
-                                            See all
-                                        </button>
+                                        {config.brands.length > 6 && (
+                                            <button className="mt-3 text-[#FF4D6D] text-sm font-semibold w-full text-right pr-1">
+                                                See all
+                                            </button>
+                                        )}
                                     </div>
                                 )}
+
+                                {/* filter footer buttons */}
+                                <div className="mt-5 flex justify-end gap-3">
+                                    <button
+                                        className="px-4 py-2 text-sm font-semibold rounded-lg bg-zinc-800 text-zinc-300 hover:text-white"
+                                        onClick={resetFilters}
+                                    >
+                                        Reset
+                                    </button>
+                                    <button
+                                        className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#FF4D6D] text-white hover:bg-[#FF3355]"
+                                        onClick={handleApplyFilters}
+                                    >
+                                        Apply ({selectedSizes.size + selectedBrands.size})
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     </>

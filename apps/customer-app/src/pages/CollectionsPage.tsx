@@ -59,15 +59,33 @@ const JacketIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const AccessoriesIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 80 80" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Watch face */}
+    <circle cx="40" cy="40" r="18" />
+    {/* Watch band left */}
+    <line x1="25" y1="30" x2="22" y2="20" />
+    <line x1="25" y1="50" x2="22" y2="60" />
+    {/* Watch band right */}
+    <line x1="55" y1="30" x2="58" y2="20" />
+    <line x1="55" y1="50" x2="58" y2="60" />
+    {/* Watch hands */}
+    <line x1="40" y1="40" x2="40" y2="28" strokeWidth="1.5" />
+    <line x1="40" y1="40" x2="48" y2="40" strokeWidth="1.5" />
+    <circle cx="40" cy="40" r="2" fill="currentColor" />
+  </svg>
+);
+
 /* ── Categories ── */
 const CATEGORIES = [
-  { id: "shoes", label: "SHOES", Icon: ShoesIcon },
+  { id: "footwear", label: "SHOES", Icon: ShoesIcon },
   { id: "jackets", label: "JACKETS", Icon: JacketIcon },
+  { id: "accessories", label: "ACCESSORIES", Icon: AccessoriesIcon },
 ];
 
 const CollectionsPage = () => {
   const navigate = useNavigate();
-  const [activeGender, setActiveGender] = useState<"women" | "men">("women");
+  const [activeGender, setActiveGender] = useState<"womens" | "mens">("womens");
 
   return (
     <MobileShell className="bg-[#0A0A0A] text-white">
@@ -97,10 +115,10 @@ const CollectionsPage = () => {
         {/* ── Gender Toggle ── */}
         <div className="flex items-center gap-1 w-fit">
           <button
-            onClick={() => setActiveGender("women")}
+            onClick={() => setActiveGender("womens")}
             className={cn(
               "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "women"
+              activeGender === "womens"
                 ? "bg-[#ff4d6d] text-white"
                 : "bg-[#1C1C1E] text-zinc-500"
             )}
@@ -108,10 +126,10 @@ const CollectionsPage = () => {
             WOMEN
           </button>
           <button
-            onClick={() => setActiveGender("men")}
+            onClick={() => setActiveGender("mens")}
             className={cn(
               "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "men"
+              activeGender === "mens"
                 ? "bg-[#ff4d6d] text-white"
                 : "bg-[#1C1C1E] text-zinc-500"
             )}

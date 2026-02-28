@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, ChevronLeft, SlidersHorizontal } from "lucide-react";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import SignupModal from "@/components/SignupModal";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
-import { FilterModal } from "@/components/collections/FilterModal";
+import { FilterModal, Filters } from "@/components/collections/FilterModal";
 import { PRODUCTS } from "@/config/products";
 
 const MoodPage: React.FC = () => {
@@ -21,8 +21,26 @@ const MoodPage: React.FC = () => {
     // Get mood name from URL param
     const moodName = moodId ? moodId.charAt(0).toUpperCase() + moodId.slice(1) : "Collection";
 
-    // Use real products from config
-    const filteredProducts = PRODUCTS;
+    // track current filter values
+    const [filters, setFilters] = useState<Filters>({
+        sizes: [],
+        brands: [],
+        priceRange: [200, 1500],
+    });
+
+    // apply the filters to the static list; in a real app this would be an API call
+    const filteredProducts = useMemo(() => {
+        return PRODUCTS.filter((p) => {
+            const [min, max] = filters.priceRange;
+            if (p.price < min || p.price > max) return false;
+            // the demo products don't have size/brand, so we ignore sizes entirely
+            if (filters.brands.length > 0) {
+                // here we pretend brands map to the category field, just for demonstration
+                if (!filters.brands.includes(p.category)) return false;
+            }
+            return true;
+        });
+    }, [filters]);
 
     const toggleWishlist = (id: string, e: React.MouseEvent) => {
         e.preventDefault();
@@ -60,11 +78,26 @@ const MoodPage: React.FC = () => {
                 {/* Moodboard Title + Filter */}
                 <div className="flex items-center justify-between px-4 py-4">
                     <h2 className="text-2xl font-bold text-white">Moodboard</h2>
-                    <FilterModal>
-                        <button className="p-3 rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors">
-                            <SlidersHorizontal className="w-5 h-5 text-white" />
+                    <div className="flex items-center gap-2">
+                        <FilterModal
+                            initialFilters={filters}
+                            onApply={(f) => setFilters(f)}
+                            onReset={() => setFilters({ sizes: [], brands: [], priceRange: [200, 1500] })}
+                        >
+                            <button className="flex items-center gap-1 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors">
+                                <SlidersHorizontal className="w-5 h-5 text-white" />
+                                <span className="text-white text-sm">Filter</span>
+                            </button>
+                        </FilterModal>
+                        <button
+                            className="text-sm text-zinc-400 hover:text-white transition-colors"
+                            onClick={() =>
+                                setFilters({ sizes: [], brands: [], priceRange: [200, 1500] })
+                            }
+                        >
+                            Reset
                         </button>
-                    </FilterModal>
+                    </div>
                 </div>
 
                 {/* Product Grid */}

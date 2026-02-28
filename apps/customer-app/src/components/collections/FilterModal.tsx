@@ -12,34 +12,67 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 // Types
-type FilterTab = "Size" | "Brand" | "Price";
+export type FilterTab = "Size" | "Brand" | "Price";
+
+export interface Filters {
+    sizes: string[];
+    brands: string[];
+    priceRange: [number, number];
+}
 
 interface FilterModalProps {
     children?: React.ReactNode;
+    /** initial values for the filter fields */
+    initialFilters?: Partial<Filters>;
+    /** called when the user taps "Apply Filters" */
+    onApply?: (filters: Filters) => void;
+    /** optional callback when reset is clicked */
+    onReset?: () => void;
 }
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const BRANDS = ["Zara", "H&M", "Gucci", "Prada", "Mango", "Levi's"];
 
-export function FilterModal({ children }: FilterModalProps) {
+export function FilterModal({
+    children,
+    initialFilters,
+    onApply,
+    onReset,
+}: FilterModalProps) {
     const [activeTab, setActiveTab] = useState<FilterTab>("Size");
-    const [selectedItems, setSelectedItems] = useState<string[]>(["M"]);
-    const [priceRange, setPriceRange] = useState([200, 1500]);
 
-    // Toggle selection helper
+    // keep separate state for sizes / brands so we know which value belongs where
+    const [selectedSizes, setSelectedSizes] = useState<string[]>(
+        initialFilters?.sizes ?? ["M"]
+    );
+    const [selectedBrands, setSelectedBrands] = useState<string[]>(
+        initialFilters?.brands ?? []
+    );
+    const [priceRange, setPriceRange] = useState<[number, number]>(
+        initialFilters?.priceRange ?? [200, 1500]
+    );
+
+    // Toggle selection helper for whichever tab is active
     const toggleSelection = (item: string) => {
-        if (selectedItems.includes(item)) {
-            setSelectedItems(selectedItems.filter((i) => i !== item));
-        } else {
-            setSelectedItems([...selectedItems, item]);
+        if (activeTab === "Size") {
+            setSelectedSizes((prev) =>
+                prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+            );
+        } else if (activeTab === "Brand") {
+            setSelectedBrands((prev) =>
+                prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+            );
         }
     };
 
     const getActiveItems = () => {
         switch (activeTab) {
-            case "Size": return SIZES;
-            case "Brand": return BRANDS;
-            default: return SIZES;
+            case "Size":
+                return SIZES;
+            case "Brand":
+                return BRANDS;
+            default:
+                return SIZES;
         }
     };
 
@@ -58,7 +91,7 @@ export function FilterModal({ children }: FilterModalProps) {
 
                 <div className="px-6 py-6 max-h-[60vh] overflow-y-auto">
                     {/* Tabs Section - Glass Pill */}
-                    <div className="bg-white/5 backdrop-blur-md p-1.5 rounded-2xl flex items-center mb-6 border border-white/5">
+                    <div className="bg-white/5 backdrop-blur-md p-1.5 rounded-2xl flex items-center mb-4 border border-white/5">
                         {(["Size", "Brand", "Price"] as const).map((tab) => (
                             <button
                                 key={tab}
@@ -75,11 +108,37 @@ export function FilterModal({ children }: FilterModalProps) {
                         ))}
                     </div>
 
+                    {/* Inline controls so users never have to scroll */}
+                    <div className="flex justify-end gap-2 mb-6">
+                        <button
+                            className="px-3 py-1 text-sm font-semibold rounded-lg bg-[#ff4d6d] text-white hover:bg-[#ff3355]"
+                            onClick={() => {
+                                onApply?.({ sizes: selectedSizes, brands: selectedBrands, priceRange });
+                            }}
+                        >
+                            Apply ({selectedSizes.length + selectedBrands.length})
+                        </button>
+                        <button
+                            className="px-3 py-1 text-sm font-semibold rounded-lg bg-zinc-800 text-zinc-300 hover:text-white"
+                            onClick={() => {
+                                setSelectedSizes([]);
+                                setSelectedBrands([]);
+                                setPriceRange([200, 1500]);
+                                onReset?.();
+                            }}
+                        >
+                            Reset
+                        </button>
+                    </div>
+
                     {/* Grid Options - Size & Brand */}
                     {activeTab !== "Price" && (
                         <div className="grid grid-cols-3 gap-3 mb-2 animate-in fade-in zoom-in-95 duration-300">
                             {getActiveItems().map((item) => {
-                                const isSelected = selectedItems.includes(item);
+                                const isSelected =
+                                    activeTab === "Size"
+                                        ? selectedSizes.includes(item)
+                                        : selectedBrands.includes(item);
                                 return (
                                     <button
                                         key={item}
@@ -129,7 +188,11 @@ export function FilterModal({ children }: FilterModalProps) {
                                 defaultValue={[200, 1500]}
                                 max={3000}
                                 step={100}
-                                onValueChange={setPriceRange}
+                                onValueChange={(val) => {
+                                    if (Array.isArray(val) && val.length === 2) {
+                                        setPriceRange([val[0], val[1]]);
+                                    }
+                                }}
                                 className="my-6"
                             />
 
@@ -144,13 +207,30 @@ export function FilterModal({ children }: FilterModalProps) {
                 <div className="p-6 border-t border-white/10 bg-black/40 backdrop-blur-md flex gap-3">
                     <button
                         className="flex-1 py-3.5 rounded-xl text-sm font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10"
-                        onClick={() => setSelectedItems([])}
+                        onClick={() => {
+                            // clear everything
+                            setSelectedSizes([]);
+                            setSelectedBrands([]);
+                            setPriceRange([200, 1500]);
+                            onReset?.();
+                        }}
                     >
                         Reset
                     </button>
                     <DialogClose asChild>
-                        <button className="flex-[2] py-3.5 rounded-xl bg-[#ff4d6d] hover:bg-[#ff3355] text-white text-sm font-bold shadow-lg shadow-[#ff4d6d]/25 transition-all active:scale-95">
-                            Apply Filters ({selectedItems.length})
+                        <button
+                            className="flex-[2] py-3.5 rounded-xl bg-[#ff4d6d] hover:bg-[#ff3355] text-white text-sm font-bold shadow-lg shadow-[#ff4d6d]/25 transition-all active:scale-95"
+                            onClick={() => {
+                                onApply?.({
+                                    sizes: selectedSizes,
+                                    brands: selectedBrands,
+                                    priceRange,
+                                });
+                            }}
+                        >
+                            Apply Filters ({
+                                selectedSizes.length + selectedBrands.length
+                            })
                         </button>
                     </DialogClose>
                 </div>

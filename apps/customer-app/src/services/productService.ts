@@ -18,6 +18,9 @@ export interface Product {
     videoUrl?: string;
     color: string;
     sizes?: string[];
+    brand?: string;            // optional brand field from DB
+    rental_price?: number;     // raw db field when mapping
+    images?: string[];         // original image list
     leadTimeMinutes?: number;
     rating: number;
     stockQuantity?: number;
