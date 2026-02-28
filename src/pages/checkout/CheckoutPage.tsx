@@ -6,9 +6,23 @@ import { useToast } from '@/contexts/ToastContext';
 import { supabase } from '@/services/supabase';
 import type { Address } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { Loader } from '@/components/ui/Loader';
+import { SkeletonCheckout } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/utils/helpers';
 import { motion } from 'framer-motion';
+
+const sectionVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+        opacity: 1,
+        y: 0,
+        transition: {
+            delay: i * 0.1,
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    }),
+};
 
 export const CheckoutPage: React.FC = () => {
     const { items, getCartTotal, clearCart } = useCart();
@@ -124,11 +138,7 @@ export const CheckoutPage: React.FC = () => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-                <Loader size="lg" text="Loading checkout..." />
-            </div>
-        );
+        return <SkeletonCheckout />;
     }
 
     const subtotal = getCartTotal();
@@ -137,13 +147,21 @@ export const CheckoutPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] py-6 px-4">
-            <h1 className="text-2xl font-bold text-white mb-6">Checkout</h1>
+            <motion.h1
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-2xl font-bold text-white mb-6"
+            >
+                Checkout
+            </motion.h1>
 
             <div className="space-y-5">
                 {/* Delivery Address */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    custom={0}
+                    variants={sectionVariants}
+                    initial="hidden"
+                    animate="visible"
                     className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-5 border border-white/10"
                 >
                     <h2 className="text-lg font-semibold text-white mb-4">Delivery Address</h2>
@@ -156,8 +174,9 @@ export const CheckoutPage: React.FC = () => {
                     ) : (
                         <div className="space-y-3">
                             {addresses.map((address) => (
-                                <label
+                                <motion.label
                                     key={address.id}
+                                    whileTap={{ scale: 0.98 }}
                                     className={`
                                         block p-4 border-2 rounded-xl cursor-pointer transition-all
                                         ${selectedAddress === address.id
@@ -183,7 +202,7 @@ export const CheckoutPage: React.FC = () => {
                                             <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400">Default</span>
                                         )}
                                     </div>
-                                </label>
+                                </motion.label>
                             ))}
                         </div>
                     )}
@@ -191,9 +210,10 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Rental Period */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
+                    custom={1}
+                    variants={sectionVariants}
+                    initial="hidden"
+                    animate="visible"
                     className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-5 border border-white/10"
                 >
                     <h2 className="text-lg font-semibold text-white mb-4">Rental Period</h2>
@@ -214,9 +234,10 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Order Summary */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                    custom={2}
+                    variants={sectionVariants}
+                    initial="hidden"
+                    animate="visible"
                     className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-5 border border-white/10"
                 >
                     <h2 className="text-lg font-semibold text-white mb-4">Order Summary</h2>

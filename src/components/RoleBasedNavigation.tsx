@@ -60,7 +60,10 @@ export const RoleBasedNavigation: React.FC = () => {
     const navItems = getNavItems();
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#0f0f0f]/95 backdrop-blur-xl border-t border-white/10 safe-area-pb z-40">
+        <nav
+            className="fixed bottom-0 left-0 right-0 bg-[#0f0f0f]/95 backdrop-blur-xl border-t border-white/10 safe-area-pb z-40"
+            style={{ willChange: 'transform' }}
+        >
             <div className="flex justify-around items-center py-2 px-4 max-w-lg mx-auto">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
@@ -72,14 +75,29 @@ export const RoleBasedNavigation: React.FC = () => {
                         >
                             {isActive && (
                                 <motion.div
-                                    layoutId="nav-indicator"
+                                    layoutId="role-nav-indicator"
                                     className="absolute -top-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#ff4d6d]"
+                                    transition={{
+                                        type: 'spring',
+                                        stiffness: 400,
+                                        damping: 25,
+                                    }}
                                 />
                             )}
-                            <span className={`text-xl transition-transform ${isActive ? 'scale-110' : ''}`}>
+                            <motion.span
+                                className="text-xl"
+                                animate={{
+                                    scale: isActive ? 1.15 : 1,
+                                }}
+                                transition={{
+                                    type: 'spring',
+                                    stiffness: 400,
+                                    damping: 20,
+                                }}
+                            >
                                 {item.icon}
-                            </span>
-                            <span className={`text-xs mt-1 transition-colors ${isActive ? 'text-white' : 'text-zinc-500'
+                            </motion.span>
+                            <span className={`text-xs mt-1 transition-colors duration-200 ${isActive ? 'text-white' : 'text-zinc-500'
                                 }`}>
                                 {item.label}
                             </span>

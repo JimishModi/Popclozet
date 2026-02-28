@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 // Custom icons matching Figma design
 const HomeIcon = ({ className, active }: { className?: string; active?: boolean }) => (
@@ -53,7 +54,7 @@ interface BottomNavigationProps {
 
 /**
  * Bottom navigation bar for mobile app navigation.
- * Premium glassmorphism design with glow effects.
+ * Premium glassmorphism design with smooth animated indicator.
  */
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({ className }) => {
     const location = useLocation();
@@ -71,7 +72,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ className })
             "w-full max-w-[500px]",
             "px-3 pb-4 pt-2",
             className
-        )}>
+        )}
+            style={{ willChange: 'transform' }}
+        >
             {/* Premium Glass Container */}
             <div className={cn(
                 "relative flex items-center justify-around",
@@ -93,32 +96,58 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ className })
                             key={item.path}
                             to={item.path}
                             className={cn(
-                                "relative flex flex-col items-center gap-1 px-5 py-2 transition-all duration-300",
+                                "relative flex flex-col items-center gap-1 px-5 py-2 transition-colors duration-200",
                                 active
                                     ? "text-[#ff4d6d]"
                                     : "text-zinc-500 hover:text-zinc-300"
                             )}
                         >
-                            {/* Glow effect for active item */}
+                            {/* Animated glow background for active item */}
                             {active && (
-                                <div className="absolute inset-0 rounded-2xl bg-[#ff4d6d]/10 blur-xl" />
+                                <motion.div
+                                    layoutId="nav-glow"
+                                    className="absolute inset-0 rounded-2xl bg-[#ff4d6d]/10 blur-xl"
+                                    transition={{
+                                        type: 'spring',
+                                        stiffness: 350,
+                                        damping: 30,
+                                    }}
+                                />
                             )}
 
-                            <div className="relative">
+                            <motion.div
+                                className="relative"
+                                animate={{
+                                    scale: active ? 1.1 : 1,
+                                }}
+                                transition={{
+                                    type: 'spring',
+                                    stiffness: 400,
+                                    damping: 20,
+                                }}
+                            >
                                 <Icon
                                     className={cn(
                                         "w-6 h-6 transition-all duration-300",
-                                        active && "scale-110 drop-shadow-[0_0_8px_rgba(255,77,109,0.6)]"
+                                        active && "drop-shadow-[0_0_8px_rgba(255,77,109,0.6)]"
                                     )}
                                     active={active}
                                 />
-                                {/* Active dot indicator */}
+                                {/* Animated active dot indicator */}
                                 {active && (
-                                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#ff4d6d] shadow-[0_0_6px_rgba(255,77,109,0.8)]" />
+                                    <motion.div
+                                        layoutId="nav-dot"
+                                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#ff4d6d] shadow-[0_0_6px_rgba(255,77,109,0.8)]"
+                                        transition={{
+                                            type: 'spring',
+                                            stiffness: 400,
+                                            damping: 25,
+                                        }}
+                                    />
                                 )}
-                            </div>
+                            </motion.div>
                             <span className={cn(
-                                "text-[10px] font-bold tracking-wide transition-all duration-300",
+                                "text-[10px] font-bold tracking-wide transition-colors duration-200",
                                 active
                                     ? "text-[#ff4d6d]"
                                     : "text-zinc-600"

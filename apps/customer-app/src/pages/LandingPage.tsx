@@ -87,8 +87,8 @@ function SlideFooter({ activeSlide, onDotClick, onContinue, onStartBrowsing }: S
             key={idx}
             onClick={() => onDotClick(idx)}
             className={`rounded-full transition-all duration-300 ${activeSlide === idx
-                ? "w-2.5 h-2.5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]"
-                : "w-2 h-2 bg-zinc-600"
+              ? "w-2.5 h-2.5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+              : "w-2 h-2 bg-zinc-600"
               }`}
           />
         ))}
@@ -139,7 +139,7 @@ function MockupSlide(props: SlideProps) {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-10 text-white">
+      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-28 text-white">
         <SlideHeader />
         <div className="flex-1" />
         <SlideFooter {...props} />
@@ -160,7 +160,7 @@ function WelcomeGridSlide(props: SlideProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="flex flex-col items-center min-h-screen px-6 pt-12 pb-10 text-white">
+      <div className="flex flex-col items-center min-h-screen px-6 pt-12 pb-28 text-white">
         <SlideHeader />
 
         {/* Masonry grid */}

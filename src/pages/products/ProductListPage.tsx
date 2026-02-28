@@ -4,8 +4,32 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Product, SearchFilters } from '@/types';
 import { ProductCard } from '@/components/features/products/ProductCard';
 import { NLPSearchBar } from '@/components/features/search/NLPSearchBar';
-import { Loader } from '@/components/ui/Loader';
+import { SkeletonProductCard } from '@/components/ui/Skeleton';
 import { motion } from 'framer-motion';
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.06,
+        },
+    },
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 16, scale: 0.97 },
+    show: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    },
+};
 
 export const ProductListPage: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
@@ -57,12 +81,22 @@ export const ProductListPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-[#0a0a0a] py-6 px-4">
             {/* Search Bar */}
-            <div className="mb-6">
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mb-6"
+            >
                 <NLPSearchBar onSearch={handleSearch} />
-            </div>
+            </motion.div>
 
             {/* Filters */}
-            <div className="mb-6 flex flex-wrap gap-3">
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="mb-6 flex flex-wrap gap-3"
+            >
                 <select
                     className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:border-[#ff4d6d]/50 focus:outline-none focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
                     value={filters.gender || ''}
@@ -91,29 +125,41 @@ export const ProductListPage: React.FC = () => {
                     <option value="formal" className="bg-zinc-900">Formal</option>
                     <option value="festive" className="bg-zinc-900">Festive</option>
                 </select>
-            </div>
+            </motion.div>
 
             {/* Products Grid */}
             {loading ? (
-                <div className="flex justify-center py-20">
-                    <Loader size="lg" text="Loading products..." />
+                <div className="grid grid-cols-2 gap-3">
+                    {[...Array(6)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: i * 0.05 }}
+                        >
+                            <SkeletonProductCard />
+                        </motion.div>
+                    ))}
                 </div>
             ) : products.length === 0 ? (
-                <div className="text-center py-20">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center py-20"
+                >
                     <p className="text-xl text-zinc-400">No products found</p>
-                </div>
+                </motion.div>
             ) : (
                 <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
                     className="grid grid-cols-2 gap-3"
                 >
-                    {products.map((product, index) => (
+                    {products.map((product) => (
                         <motion.div
                             key={product.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
+                            variants={itemVariants}
                         >
                             <ProductCard product={product} />
                         </motion.div>

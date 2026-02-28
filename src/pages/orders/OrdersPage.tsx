@@ -4,10 +4,35 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/services/supabase';
 import { transitionOrderState } from '@/services/orderStateMachine';
 import type { Order } from '@/types';
-import { Loader } from '@/components/ui/Loader';
+import { SkeletonOrderCard } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/utils/helpers';
 import { formatDate } from '@/utils/date';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/Button';
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.06,
+        },
+    },
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 16, scale: 0.98 },
+    show: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    },
+};
 
 export const OrdersPage: React.FC = () => {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -118,8 +143,22 @@ export const OrdersPage: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-                <Loader size="lg" text="Loading orders..." />
+            <div className="min-h-screen bg-[#0a0a0a] py-6 px-4">
+                <div className="h-7 w-32 bg-white/5 rounded-lg mb-6 relative overflow-hidden">
+                    <div className="absolute inset-0 skeleton-shimmer" />
+                </div>
+                <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: i * 0.08 }}
+                        >
+                            <SkeletonOrderCard />
+                        </motion.div>
+                    ))}
+                </div>
             </div>
         );
     }
@@ -127,7 +166,12 @@ export const OrdersPage: React.FC = () => {
     if (orders.length === 0) {
         return (
             <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
-                <div className="text-center">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                    className="text-center"
+                >
                     <svg
                         className="mx-auto h-20 w-20 text-zinc-600 mb-4"
                         fill="none"
@@ -143,29 +187,34 @@ export const OrdersPage: React.FC = () => {
                     </svg>
                     <h2 className="text-2xl font-bold text-white mb-2">No orders yet</h2>
                     <p className="text-zinc-400 mb-6">Start shopping to see your orders here</p>
-                    <button
-                        onClick={() => navigate('/products')}
-                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-semibold shadow-[0_10px_30px_rgba(255,77,109,0.4)] hover:shadow-[0_15px_40px_rgba(255,77,109,0.5)] transition-all"
-                    >
-                        Browse Products
-                    </button>
-                </div>
+                    <Button onClick={() => navigate('/products')}>Browse Products</Button>
+                </motion.div>
             </div>
         );
     }
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] py-6 px-4">
-            <h1 className="text-2xl font-bold text-white mb-6">My Orders</h1>
+            <motion.h1
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-2xl font-bold text-white mb-6"
+            >
+                My Orders
+            </motion.h1>
 
-            <div className="space-y-4">
-                {orders.map((order, index) => (
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="space-y-4"
+            >
+                {orders.map((order) => (
                     <motion.div
                         key={order.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
+                        variants={itemVariants}
                         onClick={() => navigate(`/orders/${order.id}`)}
+                        whileTap={{ scale: 0.98 }}
                         className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/10 cursor-pointer hover:border-[#ff4d6d]/30 transition-all"
                     >
                         <div className="flex items-start justify-between mb-3">
@@ -219,7 +268,7 @@ export const OrdersPage: React.FC = () => {
                         </div>
                     </motion.div>
                 ))}
-            </div>
+            </motion.div>
         </div>
     );
 };

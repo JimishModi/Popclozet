@@ -74,11 +74,11 @@
     scroll-behavior: smooth;
   }
 
-  /* Prevent text overflow globally */
+  /* Prevent text overflow globally — scoped transition (excludes transform for framer-motion compat) */
   * {
     word-wrap: break-word;
     overflow-wrap: break-word;
-    transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+    transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, opacity 200ms ease;
   }
 
   :focus-visible {
@@ -86,6 +86,7 @@
     outline-offset: 3px;
     border-radius: 10px;
     box-shadow: 0 0 0 6px color-mix(in srgb, hsl(var(--primary)) 18%, transparent);
+    transition: outline 150ms ease, box-shadow 150ms ease;
   }
 
   h1,
@@ -95,6 +96,16 @@
   h5,
   h6 {
     @apply font-bold tracking-tight;
+  }
+
+  /* Smooth image loading */
+  img {
+    opacity: 1;
+    transition: opacity 0.4s ease;
+  }
+
+  img[loading] {
+    opacity: 0;
   }
 }
 
@@ -366,6 +377,17 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* GPU acceleration hints */
+  .gpu-accelerated {
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  /* Layout containment for performance */
+  .contain-layout {
+    contain: layout style;
+  }
 }
 
 /* Animations */
@@ -419,6 +441,16 @@
   }
 }
 
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -440,6 +472,18 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -465,9 +509,41 @@
   animation: slideIn 0.6s ease-out;
 }
 
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
+}
+
+/* Skeleton shimmer for loading states */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
 /* Prevent horizontal scroll on mobile */
 html,
 body {
   overflow-x: hidden;
   width: 100%;
+}
+
+/* Accessibility: Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton-shimmer {
+    animation: none !important;
+  }
 }

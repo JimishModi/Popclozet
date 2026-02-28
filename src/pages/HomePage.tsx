@@ -47,6 +47,44 @@ const StarIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// Stagger animation variants
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.08,
+            delayChildren: 0.1,
+        },
+    },
+};
+
+const fadeUpVariant = {
+    hidden: { opacity: 0, y: 16 },
+    show: {
+        opacity: 1,
+        y: 0,
+        transition: {
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    },
+};
+
+const scaleInVariant = {
+    hidden: { opacity: 0, scale: 0.9 },
+    show: {
+        opacity: 1,
+        scale: 1,
+        transition: {
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    },
+};
+
 export const HomePage: React.FC = () => {
     const [activeGender, setActiveGender] = useState<"women" | "men">("women");
     const [activeCategory, setActiveCategory] = useState("dresses");
@@ -56,10 +94,15 @@ export const HomePage: React.FC = () => {
             <MobileHeader />
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto pb-24">
+            <motion.main
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="flex-1 overflow-y-auto pb-24"
+            >
 
                 {/* Hero Section */}
-                <div className="relative px-4 pt-6 pb-8 overflow-hidden">
+                <motion.div variants={fadeUpVariant} className="relative px-4 pt-6 pb-8 overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-b from-[#ff4d6d]/10 to-transparent pointer-events-none" />
 
                     {/* Gender Selector - Rectangle Glass Panel */}
@@ -116,15 +159,16 @@ export const HomePage: React.FC = () => {
                             className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-2xl py-3.5 pl-10 pr-4 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#ff4d6d]/50 focus:border-[#ff4d6d]/50 transition-all backdrop-blur-sm"
                         />
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Category Chips */}
-                <div className="px-4 pb-4">
+                <motion.div variants={fadeUpVariant} className="px-4 pb-4">
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                         {CATEGORIES.map((cat) => (
-                            <button
+                            <motion.button
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
+                                whileTap={{ scale: 0.95 }}
                                 className={cn(
                                     "flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-medium transition-all",
                                     activeCategory === cat.id
@@ -134,13 +178,13 @@ export const HomePage: React.FC = () => {
                             >
                                 <span>{cat.emoji}</span>
                                 <span>{cat.label}</span>
-                            </button>
+                            </motion.button>
                         ))}
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Featured Collections */}
-                <div className="px-4 pb-6">
+                <motion.div variants={fadeUpVariant} className="px-4 pb-6">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-lg font-bold text-white">Featured Collections</h2>
                         <Link to="/products" className="text-xs font-medium text-[#ff4d6d] flex items-center gap-1">
@@ -148,11 +192,14 @@ export const HomePage: React.FC = () => {
                         </Link>
                     </div>
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-                        {COLLECTIONS.map((collection) => (
+                        {COLLECTIONS.map((collection, index) => (
                             <motion.div
                                 key={collection.id}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.3 + index * 0.06, type: 'spring', stiffness: 300, damping: 24 }}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
                                 className={cn(
                                     "flex-shrink-0 w-28 h-36 rounded-2xl relative overflow-hidden cursor-pointer",
                                     "bg-gradient-to-br",
@@ -167,10 +214,10 @@ export const HomePage: React.FC = () => {
                             </motion.div>
                         ))}
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Trending Now */}
-                <div className="px-4 pb-6">
+                <motion.div variants={fadeUpVariant} className="px-4 pb-6">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-lg font-bold text-white">Trending Now</h2>
                         <Link to="/products" className="text-xs font-medium text-[#ff4d6d] flex items-center gap-1">
@@ -180,131 +227,49 @@ export const HomePage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-3">
                         {/* Product Card 1 */}
-                        <Link to="/products">
-                            <motion.div
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 backdrop-blur-sm"
-                            >
-                                <div className="relative">
-                                    <div className="aspect-[3/4] bg-gradient-to-br from-pink-500/30 to-purple-500/30" />
-                                    <button className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10">
-                                        <HeartIcon className="w-4 h-4 text-[#ff4d6d]" fill />
-                                    </button>
-                                    <div className="absolute bottom-2 left-2">
-                                        <span className="inline-block px-2 py-1 bg-green-500/90 text-white text-[10px] font-semibold rounded-md">
-                                            Available
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-3">
-                                    <h3 className="font-semibold text-sm text-white mb-1 truncate">Maxi Dress</h3>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[#ff4d6d] font-bold text-sm">₹999/day</p>
-                                        <div className="flex items-center gap-0.5">
-                                            <StarIcon className="w-3.5 h-3.5 text-yellow-400" />
-                                            <span className="text-xs text-zinc-400 font-medium">4.8</span>
+                        {[
+                            { name: 'Maxi Dress', price: '₹999/day', rating: '4.8', gradient: 'from-pink-500/30 to-purple-500/30', filled: true },
+                            { name: 'Designer Lehenga', price: '₹2499/day', rating: '4.9', gradient: 'from-rose-500/30 to-orange-500/30', filled: false },
+                            { name: 'Party Gown', price: '₹1499/day', rating: '4.7', gradient: 'from-indigo-500/30 to-blue-500/30', filled: false },
+                            { name: 'Silk Saree', price: '₹1799/day', rating: '4.9', gradient: 'from-emerald-500/30 to-teal-500/30', filled: false },
+                        ].map((product, index) => (
+                            <Link to="/products" key={product.name}>
+                                <motion.div
+                                    variants={scaleInVariant}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 backdrop-blur-sm"
+                                >
+                                    <div className="relative">
+                                        <div className={`aspect-[3/4] bg-gradient-to-br ${product.gradient}`} />
+                                        <motion.button
+                                            whileTap={{ scale: 0.85 }}
+                                            className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10"
+                                        >
+                                            <HeartIcon className={`w-4 h-4 ${product.filled ? 'text-[#ff4d6d]' : 'text-zinc-400'}`} fill={product.filled} />
+                                        </motion.button>
+                                        <div className="absolute bottom-2 left-2">
+                                            <span className="inline-block px-2 py-1 bg-green-500/90 text-white text-[10px] font-semibold rounded-md">
+                                                Available
+                                            </span>
                                         </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        </Link>
-
-                        {/* Product Card 2 */}
-                        <Link to="/products">
-                            <motion.div
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 backdrop-blur-sm"
-                            >
-                                <div className="relative">
-                                    <div className="aspect-[3/4] bg-gradient-to-br from-rose-500/30 to-orange-500/30" />
-                                    <button className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10">
-                                        <HeartIcon className="w-4 h-4 text-zinc-400" />
-                                    </button>
-                                    <div className="absolute bottom-2 left-2">
-                                        <span className="inline-block px-2 py-1 bg-green-500/90 text-white text-[10px] font-semibold rounded-md">
-                                            Available
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-3">
-                                    <h3 className="font-semibold text-sm text-white mb-1 truncate">Designer Lehenga</h3>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[#ff4d6d] font-bold text-sm">₹2499/day</p>
-                                        <div className="flex items-center gap-0.5">
-                                            <StarIcon className="w-3.5 h-3.5 text-yellow-400" />
-                                            <span className="text-xs text-zinc-400 font-medium">4.9</span>
+                                    <div className="p-3">
+                                        <h3 className="font-semibold text-sm text-white mb-1 truncate">{product.name}</h3>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[#ff4d6d] font-bold text-sm">{product.price}</p>
+                                            <div className="flex items-center gap-0.5">
+                                                <StarIcon className="w-3.5 h-3.5 text-yellow-400" />
+                                                <span className="text-xs text-zinc-400 font-medium">{product.rating}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        </Link>
-
-                        {/* Product Card 3 */}
-                        <Link to="/products">
-                            <motion.div
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 backdrop-blur-sm"
-                            >
-                                <div className="relative">
-                                    <div className="aspect-[3/4] bg-gradient-to-br from-indigo-500/30 to-blue-500/30" />
-                                    <button className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10">
-                                        <HeartIcon className="w-4 h-4 text-zinc-400" />
-                                    </button>
-                                    <div className="absolute bottom-2 left-2">
-                                        <span className="inline-block px-2 py-1 bg-green-500/90 text-white text-[10px] font-semibold rounded-md">
-                                            Available
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-3">
-                                    <h3 className="font-semibold text-sm text-white mb-1 truncate">Party Gown</h3>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[#ff4d6d] font-bold text-sm">₹1499/day</p>
-                                        <div className="flex items-center gap-0.5">
-                                            <StarIcon className="w-3.5 h-3.5 text-yellow-400" />
-                                            <span className="text-xs text-zinc-400 font-medium">4.7</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </Link>
-
-                        {/* Product Card 4 */}
-                        <Link to="/products">
-                            <motion.div
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 backdrop-blur-sm"
-                            >
-                                <div className="relative">
-                                    <div className="aspect-[3/4] bg-gradient-to-br from-emerald-500/30 to-teal-500/30" />
-                                    <button className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10">
-                                        <HeartIcon className="w-4 h-4 text-zinc-400" />
-                                    </button>
-                                    <div className="absolute bottom-2 left-2">
-                                        <span className="inline-block px-2 py-1 bg-green-500/90 text-white text-[10px] font-semibold rounded-md">
-                                            Available
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-3">
-                                    <h3 className="font-semibold text-sm text-white mb-1 truncate">Silk Saree</h3>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[#ff4d6d] font-bold text-sm">₹1799/day</p>
-                                        <div className="flex items-center gap-0.5">
-                                            <StarIcon className="w-3.5 h-3.5 text-yellow-400" />
-                                            <span className="text-xs text-zinc-400 font-medium">4.9</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </Link>
+                                </motion.div>
+                            </Link>
+                        ))}
                     </div>
-                </div>
-            </main>
+                </motion.div>
+            </motion.main>
 
             <BottomNavigation />
         </MobileShell>

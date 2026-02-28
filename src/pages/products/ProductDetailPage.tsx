@@ -5,10 +5,24 @@ import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
 import type { Product } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { Loader } from '@/components/ui/Loader';
+import { SkeletonProductDetail } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/utils/helpers';
 import { HygieneBadge } from '@/components/features/products/HygieneBadge';
 import { motion } from 'framer-motion';
+
+const sectionVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+        opacity: 1,
+        y: 0,
+        transition: {
+            delay: i * 0.08,
+            type: 'spring',
+            stiffness: 300,
+            damping: 24,
+        },
+    }),
+};
 
 export const ProductDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -69,20 +83,20 @@ export const ProductDetailPage: React.FC = () => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-                <Loader size="lg" text="Loading product..." />
-            </div>
-        );
+        return <SkeletonProductDetail />;
     }
 
     if (!product) {
         return (
             <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
-                <div className="text-center">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center"
+                >
                     <h2 className="text-2xl font-bold text-white mb-4">Product not found</h2>
                     <Button onClick={() => navigate('/products')}>Browse Products</Button>
-                </div>
+                </motion.div>
             </div>
         );
     }
@@ -93,8 +107,10 @@ export const ProductDetailPage: React.FC = () => {
         <div className="min-h-screen bg-[#0a0a0a] py-6 px-4">
             {/* Image */}
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                custom={0}
+                variants={sectionVariants}
+                initial="hidden"
+                animate="visible"
                 className="mb-6"
             >
                 <div className="aspect-[3/4] bg-zinc-800 rounded-2xl overflow-hidden">
@@ -120,13 +136,8 @@ export const ProductDetailPage: React.FC = () => {
             </motion.div>
 
             {/* Details */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="space-y-5"
-            >
-                <div>
+            <div className="space-y-5">
+                <motion.div custom={1} variants={sectionVariants} initial="hidden" animate="visible">
                     <p className="text-sm text-zinc-500 uppercase tracking-wide mb-1">
                         {product.brand}
                     </p>
@@ -134,32 +145,41 @@ export const ProductDetailPage: React.FC = () => {
                         {product.name}
                     </h1>
                     <p className="text-zinc-400 text-sm">{product.description}</p>
-                </div>
+                </motion.div>
 
                 {/* Hygiene Info */}
-                <HygieneBadge hygieneInfo={product.hygiene_info} />
+                <motion.div custom={2} variants={sectionVariants} initial="hidden" animate="visible">
+                    <HygieneBadge hygieneInfo={product.hygiene_info} />
+                </motion.div>
 
                 {/* Fabric Details */}
-                <div className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
+                <motion.div
+                    custom={3}
+                    variants={sectionVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/10"
+                >
                     <h3 className="font-semibold text-white mb-3">Fabric Details</h3>
                     <div className="space-y-2 text-sm text-zinc-300">
                         <p><span className="text-zinc-500">Composition:</span> {product.fabric_details?.composition}</p>
                         <p><span className="text-zinc-500">Stretch:</span> {product.fabric_details?.stretch_percentage}%</p>
                         <p><span className="text-zinc-500">Comfort Rating:</span> {product.fabric_details?.comfort_rating}/5</p>
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Size Selection */}
-                <div>
+                <motion.div custom={4} variants={sectionVariants} initial="hidden" animate="visible">
                     <label className="block text-sm font-medium text-zinc-300 mb-3">
                         Select Size
                     </label>
                     <div className="grid grid-cols-4 gap-3">
                         {product.sizes_available?.map((sizeOption) => (
-                            <button
+                            <motion.button
                                 key={sizeOption.size}
                                 onClick={() => setSelectedSize(sizeOption.size)}
                                 disabled={sizeOption.stock_count === 0}
+                                whileTap={{ scale: 0.95 }}
                                 className={`
                                     px-4 py-3 border-2 rounded-xl font-medium transition-all
                                     ${selectedSize === sizeOption.size
@@ -170,37 +190,45 @@ export const ProductDetailPage: React.FC = () => {
                                 `}
                             >
                                 {sizeOption.size}
-                            </button>
+                            </motion.button>
                         ))}
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Rental Duration */}
-                <div>
+                <motion.div custom={5} variants={sectionVariants} initial="hidden" animate="visible">
                     <label className="block text-sm font-medium text-zinc-300 mb-3">
                         Rental Duration
                     </label>
                     <div className="flex items-center gap-4">
-                        <button
+                        <motion.button
                             onClick={() => setRentalDays(Math.max(1, rentalDays - 1))}
+                            whileTap={{ scale: 0.9 }}
                             className="w-10 h-10 rounded-xl border-2 border-white/10 text-white hover:border-[#ff4d6d] transition-colors"
                         >
                             -
-                        </button>
+                        </motion.button>
                         <span className="text-xl font-semibold text-white w-24 text-center">
                             {rentalDays} {rentalDays === 1 ? 'day' : 'days'}
                         </span>
-                        <button
+                        <motion.button
                             onClick={() => setRentalDays(rentalDays + 1)}
+                            whileTap={{ scale: 0.9 }}
                             className="w-10 h-10 rounded-xl border-2 border-white/10 text-white hover:border-[#ff4d6d] transition-colors"
                         >
                             +
-                        </button>
+                        </motion.button>
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Pricing */}
-                <div className="bg-gradient-to-br from-[#ff4d6d]/20 to-[#ff4d6d]/5 rounded-2xl p-4 border border-[#ff4d6d]/20">
+                <motion.div
+                    custom={6}
+                    variants={sectionVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="bg-gradient-to-br from-[#ff4d6d]/20 to-[#ff4d6d]/5 rounded-2xl p-4 border border-[#ff4d6d]/20"
+                >
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-zinc-300">Rental Price</span>
                         <span className="text-2xl font-bold text-[#ff4d6d]">
@@ -213,19 +241,21 @@ export const ProductDetailPage: React.FC = () => {
                     <p className="text-sm text-zinc-400 mt-1">
                         Refundable Deposit: {formatCurrency(product.deposit_amount)}
                     </p>
-                </div>
+                </motion.div>
 
                 {/* Add to Cart */}
-                <Button
-                    onClick={handleAddToCart}
-                    className="w-full"
-                    size="lg"
-                    loading={adding}
-                    disabled={!product.is_available}
-                >
-                    {product.is_available ? 'Add to Cart' : 'Currently Unavailable'}
-                </Button>
-            </motion.div>
+                <motion.div custom={7} variants={sectionVariants} initial="hidden" animate="visible">
+                    <Button
+                        onClick={handleAddToCart}
+                        className="w-full"
+                        size="lg"
+                        loading={adding}
+                        disabled={!product.is_available}
+                    >
+                        {product.is_available ? 'Add to Cart' : 'Currently Unavailable'}
+                    </Button>
+                </motion.div>
+            </div>
         </div>
     );
 };

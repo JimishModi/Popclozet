@@ -46,8 +46,9 @@ export const Modal: React.FC<ModalProps> = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
                         onClick={closeOnOverlayClick ? onClose : undefined}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+                        className="fixed inset-0 bg-black/70 backdrop-blur-md z-40"
                     />
 
                     {/* Modal */}
@@ -56,18 +57,25 @@ export const Modal: React.FC<ModalProps> = ({
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{
+                                type: 'spring',
+                                stiffness: 400,
+                                damping: 30,
+                            }}
                             className={cn(
-                                'bg-white rounded-2xl shadow-2xl w-full overflow-hidden',
+                                'rounded-2xl shadow-2xl w-full overflow-hidden',
+                                'bg-gradient-to-br from-zinc-900 to-zinc-950',
+                                'border border-white/10',
                                 sizeClasses[size]
                             )}
                         >
                             {/* Header */}
                             {title && (
-                                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                    <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+                                <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                                    <h2 className="text-xl font-semibold text-white">{title}</h2>
                                     <button
                                         onClick={onClose}
-                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                        className="text-zinc-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
                                     >
                                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path
@@ -82,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
                             )}
 
                             {/* Content */}
-                            <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+                            <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto text-zinc-300">
                                 {children}
                             </div>
                         </motion.div>

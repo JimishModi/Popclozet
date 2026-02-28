@@ -58,6 +58,17 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // prevents redirect loops
   const initialized = useRef(false);
 
+  // Safety timeout — if auth/profile check takes >5s, force loading to false
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[Auth] Loading timeout — forcing loading=false after 5s');
+        setLoading(false);
+      }
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
     try {
