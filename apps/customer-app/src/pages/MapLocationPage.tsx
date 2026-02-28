@@ -95,11 +95,9 @@ export default function MapLocationPage() {
                 lat: pos.lat,
                 lng: pos.lng,
                 formattedAddress: `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`,
-                address: '',
                 city: '',
-                state: '',
-                country: '',
                 postalCode: '',
+                country: '',
             };
             setSelectedAddress(clickedAddress);
         }

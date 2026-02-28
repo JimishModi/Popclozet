@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Flame, Eye, Heart } from "lucide-react";
 import { staggerContainer, staggerItem } from "@/utils/animations";
-import { InstantAddButton } from "@/components/ui/instant-add-button";
+import InstantAddButton from "@/components/ui/instant-add-button";
 
 interface TrendingItem {
     id: string;

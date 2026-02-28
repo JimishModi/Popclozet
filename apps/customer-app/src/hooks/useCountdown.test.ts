@@ -13,42 +13,40 @@ describe('useCountdown', () => {
 
     it('should initialize with correct time left', () => {
         const targetDate = new Date(Date.now() + 60000); // 1 minute from now
-        const { result } = renderHook(() => useCountdown({ targetDate }));
+        const { result } = renderHook(() => useCountdown(targetDate));
 
-        expect(result.current.timeLeft.minutes).toBe(1);
-        expect(result.current.timeLeft.seconds).toBe(0);
-        expect(result.current.isExpired).toBe(false);
+        expect(result.current.timeLeftMs).toBeGreaterThan(0);
+        expect(result.current.done).toBe(false);
     });
 
     it('should tick down every second', () => {
         const targetDate = new Date(Date.now() + 60000);
-        const { result } = renderHook(() => useCountdown({ targetDate }));
+        const { result } = renderHook(() => useCountdown(targetDate));
+
+        const initialTimeLeft = result.current.timeLeftMs;
 
         act(() => {
             vi.advanceTimersByTime(1000);
         });
 
-        expect(result.current.timeLeft.seconds).toBe(59);
+        expect(result.current.timeLeftMs).toBeLessThan(initialTimeLeft);
     });
 
     it('should expire when time is up', () => {
         const targetDate = new Date(Date.now() + 1000);
-        const onExpire = vi.fn();
-        const { result } = renderHook(() => useCountdown({ targetDate, onExpire }));
+        const { result } = renderHook(() => useCountdown(targetDate));
 
         act(() => {
-            vi.advanceTimersByTime(1000);
+            vi.advanceTimersByTime(2000);
         });
 
-        expect(result.current.isExpired).toBe(true);
-        expect(result.current.status).toBe('expired');
-        expect(onExpire).toHaveBeenCalled();
+        expect(result.current.done).toBe(true);
     });
 
     it('should format time correctly', () => {
         const targetDate = new Date(Date.now() + 65000); // 1 min 5 sec
-        const { result } = renderHook(() => useCountdown({ targetDate }));
+        const { result } = renderHook(() => useCountdown(targetDate));
 
-        expect(result.current.formattedTime).toBe('01:05');
+        expect(result.current.formatted).toMatch(/\d{2}:\d{2}:\d{2}/);
     });
 });

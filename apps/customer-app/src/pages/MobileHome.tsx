@@ -258,15 +258,17 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
-                {/* ─── SEARCH: Icon Button on Dark Pill ─── */}
+                {/* ─── SEARCH: Clickable Pill → opens /search ─── */}
                 <section className="px-5 mt-5">
-                    <div className="flex items-center bg-[#232323] rounded-full shadow-[0px_4px_4px_rgba(0,0,0,0.25)] h-12">
-                        <button
-                            onClick={() => navigate('/collections')}
-                            className="w-12 h-12 flex items-center justify-center bg-[#3a3a3a] rounded-full shadow-[0px_0px_4px_#f2546d] transition-all hover:bg-[#454545]"
+                    <div
+                        onClick={() => navigate('/search')}
+                        className="flex items-center bg-[#232323] rounded-full shadow-[0px_4px_4px_rgba(0,0,0,0.25)] h-12 cursor-pointer hover:bg-[#2a2a2a] transition-colors"
+                    >
+                        <div
+                            className="w-12 h-12 flex items-center justify-center bg-[#3a3a3a] rounded-full shadow-[0px_0px_4px_#f2546d] flex-shrink-0"
                         >
                             <Search className="w-[18px] h-[18px] text-white/90" />
-                        </button>
+                        </div>
                         <span className="ml-4 text-sm text-zinc-500 font-semibold tracking-tight">
                             Search for dresses, tops, brands...
                         </span>
@@ -300,7 +302,16 @@ const MobileHome: React.FC = () => {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     transition={{ duration: 0.4 }}
-                                    onClick={() => navigate('/collections')}
+                                    onClick={() => {
+                                        const slide = FEATURED_SLIDES[activeSlide];
+                                        const categoryMap: Record<string, string> = {
+                                            'New Arrivals': 'Casual',
+                                            'Trending Now': 'Party',
+                                            'Party Collection': 'Party',
+                                        };
+                                        const cat = categoryMap[slide.title] || 'Casual';
+                                        navigate(`/category?title=${encodeURIComponent(slide.title)}&category=${cat}`);
+                                    }}
                                 >
                                     <img
                                         src={FEATURED_SLIDES[activeSlide].image}
@@ -470,7 +481,7 @@ const MobileHome: React.FC = () => {
                         <h2 className="text-xl font-bold text-white tracking-tight">
                             Brands
                         </h2>
-                        <button className="text-sm font-bold text-[#f2546d]">
+                        <button onClick={() => navigate('/brands')} className="text-sm font-bold text-[#f2546d] hover:text-[#f2546d]/80 transition-colors">
                             See all
                         </button>
                     </div>
@@ -495,6 +506,7 @@ const MobileHome: React.FC = () => {
                                     <div
                                         key={`left-${idx}`}
                                         className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
+                                        onClick={() => navigate(`/search?q=${encodeURIComponent(brand.label)}`)}
                                     >
                                         <span className="text-sm font-bold text-zinc-300">
                                             {brand.label}
@@ -522,6 +534,7 @@ const MobileHome: React.FC = () => {
                                     <div
                                         key={`right-${idx}`}
                                         className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
+                                        onClick={() => navigate(`/search?q=${encodeURIComponent(brand.label)}`)}
                                     >
                                         <span className="text-sm font-bold text-zinc-300">
                                             {brand.label}
@@ -534,6 +547,7 @@ const MobileHome: React.FC = () => {
 
                     {/* See all Brands button */}
                     <button
+                        onClick={() => navigate('/brands')}
                         className="w-full mt-6 h-[50px] flex items-center justify-center gap-2 bg-[#232323] rounded-2xl border border-[#484848] hover:bg-[#2a2a2a] transition-colors"
                     >
                         <span className="text-sm font-bold text-white tracking-tight">

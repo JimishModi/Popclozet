@@ -32,9 +32,9 @@ const FinalCTA: React.FC = () => {
 
         // Safely extract error message with type guards
         let msg = "";
-        if (res.error && typeof res.error === "object") {
-          if ("message" in res.error && typeof res.error.message === "string") {
-            msg = res.error.message;
+        if (res.error !== null && res.error !== undefined && typeof res.error === "object") {
+          if ("message" in (res.error as object) && typeof (res.error as any).message === "string") {
+            msg = (res.error as any).message;
           } else {
             msg = JSON.stringify(res.error);
           }

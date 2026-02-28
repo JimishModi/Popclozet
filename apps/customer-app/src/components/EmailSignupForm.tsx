@@ -33,11 +33,11 @@ export default function EmailSignupForm({ defaultSource = "hero", onSuccess }: P
         // Show detailed error from the helper (useful for debugging)
         const err = res.error;
         let msg = "Signup failed.";
-        if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
-          msg = err.message;
+        if (err !== null && typeof err === "object" && "message" in (err as object) && typeof (err as any).message === "string") {
+          msg = (err as any).message;
         } else if (typeof err === "string") {
           msg = err;
-        } else if (err) {
+        } else if (err !== null && err !== undefined) {
           msg = JSON.stringify(err);
         }
 

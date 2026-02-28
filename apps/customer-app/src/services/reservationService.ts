@@ -281,7 +281,7 @@ class ReservationService {
                 const result = await offlineQueueService.queueMutation('create_reservation', payload);
                 return {
                     success: true,
-                    reservationId: result.mutationId,
+                    reservationId: String(result.mutationId),
                     queued: true
                 };
             }

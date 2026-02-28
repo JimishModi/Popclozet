@@ -24,6 +24,10 @@ export interface Product {
     isAvailable?: boolean;
     createdAt?: string;
     updatedAt?: string;
+    // Database-mapped fields (raw DB column names)
+    images?: string[];
+    brand?: string;
+    rental_price?: number;
     // Hygiene-related fields
     fabricType?: string;
     fabricHint?: string;
@@ -57,6 +61,7 @@ interface ProductDB extends DBSchema {
     metadata: {
         key: string;
         value: {
+            key: string;
             lastSync: number;
             version: number;
         };

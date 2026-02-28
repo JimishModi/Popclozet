@@ -105,11 +105,9 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
     };
 
     const handleMarkAllAsRead = async () => {
-        const success = await markAllAsRead();
-        if (success) {
-            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-            setUnreadCount(0);
-        }
+        await markAllAsRead();
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+        setUnreadCount(0);
     };
 
     const formatTime = (dateStr: string) => {
@@ -201,8 +199,8 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                                             {/* Icon */}
                                             <div
                                                 className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${!notif.is_read
-                                                        ? 'bg-[#ff4d6d] text-white'
-                                                        : 'bg-zinc-800 text-zinc-400'
+                                                    ? 'bg-[#ff4d6d] text-white'
+                                                    : 'bg-zinc-800 text-zinc-400'
                                                     }`}
                                             >
                                                 {NOTIFICATION_ICONS[notif.type] || <Bell className="w-4 h-4" />}

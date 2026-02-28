@@ -95,12 +95,10 @@ export function useNotifications({
 
     // Mark all as read (RLS-safe, no userId needed)
     const handleMarkAllAsRead = useCallback(async () => {
-        const success = await markAllAsRead();
-        if (success) {
-            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-            setUnreadCount(0);
-        }
-        return success;
+        await markAllAsRead();
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+        setUnreadCount(0);
+        return true;
     }, []);
 
     // Clear local state

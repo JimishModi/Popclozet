@@ -27,11 +27,11 @@ export default function FooterSignupInline() {
       if (res.success === false) {
         console.error("Footer signup error:", res.error);
         let errMsg = "Signup failed";
-        if (res.error && typeof res.error === "object" && "message" in res.error && typeof res.error.message === "string") {
-          errMsg = res.error.message;
+        if (res.error !== null && res.error !== undefined && typeof res.error === "object" && "message" in (res.error as object) && typeof (res.error as any).message === "string") {
+          errMsg = (res.error as any).message;
         } else if (typeof res.error === "string") {
           errMsg = res.error;
-        } else if (res.error) {
+        } else if (res.error !== null && res.error !== undefined) {
           errMsg = JSON.stringify(res.error);
         }
         if (/duplicate|23505|unique/i.test(errMsg)) {

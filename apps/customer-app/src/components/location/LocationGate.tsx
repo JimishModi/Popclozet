@@ -38,8 +38,8 @@ function distanceKm(
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) ** 2;
 
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
@@ -103,7 +103,7 @@ export function LocationGate() {
   /* ---------------------------------- */
   /* Ask for location                   */
   /* ---------------------------------- */
-  if (state === "idle" || state === "requesting") {
+  if (state === "idle" || state === "requesting" || state === "denied") {
     return (
       <div className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl bg-zinc-900 p-6 text-white border border-zinc-800">

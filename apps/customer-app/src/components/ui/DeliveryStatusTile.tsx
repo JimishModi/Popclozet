@@ -22,9 +22,7 @@ const DeliveryStatusTile = ({
         return date;
     }, [targetDate]);
 
-    const { formattedTime, isExpired } = useCountdown({
-        targetDate: effectiveTargetDate,
-    });
+    const { formatted: formattedTime, done: isExpired } = useCountdown(effectiveTargetDate);
 
     return (
         <div
