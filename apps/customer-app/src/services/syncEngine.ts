@@ -554,6 +554,6 @@ class SyncEngine {
 export const syncEngine = new SyncEngine();
 
 // Auto-start sync when module loads
-if (typeof window !== 'undefined') {
-    syncEngine.startAutoSync();
-}
+// if (typeof window !== 'undefined') {
+//     syncEngine.startAutoSync();
+// }
