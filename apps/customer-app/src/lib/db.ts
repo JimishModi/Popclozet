@@ -24,10 +24,12 @@ interface PopClozetDB extends DBSchema {
         key: string;
         value: {
             id: string;
+            category: string; // Added for indexing
             data: any;
             cachedAt: number;
             version: number;
         };
+        indexes: { 'by-category': string };
     };
     reservations: {
         key: string;
@@ -87,7 +89,7 @@ interface PopClozetDB extends DBSchema {
 }
 
 const DB_NAME = 'PopClozet';
-const DB_VERSION = 2; // Incremented for schema changes
+const DB_VERSION = 3; // Incremented for category index in products
 
 let dbInstance: IDBPDatabase<PopClozetDB> | null = null;
 
@@ -111,7 +113,14 @@ export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
 
             // Create products cache store
             if (!db.objectStoreNames.contains('products')) {
-                db.createObjectStore('products', { keyPath: 'id' });
+                const productStore = db.createObjectStore('products', { keyPath: 'id' });
+                productStore.createIndex('by-category', 'category');
+            } else if (oldVersion < 3) {
+                // Add category index to existing products store
+                const productStore = transaction.objectStore('products');
+                if (!productStore.indexNames.contains('by-category')) {
+                    productStore.createIndex('by-category', 'category');
+                }
             }
 
             // Create reservations store
@@ -247,6 +256,7 @@ export async function cacheProductDB(id: string, data: any) {
     const existing = await db.get('products', id);
     await db.put('products', {
         id,
+        category: data.category || 'uncategorized',
         data,
         cachedAt: Date.now(),
         version: (existing?.version || 0) + 1,
@@ -258,12 +268,42 @@ export async function getCachedProductDB(id: string) {
     const db = await initDB();
     const cached = await db.get('products', id);
 
-    // Cache expires after 1 hour
-    if (cached && Date.now() - cached.cachedAt < 60 * 60 * 1000) {
+    // Cache expires after 24 hours (increased from 1h for better persistence)
+    if (cached && Date.now() - cached.cachedAt < 24 * 60 * 60 * 1000) {
         return cached.data;
     }
 
     return null;
+}
+
+export async function getProductsByCategoryDB(category: string) {
+    const db = await initDB();
+    const cached = await db.getAllFromIndex('products', 'by-category', category);
+
+    // Filter out expired items (older than 24h)
+    const now = Date.now();
+    return cached
+        .filter(item => now - item.cachedAt < 24 * 60 * 60 * 1000)
+        .map(item => item.data);
+}
+
+export async function cacheProductsBatchDB(products: any[]) {
+    const db = await initDB();
+    const tx = db.transaction('products', 'readwrite');
+    const now = Date.now();
+
+    for (const p of products) {
+        const id = p.id;
+        const existing = await tx.store.get(id);
+        await tx.store.put({
+            id,
+            category: p.category || 'uncategorized',
+            data: p,
+            cachedAt: now,
+            version: (existing?.version || 0) + 1,
+        });
+    }
+    await tx.done;
 }
 
 // Offline queue operations

@@ -93,7 +93,7 @@ const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = 
 const MobileHome: React.FC = () => {
     const navigate = useNavigate();
     const [activeSlide, setActiveSlide] = useState(1);
-    const [activeGender, setActiveGender] = useState<"women" | "men">("women");
+    const [activeGender, setActiveGender] = useState<"womens" | "mens">("womens");
     const [activeAboutSlide, setActiveAboutSlide] = useState(0);
     const [userLocation, setUserLocation] = useState("Detecting...");
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
@@ -221,16 +221,16 @@ const MobileHome: React.FC = () => {
                         <motion.div
                             className={cn(
                                 "absolute left-0 w-[62%] h-24 rounded-2xl cursor-pointer transition-all duration-300 flex items-end pb-4 pl-8",
-                                activeGender === "women"
+                                activeGender === "womens"
                                     ? "bg-[#2a2a2a] z-20 shadow-[6px_0px_8px_rgba(0,0,0,0.4)]"
                                     : "bg-[#222222] z-10"
                             )}
-                            onClick={() => setActiveGender("women")}
+                            onClick={() => setActiveGender("womens")}
                             whileTap={{ scale: 0.98 }}
                         >
                             <span className={cn(
                                 "text-sm font-bold tracking-wider transition-colors",
-                                activeGender === "women" ? "text-white" : "text-zinc-500"
+                                activeGender === "womens" ? "text-white" : "text-zinc-500"
                             )}>
                                 WOMEN
                             </span>
@@ -240,16 +240,16 @@ const MobileHome: React.FC = () => {
                         <motion.div
                             className={cn(
                                 "absolute right-0 w-[62%] h-24 rounded-2xl cursor-pointer transition-all duration-300 flex items-end pb-4 pl-10",
-                                activeGender === "men"
+                                activeGender === "mens"
                                     ? "bg-[#2a2a2a] z-20 shadow-[-9px_0px_4px_rgba(0,0,0,0.25)]"
                                     : "bg-[#222222] z-10"
                             )}
-                            onClick={() => setActiveGender("men")}
+                            onClick={() => setActiveGender("mens")}
                             whileTap={{ scale: 0.98 }}
                         >
                             <span className={cn(
                                 "text-sm font-bold tracking-wider transition-colors",
-                                activeGender === "men" ? "text-white" : "text-zinc-500"
+                                activeGender === "mens" ? "text-white" : "text-zinc-500"
                             )}>
                                 MEN
                             </span>
@@ -391,7 +391,7 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 + index * 0.1 }}
                                 whileTap={{ scale: 0.97 }}
-                                onClick={() => navigate(`/shop/women?category=${collection.id}&title=${collection.title}`)}
+                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
                                 className="relative h-[250px] rounded-2xl overflow-hidden cursor-pointer bg-[#232323]"
                             >
                                 <img

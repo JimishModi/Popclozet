@@ -1,123 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ChevronLeft, SlidersHorizontal, Heart, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
-
-// Mock product data fallback with proper categorization
-const JACKET_BRANDS = ["Zara", "H&M", "Mango", "Forever 21", "Uniqlo", "Gap"];
-const SHOE_BRANDS = ["Nike", "Adidas", "Puma", "Reebok", "Vans"];
-const ACCESSORY_BRANDS = ["Fossil", "Coach", "Guess", "Michael Kors"];
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
-const SHOE_SIZES = ["6", "7", "8", "9", "10", "11"];
-
-const MOCK_PRODUCTS = [
-    // 6 Jackets: 3 womens, 3 mens
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `jacket-womens-${i + 1}`,
-        name: `Jacket - Womens ${i + 1}`,
-        brand: JACKET_BRANDS[Math.floor(Math.random() * JACKET_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (1500 - 400)) + 400,
-        price: Math.floor(Math.random() * (1500 - 400)) + 400,
-        rentalPrice: Math.floor(Math.random() * (1500 - 400)) + 400,
-        images: [],
-        sizes: [SIZES[Math.floor(Math.random() * SIZES.length)]],
-        category: "jackets",
-        eventCategory: "casual" as const,
-        color: "Black",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "womens",
-    })),
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `jacket-mens-${i + 1}`,
-        name: `Jacket - Mens ${i + 1}`,
-        brand: JACKET_BRANDS[Math.floor(Math.random() * JACKET_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (1500 - 400)) + 400,
-        price: Math.floor(Math.random() * (1500 - 400)) + 400,
-        rentalPrice: Math.floor(Math.random() * (1500 - 400)) + 400,
-        images: [],
-        sizes: [SIZES[Math.floor(Math.random() * SIZES.length)]],
-        category: "jackets",
-        eventCategory: "casual" as const,
-        color: "Black",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "mens",
-    })),
-    
-    // 6 Shoes: 3 womens, 3 mens
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `shoe-womens-${i + 1}`,
-        name: `Shoe - Womens ${i + 1}`,
-        brand: SHOE_BRANDS[Math.floor(Math.random() * SHOE_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (1000 - 300)) + 300,
-        price: Math.floor(Math.random() * (1000 - 300)) + 300,
-        rentalPrice: Math.floor(Math.random() * (1000 - 300)) + 300,
-        images: [],
-        sizes: [SHOE_SIZES[Math.floor(Math.random() * SHOE_SIZES.length)]],
-        category: "footwear",
-        eventCategory: "casual" as const,
-        color: "White",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "womens",
-    })),
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `shoe-mens-${i + 1}`,
-        name: `Shoe - Mens ${i + 1}`,
-        brand: SHOE_BRANDS[Math.floor(Math.random() * SHOE_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (1000 - 300)) + 300,
-        price: Math.floor(Math.random() * (1000 - 300)) + 300,
-        rentalPrice: Math.floor(Math.random() * (1000 - 300)) + 300,
-        images: [],
-        sizes: [SHOE_SIZES[Math.floor(Math.random() * SHOE_SIZES.length)]],
-        category: "footwear",
-        eventCategory: "casual" as const,
-        color: "White",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "mens",
-    })),
-    
-    // 6 Accessories: 3 womens, 3 mens
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `accessory-womens-${i + 1}`,
-        name: `Accessory - Womens ${i + 1}`,
-        brand: ACCESSORY_BRANDS[Math.floor(Math.random() * ACCESSORY_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (800 - 200)) + 200,
-        price: Math.floor(Math.random() * (800 - 200)) + 200,
-        rentalPrice: Math.floor(Math.random() * (800 - 200)) + 200,
-        images: [],
-        sizes: [],
-        category: "accessories",
-        eventCategory: "casual" as const,
-        color: "Silver",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "womens",
-    })),
-    ...Array.from({ length: 3 }, (_, i) => ({
-        id: `accessory-mens-${i + 1}`,
-        name: `Accessory - Mens ${i + 1}`,
-        brand: ACCESSORY_BRANDS[Math.floor(Math.random() * ACCESSORY_BRANDS.length)],
-        rental_price: Math.floor(Math.random() * (800 - 200)) + 200,
-        price: Math.floor(Math.random() * (800 - 200)) + 200,
-        rentalPrice: Math.floor(Math.random() * (800 - 200)) + 200,
-        images: [],
-        sizes: [],
-        category: "accessories",
-        eventCategory: "casual" as const,
-        color: "Silver",
-        rating: 4.5,
-        imageUrl: "",
-        gender: "mens",
-    })),
-];
+import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 // category-specific configuration: sizes, brands, and inventory count
 interface CategoryConfig {
@@ -156,15 +46,17 @@ type FilterTab = "size" | "price" | "brand";
 const CategoryProductsPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { gender: genderFromPath } = useParams();
 
+    // Category and title from search params
     const categoryTitle = searchParams.get("title") || "Products";
-    const category = searchParams.get("category") || "";
+    const category = (searchParams.get("category") || "").toLowerCase();
 
     // derive config for the current category
     const config = CATEGORY_CONFIG[category] || { sizes: [], brands: [], inventory: 0 };
 
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState<Product[]>([]); // Start with empty array
+    const [loading, setLoading] = useState(false); // Default to not loading, we'll try cache first
     const [wishlist, setWishlist] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>("size");
@@ -176,29 +68,50 @@ const CategoryProductsPage: React.FC = () => {
 
     const [nameQuery, setNameQuery] = useState(""); // text search by name
 
-    // extract gender from path (/shop/womens or /shop/mens)
-    const pathSegments = window.location.pathname.split("/");
-    const genderFromPath = pathSegments[2]?.split("?")[0] || "";
-
-    // reset filter state whenever the *category* itself changes
-    // (we don't want to re‑reset on every filter change because doing so would
-    // generate new Set/objects and trigger an infinite render loop)
+    // reset filter state and try to load from cache whenever the *category* or *gender* changes
     useEffect(() => {
-        resetFilters();
-    }, [category]);
+        const loadCache = async () => {
+            resetFilters();
+            if (category) {
+                const cached = await getProductsByCategoryDB(category);
+                // The DB returns all products for that category, we need to filter by gender ourselves if needed
+                // or trust that the cache corresponds to the current view.
+                // But let's apply the mapping to ensure consistency.
+                if (cached && cached.length > 0) {
+                    const mapped = cached.map((p: any) => ({
+                        ...p,
+                        price: parseFloat(p.rental_price ?? p.price ?? '0'),
+                        rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
+                        imageUrl: p.images?.[0] || '',
+                        sizes: Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : []),
+                        gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
+                    }));
+                    // Filter by gender manually from cache if needed (since DB index is by category only)
+                    const genderFiltered = genderFromPath
+                        ? mapped.filter((p: any) => p.gender === genderFromPath)
+                        : mapped;
+
+                    setProducts(genderFiltered);
+                } else {
+                    setProducts([]);
+                }
+            }
+        };
+        loadCache();
+    }, [category, genderFromPath]);
 
     // whenever any filter parameter or the active category/gender changes,
-    // refetch products from the server
+    // optionally refetch products from the server in the background
     useEffect(() => {
-        // build filter object from current state
-        fetchProducts({
-            category,
+        // Trigger background fetch from Supabase
+        fetchProductsInBackground({
+            category: category,
             gender: genderFromPath,
-            nameQuery,
+            nameQuery: nameQuery,
             priceMin: priceRange.min,
             priceMax: priceRange.max,
             brands: Array.from(selectedBrands),
-            sizes: Array.from(selectedSizes),
+            sizes: Array.from(selectedSizes)
         });
     }, [category, genderFromPath, nameQuery, priceRange, selectedBrands, selectedSizes]);
 
@@ -212,68 +125,72 @@ const CategoryProductsPage: React.FC = () => {
         sizes?: string[];
     }
 
-    const fetchProducts = async (filters: ProductFilters = {}) => {
-        setLoading(true);
+    // Background fetch helper
+    const fetchProductsInBackground = async (filters: ProductFilters = {}) => {
+        // Only show main loader if we have NO products at all (first load)
+        if (products.length === 0) {
+            setLoading(true);
+        } else {
+            // If we have products (from cache), don't block the UI
+            // We can show a small background indicator if needed
+        }
         try {
-            // build supabase query using filters
-            let query: any = supabase.from('products').select('*').limit(100);
+            // Map app gender ('mens'/'womens') to DB gender ('men'/'women')
+            let dbGender = filters.gender;
+            if (filters.gender === 'mens') dbGender = 'men';
+            if (filters.gender === 'womens') dbGender = 'women';
+
+            let query = supabase
+                .from('products')
+                .select('*')
+                .eq('is_available', true);
 
             if (filters.category) {
                 query = query.eq('category', filters.category);
             }
-            if (filters.nameQuery && filters.nameQuery.trim() !== '') {
-                query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
-            }
-            if (filters.priceMin != null) {
-                query = query.gte('price', filters.priceMin);
-            }
-            if (filters.priceMax != null) {
-                query = query.lte('price', filters.priceMax);
-            }
-            if (filters.brands && filters.brands.length > 0) {
-                query = query.in('brand', filters.brands);
-            }
-            if (filters.sizes && filters.sizes.length > 0) {
-                query = query.overlaps('sizes', filters.sizes);
+
+            if (dbGender) {
+                query = query.eq('gender', dbGender);
             }
 
+            console.log(`🔍 Fetching from Supabase: category="${filters.category}", gender="${dbGender}"`);
             const { data, error } = await query;
-            if (error) throw error;
 
-            if (data && Array.isArray(data)) {
+            if (error) {
+                console.error('❌ Supabase error:', error.message, error.details, error.hint);
+                throw error;
+            }
+
+            console.log(`📦 Supabase returned ${data?.length || 0} products`);
+
+            if (data) {
                 const mapped = data.map((p: any) => ({
                     ...p,
-                    price: p.rental_price ?? p.price,
+                    price: parseFloat(p.rental_price ?? p.price ?? '0'),
+                    rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
                     imageUrl: p.images?.[0] || '',
+                    // Map DB 'sizes_available' to app 'sizes'
+                    sizes: Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : []),
+                    // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
+                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
                 }));
-                setProducts(mapped as Product[]);
+
+                // Update state with fresh data from DB
+                setProducts(mapped);
+
+                // Update local cache for next time
+                if (mapped.length > 0) {
+                    await cacheProductsBatchDB(mapped);
+                }
+
+                if (mapped.length === 0) {
+                    console.warn(`⚠️ No products found in DB for Category: "${filters.category}" and Gender: "${dbGender}"`);
+                }
             } else {
-                setProducts([]);
+                console.warn('⚠️ Data is null or undefined from Supabase query');
             }
         } catch (err) {
-            console.warn('📦 Supabase fetch failed, using mock dataset', err);
-            // apply client-side filtering to mocks
-            let list: any[] = MOCK_PRODUCTS;
-            if (filters.category) {
-                list = list.filter((p: any) => p.category === filters.category);
-            }
-            if (filters.nameQuery) {
-                const q = filters.nameQuery.toLowerCase();
-                list = list.filter((p: any) => p.name.toLowerCase().includes(q));
-            }
-            if (filters.priceMin != null) {
-                list = list.filter((p: any) => (p.price || p.rental_price) >= filters.priceMin!);
-            }
-            if (filters.priceMax != null) {
-                list = list.filter((p: any) => (p.price || p.rental_price) <= filters.priceMax!);
-            }
-            if (filters.brands && filters.brands.length) {
-                list = list.filter((p: any) => filters.brands!.includes(p.brand));
-            }
-            if (filters.sizes && filters.sizes.length) {
-                list = list.filter((p: any) => p.sizes && p.sizes.some((sz: string) => filters.sizes!.includes(sz)));
-            }
-            setProducts(list as any);
+            console.error('CRITICAL: Supabase fetch failed:', err);
         } finally {
             setLoading(false);
         }
@@ -321,7 +238,6 @@ const CategoryProductsPage: React.FC = () => {
     };
 
     const handleApplyFilters = () => {
-        // nothing special required because filteredProducts is memoized
         setShowFilters(false);
     };
 
@@ -335,9 +251,14 @@ const CategoryProductsPage: React.FC = () => {
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
-        // Filter by category ONLY - this is the main filter
+        // Filter by category
         if (category) {
             filtered = filtered.filter((p: any) => p.category === category);
+        }
+
+        // Filter by gender if applicable
+        if (genderFromPath) {
+            filtered = filtered.filter((p: any) => !p.gender || p.gender === genderFromPath);
         }
         // Filter by name query
         if (nameQuery.trim() !== "") {
@@ -365,7 +286,7 @@ const CategoryProductsPage: React.FC = () => {
         }
 
         return filtered;
-    }, [products, category, selectedSizes, selectedBrands, priceRange, nameQuery]);
+    }, [products, category, selectedSizes, selectedBrands, priceRange, nameQuery, genderFromPath]);
 
     return (
         <MobileShell className="bg-[#050505] text-white">
@@ -406,57 +327,69 @@ const CategoryProductsPage: React.FC = () => {
 
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
-                {loading ? (
+                {loading && products.length === 0 ? (
                     <div className="flex justify-center items-center py-20">
                         <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
                     </div>
-                ) : filteredProducts.length === 0 ? (
-                    <div className="text-center py-20 text-zinc-400">
-                        No products available.
-                    </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                        {filteredProducts.map((product, index) => (
-                            <motion.div
-                                key={product.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                onClick={() => handleProductClick(product.id)}
-                                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
-                            >
-                                <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
-                                    {product.images && product.images[0] ? (
-                                        <img
-                                            src={product.images[0]}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-                                            <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
-                                        </div>
-                                    )}
-                                    <button
-                                        onClick={(e) => toggleWishlist(product.id, e)}
-                                        className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                    <>
+                        {loading && (
+                            <div className="flex justify-center mb-4">
+                                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 animate-pulse">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#FF4D6D]" />
+                                    <span className="text-[10px] text-zinc-400 uppercase tracking-tighter font-medium">Updating Live...</span>
+                                </div>
+                            </div>
+                        )}
+                        {filteredProducts.length === 0 ? (
+                            <div className="text-center py-20 text-zinc-400">
+                                No products available.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                {filteredProducts.map((product, index) => (
+                                    <motion.div
+                                        key={product.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        onClick={() => handleProductClick(product.id)}
+                                        className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
                                     >
-                                        <Heart
-                                            className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
-                                                ? "text-[#FF4D6D] fill-[#FF4D6D]"
-                                                : "text-white"
-                                                }`}
-                                        />
-                                    </button>
-                                </div>
-                                <div className="p-3">
-                                    <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
-                                    <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                    <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                                        <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
+                                            {product.images && product.images[0] ? (
+                                                <img
+                                                    src={product.images[0]}
+                                                    alt={product.name}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                            ) : (
+                                                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                                                    <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={(e) => toggleWishlist(product.id, e)}
+                                                className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                                            >
+                                                <Heart
+                                                    className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
+                                                        ? "text-[#FF4D6D] fill-[#FF4D6D]"
+                                                        : "text-white"
+                                                        }`}
+                                                />
+                                            </button>
+                                        </div>
+                                        <div className="p-3">
+                                            <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
+                                            <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
+                                            <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -485,25 +418,25 @@ const CategoryProductsPage: React.FC = () => {
                                 {/* Tab pills – 3 equal width */}
                                 <div className="flex items-center gap-3 mb-5">
                                     {(["size", "price", "brand"] as FilterTab[])
-                                    .filter((tab) => {
-                                        if (tab === "size") return config.sizes.length > 0;
-                                        if (tab === "brand") return config.brands.length > 0;
-                                        return true; // price always
-                                    })
-                                    .map((tab) => (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setActiveFilterTab(tab)}
-                                            className={cn(
-                                                "flex-1 py-2.5 rounded-lg text-sm font-semibold capitalize transition-all",
-                                                activeFilterTab === tab
-                                                    ? "bg-[#3E3E42] text-white"
-                                                    : "text-zinc-500"
-                                            )}
-                                        >
-                                            {tab}
-                                        </button>
-                                    ))}
+                                        .filter((tab) => {
+                                            if (tab === "size") return config.sizes.length > 0;
+                                            if (tab === "brand") return config.brands.length > 0;
+                                            return true; // price always
+                                        })
+                                        .map((tab) => (
+                                            <button
+                                                key={tab}
+                                                onClick={() => setActiveFilterTab(tab)}
+                                                className={cn(
+                                                    "flex-1 py-2.5 rounded-lg text-sm font-semibold capitalize transition-all",
+                                                    activeFilterTab === tab
+                                                        ? "bg-[#3E3E42] text-white"
+                                                        : "text-zinc-500"
+                                                )}
+                                            >
+                                                {tab}
+                                            </button>
+                                        ))}
                                 </div>
 
                                 {/* === Size Tab === */}

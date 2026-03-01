@@ -13,6 +13,7 @@ import starRatingIcon from "@/assets/icons/star-rating.svg";
 import deliveryTruckIcon from "@/assets/icons/delivery-truck.svg";
 import shieldInsuranceIcon from "@/assets/icons/shield-insurance.svg";
 import qualityAssuredIcon from "@/assets/icons/quality-assured.svg";
+// import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -69,6 +70,7 @@ const MobileProductDetailPage: React.FC = () => {
     const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
+
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -78,6 +80,7 @@ const MobileProductDetailPage: React.FC = () => {
                 setLoading(false);
                 return;
             }
+
             try {
                 const { data, error } = await supabase
                     .from('products')
@@ -85,19 +88,24 @@ const MobileProductDetailPage: React.FC = () => {
                     .eq('id', productId)
                     .single();
 
-                if (error || !data) {
-                    console.error('Product not found:', error);
-                    setProduct(null);
-                } else {
+                if (error) throw error;
+
+                if (data) {
                     setProduct({
                         ...data,
-                        price: data.rental_price,
-                        rentalPrice: data.rental_price,
+                        price: parseFloat(data.rental_price ?? data.price ?? '0'),
+                        rentalPrice: parseFloat(data.rental_price ?? data.price ?? '0'),
                         imageUrl: data.images?.[0] || '',
+                        // Map DB 'sizes_available' to app 'sizes'
+                        sizes: Array.isArray(data.sizes_available)
+                            ? (typeof data.sizes_available[0] === 'object' ? data.sizes_available.map((s: any) => s.size) : data.sizes_available)
+                            : (typeof data.sizes_available === 'object' ? Object.keys(data.sizes_available) : []),
+                        // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
+                        gender: data.gender === 'men' ? 'mens' : (data.gender === 'women' ? 'womens' : data.gender)
                     });
                 }
             } catch (err) {
-                console.error('Error fetching product:', err);
+                console.error('CRITICAL: Supabase detail fetch failed:', err);
                 setProduct(null);
             } finally {
                 setLoading(false);
@@ -295,9 +303,11 @@ const MobileProductDetailPage: React.FC = () => {
 
                     {/* Size buttons */}
                     <div className="flex items-center gap-3 mt-5 relative">
-                        {SIZES.map((size) => {
+                        {(product.sizes && product.sizes.length > 0 ? product.sizes : SIZES).map((size) => {
                             const isSelected = selectedSize === size;
-                            const isDisabled = size === "XS" || size === "M";
+                            // Update isDisabled logic to check if size really exists in stock if possible 
+                            // For now keeping it simple or making it false if we have the size list
+                            const isDisabled = false;
 
                             return (
                                 <div key={size} className="relative">
@@ -342,8 +352,8 @@ const MobileProductDetailPage: React.FC = () => {
                                             isSelected
                                                 ? "bg-[#f2546d] text-[#611624]"
                                                 : isDisabled
-                                                ? "text-[#616161]"
-                                                : "text-white"
+                                                    ? "text-[#616161]"
+                                                    : "text-white"
                                         )}
                                         style={dmSans}
                                     >

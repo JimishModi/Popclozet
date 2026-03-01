@@ -18,19 +18,15 @@ export interface Product {
     videoUrl?: string;
     color: string;
     sizes?: string[];
-    brand?: string;            // optional brand field from DB
-    rental_price?: number;     // raw db field when mapping
-    images?: string[];         // original image list
+    brand?: string;
+    rental_price?: number;
+    images?: string[];
     leadTimeMinutes?: number;
     rating: number;
     stockQuantity?: number;
     isAvailable?: boolean;
     createdAt?: string;
     updatedAt?: string;
-    // Database-mapped fields (raw DB column names)
-    images?: string[];
-    brand?: string;
-    rental_price?: number;
     // Hygiene-related fields
     fabricType?: string;
     fabricHint?: string;
@@ -151,22 +147,24 @@ class ProductService {
         }
     }
 
-    // Transform database product to app format
     private transformFromDB(dbProduct: any): Product {
         return {
             id: dbProduct.id,
             name: dbProduct.name,
             description: dbProduct.description,
-            price: parseFloat(dbProduct.price),
+            price: parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
             rentalPrice: dbProduct.rental_price ? parseFloat(dbProduct.rental_price) : undefined,
-            gender: dbProduct.gender as GenderCategory,
-            eventCategory: dbProduct.event_category as EventCategory,
-            imageUrl: dbProduct.image_url,
+            gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
+            eventCategory: dbProduct.category as EventCategory, // DB uses 'category'
+            imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',
             videoUrl: dbProduct.video_url,
-            color: dbProduct.color,
-            sizes: dbProduct.sizes,
+            color: dbProduct.color || '',
+            sizes: Array.isArray(dbProduct.sizes_available)
+                ? (typeof dbProduct.sizes_available[0] === 'object' ? dbProduct.sizes_available.map((s: any) => s.size) : dbProduct.sizes_available)
+                : (typeof dbProduct.sizes_available === 'object' ? Object.keys(dbProduct.sizes_available) : (dbProduct.sizes || [])),
+            brand: dbProduct.brand,
             leadTimeMinutes: dbProduct.lead_time_minutes,
-            rating: parseFloat(dbProduct.rating),
+            rating: parseFloat(dbProduct.rating || '0'),
             stockQuantity: dbProduct.stock_quantity,
             isAvailable: dbProduct.is_available,
             createdAt: dbProduct.created_at,
@@ -189,7 +187,7 @@ class ProductService {
             description: product.description,
             price: product.price,
             rental_price: product.rentalPrice,
-            gender: product.gender,
+            gender: product.gender === 'mens' ? 'men' : (product.gender === 'womens' ? 'women' : product.gender),
             event_category: product.eventCategory,
             image_url: product.imageUrl,
             video_url: product.videoUrl,
