@@ -30,6 +30,7 @@ import NetworkStatusBanner from "./components/NetworkStatusBanner";
 // Lazy pages
 const CartPage = lazy(() => import("./pages/CartPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
 const ChromaticClosetPage = lazy(() => import("./pages/ChromaticClosetPage"));
 const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
@@ -47,6 +48,8 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
+const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage"));
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -141,7 +144,8 @@ function App() {
 
                         <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                         <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
-                        <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
+                        <Route path="/profile" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><ProfilePage /></Suspense></PageTransition>} />
+                        <Route path="/settings" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SettingsPage /></Suspense></PageTransition>} />
                         <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
 
                         <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />
@@ -171,6 +175,8 @@ function App() {
                         <Route path="/gender" element={<PageTransition><GenderCategoryPage /></PageTransition>} />
                         <Route path="/mood" element={<PageTransition><MoodPage /></PageTransition>} />
                         <Route path="/onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OnboardingPage /></Suspense></PageTransition>} />
+                        <Route path="/about-us" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><AboutUsPage /></Suspense></PageTransition>} />
+                        <Route path="/subscription-plans" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SubscriptionPlansPage /></Suspense></PageTransition>} />
 
                         <Route path="/auth/callback" element={<PageTransition><AuthCallback /></PageTransition>} />
 

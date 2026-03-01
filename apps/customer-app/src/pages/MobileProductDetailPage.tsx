@@ -8,6 +8,8 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
+import { getProductById as getStaticProduct } from "@/config/products";
+import { SizeChartModal } from "@/components/ui/SizeChartModal";
 import shareButtonIcon from "@/assets/icons/share-button.svg";
 import starRatingIcon from "@/assets/icons/star-rating.svg";
 import deliveryTruckIcon from "@/assets/icons/delivery-truck.svg";
@@ -71,6 +73,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showSizeChart, setShowSizeChart] = useState(false);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -79,15 +82,47 @@ const MobileProductDetailPage: React.FC = () => {
                 return;
             }
             try {
-                const { data, error } = await supabase
+                // Try Supabase first with a 1.5s timeout
+                const fetchPromise = supabase
                     .from('products')
                     .select('*')
                     .eq('id', productId)
                     .single();
 
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Supabase request timed out')), 1500)
+                );
+
+                const { data, error } = await Promise.race([
+                    fetchPromise,
+                    timeoutPromise
+                ]) as any;
+
                 if (error || !data) {
-                    console.error('Product not found:', error);
-                    setProduct(null);
+                    console.warn('Supabase product not found, falling back to static data:', error);
+                    // Fallback to static product data
+                    const staticProduct = getStaticProduct(productId);
+                    if (staticProduct) {
+                        setProduct({
+                            id: staticProduct.id,
+                            name: staticProduct.name,
+                            price: staticProduct.price,
+                            rentalPrice: staticProduct.price,
+                            imageUrl: staticProduct.image,
+                            images: [staticProduct.image],
+                            color: staticProduct.color,
+                            rating: staticProduct.rating,
+                            sizes: staticProduct.sizes || ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                            gender: (staticProduct.gender as any) || 'womens',
+                            eventCategory: (staticProduct.eventCategory as any) || 'casual',
+                            hygieneCertified: staticProduct.hygieneCertified,
+                            fitType: staticProduct.fitType,
+                            stretchLevel: staticProduct.stretchLevel,
+                            fabricComposition: staticProduct.fabricComposition,
+                        } as any);
+                    } else {
+                        setProduct(null);
+                    }
                 } else {
                     setProduct({
                         ...data,
@@ -97,8 +132,30 @@ const MobileProductDetailPage: React.FC = () => {
                     });
                 }
             } catch (err) {
-                console.error('Error fetching product:', err);
-                setProduct(null);
+                console.warn('Error fetching product, falling back to static data:', err);
+                // Fallback to static product data
+                const staticProduct = getStaticProduct(productId);
+                if (staticProduct) {
+                    setProduct({
+                        id: staticProduct.id,
+                        name: staticProduct.name,
+                        price: staticProduct.price,
+                        rentalPrice: staticProduct.price,
+                        imageUrl: staticProduct.image,
+                        images: [staticProduct.image],
+                        color: staticProduct.color,
+                        rating: staticProduct.rating,
+                        sizes: staticProduct.sizes || ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                        gender: (staticProduct.gender as any) || 'womens',
+                        eventCategory: (staticProduct.eventCategory as any) || 'casual',
+                        hygieneCertified: staticProduct.hygieneCertified,
+                        fitType: staticProduct.fitType,
+                        stretchLevel: staticProduct.stretchLevel,
+                        fabricComposition: staticProduct.fabricComposition,
+                    } as any);
+                } else {
+                    setProduct(null);
+                }
             } finally {
                 setLoading(false);
             }
@@ -282,7 +339,7 @@ const MobileProductDetailPage: React.FC = () => {
                         >
                             Select Size
                         </span>
-                        <button className="flex items-center gap-1.5">
+                        <button className="flex items-center gap-1.5" onClick={() => setShowSizeChart(true)}>
                             <RulerIcon />
                             <span
                                 className="text-sm font-semibold text-[#f2546d] tracking-[-0.42px]"
@@ -524,6 +581,14 @@ const MobileProductDetailPage: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Size Chart Modal */}
+            <SizeChartModal
+                isOpen={showSizeChart}
+                onClose={() => setShowSizeChart(false)}
+                gender={(product as any)?.gender || "womens"}
+                selectedSize={selectedSize}
+            />
         </MobileShell>
     );
 };

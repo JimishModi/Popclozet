@@ -7,6 +7,7 @@ import { ChevronLeft, SlidersHorizontal, Heart, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
+import { PRODUCTS as STATIC_PRODUCTS } from "@/config/products";
 
 // Mock product data fallback
 const MOCK_PRODUCTS = [
@@ -49,23 +50,45 @@ const CategoryProductsPage: React.FC = () => {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            // Show ALL products (no category filtering for now)
-            const { data, error } = await supabase
+            // Try Supabase first with a 1.5s timeout (prevents infinite loading if credentials are bad)
+            const fetchPromise = supabase
                 .from('products')
                 .select('*')
                 .limit(100);
 
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Supabase request timed out')), 1500)
+            );
+
+            const { data, error } = await Promise.race([
+                fetchPromise,
+                timeoutPromise
+            ]) as any;
+
             if (error) throw error;
-            // Map the database fields
-            const mappedProducts = (data || []).map(p => ({
-                ...p,
-                price: p.rental_price,
-                imageUrl: p.images?.[0] || '',
-            }));
-            setProducts(mappedProducts);
+
+            if (data && data.length > 0) {
+                // Map the database fields
+                const mappedProducts = data.map(p => ({
+                    ...p,
+                    price: p.rental_price,
+                    imageUrl: p.images?.[0] || '',
+                }));
+                setProducts(mappedProducts);
+            } else {
+                throw new Error('No products returned from Supabase');
+            }
         } catch (error) {
-            console.error('Error fetching products:', error);
-            setProducts([]);
+            console.warn('⚠️ Supabase fetch failed, using static product data:', error);
+            // Fallback to static products from config
+            const staticProducts = STATIC_PRODUCTS.map(p => ({
+                ...p,
+                images: [p.image],
+                imageUrl: p.image,
+                rental_price: p.price,
+                brand: '',
+            })) as any[];
+            setProducts(staticProducts);
         } finally {
             setLoading(false);
         }
@@ -183,8 +206,8 @@ const CategoryProductsPage: React.FC = () => {
                                 </div>
                                 <div className="p-3">
                                     <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
-                                    <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                    <span className="text-base font-bold text-white">₹{product.rental_price}</span>
+                                    <p className="text-xs text-zinc-500 mb-2">{(product as any).brand || ''}</p>
+                                    <span className="text-base font-bold text-white">₹{(product as any).rental_price || product.price}</span>
                                 </div>
                             </motion.div>
                         ))}

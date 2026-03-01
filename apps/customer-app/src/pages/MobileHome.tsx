@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import popclozetLogo from "@/logo/logo.png";
-import { AboutUsProcess } from "@/components/ui/AboutUsProcess";
+import { AboutUsSlider } from "@/components/ui/AboutUsSlider";
 
 // --- Mock Data ---
 
@@ -353,9 +353,9 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
-                {/* ─── ABOUT US: Process & Brand ─── */}
-                <section className="mt-8">
-                    <AboutUsProcess />
+                {/* ─── ABOUT US: Auto-Sliding Phases ─── */}
+                <section className="px-5 mt-8">
+                    <AboutUsSlider />
                 </section>
 
 
@@ -511,7 +511,7 @@ const MobileHome: React.FC = () => {
             </main>
 
             <BottomNavBar />
-        </MobileShell>
+        </MobileShell >
     );
 };
 

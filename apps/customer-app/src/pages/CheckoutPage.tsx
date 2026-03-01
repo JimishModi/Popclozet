@@ -545,7 +545,10 @@ export default function CheckoutPage() {
       <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
 
         {/* Subscribe Banner */}
-        <div className="flex items-center gap-4 px-4 py-4 bg-[#732230] rounded-lg">
+        <div
+          onClick={() => navigate("/subscription-plans")}
+          className="flex items-center gap-4 px-4 py-4 bg-[#732230] rounded-lg cursor-pointer hover:bg-[#832840] transition-colors"
+        >
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white" style={dmSans}>
               Subscribe to the Future
