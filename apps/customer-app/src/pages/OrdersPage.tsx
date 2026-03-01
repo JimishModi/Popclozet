@@ -76,8 +76,8 @@ export default function OrdersPage() {
                     <button
                         onClick={() => setActiveTab("active")}
                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === "active"
-                                ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
-                                : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
+                            ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
+                            : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
                             }`}
                     >
                         Active ({activeOrders.length})
@@ -85,8 +85,8 @@ export default function OrdersPage() {
                     <button
                         onClick={() => setActiveTab("past")}
                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === "past"
-                                ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
-                                : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
+                            ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
+                            : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
                             }`}
                     >
                         Past ({pastOrders.length})
@@ -98,9 +98,22 @@ export default function OrdersPage() {
             <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
                 {/* Loading State */}
                 {loading && (
-                    <div className="flex flex-col items-center justify-center h-64">
-                        <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-3" />
-                        <p className="text-zinc-500 text-sm">Loading orders...</p>
+                    <div className="space-y-3">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="bg-white/5 rounded-2xl border border-white/5 p-4 animate-pulse">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="space-y-1.5">
+                                        <div className="h-4 bg-white/10 rounded-lg w-28" />
+                                        <div className="h-3 bg-white/5 rounded-lg w-16" />
+                                    </div>
+                                    <div className="h-5 bg-white/5 rounded-full w-20" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="h-3 bg-white/5 rounded w-full" />
+                                    <div className="h-3 bg-white/5 rounded w-2/3" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
