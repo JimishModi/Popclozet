@@ -132,8 +132,36 @@ const MobileProductDetailPage: React.FC = () => {
     if (loading) {
         return (
             <MobileShell className="bg-[#111111] text-white">
-                <div className="flex-1 flex items-center justify-center">
-                    <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
+                {/* Skeleton header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                    <div className="w-10 h-10 rounded-full bg-white/5" />
+                    <div className="flex gap-2">
+                        <div className="w-10 h-10 rounded-full bg-white/5" />
+                        <div className="w-10 h-10 rounded-full bg-white/5" />
+                    </div>
+                </div>
+                <div className="animate-pulse">
+                    {/* Image skeleton */}
+                    <div className="aspect-[344/360] bg-white/5 mx-0" />
+                    {/* Text skeletons */}
+                    <div className="px-5 mt-6 space-y-4">
+                        <div className="flex items-start justify-between">
+                            <div className="h-6 bg-white/5 rounded-lg w-2/3" />
+                            <div className="h-4 bg-white/5 rounded w-24" />
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="h-7 bg-white/5 rounded-lg w-16" />
+                            <div className="h-7 bg-white/5 rounded-lg w-16" />
+                            <div className="h-5 bg-white/5 rounded-lg w-20" />
+                        </div>
+                        <div className="h-5 bg-white/5 rounded-lg w-24 mt-6" />
+                        <div className="flex gap-3 mt-2">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="w-10 h-10 rounded-lg bg-white/5" />
+                            ))}
+                        </div>
+                        <div className="h-32 bg-white/5 rounded-2xl mt-6" />
+                    </div>
                 </div>
             </MobileShell>
         );
@@ -342,8 +370,8 @@ const MobileProductDetailPage: React.FC = () => {
                                             isSelected
                                                 ? "bg-[#f2546d] text-[#611624]"
                                                 : isDisabled
-                                                ? "text-[#616161]"
-                                                : "text-white"
+                                                    ? "text-[#616161]"
+                                                    : "text-white"
                                         )}
                                         style={dmSans}
                                     >

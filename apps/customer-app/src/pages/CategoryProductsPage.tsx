@@ -143,8 +143,17 @@ const CategoryProductsPage: React.FC = () => {
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
                 {loading ? (
-                    <div className="flex justify-center items-center py-20">
-                        <Loader className="w-8 h-8 text-[#FF4D6D] animate-spin" />
+                    <div className="grid grid-cols-2 gap-3">
+                        {[...Array(6)].map((_, i) => (
+                            <div key={i} className="rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 animate-pulse">
+                                <div className="aspect-[3/4] bg-white/5" />
+                                <div className="p-3 space-y-2">
+                                    <div className="h-3.5 bg-white/5 rounded-lg w-3/4" />
+                                    <div className="h-3 bg-white/5 rounded-lg w-1/2" />
+                                    <div className="h-4 bg-white/5 rounded-lg w-1/3" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-3">
