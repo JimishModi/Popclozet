@@ -7,6 +7,7 @@ import { ChevronRight, Search, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
+import { productService, Product } from "@/services/productService";
 import popclozetLogo from "@/logo/logo.png";
 
 // --- Mock Data ---
@@ -14,26 +15,6 @@ import popclozetLogo from "@/logo/logo.png";
 const COLLECTIONS = [
     { id: "jackets", title: "Jackets", image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80" },
     { id: "shoes", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
-];
-
-const BRANDS = [
-    { id: "brand1", label: "Zara" },
-    { id: "brand2", label: "H&M" },
-    { id: "brand3", label: "Gucci" },
-    { id: "brand4", label: "Prada" },
-    { id: "brand5", label: "Nike" },
-    { id: "brand6", label: "Adidas" },
-    { id: "brand7", label: "Levi's" },
-    { id: "brand8", label: "Uniqlo" },
-    { id: "brand9", label: "Versace" },
-    { id: "brand10", label: "Dior" },
-];
-
-const CATALOGUE_ITEMS = [
-    { id: "1", title: "Haldi Outfit", price: 699, originalPrice: 4000, discount: 80 },
-    { id: "2", title: "Haldi Outfit", price: 699, originalPrice: 4000, discount: 80 },
-    { id: "3", title: "Haldi Outfit", price: 699, originalPrice: 4000, discount: 80 },
-    { id: "4", title: "Haldi Outfit", price: 699, originalPrice: 4000, discount: 80 },
 ];
 
 const FEATURED_SLIDES = [
@@ -97,6 +78,9 @@ const MobileHome: React.FC = () => {
     const [activeAboutSlide, setActiveAboutSlide] = useState(0);
     const [userLocation, setUserLocation] = useState("Detecting...");
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
+    const [brands, setBrands] = useState<string[]>([]);
+    const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
+    const [loadingCatalogue, setLoadingCatalogue] = useState(true);
     const { user } = useAuth();
 
     // Auto-rotate featured slides
@@ -149,6 +133,36 @@ const MobileHome: React.FC = () => {
 
         detectLocation();
     }, []);
+
+    // Fetch brands from database
+    useEffect(() => {
+        const fetchBrands = async () => {
+            try {
+                const uniqueBrands = await productService.getUniqueBrands();
+                setBrands(uniqueBrands);
+            } catch (error) {
+                console.error("Failed to fetch brands:", error);
+            }
+        };
+        fetchBrands();
+    }, []);
+
+    // Fetch catalogue products from database
+    useEffect(() => {
+        const fetchCatalogue = async () => {
+            setLoadingCatalogue(true);
+            try {
+                // Fetch products for the active gender
+                const products = await productService.getProductsByGender(activeGender);
+                setCatalogueProducts(products.slice(0, 4)); // Show first 4
+            } catch (error) {
+                console.error("Failed to fetch catalogue products:", error);
+            } finally {
+                setLoadingCatalogue(false);
+            }
+        };
+        fetchCatalogue();
+    }, [activeGender]);
 
     // Auto-switch About Us slides
     useEffect(() => {
@@ -492,7 +506,7 @@ const MobileHome: React.FC = () => {
                         <div className="flex-1 overflow-hidden max-h-[380px]">
                             <motion.div
                                 className="flex flex-col gap-4"
-                                animate={{ y: ["0%", "-50%"] }}
+                                animate={{ y: brands.length > 0 ? ["0%", "-50%"] : "0%" }}
                                 transition={{
                                     y: {
                                         duration: 12,
@@ -502,17 +516,21 @@ const MobileHome: React.FC = () => {
                                 }}
                             >
                                 {/* Duplicate items for seamless loop */}
-                                {[...BRANDS.filter((_, i) => i % 2 === 0), ...BRANDS.filter((_, i) => i % 2 === 0)].map((brand, idx) => (
-                                    <div
-                                        key={`left-${idx}`}
-                                        className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                        onClick={() => navigate(`/search?q=${encodeURIComponent(brand.label)}`)}
-                                    >
-                                        <span className="text-sm font-bold text-zinc-300">
-                                            {brand.label}
-                                        </span>
-                                    </div>
-                                ))}
+                                {brands.length > 0 ? (
+                                    [...brands.filter((_, i) => i % 2 === 0), ...brands.filter((_, i) => i % 2 === 0)].map((brand, idx) => (
+                                        <div
+                                            key={`left-${idx}`}
+                                            className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
+                                        >
+                                            <span className="text-sm font-bold text-zinc-300">
+                                                {brand}
+                                            </span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="h-20 rounded-2xl bg-[#232323]/50 animate-pulse flex-shrink-0" />
+                                )}
                             </motion.div>
                         </div>
 
@@ -520,7 +538,7 @@ const MobileHome: React.FC = () => {
                         <div className="flex-1 overflow-hidden max-h-[380px] mt-4">
                             <motion.div
                                 className="flex flex-col gap-4"
-                                animate={{ y: ["-50%", "0%"] }}
+                                animate={{ y: brands.length > 0 ? ["-50%", "0%"] : "0%" }}
                                 transition={{
                                     y: {
                                         duration: 12,
@@ -530,31 +548,24 @@ const MobileHome: React.FC = () => {
                                 }}
                             >
                                 {/* Duplicate items for seamless loop */}
-                                {[...BRANDS.filter((_, i) => i % 2 === 1), ...BRANDS.filter((_, i) => i % 2 === 1)].map((brand, idx) => (
-                                    <div
-                                        key={`right-${idx}`}
-                                        className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                        onClick={() => navigate(`/search?q=${encodeURIComponent(brand.label)}`)}
-                                    >
-                                        <span className="text-sm font-bold text-zinc-300">
-                                            {brand.label}
-                                        </span>
-                                    </div>
-                                ))}
+                                {brands.length > 0 ? (
+                                    [...brands.filter((_, i) => i % 2 === 1), ...brands.filter((_, i) => i % 2 === 1)].map((brand, idx) => (
+                                        <div
+                                            key={`right-${idx}`}
+                                            className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
+                                        >
+                                            <span className="text-sm font-bold text-zinc-300">
+                                                {brand}
+                                            </span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="h-20 rounded-2xl bg-[#232323]/50 animate-pulse flex-shrink-0 mt-4" />
+                                )}
                             </motion.div>
                         </div>
                     </div>
-
-                    {/* See all Brands button */}
-                    <button
-                        onClick={() => navigate('/brands')}
-                        className="w-full mt-6 h-[50px] flex items-center justify-center gap-2 bg-[#232323] rounded-2xl border border-[#484848] hover:bg-[#2a2a2a] transition-colors"
-                    >
-                        <span className="text-sm font-bold text-white tracking-tight">
-                            See all Brands
-                        </span>
-                        <ChevronRight className="w-3 h-3 text-white" />
-                    </button>
                 </section>
 
 
@@ -564,13 +575,21 @@ const MobileHome: React.FC = () => {
                         <h2 className="text-xl font-bold text-white tracking-tight">
                             Catalogue
                         </h2>
-                        <button className="text-sm font-bold text-[#f2546d]">
+                        <button
+                            onClick={() => navigate(`/shop/${activeGender}`)}
+                            className="text-sm font-bold text-[#f2546d] hover:text-[#f2546d]/80 transition-colors"
+                        >
                             See all
                         </button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-5">
-                        {CATALOGUE_ITEMS.map((item, index) => (
+                        {loadingCatalogue ? (
+                            // Skeleton loaders
+                            [...Array(4)].map((_, i) => (
+                                <div key={`skel-${i}`} className="relative rounded-2xl bg-[#232323] aspect-[3/4] animate-pulse border border-[#484848]" />
+                            ))
+                        ) : catalogueProducts.map((item, index) => (
                             <motion.div
                                 key={item.id}
                                 initial={{ opacity: 0, y: 30 }}
@@ -579,44 +598,58 @@ const MobileHome: React.FC = () => {
                                 transition={{ delay: index * 0.05 }}
                                 whileTap={{ scale: 0.97 }}
                                 onClick={() => navigate(`/product/${item.id}`)}
-                                className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group"
+                                className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                             >
                                 {/* Heart icon */}
                                 <button
                                     className="absolute top-4 right-4 z-10"
-                                    onClick={(e) => { e.stopPropagation(); }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate('/closet?tab=wishlist');
+                                    }}
                                 >
                                     <Heart className="w-[21px] h-[21px] text-white/60 hover:text-[#f2546d] transition-colors" />
                                 </button>
 
-                                {/* Product Image Placeholder */}
-                                <div className="aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] relative" />
+                                {/* Product Image */}
+                                <div className="aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
+                                    {item.imageUrl ? (
+                                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
+                                            No Image
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Separator line */}
-                                <div className="w-full h-px bg-zinc-700" />
+                                <div className="w-full h-px bg-[#484848]/50" />
 
                                 {/* Product Details */}
-                                <div className="p-4 pt-3">
-                                    <h3 className="text-sm font-bold text-white mb-2">
-                                        {item.title}
+                                <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
+                                    <h3 className="text-sm font-bold text-white mb-2 line-clamp-2">
+                                        {item.name}
                                     </h3>
 
-                                    {/* Original price with strikethrough */}
-                                    <div className="relative inline-block mb-2">
-                                        <span className="text-xs text-[#5f606a] font-semibold">
-                                            ₹ {item.originalPrice}
-                                        </span>
-                                        <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                                    </div>
-
-                                    {/* Current price + Discount */}
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-white">
-                                            ₹ {item.price}
-                                        </span>
-                                        <span className="text-xs font-bold text-[#f2546d]">
-                                            Save {item.discount}%
-                                        </span>
+                                    <div className="mt-auto">
+                                        {item.price > (item.rentalPrice || item.price) && (
+                                            <div className="relative inline-block mb-1">
+                                                <span className="text-[11px] text-[#5f606a] font-semibold">
+                                                    ₹{item.price}
+                                                </span>
+                                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-bold text-white">
+                                                ₹{item.rentalPrice ?? item.price}
+                                            </span>
+                                            {item.price > (item.rentalPrice || item.price) && (
+                                                <span className="text-[10px] font-bold text-[#f2546d]">
+                                                    Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </motion.div>

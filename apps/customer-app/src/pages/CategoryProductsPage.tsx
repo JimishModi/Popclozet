@@ -49,14 +49,15 @@ const CategoryProductsPage: React.FC = () => {
     const { gender: genderFromPath } = useParams();
 
     // Category and title from search params
-    const categoryTitle = searchParams.get("title") || "Products";
-    const category = (searchParams.get("category") || "").toLowerCase();
+    const category = searchParams.get('category') || '';
+    const brandParam = searchParams.get('brand') || '';
+    const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
     // derive config for the current category
     const config = CATEGORY_CONFIG[category] || { sizes: [], brands: [], inventory: 0 };
 
-    const [products, setProducts] = useState<Product[]>([]); // Start with empty array
-    const [loading, setLoading] = useState(false); // Default to not loading, we'll try cache first
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true); // Start true so skeleton shows immediately, no flash of empty state
     const [wishlist, setWishlist] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>("size");
@@ -68,25 +69,25 @@ const CategoryProductsPage: React.FC = () => {
 
     const [nameQuery, setNameQuery] = useState(""); // text search by name
 
-    // reset filter state and try to load from cache whenever the *category* or *gender* changes
+    // Load products on mount or when category/gender/brand changes
     useEffect(() => {
+        // Reset scroll
+        window.scrollTo(0, 0);
+
+        // --- Offline Cache Support (Immediate) ---
         const loadCache = async () => {
             resetFilters();
             if (category) {
                 const cached = await getProductsByCategoryDB(category);
-                // The DB returns all products for that category, we need to filter by gender ourselves if needed
-                // or trust that the cache corresponds to the current view.
-                // But let's apply the mapping to ensure consistency.
                 if (cached && cached.length > 0) {
                     const mapped = cached.map((p: any) => ({
                         ...p,
                         price: parseFloat(p.rental_price ?? p.price ?? '0'),
                         rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
                         imageUrl: p.images?.[0] || '',
-                        sizes: Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : []),
+                        sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
                         gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
                     }));
-                    // Filter by gender manually from cache if needed (since DB index is by category only)
                     const genderFiltered = genderFromPath
                         ? mapped.filter((p: any) => p.gender === genderFromPath)
                         : mapped;
@@ -98,22 +99,35 @@ const CategoryProductsPage: React.FC = () => {
             }
         };
         loadCache();
-    }, [category, genderFromPath]);
 
-    // whenever any filter parameter or the active category/gender changes,
-    // optionally refetch products from the server in the background
+        // Initialize display filters if brand is in URL
+        if (brandParam) {
+            setSelectedBrands(new Set([brandParam]));
+        }
+    }, [category, genderFromPath, brandParam]);
+
+    // Combined debounced background fetch effect.
+    // IMPORTANT: selectedBrands/selectedSizes are Sets — they are always referentially new
+    // after resetFilters(), causing an infinite loop. We serialize to string for stable comparison.
+    const brandsKey = JSON.stringify(Array.from(selectedBrands).sort());
+    const sizesKey = JSON.stringify(Array.from(selectedSizes).sort());
+
     useEffect(() => {
-        // Trigger background fetch from Supabase
-        fetchProductsInBackground({
-            category: category,
-            gender: genderFromPath,
-            nameQuery: nameQuery,
-            priceMin: priceRange.min,
-            priceMax: priceRange.max,
-            brands: Array.from(selectedBrands),
-            sizes: Array.from(selectedSizes)
-        });
-    }, [category, genderFromPath, nameQuery, priceRange, selectedBrands, selectedSizes]);
+        const timer = setTimeout(() => {
+            fetchProductsInBackground({
+                category: category,
+                gender: genderFromPath,
+                nameQuery: nameQuery,
+                priceMin: priceRange.min,
+                priceMax: priceRange.max,
+                brands: Array.from(selectedBrands),
+                sizes: Array.from(selectedSizes)
+            });
+        }, 400); // 400ms debounce
+
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
 
     interface ProductFilters {
         category?: string;
@@ -149,11 +163,15 @@ const CategoryProductsPage: React.FC = () => {
                 query = query.eq('category', filters.category);
             }
 
+            if (filters.brands && filters.brands.length > 0) {
+                query = query.in('brand', filters.brands);
+            }
+
             if (dbGender) {
                 query = query.eq('gender', dbGender);
             }
 
-            console.log(`🔍 Fetching from Supabase: category="${filters.category}", gender="${dbGender}"`);
+            console.log(`🔍 Fetching from Supabase: category="${filters.category}", gender="${dbGender}", brands="${filters.brands}"`);
             const { data, error } = await query;
 
             if (error) {
@@ -170,7 +188,7 @@ const CategoryProductsPage: React.FC = () => {
                     rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
                     imageUrl: p.images?.[0] || '',
                     // Map DB 'sizes_available' to app 'sizes'
-                    sizes: Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : []),
+                    sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
                     // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
                     gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
                 }));

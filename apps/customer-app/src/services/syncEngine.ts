@@ -64,10 +64,13 @@ class SyncEngine {
     private eventListeners: Map<string, Set<SyncEventCallback>> = new Map(); // New event listener system
     private retryTimeouts: Map<string, NodeJS.Timeout> = new Map();
     private retryAttempts: Map<number, number> = new Map(); // Added
+    private lastVisibilitySync = 0; // Added for throttling
+    private readonly VISIBILITY_SYNC_THROTTLE = 10000; // 10 seconds
     private readonly SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
     private readonly MAX_RETRY_DELAY = 60000; // 1 minute max
     private readonly BASE_RETRY_DELAY = 1000; // 1 second base
 
+    private listenersInitialized = false; // Guard: attach window listeners only once
     constructor() {
         this.initializeListeners();
     }
@@ -77,6 +80,9 @@ class SyncEngine {
     // =====================================================
 
     private initializeListeners() {
+        if (this.listenersInitialized) return; // Prevent duplicate listeners on hot-reload
+        this.listenersInitialized = true;
+
         // Listen for online/offline events
         if (typeof window !== 'undefined') {
             window.addEventListener('online', () => {
@@ -92,8 +98,12 @@ class SyncEngine {
             // Listen for visibility change to sync when tab becomes active
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden && navigator.onLine) {
-                    console.log('👁️ Tab visible - checking for pending sync');
-                    this.syncAll();
+                    const now = Date.now();
+                    if (now - this.lastVisibilitySync > this.VISIBILITY_SYNC_THROTTLE) {
+                        console.log('👁️ Tab visible - checking for pending sync');
+                        this.lastVisibilitySync = now;
+                        this.syncAll();
+                    }
                 }
             });
         }

@@ -5,110 +5,18 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ChevronLeft, Search, Heart, X, TrendingUp, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PRODUCTS } from "@/config/products";
-
-// ── Extended product type for search (with brand support) ──
-interface SearchProduct {
-    id: string;
-    name: string;
-    price: number;
-    image: string;
-    category: string;
-    color: string;
-    brand?: string;
-    rating?: number;
-}
-
-// ── Brand mapping for brand-keyword search ──
-const BRAND_PRODUCTS: Record<string, string[]> = {
-    "Nike": ["Sports Jacket", "Running Shoes", "Athletic Wear", "Training Shorts", "Air Max Sneakers"],
-    "Adidas": ["Track Suit", "Ultraboost Shoes", "Originals Tee", "Football Jersey", "Stan Smith Sneakers"],
-    "Zara": ["Floral Midi Dress", "Linen Blazer", "Satin Blouse", "Wide Leg Trousers", "Knit Cardigan"],
-    "H&M": ["Basic Tee", "Denim Jacket", "Cotton Dress", "Chino Pants", "Ribbed Tank Top"],
-    "Gucci": ["Logo Belt", "Bamboo Bag", "Silk Scarf", "Ace Sneakers", "Horsebit Loafers"],
-    "Prada": ["Nylon Bag", "Platform Shoes", "Triangle Logo Tee", "Re-Edition Bag", "Saffiano Wallet"],
-    "Levi's": ["501 Jeans", "Trucker Jacket", "Denim Shorts", "Vintage Fit Tee", "Ribcage Jeans"],
-    "Uniqlo": ["Heattech Top", "Ultra Light Down", "AIRism Tee", "EZY Jeans", "Fleece Jacket"],
-    "Versace": ["Medusa Chain", "Baroque Print Shirt", "La Greca Sneakers", "Crystal Dress", "Safety Pin Bag"],
-    "Dior": ["Saddle Bag", "Book Tote", "J'adior Slingback", "Oblique Shirt", "Lady Dior Bag"],
-};
-
-// Create searchable products from brands
-const BRAND_SEARCH_PRODUCTS: SearchProduct[] = Object.entries(BRAND_PRODUCTS).flatMap(
-    ([brand, products]) =>
-        products.map((name, idx) => ({
-            id: `brand-${brand}-${idx}`,
-            name,
-            price: Math.floor(Math.random() * 800) + 299,
-            image: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 100000000000)}?w=400&q=80`,
-            category: "Fashion",
-            color: "",
-            brand,
-            rating: Number((4 + Math.random()).toFixed(1)),
-        }))
-);
-
-// Merge config products with brand products
-const ALL_PRODUCTS: SearchProduct[] = [
-    ...PRODUCTS.map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        image: p.image,
-        category: p.category,
-        color: p.color,
-        brand: undefined as string | undefined,
-        rating: p.rating,
-    })),
-    ...BRAND_SEARCH_PRODUCTS,
-];
-
-// ── All brand names for autocomplete ──
-const ALL_BRANDS = Object.keys(BRAND_PRODUCTS);
+import { productService } from "@/services/productService";
+import { Product } from "@/services/productService";
+import { Loader } from "lucide-react";
 
 // ── Trending & recent searches ──
+// ── Trending searches ──
 const TRENDING_SEARCHES = ["Jackets", "Party Wear", "Saree", "Casual Dresses", "Blazer"];
 
-// ── Fuzzy match helper ──
-function fuzzyMatch(text: string, query: string): boolean {
-    return text.toLowerCase().includes(query.toLowerCase());
-}
-
-// ── Autocomplete suggestions generator ──
-function getAutocompleteSuggestions(query: string): { type: "brand" | "product" | "category"; text: string; subtext?: string }[] {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    const results: { type: "brand" | "product" | "category"; text: string; subtext?: string }[] = [];
-    const seen = new Set<string>();
-
-    // Match brands first (highest priority)
-    for (const brand of ALL_BRANDS) {
-        if (brand.toLowerCase().includes(q) && !seen.has(brand.toLowerCase())) {
-            results.push({ type: "brand", text: brand, subtext: `${BRAND_PRODUCTS[brand].length} products` });
-            seen.add(brand.toLowerCase());
-        }
-    }
-
-    // Match categories
-    const categories = ["Wedding", "Party", "Casual", "Office"];
-    for (const cat of categories) {
-        if (cat.toLowerCase().includes(q) && !seen.has(cat.toLowerCase())) {
-            results.push({ type: "category", text: cat, subtext: "Category" });
-            seen.add(cat.toLowerCase());
-        }
-    }
-
-    // Match product names
-    for (const product of ALL_PRODUCTS) {
-        const nameKey = product.name.toLowerCase();
-        if (nameKey.includes(q) && !seen.has(nameKey)) {
-            results.push({ type: "product", text: product.name, subtext: `₹${product.price}` });
-            seen.add(nameKey);
-        }
-        if (results.length >= 8) break;
-    }
-
-    return results.slice(0, 8);
+interface Suggestion {
+    type: "brand" | "product" | "category";
+    text: string;
+    subtext?: string;
 }
 
 const SearchResultsPage: React.FC = () => {
@@ -118,6 +26,9 @@ const SearchResultsPage: React.FC = () => {
 
     const [query, setQuery] = useState(initialQuery);
     const [submittedQuery, setSubmittedQuery] = useState(initialQuery);
+    const [results, setResults] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [wishlist, setWishlist] = useState<Set<string>>(new Set());
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [recentSearches, setRecentSearches] = useState<string[]>(() => {
@@ -136,20 +47,42 @@ const SearchResultsPage: React.FC = () => {
         }
     }, []);
 
-    // Autocomplete suggestions
-    const suggestions = useMemo(() => getAutocompleteSuggestions(query), [query]);
+    // Fetch recommendations/suggestions when query changes
+    useEffect(() => {
+        if (!query.trim()) {
+            setSuggestions([]);
+            return;
+        }
 
-    // Search results
-    const results = useMemo(() => {
-        if (!submittedQuery.trim()) return [];
-        const q = submittedQuery.toLowerCase();
-        return ALL_PRODUCTS.filter(
-            (p) =>
-                fuzzyMatch(p.name, q) ||
-                fuzzyMatch(p.category, q) ||
-                fuzzyMatch(p.color, q) ||
-                (p.brand && fuzzyMatch(p.brand, q))
-        );
+        const fetchSuggestions = async () => {
+            const data = await productService.getSearchSuggestions(query);
+            setSuggestions(data as Suggestion[]);
+        };
+
+        const timer = setTimeout(fetchSuggestions, 200);
+        return () => clearTimeout(timer);
+    }, [query]);
+
+    // Fetch search results when submitted query changes
+    useEffect(() => {
+        if (!submittedQuery.trim()) {
+            setResults([]);
+            return;
+        }
+
+        const fetchResults = async () => {
+            setLoading(true);
+            try {
+                const data = await productService.searchProducts(submittedQuery);
+                setResults(data);
+            } catch (err) {
+                console.error("Search failed:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchResults();
     }, [submittedQuery]);
 
     const handleSubmit = (searchTerm?: string) => {
@@ -353,7 +286,12 @@ const SearchResultsPage: React.FC = () => {
                             </span>
                         </div>
 
-                        {results.length > 0 ? (
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-20">
+                                <Loader className="w-8 h-8 text-[#f2546d] animate-spin mb-4" />
+                                <p className="text-zinc-500 text-sm">Searching our closet...</p>
+                            </div>
+                        ) : results.length > 0 ? (
                             <div className="grid grid-cols-2 gap-4">
                                 {results.map((product, index) => (
                                     <motion.div
@@ -381,10 +319,10 @@ const SearchResultsPage: React.FC = () => {
                                         {/* Image */}
                                         <div className="aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] overflow-hidden">
                                             <img
-                                                src={product.image}
+                                                src={product.imageUrl}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                                onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/300x400?text=No+Image"; }}
                                             />
                                         </div>
 
@@ -403,9 +341,6 @@ const SearchResultsPage: React.FC = () => {
                                             </h3>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-bold text-white">₹{product.price}</span>
-                                                {product.rating && (
-                                                    <span className="text-xs text-zinc-500">⭐ {product.rating}</span>
-                                                )}
                                             </div>
                                         </div>
                                     </motion.div>

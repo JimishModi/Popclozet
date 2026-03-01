@@ -97,9 +97,11 @@ const MobileProductDetailPage: React.FC = () => {
                         rentalPrice: parseFloat(data.rental_price ?? data.price ?? '0'),
                         imageUrl: data.images?.[0] || '',
                         // Map DB 'sizes_available' to app 'sizes'
-                        sizes: Array.isArray(data.sizes_available)
-                            ? (typeof data.sizes_available[0] === 'object' ? data.sizes_available.map((s: any) => s.size) : data.sizes_available)
-                            : (typeof data.sizes_available === 'object' ? Object.keys(data.sizes_available) : []),
+                        sizes: data.sizes_available
+                            ? (Array.isArray(data.sizes_available)
+                                ? (typeof data.sizes_available[0] === 'object' ? data.sizes_available.map((s: any) => s.size) : data.sizes_available)
+                                : (typeof data.sizes_available === 'object' ? Object.keys(data.sizes_available) : []))
+                            : [],
                         // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
                         gender: data.gender === 'men' ? 'mens' : (data.gender === 'women' ? 'womens' : data.gender)
                     });

@@ -1,44 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
-import { ChevronLeft, Search, ChevronRight } from "lucide-react";
+import { ChevronLeft, Search, ChevronRight, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { productService } from "@/services/productService";
 
-// ── Brand data with images and product counts ──
-const BRANDS = [
-    { id: "nike", name: "Nike", tagline: "Just Do It", color: "#F2546D", products: 5 },
-    { id: "adidas", name: "Adidas", tagline: "Impossible is Nothing", color: "#3B82F6", products: 5 },
-    { id: "zara", name: "Zara", tagline: "Love your curves", color: "#A855F7", products: 5 },
-    { id: "hm", name: "H&M", tagline: "Fashion & Quality", color: "#EF4444", products: 5 },
-    { id: "gucci", name: "Gucci", tagline: "Made in Italy", color: "#22C55E", products: 5 },
-    { id: "prada", name: "Prada", tagline: "Milano dal 1913", color: "#F59E0B", products: 5 },
-    { id: "levis", name: "Levi's", tagline: "Quality Never Goes Out", color: "#EF4444", products: 5 },
-    { id: "uniqlo", name: "Uniqlo", tagline: "LifeWear", color: "#DC2626", products: 5 },
-    { id: "versace", name: "Versace", tagline: "Medusa Head", color: "#F59E0B", products: 5 },
-    { id: "dior", name: "Dior", tagline: "J'adore Dior", color: "#8B5CF6", products: 5 },
-];
-
-// ── Category filter ──
+// Category filter
 const CATEGORIES = ["All", "Luxury", "Streetwear", "Casual", "Sports"];
-const BRAND_CATEGORIES: Record<string, string> = {
-    nike: "Sports", adidas: "Sports",
-    zara: "Casual", hm: "Casual", uniqlo: "Casual",
-    gucci: "Luxury", prada: "Luxury", versace: "Luxury", dior: "Luxury",
-    levis: "Streetwear",
-};
 
 const BrandsPage: React.FC = () => {
     const navigate = useNavigate();
     const [activeCategory, setActiveCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
+    const [brands, setBrands] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const filteredBrands = BRANDS.filter((brand) => {
-        const matchesCategory = activeCategory === "All" || BRAND_CATEGORIES[brand.id] === activeCategory;
-        const matchesSearch = !searchQuery || brand.name.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
+    useEffect(() => {
+        const fetchBrands = async () => {
+            try {
+                const uniqueBrands = await productService.getUniqueBrands();
+                setBrands(uniqueBrands);
+            } catch (err) {
+                console.error("Failed to fetch brands:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchBrands();
+    }, []);
+
+    const filteredBrands = brands.filter((brand) => {
+        const matchesSearch = !searchQuery || brand.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
     });
+
+    // Helper to get brand color (random but consistent for sessions)
+    const getBrandColor = (name: string) => {
+        const colors = ["#F2546D", "#3B82F6", "#A855F7", "#EF4444", "#22C55E", "#F59E0B", "#8B5CF6"];
+        const idx = name.length % colors.length;
+        return colors[idx];
+    };
 
     return (
         <MobileShell className="bg-[#111111] text-white">
@@ -89,54 +92,56 @@ const BrandsPage: React.FC = () => {
 
                 {/* ─── Brands Grid ─── */}
                 <div className="px-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        {filteredBrands.map((brand, index) => (
-                            <motion.div
-                                key={brand.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => navigate(`/search?q=${encodeURIComponent(brand.name)}`)}
-                                className="relative rounded-2xl overflow-hidden cursor-pointer group"
-                                style={{ background: `linear-gradient(135deg, ${brand.color}15, ${brand.color}08)` }}
-                            >
-                                {/* Brand card content */}
-                                <div className="p-5 pb-4 border border-white/5 rounded-2xl hover:border-white/10 transition-colors h-full flex flex-col">
-                                    {/* Brand initial circle */}
-                                    <div
-                                        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
-                                        style={{ backgroundColor: `${brand.color}25`, boxShadow: `0 4px 20px ${brand.color}15` }}
+                    {loading ? (
+                        <div className="flex flex-col items-center py-20">
+                            <Loader className="w-8 h-8 text-[#f2546d] animate-spin mb-4" />
+                            <p className="text-zinc-500 text-sm">Loading brands...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                            {filteredBrands.map((brand, index) => {
+                                const color = getBrandColor(brand);
+                                return (
+                                    <motion.div
+                                        key={brand}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                        className="relative rounded-2xl overflow-hidden cursor-pointer group"
+                                        style={{ background: `linear-gradient(135deg, ${color}15, ${color}08)` }}
                                     >
-                                        <span className="text-xl font-black" style={{ color: brand.color }}>
-                                            {brand.name.charAt(0)}
-                                        </span>
-                                    </div>
+                                        <div className="p-5 pb-4 border border-white/5 rounded-2xl hover:border-white/10 transition-colors h-full flex flex-col">
+                                            <div
+                                                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
+                                                style={{ backgroundColor: `${color}25`, boxShadow: `0 4px 20px ${color}15` }}
+                                            >
+                                                <span className="text-xl font-black" style={{ color }}>
+                                                    {brand.charAt(0)}
+                                                </span>
+                                            </div>
 
-                                    {/* Brand name */}
-                                    <h3 className="text-base font-bold text-white mb-0.5 group-hover:text-[#f2546d] transition-colors">
-                                        {brand.name}
-                                    </h3>
+                                            <h3 className="text-base font-bold text-white mb-0.5 group-hover:text-[#f2546d] transition-colors">
+                                                {brand}
+                                            </h3>
 
-                                    {/* Tagline */}
-                                    <p className="text-[11px] text-zinc-500 mb-3">{brand.tagline}</p>
+                                            <p className="text-[11px] text-zinc-500 mb-3">Shop {brand}</p>
 
-                                    {/* Products count + arrow */}
-                                    <div className="flex items-center justify-between mt-auto">
-                                        <span className="text-xs font-semibold text-zinc-400">
-                                            {brand.products} Products
-                                        </span>
-                                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#f2546d]/20 transition-colors">
-                                            <ChevronRight className="w-3 h-3 text-zinc-400 group-hover:text-[#f2546d] transition-colors" />
+                                            <div className="flex items-center justify-end mt-auto">
+                                                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#f2546d]/20 transition-colors">
+                                                    <ChevronRight className="w-3 h-3 text-zinc-400 group-hover:text-[#f2546d] transition-colors" />
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {/* Empty state */}
-                    {filteredBrands.length === 0 && (
+                    {!loading && filteredBrands.length === 0 && (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}

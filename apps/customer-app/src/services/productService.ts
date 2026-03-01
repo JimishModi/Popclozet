@@ -65,12 +65,25 @@ interface ProductDB extends DBSchema {
             version: number;
         };
     };
+    preferences: { // Added for caching unique brands
+        key: string;
+        value: {
+            brands: string[];
+            timestamp: number;
+        };
+    };
 }
 
 class ProductService {
     private db: IDBPDatabase<ProductDB> | null = null;
     private readonly DB_NAME = 'popclozet-products';
-    private readonly DB_VERSION = 1;
+    private readonly DB_VERSION = 4; // Updated DB_VERSION to create preferences store
+    private brandCache: string[] | null = null;
+    private brandCacheTimestamp: number = 0;
+    private readonly BRAND_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+    private activeSearchController: AbortController | null = null;
+
+    constructor() { }
 
     // Initialize IndexedDB
     async initDB(): Promise<IDBPDatabase<ProductDB>> {
@@ -94,6 +107,11 @@ class ProductService {
                 // Metadata store
                 if (!db.objectStoreNames.contains('metadata')) {
                     db.createObjectStore('metadata', { keyPath: 'key' });
+                }
+
+                // Preferences store (for brand caching)
+                if (!db.objectStoreNames.contains('preferences')) {
+                    db.createObjectStore('preferences');
                 }
             },
         });
@@ -159,9 +177,11 @@ class ProductService {
             imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',
             videoUrl: dbProduct.video_url,
             color: dbProduct.color || '',
-            sizes: Array.isArray(dbProduct.sizes_available)
-                ? (typeof dbProduct.sizes_available[0] === 'object' ? dbProduct.sizes_available.map((s: any) => s.size) : dbProduct.sizes_available)
-                : (typeof dbProduct.sizes_available === 'object' ? Object.keys(dbProduct.sizes_available) : (dbProduct.sizes || [])),
+            sizes: dbProduct.sizes_available
+                ? (Array.isArray(dbProduct.sizes_available)
+                    ? (typeof dbProduct.sizes_available[0] === 'object' ? dbProduct.sizes_available.map((s: any) => s.size) : dbProduct.sizes_available)
+                    : (typeof dbProduct.sizes_available === 'object' ? Object.keys(dbProduct.sizes_available) : []))
+                : (dbProduct.sizes || []),
             brand: dbProduct.brand,
             leadTimeMinutes: dbProduct.lead_time_minutes,
             rating: parseFloat(dbProduct.rating || '0'),
@@ -230,6 +250,62 @@ class ProductService {
         }
     }
 
+    // Get unique brands available in the database
+    async getUniqueBrands(): Promise<string[]> {
+        // Return memory cache if valid
+        const now = Date.now();
+        if (this.brandCache && this.brandCache.length > 0 && (now - this.brandCacheTimestamp < this.BRAND_CACHE_TTL)) {
+            return this.brandCache;
+        }
+
+        if (this.isOnline()) {
+            try {
+                // Check IndexedDB cache first
+                const db = await this.initDB();
+                const cached = await db.get('preferences', 'unique_brands');
+                if (cached && cached.brands && cached.brands.length > 0 && (now - cached.timestamp < this.BRAND_CACHE_TTL)) {
+                    this.brandCache = cached.brands;
+                    this.brandCacheTimestamp = cached.timestamp;
+                    return cached.brands;
+                }
+
+                const { data, error } = await (supabase as any)
+                    .from('products')
+                    .select('brand')
+                    .eq('is_available', true);
+
+                if (error) throw error;
+
+                const brands = Array.from(new Set(data?.map((p: any) => p.brand).filter(Boolean))) as string[];
+                const sortedBrands = brands.sort();
+
+                // Only update cache if we actually found brands
+                if (sortedBrands.length > 0) {
+                    this.brandCache = sortedBrands;
+                    this.brandCacheTimestamp = now;
+                    await db.put('preferences', { brands: sortedBrands, timestamp: now }, 'unique_brands');
+                } else {
+                    // If no brands found online, don't update cache, let it fall back
+                    console.warn(`⚠️ No brands found in database query. Data count: ${data?.length || 0}`);
+                }
+
+                return sortedBrands;
+            } catch (error) {
+                console.warn('⚠️ Online brand fetch failed, falling back to local:', error);
+                return this.getUniqueBrandsOffline();
+            }
+        } else {
+            return this.getUniqueBrandsOffline();
+        }
+    }
+
+    // Get unique brands from IndexedDB
+    private async getUniqueBrandsOffline(): Promise<string[]> {
+        const products = await this.getProductsOffline();
+        const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean))) as string[];
+        return brands.sort();
+    }
+
     // Get products from IndexedDB (offline)
     private async getProductsOffline(): Promise<Product[]> {
         const db = await this.initDB();
@@ -238,17 +314,20 @@ class ProductService {
 
     // Get products by gender
     async getProductsByGender(gender: GenderCategory): Promise<Product[]> {
+        // Map app gender ('womens'/'mens') → DB gender ('women'/'men')
+        const dbGender = gender === 'womens' ? 'women' : gender === 'mens' ? 'men' : gender;
+
         if (this.isOnline()) {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*')
-                    .eq('gender', gender)
+                    .eq('gender', dbGender)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                return (data || []).map(this.transformFromDB);
+                return (data || []).map((p: any) => this.transformFromDB(p));
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
@@ -332,25 +411,134 @@ class ProductService {
         }
     }
 
-    // Search products
+    // Search products (server-side with fallback)
     async searchProducts(query: string, filters?: {
         gender?: GenderCategory;
         event?: EventCategory;
+        brand?: string;
     }): Promise<Product[]> {
-        const allProducts = filters?.gender && filters?.event
-            ? await this.getProductsByGenderAndEvent(filters.gender, filters.event)
-            : filters?.gender
-                ? await this.getProductsByGender(filters.gender)
-                : filters?.event
-                    ? await this.getProductsByEvent(filters.event)
-                    : await this.getAllProducts();
+        if (!query.trim() && !filters?.brand) return [];
 
+        if (this.isOnline()) {
+            // Cancel previous search
+            if (this.activeSearchController) {
+                this.activeSearchController.abort();
+            }
+            this.activeSearchController = new AbortController();
+
+            try {
+                let supabaseQuery = (supabase as any)
+                    .from('products')
+                    .select('*')
+                    .eq('is_available', true);
+
+                if (query.trim()) {
+                    // Search in multiple fields using 'or' with case-insensitive 'ilike'
+                    supabaseQuery = supabaseQuery.or(`name.ilike.%${query}%,brand.ilike.%${query}%,description.ilike.%${query}%,color.ilike.%${query}%`);
+                }
+
+                if (filters?.gender) {
+                    const dbGender = filters.gender === 'mens' ? 'men' : 'women';
+                    supabaseQuery = supabaseQuery.eq('gender', dbGender);
+                }
+
+                if (filters?.event) {
+                    supabaseQuery = supabaseQuery.eq('event_category', filters.event);
+                }
+
+                if (filters?.brand) {
+                    supabaseQuery = supabaseQuery.eq('brand', filters.brand);
+                }
+
+                const { data, error } = await supabaseQuery.order('created_at', { ascending: false });
+
+                if (error) throw error;
+                return (data || []).map(this.transformFromDB);
+            } catch (error) {
+                console.warn('⚠️ Online search failed, falling back to local:', error);
+                return this.searchProductsOffline(query, filters);
+            }
+        } else {
+            return this.searchProductsOffline(query, filters);
+        }
+    }
+
+    // Offline search fallback
+    private async searchProductsOffline(query: string, filters?: {
+        gender?: GenderCategory;
+        event?: EventCategory;
+        brand?: string;
+    }): Promise<Product[]> {
+        const allProducts = await this.getAllProducts();
         const lowerQuery = query.toLowerCase();
-        return allProducts.filter(product =>
-            product.name.toLowerCase().includes(lowerQuery) ||
-            product.description?.toLowerCase().includes(lowerQuery) ||
-            product.color.toLowerCase().includes(lowerQuery)
-        );
+
+        return allProducts.filter(product => {
+            const matchesQuery = !query ||
+                product.name.toLowerCase().includes(lowerQuery) ||
+                product.brand?.toLowerCase().includes(lowerQuery) ||
+                product.description?.toLowerCase().includes(lowerQuery);
+
+            const matchesGender = !filters?.gender || product.gender === filters.gender;
+            const matchesEvent = !filters?.event || product.eventCategory === filters.event;
+            const matchesBrand = !filters?.brand || product.brand === filters.brand;
+
+            return matchesQuery && matchesGender && matchesEvent && matchesBrand;
+        });
+    }
+
+    // Get search suggestions for autocomplete
+    async getSearchSuggestions(query: string): Promise<{ type: 'brand' | 'product' | 'category'; text: string; subtext?: string }[]> {
+        if (!query.trim()) return [];
+        const q = query.toLowerCase();
+
+        try {
+            // In a real app, we might have specific tables for brands/categories or an RPC
+            // For now, we'll fetch unique categories and brands and filter locally for speed,
+            // or use simple ilike queries.
+
+            const suggestions: { type: 'brand' | 'product' | 'category'; text: string; subtext?: string }[] = [];
+            const seen = new Set<string>();
+
+            // 1. Check brands
+            const brands = await this.getUniqueBrands();
+            for (const brand of brands) {
+                if (brand.toLowerCase().includes(q)) {
+                    suggestions.push({ type: 'brand', text: brand, subtext: 'Brand' });
+                    seen.add(`brand:${brand}`);
+                }
+                if (suggestions.length >= 3) break;
+            }
+
+            // 2. Check categories (hardcoded list from schema)
+            const categories = ['Casual', 'Party', 'Formal', 'Wedding', 'Streetwear', 'Sports'];
+            for (const cat of categories) {
+                if (cat.toLowerCase().includes(q)) {
+                    suggestions.push({ type: 'category', text: cat, subtext: 'Category' });
+                }
+                if (suggestions.length >= 5) break;
+            }
+
+            // 3. Check product names (limited results)
+            if (this.isOnline()) {
+                const { data } = await (supabase as any)
+                    .from('products')
+                    .select('name, rental_price')
+                    .ilike('name', `%${query}%`)
+                    .limit(5);
+
+                for (const p of data || []) {
+                    if (!seen.has(`product:${p.name}`)) {
+                        suggestions.push({ type: 'product', text: p.name, subtext: `₹${p.rental_price}` });
+                        seen.add(`product:${p.name}`);
+                    }
+                }
+            }
+
+            return suggestions.slice(0, 8);
+        } catch (error) {
+            console.error('Error fetching search suggestions:', error);
+            return [];
+        }
     }
 
     // Get featured products

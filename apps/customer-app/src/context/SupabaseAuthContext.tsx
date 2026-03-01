@@ -58,16 +58,20 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // prevents redirect loops
   const initialized = useRef(false);
 
-  // Safety timeout — if auth/profile check takes >5s, force loading to false
+  // Safety timeout — fires ONCE on mount only to prevent infinite loading state.
+  // Must NOT have [loading] in deps — that would stack a new timer on every loading change.
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (loading) {
-        console.warn('[Auth] Loading timeout — forcing loading=false after 5s');
-        setLoading(false);
-      }
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('[Auth] Loading timeout — forcing loading=false after 5s');
+          return false;
+        }
+        return prev;
+      });
     }, 5000);
     return () => clearTimeout(timeout);
-  }, [loading]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
