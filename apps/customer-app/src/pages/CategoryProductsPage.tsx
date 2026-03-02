@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
-import { ChevronLeft, SlidersHorizontal, Heart, Loader } from "lucide-react";
+import { ChevronLeft, SlidersHorizontal, Heart, Loader, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
@@ -171,6 +171,11 @@ const CategoryProductsPage: React.FC = () => {
                 query = query.eq('gender', dbGender);
             }
 
+            // Backend name search — filter at DB level
+            if (filters.nameQuery && filters.nameQuery.trim() !== '') {
+                query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
+            }
+
             console.log(`🔍 Fetching from Supabase: category="${filters.category}", gender="${dbGender}", brands="${filters.brands}"`);
             const { data, error } = await query;
 
@@ -310,25 +315,15 @@ const CategoryProductsPage: React.FC = () => {
         <MobileShell className="bg-[#050505] text-white">
             {/* Header */}
             <div className="sticky top-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5">
-                <div className="flex items-center justify-between px-4 py-4">
+                {/* Title row */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-2">
                     <div className="flex items-center gap-3">
                         <button onClick={() => navigate(-1)} className="p-1 -ml-1">
                             <ChevronLeft className="w-6 h-6 text-white" />
                         </button>
-                        <div className="flex flex-col">
-                            <h1 className="text-xl font-bold tracking-tight text-white capitalize">
-                                {categoryTitle}
-                            </h1>
-
-                            {/* name search */}
-                            <input
-                                type="text"
-                                value={nameQuery}
-                                onChange={(e) => setNameQuery(e.target.value)}
-                                placeholder="Search by name"
-                                className="mt-1 px-3 py-1 rounded bg-[#1C1C1E] text-white text-sm"
-                            />
-                        </div>
+                        <h1 className="text-xl font-bold tracking-tight text-white capitalize">
+                            {categoryTitle}
+                        </h1>
                     </div>
 
                     <button
@@ -340,6 +335,28 @@ const CategoryProductsPage: React.FC = () => {
                             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
                         )}
                     </button>
+                </div>
+
+                {/* Search bar row */}
+                <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-[#1C1C1E] border border-white/8">
+                        <Search className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                        <input
+                            type="text"
+                            value={nameQuery}
+                            onChange={(e) => setNameQuery(e.target.value)}
+                            placeholder={`Search in ${categoryTitle}...`}
+                            className="flex-1 bg-transparent text-white text-sm placeholder:text-zinc-600 outline-none min-w-0"
+                        />
+                        {nameQuery.trim() !== "" && (
+                            <button
+                                onClick={() => setNameQuery("")}
+                                className="flex-shrink-0 p-0.5 rounded-full bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                            >
+                                <X className="w-3 h-3 text-zinc-300" />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 

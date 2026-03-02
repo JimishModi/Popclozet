@@ -69,6 +69,11 @@ import OrderDeliveredPage from "./pages/OrderDeliveredPage";
 import VirtualTryOnPage from "./pages/VirtualTryOnPage";
 import WelcomeGridPage from "./pages/WelcomeGridPage";
 import WelcomeGridPage2 from "./pages/WelcomeGridPage2";
+import WishlistPage from "./pages/WishlistPage";
+import PaymentsPage from "./pages/PaymentsPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import HelpPage from "./pages/HelpPage";
+import PrivacyPage from "./pages/PrivacyPage";
 
 const queryClient = new QueryClient();
 
@@ -145,6 +150,12 @@ function App() {
                         <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                         <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
                         <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
+                        <Route path="/wishlist" element={<PageTransition><WishlistPage /></PageTransition>} />
+                        <Route path="/payments" element={<PageTransition><PaymentsPage /></PageTransition>} />
+                        <Route path="/notifications" element={<PageTransition><NotificationsPage /></PageTransition>} />
+                        <Route path="/help" element={<PageTransition><HelpPage /></PageTransition>} />
+                        <Route path="/privacy" element={<PageTransition><PrivacyPage /></PageTransition>} />
+                        <Route path="/order/:orderId/delivered" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
 
                         <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />
                         <Route path="/tracking/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><DeliveryTrackingPage /></Suspense></PageTransition>} />

@@ -13,23 +13,29 @@ import { Button } from "@/components/ui/button";
 export default function OtpVerificationPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { confirmOTP, hasConfirmationResult } = useAuth();
+    const { confirmOTP, hasConfirmationResult, user, needsOnboarding, loading } = useAuth();
 
-    // Get phone number from navigation state
     const phoneNumber = location.state?.phone || "";
 
     const [otp, setOtp] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    // Set to true after confirmOTP succeeds — actual navigation happens in useEffect
+    const [verified, setVerified] = useState(false);
 
     useEffect(() => {
-        console.log("[OtpPage] Mounted. Phone:", phoneNumber, "Has confirmation:", hasConfirmationResult);
-
         if (!phoneNumber) {
-            console.log("[OtpPage] No phone number, redirecting to login");
             navigate("/auth/login");
         }
-    }, [phoneNumber, navigate, hasConfirmationResult]);
+    }, [phoneNumber, navigate]);
+
+    // Navigate ONLY after auth context has settled with the real user — no more 404 flash
+    useEffect(() => {
+        if (!verified || loading) return;
+        if (user) {
+            navigate(needsOnboarding ? "/auth/create-account" : "/home", { replace: true });
+        }
+    }, [verified, user, loading, needsOnboarding, navigate]);
 
     const handleVerify = async () => {
         if (otp.length !== 6) {
@@ -37,14 +43,13 @@ export default function OtpVerificationPage() {
             return;
         }
 
-        console.log("[OtpPage] Starting verification...");
         setIsLoading(true);
         setError("");
 
         try {
             await confirmOTP(otp);
-            console.log("[OtpPage] Verification successful, navigating to home");
-            navigate("/home");
+            // Don't navigate yet — wait for auth context to update (see useEffect above)
+            setVerified(true);
         } catch (err: unknown) {
             const error = err as { message?: string };
             console.error("[OtpPage] Verification failed:", error);

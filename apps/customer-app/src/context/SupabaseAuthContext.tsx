@@ -152,6 +152,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (initialized.current) return;
 
         initialized.current = true;
+        setLoading(true);
 
         setSession(session);
         setUser(session.user);

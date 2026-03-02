@@ -72,7 +72,6 @@ export default function LoginPage() {
         setIsLoading(true);
         try {
             await signInWithGoogle();
-            navigate("/auth/create-account");
         } catch (error) {
             console.error("Login failed", error);
             setError("Google sign-in failed. Please try again.");
