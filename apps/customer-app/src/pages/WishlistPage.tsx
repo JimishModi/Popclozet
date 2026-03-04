@@ -7,6 +7,7 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useWishlist } from "@/context/WishlistContext";
 import { supabase } from "@popclozet/api-client";
+import { thumbImage } from "@/lib/optimizeImage";
 
 interface Product {
     id: string;
@@ -120,9 +121,10 @@ const WishlistPage: React.FC = () => {
                                     >
                                         {product.images?.[0] ? (
                                             <img
-                                                src={product.images[0]}
+                                                src={thumbImage(product.images[0])}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                loading="lazy"
                                             />
                                         ) : (
                                             <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">

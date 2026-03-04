@@ -12,7 +12,7 @@ import {
   ShoppingBag,
   ChevronRight,
 } from "lucide-react";
-import { getProductById } from "@/config/products";
+import { supabase } from "@popclozet/api-client";
 import SignupModal from "@/components/SignupModal";
 import { Link, useNavigate } from "react-router-dom";
 import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
@@ -64,25 +64,66 @@ const CartPage = () => {
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<{ name: string; distance_km: number; estimated_minutes: number } | null>(null);
 
+  const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
   const cartEntries = Object.entries(cartItems);
-  const totalItems = cartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+
+  const validCartEntries = useMemo(() => {
+    return cartEntries.filter(([id]) => {
+      const baseId = id.split('_')[0];
+      return cartProducts[baseId] !== undefined;
+    });
+  }, [cartEntries, cartProducts]);
+
+  const totalItems = validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+
+  useEffect(() => {
+    const fetchCartProducts = async () => {
+      const uniqueIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
+      if (uniqueIds.length === 0) {
+        setCartProducts({});
+        setLoadingProducts(false);
+        return;
+      }
+
+      const { data, error } = await supabase.from('products').select('*').in('id', uniqueIds);
+      if (data && !error) {
+        const productMap: Record<string, any> = {};
+        data.forEach((p: any) => {
+          productMap[p.id] = {
+            ...p,
+            price: parseFloat(p.rental_price ?? p.price ?? '0'),
+            originalPrice: parseFloat(p.price ?? '0'),
+            imageUrl: p.images?.[0] || '',
+          };
+        });
+        setCartProducts(productMap);
+      }
+      setLoadingProducts(false);
+    };
+
+    fetchCartProducts();
+  }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
 
   // Calculate subtotal
   const subtotal = useMemo(() => {
-    return cartEntries.reduce((total, [id, qty]) => {
-      const product = getProductById(id);
+    return validCartEntries.reduce((total, [id, qty]) => {
+      const baseId = id.split('_')[0];
+      const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [cartEntries]);
+  }, [validCartEntries, cartProducts]);
 
   // Original total (before discount)
   const originalTotal = useMemo(() => {
-    return cartEntries.reduce((total, [id, qty]) => {
-      const product = getProductById(id);
-      const orig = (product as any)?.originalPrice || product?.price || 0;
+    return validCartEntries.reduce((total, [id, qty]) => {
+      const baseId = id.split('_')[0];
+      const product = cartProducts[baseId];
+      const orig = product?.originalPrice || product?.price || 0;
       return total + orig * qty;
     }, 0);
-  }, [cartEntries]);
+  }, [validCartEntries, cartProducts]);
 
   const discount = originalTotal - subtotal;
 
@@ -162,7 +203,7 @@ const CartPage = () => {
           </div>
 
           {/* Subtitle */}
-          {cartEntries.length > 0 && (
+          {validCartEntries.length > 0 && !loadingProducts && (
             <p className="mt-3 ml-8 text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
@@ -170,8 +211,15 @@ const CartPage = () => {
         </section>
 
 
-        {/* ─── EMPTY STATE ─── */}
-        {cartEntries.length === 0 ? (
+        {/* ─── LOADING & EMPTY STATES ─── */}
+        {loadingProducts ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="w-10 h-10 border-4 border-[#f2546d] border-t-transparent rounded-full animate-spin mb-4" />
+            <h3 className="text-lg font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Loading your bag...
+            </h3>
+          </div>
+        ) : validCartEntries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <div className="w-20 h-20 rounded-full bg-[#232323] flex items-center justify-center mb-4">
               <ShoppingBag className="w-10 h-10 text-zinc-600" />
@@ -194,8 +242,10 @@ const CartPage = () => {
             {/* ─── RENTAL ITEMS ─── */}
             <section className="px-5 space-y-4">
               <AnimatePresence>
-                {cartEntries.map(([id, qty]) => {
-                  const product = getProductById(id);
+                {validCartEntries.map(([id, qty]) => {
+                  const baseId = id.split('_')[0];
+                  const size = id.split('_')[1] || 'S';
+                  const product = cartProducts[baseId];
                   if (!product) return null;
 
                   return (
@@ -209,9 +259,9 @@ const CartPage = () => {
                     >
                       {/* Product Image */}
                       <div className="w-28 h-28 bg-[#2a2a2a] rounded-lg flex-shrink-0 overflow-hidden">
-                        {product.image && (
+                        {product.imageUrl && (
                           <img
-                            src={product.image}
+                            src={product.imageUrl}
                             alt={product.name}
                             className="w-full h-full object-cover"
                           />
@@ -248,24 +298,18 @@ const CartPage = () => {
                         {/* Bottom row: Size + Qty + Prices */}
                         <div className="flex items-center mt-2 gap-2">
                           <div className="flex items-center gap-1 px-2 py-1.5 bg-[#2a2a2a] rounded">
-                            <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>Size: S</span>
-                            <svg className="w-[5px] h-[3px] text-white" viewBox="0 0 5 3" fill="currentColor">
-                              <polygon points="2.5,3 0,0 5,0" />
-                            </svg>
+                            <span className="text-sm text-white uppercase text-xs font-bold" style={{ fontFamily: "'DM Sans', sans-serif" }}>Size: {size}</span>
                           </div>
                           <div className="flex items-center gap-1 px-2 py-1.5 bg-[#2a2a2a] rounded">
                             <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>Qty: {qty}</span>
-                            <svg className="w-[5px] h-[3px] text-white" viewBox="0 0 5 3" fill="currentColor">
-                              <polygon points="2.5,3 0,0 5,0" />
-                            </svg>
                           </div>
 
                           {/* Prices */}
                           <div className="ml-auto flex flex-col items-end">
-                            {(product as any).originalPrice && (product as any).originalPrice > product.price && (
+                            {product.originalPrice && product.originalPrice > product.price && (
                               <div className="relative">
                                 <span className="text-sm text-[#5f606a]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                  ₹ {(product as any).originalPrice}
+                                  ₹ {product.originalPrice}
                                 </span>
                                 <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
                               </div>
@@ -280,100 +324,6 @@ const CartPage = () => {
                   );
                 })}
               </AnimatePresence>
-            </section>
-
-
-            {/* ─── INSTANT BUY SECTION ─── */}
-            <section className="px-5 mt-8">
-              <h3 className="text-lg font-black text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Instant Buy (2 Items)
-              </h3>
-
-              <div className="space-y-4">
-                {[1, 2].map((i) => (
-                  <div
-                    key={`instant-${i}`}
-                    className="flex items-center gap-4 px-3 py-3 bg-[#8d303f] rounded-2xl"
-                  >
-                    {/* Image placeholder */}
-                    <div className="w-28 h-28 bg-[#111111] rounded-lg flex-shrink-0" />
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <h4 className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                          Zara
-                        </h4>
-                        <button className="p-1">
-                          <X className="w-3 h-3 text-white/60" />
-                        </button>
-                      </div>
-                      <p className="text-sm text-[#ff8597] mt-1" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        Black Dress
-                      </p>
-
-                      <div className="flex items-center mt-10 gap-2">
-                        <div className="flex items-center gap-1 px-2 py-1.5 bg-[#ff6078] rounded">
-                          <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>Size: S</span>
-                          <svg className="w-[5px] h-[3px] text-white" viewBox="0 0 5 3" fill="currentColor">
-                            <polygon points="2.5,3 0,0 5,0" />
-                          </svg>
-                        </div>
-                        <div className="flex items-center gap-1 px-2 py-1.5 bg-[#ff6078] rounded">
-                          <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>Qty: 1</span>
-                          <svg className="w-[5px] h-[3px] text-white" viewBox="0 0 5 3" fill="currentColor">
-                            <polygon points="2.5,3 0,0 5,0" />
-                          </svg>
-                        </div>
-                        <span className="ml-auto text-lg font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                          ₹ 4000
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-
-            {/* ─── ADD ONS ─── */}
-            <section className="mt-8">
-              <h3 className="text-lg font-black text-white mb-4 px-5 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Add ons
-              </h3>
-
-              <div className="flex gap-3 overflow-x-auto px-5 pb-2 no-scrollbar">
-                {ADD_ONS.map((addon) => (
-                  <div
-                    key={addon.id}
-                    className="flex items-center gap-2 px-3 py-3 bg-[#232323] rounded-2xl flex-shrink-0 min-w-[264px]"
-                  >
-                    {/* Image placeholder */}
-                    <div className="w-[88px] h-[104px] bg-[#111111] rounded-lg flex-shrink-0" />
-
-                    {/* Details */}
-                    <div className="flex flex-col gap-1 min-w-[120px]">
-                      <h4 className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        {addon.title}
-                      </h4>
-                      <div className="relative inline-block mt-2">
-                        <span className="text-sm text-[#5f606a]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                          ₹ {addon.originalPrice}
-                        </span>
-                        <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                      </div>
-                      <span className="text-lg font-semibold text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        ₹ {addon.price}
-                      </span>
-                      <button className="self-end mt-1 px-[13px] py-[7px] bg-[#232323] rounded-lg border border-black">
-                        <span className="text-lg font-semibold text-[#ff8597]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                          Add
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </section>
 
 
@@ -431,7 +381,7 @@ const CartPage = () => {
 
 
       {/* ─── CHECKOUT FOOTER ─── */}
-      {cartEntries.length > 0 && (
+      {validCartEntries.length > 0 && !loadingProducts && (
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
 
           {/* Subscribe Banner */}

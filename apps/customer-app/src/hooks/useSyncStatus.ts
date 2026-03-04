@@ -17,15 +17,15 @@ export function useSyncStatus() {
 
     const [isInitialized, setIsInitialized] = useState(false);
 
-    // Load initial status
+    // Load initial status — deferred so it never blocks the initial render
     useEffect(() => {
-        const loadStatus = async () => {
+        // setTimeout(0) yields to the browser's paint cycle first
+        const timer = setTimeout(async () => {
             const initialStatus = await syncEngine.getStatus();
             setStatus(initialStatus);
             setIsInitialized(true);
-        };
-
-        loadStatus();
+        }, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     // Listen for sync events
@@ -62,9 +62,9 @@ export function useSyncStatus() {
         };
     }, []);
 
-    // Manual sync trigger
-    const triggerSync = useCallback(async () => {
-        await syncEngine.triggerSync();
+    // Manual sync trigger — fire-and-forget, never blocks the caller
+    const triggerSync = useCallback(() => {
+        syncEngine.triggerSync();
     }, []);
 
     // Refresh status manually

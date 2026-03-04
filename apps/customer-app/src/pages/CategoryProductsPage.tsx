@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { thumbImage } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -9,37 +10,7 @@ import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
 import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
-// category-specific configuration: sizes, brands, and inventory count
-interface CategoryConfig {
-    sizes: string[];
-    brands: string[];
-    inventory: number;
-}
 
-const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
-    jackets: {
-        sizes: ["XS", "S", "M", "L", "XL", "XXL"],
-        brands: ["Zara", "H&M", "Mango", "Forever 21", "Uniqlo", "Gap"],
-        inventory: 15,
-    },
-    footwear: {
-        sizes: ["6", "7", "8", "9", "10", "11"],
-        brands: ["Nike", "Adidas", "Puma", "Reebok", "Vans"],
-        inventory: 10,
-    },
-    accessories: {
-        sizes: [],
-        brands: ["Fossil", "Coach", "Guess", "Michael Kors"],
-        inventory: 10,
-    },
-};
-
-// simple inventory counts by category key
-const INVENTORY: Record<string, number> = {
-    jackets: 15,
-    footwear: 10,
-    accessories: 10,
-};
 
 type FilterTab = "size" | "price" | "brand";
 
@@ -53,21 +24,48 @@ const CategoryProductsPage: React.FC = () => {
     const brandParam = searchParams.get('brand') || '';
     const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
-    // derive config for the current category
-    const config = CATEGORY_CONFIG[category] || { sizes: [], brands: [], inventory: 0 };
-
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true); // Start true so skeleton shows immediately, no flash of empty state
+
+    // Derive available sizes and brands dynamically from the fetched products
+    const availableSizes = useMemo(() => {
+        const sizesSet = new Set<string>();
+        products.forEach(p => {
+            if (p.sizes) {
+                p.sizes.forEach((s: string) => sizesSet.add(s));
+            }
+        });
+        return Array.from(sizesSet).sort();
+    }, [products]);
+
+    const availableBrands = useMemo(() => {
+        const brandsSet = new Set<string>();
+        products.forEach(p => {
+            if (p.brand) brandsSet.add(p.brand);
+        });
+        return Array.from(brandsSet).sort();
+    }, [products]);
     const [wishlist, setWishlist] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>("size");
 
     // Filter states
     const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
-    const [priceRange, setPriceRange] = useState({ min: 100, max: 1200 });
+    const [priceRange, setPriceRange] = useState({ min: 0, max: 2000 });
     const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
 
     const [nameQuery, setNameQuery] = useState(""); // text search by name
+
+    const maxAvailablePrice = useMemo(() => {
+        if (products.length === 0) return 2000;
+        let max = 0;
+        products.forEach(p => {
+            const currentPrice = p.price || p.rental_price || 0;
+            if (currentPrice > max) max = currentPrice;
+        });
+        const finalMax = Math.ceil(max / 500) * 500;
+        return finalMax > 0 ? finalMax : 2000; // Fallback to avoid max="0" in range slider
+    }, [products]);
 
     // Load products on mount or when category/gender/brand changes
     useEffect(() => {
@@ -161,10 +159,6 @@ const CategoryProductsPage: React.FC = () => {
 
             if (filters.category) {
                 query = query.eq('category', filters.category);
-            }
-
-            if (filters.brands && filters.brands.length > 0) {
-                query = query.in('brand', filters.brands);
             }
 
             if (dbGender) {
@@ -267,7 +261,7 @@ const CategoryProductsPage: React.FC = () => {
     function resetFilters() {
         setSelectedSizes(new Set());
         setSelectedBrands(new Set());
-        setPriceRange({ min: 100, max: 1200 });
+        setPriceRange({ min: 0, max: maxAvailablePrice });
         setNameQuery("");
     }
 
@@ -331,7 +325,7 @@ const CategoryProductsPage: React.FC = () => {
                         className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                     >
                         <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
-                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || priceRange.min !== 100 || priceRange.max !== 1200 || nameQuery.trim() !== "") && (
+                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice || nameQuery.trim() !== "") && (
                             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
                         )}
                     </button>
@@ -403,9 +397,10 @@ const CategoryProductsPage: React.FC = () => {
                                         <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
                                             {product.images && product.images[0] ? (
                                                 <img
-                                                    src={product.images[0]}
+                                                    src={thumbImage(product.images[0])}
                                                     alt={product.name}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    loading="lazy"
                                                 />
                                             ) : (
                                                 <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
@@ -463,8 +458,8 @@ const CategoryProductsPage: React.FC = () => {
                                 <div className="flex items-center gap-3 mb-5">
                                     {(["size", "price", "brand"] as FilterTab[])
                                         .filter((tab) => {
-                                            if (tab === "size") return config.sizes.length > 0;
-                                            if (tab === "brand") return config.brands.length > 0;
+                                            if (tab === "size") return availableSizes.length > 0;
+                                            if (tab === "brand") return availableBrands.length > 0;
                                             return true; // price always
                                         })
                                         .map((tab) => (
@@ -484,40 +479,22 @@ const CategoryProductsPage: React.FC = () => {
                                 </div>
 
                                 {/* === Size Tab === */}
-                                {activeFilterTab === "size" && config.sizes.length > 0 && (
+                                {activeFilterTab === "size" && availableSizes.length > 0 && (
                                     <div className="grid grid-cols-4 gap-2.5">
-                                        {config.sizes.map((size) => {
+                                        {availableSizes.filter(s => s && s.trim() !== "").map((size) => {
                                             const isSelected = selectedSizes.has(size);
                                             return (
                                                 <button
                                                     key={size}
                                                     onClick={() => toggleSize(size)}
                                                     className={cn(
-                                                        "flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all",
+                                                        "h-11 rounded-xl text-sm font-bold border transition-all flex items-center justify-center uppercase truncate px-1",
                                                         isSelected
-                                                            ? "bg-white"
-                                                            : "bg-transparent"
+                                                            ? "bg-[#FF4D6D]/10 border-[#FF4D6D] text-[#FF4D6D]"
+                                                            : "bg-[#1C1C1E] border-white/10 text-zinc-400 hover:border-white/20"
                                                     )}
                                                 >
-                                                    {/* Checkbox */}
-                                                    <div className={cn(
-                                                        "w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 transition-all",
-                                                        isSelected
-                                                            ? "bg-black border-black"
-                                                            : "border-zinc-600 bg-transparent"
-                                                    )}>
-                                                        {isSelected && (
-                                                            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
-                                                                <polyline points="20 6 9 17 4 12" />
-                                                            </svg>
-                                                        )}
-                                                    </div>
-                                                    <span className={cn(
-                                                        "text-sm font-semibold",
-                                                        isSelected ? "text-black" : "text-white"
-                                                    )}>
-                                                        {size}
-                                                    </span>
+                                                    {size}
                                                 </button>
                                             );
                                         })}
@@ -551,8 +528,8 @@ const CategoryProductsPage: React.FC = () => {
                                                 <div
                                                     className="absolute h-full bg-[#FF4D6D] rounded-full"
                                                     style={{
-                                                        left: `${(priceRange.min / 2000) * 100}%`,
-                                                        width: `${((priceRange.max - priceRange.min) / 2000) * 100}%`
+                                                        left: `${(priceRange.min / Math.max(maxAvailablePrice, 500)) * 100}%`,
+                                                        width: `${((priceRange.max - priceRange.min) / Math.max(maxAvailablePrice, 500)) * 100}%`
                                                     }}
                                                 />
                                                 {/* Dot markers along track */}
@@ -566,34 +543,34 @@ const CategoryProductsPage: React.FC = () => {
                                                 {/* Min handle */}
                                                 <div
                                                     className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md"
-                                                    style={{ left: `calc(${(priceRange.min / 2000) * 100}% - 10px)` }}
+                                                    style={{ left: `calc(${(priceRange.min / Math.max(maxAvailablePrice, 500)) * 100}% - 10px)` }}
                                                 />
                                                 {/* Max handle */}
                                                 <div
                                                     className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md"
-                                                    style={{ left: `calc(${(priceRange.max / 2000) * 100}% - 10px)` }}
+                                                    style={{ left: `calc(${(priceRange.max / Math.max(maxAvailablePrice, 500)) * 100}% - 10px)` }}
                                                 />
                                             </div>
                                             {/* Invisible range inputs */}
                                             <input
                                                 type="range"
                                                 min="0"
-                                                max="2000"
+                                                max={Math.max(maxAvailablePrice, 500)}
                                                 value={priceRange.min}
                                                 onChange={(e) => setPriceRange(prev => ({
                                                     ...prev,
-                                                    min: Math.min(Number(e.target.value), prev.max - 100)
+                                                    min: Math.min(Number(e.target.value), prev.max)
                                                 }))}
                                                 className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer"
                                             />
                                             <input
                                                 type="range"
                                                 min="0"
-                                                max="2000"
+                                                max={Math.max(maxAvailablePrice, 500)}
                                                 value={priceRange.max}
                                                 onChange={(e) => setPriceRange(prev => ({
                                                     ...prev,
-                                                    max: Math.max(Number(e.target.value), prev.min + 100)
+                                                    max: Math.max(Number(e.target.value), prev.min)
                                                 }))}
                                                 className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer"
                                             />
@@ -605,20 +582,22 @@ const CategoryProductsPage: React.FC = () => {
                                 {activeFilterTab === "brand" && (
                                     <div>
                                         <div className="grid grid-cols-3 gap-2.5">
-                                            {config.brands.map((brand) => (
+                                            {availableBrands.map((brand) => (
                                                 <button
                                                     key={brand}
                                                     onClick={() => toggleBrand(brand)}
                                                     className={cn(
-                                                        "aspect-[3/2] rounded-xl border transition-all",
+                                                        "text-xs font-bold py-2.5 rounded-xl border transition-all text-center px-1 truncate",
                                                         selectedBrands.has(brand)
-                                                            ? "bg-[#3E3E42] border-[#FF4D6D]/50"
-                                                            : "bg-[#1C1C1E] border-zinc-700/30"
+                                                            ? "bg-[#FF4D6D]/10 border-[#FF4D6D] text-[#FF4D6D]"
+                                                            : "bg-transparent border-white/10 text-zinc-400"
                                                     )}
-                                                />
+                                                >
+                                                    {brand}
+                                                </button>
                                             ))}
                                         </div>
-                                        {config.brands.length > 6 && (
+                                        {availableBrands.length > 6 && (
                                             <button className="mt-3 text-[#FF4D6D] text-sm font-semibold w-full text-right pr-1">
                                                 See all
                                             </button>

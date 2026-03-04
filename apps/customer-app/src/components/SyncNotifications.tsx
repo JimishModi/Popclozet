@@ -12,20 +12,17 @@ export function SyncNotifications() {
         const handleSyncEvent = (event: SyncEvent) => {
             switch (event.type) {
                 case 'sync_started':
-                    toast.info('Syncing offline changes...', {
-                        icon: <RefreshCw className="w-4 h-4 animate-spin" />,
-                        id: 'sync-progress',
-                    });
+                    // Don't toast on start — wait to see if there's actually anything to sync
                     break;
 
                 case 'sync_completed':
-                    toast.success('All changes synced', {
-                        icon: <CheckCircle2 className="w-4 h-4" />,
-                        id: 'sync-progress',
-                        description: event.data?.lastSyncTime
-                            ? `Last synced: ${new Date(event.data.lastSyncTime).toLocaleTimeString()}`
-                            : undefined,
-                    });
+                    // Only show toast if there were pending items (not a trivial sync)
+                    if (event.data?.hadPendingItems) {
+                        toast.success('All changes synced', {
+                            icon: <CheckCircle2 className="w-4 h-4" />,
+                            id: 'sync-progress',
+                        });
+                    }
                     break;
 
                 case 'sync_error':
@@ -43,7 +40,6 @@ export function SyncNotifications() {
                         action: {
                             label: 'Resolve',
                             onClick: () => {
-                                // Navigate to conflict resolution UI
                                 console.log('Navigate to conflict resolution');
                             },
                         },
@@ -51,11 +47,7 @@ export function SyncNotifications() {
                     break;
 
                 case 'sync_progress':
-                    if (event.data?.progress) {
-                        toast.loading(`Syncing... ${event.data.progress}%`, {
-                            id: 'sync-progress',
-                        });
-                    }
+                    // Suppress progress toasts — they're too spammy
                     break;
             }
         };

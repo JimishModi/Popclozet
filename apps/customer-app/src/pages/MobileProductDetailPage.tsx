@@ -8,6 +8,7 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
+import { fullImage } from "@/lib/optimizeImage";
 import shareButtonIcon from "@/assets/icons/share-button.svg";
 import starRatingIcon from "@/assets/icons/star-rating.svg";
 import deliveryTruckIcon from "@/assets/icons/delivery-truck.svg";
@@ -135,7 +136,7 @@ const MobileProductDetailPage: React.FC = () => {
 
     const handleAddToCart = () => {
         if (product) {
-            addToCart(product.id);
+            addToCart(`${product.id}_${selectedSize}`);
         }
     };
 
@@ -238,7 +239,7 @@ const MobileProductDetailPage: React.FC = () => {
                         <div className="flex-1 bg-[#232323] aspect-[344/360]">
                             {product.imageUrl || product.images?.[0] ? (
                                 <img
-                                    src={product.imageUrl || product.images?.[0]}
+                                    src={fullImage(product.imageUrl || product.images?.[0])}
                                     alt={product.name}
                                     className="w-full h-full object-cover"
                                 />
@@ -524,24 +525,13 @@ const MobileProductDetailPage: React.FC = () => {
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4">
                     <button
                         onClick={handleAddToCart}
-                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl border border-[#484848] bg-transparent"
+                        className="w-full h-[50px] flex items-center justify-center rounded-2xl bg-[#f2546d]"
                     >
                         <span
                             className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
                             style={dmSans}
                         >
-                            Instant Buy
-                        </span>
-                    </button>
-                    <button
-                        onClick={handleAddToCart}
-                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl bg-[#f2546d]"
-                    >
-                        <span
-                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                            style={dmSans}
-                        >
-                            Rent Outfit
+                            Add to Cart
                         </span>
                     </button>
                 </div>

@@ -95,6 +95,17 @@ const MobileHome: React.FC = () => {
     useEffect(() => {
         const detectLocation = async () => {
             try {
+                // If we already have a location saved, just use it and skip Mapbox
+                const stored = locationStorage.get();
+                if (stored && stored.city) {
+                    const displayLocation = stored.locality && stored.locality !== stored.city
+                        ? `${stored.locality}, ${stored.city}`
+                        : stored.city;
+                    setUserLocation(displayLocation);
+                    return; // Skip GPS detection entirely
+                }
+
+                // Only hit Mapbox if we have no location at all
                 const { autoDetectLocation } = await import("@popclozet/mapbox-core");
                 const result = await autoDetectLocation();
 
@@ -113,12 +124,7 @@ const MobileHome: React.FC = () => {
                         locality: result.locality,
                     });
                 } else {
-                    const stored = locationStorage.get();
-                    if (stored?.source === "manual") {
-                        setUserLocation(stored.city);
-                    } else {
-                        setUserLocation("Select Location");
-                    }
+                    setUserLocation("Select Location");
                 }
             } catch (error) {
                 console.error("Location detection failed:", error);
@@ -521,7 +527,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`left-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-sm font-bold text-zinc-300">
                                                 {brand}
@@ -553,7 +559,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`right-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-sm font-bold text-zinc-300">
                                                 {brand}

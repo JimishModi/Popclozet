@@ -47,6 +47,7 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -155,6 +156,7 @@ function App() {
                         <Route path="/notifications" element={<PageTransition><NotificationsPage /></PageTransition>} />
                         <Route path="/help" element={<PageTransition><HelpPage /></PageTransition>} />
                         <Route path="/privacy" element={<PageTransition><PrivacyPage /></PageTransition>} />
+                        <Route path="/settings" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SettingsPage /></Suspense></PageTransition>} />
                         <Route path="/order/:orderId/delivered" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
 
                         <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />

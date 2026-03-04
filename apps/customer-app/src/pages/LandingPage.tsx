@@ -139,7 +139,7 @@ function MockupSlide(props: SlideProps) {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-28 text-white">
+      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-10 text-white">
         <SlideHeader />
         <div className="flex-1" />
         <SlideFooter {...props} />
@@ -160,76 +160,80 @@ function WelcomeGridSlide(props: SlideProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="flex flex-col items-center min-h-screen px-6 pt-12 pb-28 text-white">
+      {/* Fixed header */}
+      <div className="flex flex-col items-center px-6 pt-12 text-white">
         <SlideHeader />
+      </div>
 
-        {/* Masonry grid */}
-        <div className="flex-1 w-full relative overflow-hidden">
-          <div className="absolute inset-0 flex gap-2 px-0">
-            {/* Column 1 – scrolls DOWN */}
-            <div className="flex-1 overflow-hidden">
-              <motion.div
-                className="flex flex-col gap-2"
-                animate={{ y: [0, -600] }}
-                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              >
-                {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
-                  <div
-                    key={`c1-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
-                    style={{ height: i % 3 === 0 ? "160px" : i % 3 === 1 ? "200px" : "140px" }}
-                  />
-                ))}
-              </motion.div>
-            </div>
-
-            {/* Column 2 – scrolls UP */}
-            <div className="flex-1 overflow-hidden">
-              <motion.div
-                className="flex flex-col gap-2"
-                initial={{ y: -600 }}
-                animate={{ y: [-600, 0] }}
-                transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-              >
-                {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
-                  <div
-                    key={`c2-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
-                    style={{ height: i % 3 === 0 ? "200px" : i % 3 === 1 ? "140px" : "180px" }}
-                  />
-                ))}
-              </motion.div>
-            </div>
-
-            {/* Column 3 – scrolls DOWN */}
-            <div className="flex-1 overflow-hidden">
-              <motion.div
-                className="flex flex-col gap-2"
-                animate={{ y: [0, -550] }}
-                transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-              >
-                {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
-                  <div
-                    key={`c3-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
-                    style={{ height: i % 3 === 0 ? "140px" : i % 3 === 1 ? "180px" : "200px" }}
-                  />
-                ))}
-              </motion.div>
-            </div>
+      {/* Masonry grid – takes remaining space between header and footer */}
+      <div className="flex-1 relative overflow-hidden">
+        <div className="absolute inset-0 flex gap-2">
+          {/* Column 1 – scrolls DOWN */}
+          <div className="flex-1 overflow-hidden">
+            <motion.div
+              className="flex flex-col gap-2"
+              animate={{ y: [0, -600] }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            >
+              {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
+                <div
+                  key={`c1-${i}`}
+                  className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                  style={{ height: i % 3 === 0 ? "160px" : i % 3 === 1 ? "200px" : "140px" }}
+                />
+              ))}
+            </motion.div>
           </div>
 
-          {/* Gradient overlays */}
-          <div
-            className="absolute inset-x-0 top-0 h-24 pointer-events-none z-10"
-            style={{ background: "linear-gradient(180deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)" }}
-          />
-          <div
-            className="absolute inset-x-0 bottom-0 h-32 pointer-events-none z-10"
-            style={{ background: "linear-gradient(0deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)" }}
-          />
+          {/* Column 2 – scrolls UP */}
+          <div className="flex-1 overflow-hidden">
+            <motion.div
+              className="flex flex-col gap-2"
+              initial={{ y: -600 }}
+              animate={{ y: [-600, 0] }}
+              transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+            >
+              {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
+                <div
+                  key={`c2-${i}`}
+                  className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                  style={{ height: i % 3 === 0 ? "200px" : i % 3 === 1 ? "140px" : "180px" }}
+                />
+              ))}
+            </motion.div>
+          </div>
+
+          {/* Column 3 – scrolls DOWN */}
+          <div className="flex-1 overflow-hidden">
+            <motion.div
+              className="flex flex-col gap-2"
+              animate={{ y: [0, -550] }}
+              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+            >
+              {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
+                <div
+                  key={`c3-${i}`}
+                  className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                  style={{ height: i % 3 === 0 ? "140px" : i % 3 === 1 ? "180px" : "200px" }}
+                />
+              ))}
+            </motion.div>
+          </div>
         </div>
 
+        {/* Gradient overlays – fade grid into header and footer */}
+        <div
+          className="absolute inset-x-0 top-0 h-24 pointer-events-none z-10"
+          style={{ background: "linear-gradient(180deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)" }}
+        />
+        <div
+          className="absolute inset-x-0 bottom-0 h-32 pointer-events-none z-10"
+          style={{ background: "linear-gradient(0deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)" }}
+        />
+      </div>
+
+      {/* Footer pinned below grid – never overlaps */}
+      <div className="relative z-10 flex flex-col items-center px-6 pb-10 text-white">
         <SlideFooter {...props} />
       </div>
     </motion.div>

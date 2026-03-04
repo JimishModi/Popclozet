@@ -15,7 +15,6 @@ import {
 import { MobileShell } from "@/components/layout/MobileShell";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
-import { getProductById } from "@/config/products";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { supabase } from "@popclozet/api-client";
@@ -50,7 +49,18 @@ export default function CheckoutPage() {
   const [popInsurance, setPopInsurance] = useState(true);
 
   const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
-  const totalItems = cartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+
+  const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const validCartEntries = useMemo(() => {
+    return cartEntries.filter(([id]) => {
+      const baseId = id.split('_')[0];
+      return cartProducts[baseId] !== undefined;
+    });
+  }, [cartEntries, cartProducts]);
+
+  const totalItems = validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
 
   // Load saved address and hub
   useEffect(() => {
@@ -60,21 +70,52 @@ export default function CheckoutPage() {
     if (hub) setSelectedHub(hub);
   }, []);
 
+  // Fetch cart products dynamically
+  useEffect(() => {
+    const fetchCartProducts = async () => {
+      const uniqueIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
+      if (uniqueIds.length === 0) {
+        setCartProducts({});
+        setLoadingProducts(false);
+        return;
+      }
+
+      const { data, error } = await supabase.from('products').select('*').in('id', uniqueIds);
+      if (data && !error) {
+        const productMap: Record<string, any> = {};
+        data.forEach((p: any) => {
+          productMap[p.id] = {
+            ...p,
+            price: parseFloat(p.rental_price ?? p.price ?? '0'),
+            originalPrice: parseFloat(p.price ?? '0'),
+            imageUrl: p.images?.[0] || '',
+          };
+        });
+        setCartProducts(productMap);
+      }
+      setLoadingProducts(false);
+    };
+
+    fetchCartProducts();
+  }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
+
   // Calculate totals
   const subtotal = useMemo(() => {
-    return cartEntries.reduce((total, [id, qty]) => {
-      const product = getProductById(id);
+    return validCartEntries.reduce((total, [id, qty]) => {
+      const baseId = id.split('_')[0];
+      const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [cartEntries]);
+  }, [validCartEntries, cartProducts]);
 
   const originalTotal = useMemo(() => {
-    return cartEntries.reduce((total, [id, qty]) => {
-      const product = getProductById(id);
-      const orig = (product as any)?.originalPrice || product?.price || 0;
+    return validCartEntries.reduce((total, [id, qty]) => {
+      const baseId = id.split('_')[0];
+      const product = cartProducts[baseId];
+      const orig = product?.originalPrice || product?.price || 0;
       return total + orig * qty;
     }, 0);
-  }, [cartEntries]);
+  }, [validCartEntries, cartProducts]);
 
   const discount = originalTotal - subtotal;
 
@@ -188,18 +229,20 @@ export default function CheckoutPage() {
 
       // 3) Insert order_items in background
       console.log('[Checkout] Inserting order items in background...');
-      const orderItems = cartEntries.map(([id, qty]) => {
-        const product = getProductById(id);
+      const orderItems = validCartEntries.map(([id, qty]) => {
+        const baseId = id.split('_')[0];
+        const size = id.split('_')[1] || 'S';
+        const product = cartProducts[baseId];
         return {
           order_id: order.id,
-          product_id: id,
-          size: "M",
+          product_id: baseId,
+          size: size,
           rental_price: (product?.price || 0) * qty,
           deposit_amount: Math.round((product?.price || 0) * qty * 0.3),
           rental_duration_days: rentalDays,
         };
       });
-      
+
       supabase.from("order_items").insert(orderItems).then(({ error: e }) => {
         if (e) console.warn("Order items note:", e.message);
         else console.log('[Checkout] Order items inserted successfully');
@@ -208,7 +251,7 @@ export default function CheckoutPage() {
       // 4) Clear cart
       console.log('[Checkout] Clearing cart...');
       clearCartDB().catch(() => { });
-      for (const [id] of cartEntries) {
+      for (const [id] of validCartEntries) {
         removeFromCart(id);
       }
 
@@ -404,18 +447,19 @@ export default function CheckoutPage() {
         <section className="px-5 mt-6">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {/* Show actual cart items as small thumbnails */}
-            {cartEntries.map(([id], i) => {
-              const product = getProductById(id);
+            {validCartEntries.map(([id], i) => {
+              const baseId = id.split('_')[0];
+              const product = cartProducts[baseId];
               return (
                 <div
                   key={id}
                   className={`w-[100px] h-[120px] rounded-2xl flex-shrink-0 overflow-hidden ${i < 2 ? "bg-[#8d303f]" : "bg-[#232323]"
                     }`}
                 >
-                  {product?.image && (
+                  {product?.imageUrl && (
                     <img
-                      src={product.image}
-                      alt={product.name}
+                      src={product.imageUrl}
+                      alt={product.name || 'Product'}
                       className="w-full h-full object-cover opacity-80"
                     />
                   )}
@@ -423,10 +467,10 @@ export default function CheckoutPage() {
               );
             })}
             {/* Placeholder thumbnails if less than 4 items */}
-            {Array.from({ length: Math.max(0, 4 - cartEntries.length) }).map((_, i) => (
+            {Array.from({ length: Math.max(0, 4 - validCartEntries.length) }).map((_, i) => (
               <div
                 key={`placeholder-${i}`}
-                className={`w-[100px] h-[120px] rounded-2xl flex-shrink-0 ${cartEntries.length + i < 2 ? "bg-[#8d303f]" : "bg-[#232323]"
+                className={`w-[100px] h-[120px] rounded-2xl flex-shrink-0 ${validCartEntries.length + i < 2 ? "bg-[#8d303f]" : "bg-[#232323]"
                   }`}
               />
             ))}
@@ -538,10 +582,10 @@ export default function CheckoutPage() {
 
           <button
             onClick={handlePlaceOrder}
-            disabled={isPlacingOrder || cartEntries.length === 0}
+            disabled={isPlacingOrder || validCartEntries.length === 0}
             className={`h-12 px-[77px] flex items-center justify-center rounded-2xl font-semibold text-lg transition-all ${isPlacingOrder
-                ? "bg-zinc-700 text-zinc-400"
-                : "bg-[#f2546d] text-white"
+              ? "bg-zinc-700 text-zinc-400"
+              : "bg-[#f2546d] text-white"
               }`}
             style={dmSans}
           >

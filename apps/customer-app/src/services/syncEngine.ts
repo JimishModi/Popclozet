@@ -71,6 +71,8 @@ class SyncEngine {
     private readonly BASE_RETRY_DELAY = 1000; // 1 second base
 
     private listenersInitialized = false; // Guard: attach window listeners only once
+    private startupDelayDone = false; // Delay first sync past initial render
+
     constructor() {
         this.initializeListeners();
     }
@@ -83,11 +85,16 @@ class SyncEngine {
         if (this.listenersInitialized) return; // Prevent duplicate listeners on hot-reload
         this.listenersInitialized = true;
 
-        // Listen for online/offline events
         if (typeof window !== 'undefined') {
+            // Delay the first automatic sync by 3 seconds so it never races with
+            // the initial React render / product fetch.
+            setTimeout(() => {
+                this.startupDelayDone = true;
+            }, 3000);
+
             window.addEventListener('online', () => {
                 console.log('📶 Network online - triggering sync');
-                this.syncAll();
+                this.dispatchSyncAsync();
             });
 
             window.addEventListener('offline', () => {
@@ -95,18 +102,28 @@ class SyncEngine {
                 this.pauseAutoSync();
             });
 
-            // Listen for visibility change to sync when tab becomes active
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden && navigator.onLine) {
                     const now = Date.now();
                     if (now - this.lastVisibilitySync > this.VISIBILITY_SYNC_THROTTLE) {
                         console.log('👁️ Tab visible - checking for pending sync');
                         this.lastVisibilitySync = now;
-                        this.syncAll();
+                        this.dispatchSyncAsync();
                     }
                 }
             });
         }
+    }
+
+    /**
+     * Schedule syncAll() to run in the background without blocking the caller.
+     * Uses setTimeout(0) so the browser can finish the current paint cycle first.
+     */
+    private dispatchSyncAsync(): void {
+        if (!this.startupDelayDone) return; // Don't sync during startup render
+        setTimeout(() => {
+            this.syncAll().catch(err => console.error('Background sync error:', err));
+        }, 0);
     }
 
     // =====================================================
@@ -124,16 +141,15 @@ class SyncEngine {
 
         console.log('🔄 Starting auto sync (every 5 minutes)');
 
-        // Initial sync
+        // Delay initial sync by 3s so it doesn't compete with first render
         if (navigator.onLine) {
-            this.syncAll();
+            setTimeout(() => this.syncAll().catch(console.error), 3000);
         }
 
-        // Set up periodic sync
         this.syncInterval = setInterval(() => {
-            if (navigator.onLine && !this.syncInProgress && !this.syncPaused) { // Added syncPaused check
+            if (navigator.onLine && !this.syncInProgress && !this.syncPaused) {
                 console.log('⏰ Periodic sync triggered');
-                this.syncAll();
+                this.dispatchSyncAsync();
             }
         }, this.SYNC_INTERVAL_MS);
     }
@@ -542,11 +558,11 @@ class SyncEngine {
     }
 
     /**
-     * Manual sync trigger
+     * Manual sync trigger — fires in the background, never blocks the caller.
      */
-    async triggerSync(): Promise<void> {
-        console.log('🔄 Manual sync triggered');
-        await this.syncAll();
+    triggerSync(): void {
+        console.log('🔄 Manual sync triggered (background)');
+        this.dispatchSyncAsync();
     }
 }
 

@@ -2,10 +2,8 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@popclozet/api-client";
 // Inline profile service methods since the separate file is missing
-const getCurrentProfile = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data, error } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+const getCurrentProfile = async (userId: string) => {
+  const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
   if (error && error.code !== 'PGRST116') throw error;
   return data;
 };
@@ -64,19 +62,22 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const timeout = setTimeout(() => {
       setLoading((prev) => {
         if (prev) {
-          console.warn('[Auth] Loading timeout — forcing loading=false after 5s');
+          console.warn('[Auth] Loading timeout — forcing loading=false after 10s');
           return false;
         }
         return prev;
       });
-    }, 5000);
+    }, 10000);
     return () => clearTimeout(timeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
     try {
-      const profileData = await getCurrentProfile();
+      const profilePromise = getCurrentProfile(u.id);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 3000));
+
+      const profileData = await Promise.race([profilePromise, timeoutPromise]) as any;
 
       if (!profileData) {
         setNeedsOnboarding(true);
@@ -86,8 +87,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setProfile(profileData as any);
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
-      setNeedsOnboarding(true);
+      console.warn("[Auth] Error fetching profile:", error);
+      // If offline or timed out, don't trap them in onboarding loop
+      setNeedsOnboarding(false);
       setProfile(null);
     } finally {
       setLoading(false);
@@ -143,20 +145,31 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     })();
 
-    // listen ONLY for real login
+    // listen ONLY for real login or session updates without triggering loading states
     const { data: { subscription } } =
       supabase.auth.onAuthStateChange((event, session) => {
 
-        if (event !== "SIGNED_IN") return;
-        if (!session?.user) return;
-        if (initialized.current) return;
+        if (event === "SIGNED_OUT") {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          return;
+        }
 
-        initialized.current = true;
-        setLoading(true);
+        if (!session?.user) return;
 
         setSession(session);
         setUser(session.user);
-        fetchProfile(session.user);
+
+        // Only fetch profile and show loading if it's a new sign-in
+        if (event === "SIGNED_IN" && !initialized.current) {
+          initialized.current = true;
+          setLoading(true);
+          fetchProfile(session.user);
+        } else {
+          // Token refreshes shouldn't block the UI
+          setLoading(false);
+        }
       });
 
     return () => subscription.unsubscribe();
@@ -199,7 +212,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) throw new Error("No authenticated user");
     try {
       // If a profile exists, update it; otherwise create a new one with required fields.
-      const current = await getCurrentProfile();
+      const current = await getCurrentProfile(user.id);
 
       if (current) {
         // use server helper that updates by user_id
