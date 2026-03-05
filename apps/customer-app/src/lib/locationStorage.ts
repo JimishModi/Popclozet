@@ -2,6 +2,7 @@ export type StoredLocation =
   | {
     source: "manual";
     city: string;
+    locality?: string;
   }
   | {
     source: "gps";
