@@ -19,7 +19,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       "/auth/login",
       "/auth/callback",
       "/auth/create-account",
-      "/auth/otp"
+      "/auth/otp",
+      "/auth/signout"
     ];
 
     // allow public pages
@@ -43,7 +44,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     // logged in + profile done — redirect away from auth pages
     if (user && !needsOnboarding) {
-      if (location.pathname.startsWith("/auth") || location.pathname === "/signin") {
+      if ((location.pathname.startsWith("/auth") && location.pathname !== "/auth/signout") || location.pathname === "/signin") {
         navigate("/home", { replace: true });
       }
     }

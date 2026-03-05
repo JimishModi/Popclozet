@@ -4,9 +4,8 @@
  * NOW INTEGRATED with sync engine for optimistic updates
  */
 
+// import { supabase } from '@popclozet/api-client';
 import { supabase } from '@popclozet/api-client';
-import { offlineQueueService } from './offlineQueueService';
-import { updateSyncMetadata, getSyncMetadata } from '@/lib/db';
 
 // =====================================================
 // Types
@@ -190,37 +189,8 @@ class ReservationService {
     async createReservation(request: ReservationRequest): Promise<{
         success: boolean;
         reservationId?: string;
-        queued?: boolean;
         error?: string;
     }> {
-        // Generate optimistic local ID
-        const localId = `local_res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const payload = {
-            inventoryItemId: request.inventoryItemId,
-            bundleId: request.bundleId,
-            productId: request.productId,
-            startDate: request.startDate.toISOString(),
-            endDate: request.endDate.toISOString(),
-            deliveryAddress: request.deliveryAddress,
-            deliveryNotes: request.deliveryNotes
-        };
-
-        // If offline, queue the mutation with optimistic ID
-        if (!navigator.onLine) {
-            const result = await offlineQueueService.queueMutation('create_reservation', payload);
-
-            // Track sync status with optimistic ID
-            await updateSyncMetadata('reservation', localId, 'pending');
-
-            console.log('📥 Reservation queued for offline sync:', localId);
-
-            return {
-                success: true,
-                reservationId: localId, // Return optimistic ID
-                queued: true
-            };
-        }
 
         // Online - try to create directly
         try {
@@ -276,16 +246,6 @@ class ReservationService {
         } catch (error) {
             console.error('❌ Reservation error:', error);
 
-            // On network error, queue for later
-            if (error instanceof TypeError && error.message.includes('fetch')) {
-                const result = await offlineQueueService.queueMutation('create_reservation', payload);
-                return {
-                    success: true,
-                    reservationId: String(result.mutationId),
-                    queued: true
-                };
-            }
-
             return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Reservation failed'
@@ -332,29 +292,10 @@ class ReservationService {
         }
     }
 
-    /**
-     * Cancel a reservation (with offline support and sync tracking)
-     */
     async cancelReservation(reservationId: string): Promise<{
         success: boolean;
-        queued?: boolean;
         error?: string;
     }> {
-        // If offline, queue the cancellation
-        if (!navigator.onLine) {
-            await offlineQueueService.queueMutation('cancel_reservation', { reservationId });
-
-            // Update sync status
-            await updateSyncMetadata('reservation', reservationId, 'pending');
-
-            console.log('📥 Cancellation queued for offline sync:', reservationId);
-
-            return {
-                success: true,
-                queued: true
-            };
-        }
-
         // Online - try to cancel directly
         try {
             const { error } = await (supabase.from('reservations') as any)
@@ -363,22 +304,15 @@ class ReservationService {
 
             if (error) throw error;
 
-            // Update sync status
-            await updateSyncMetadata('reservation', reservationId, 'synced');
-
-            console.log('✅ Reservation cancelled and synced:', reservationId);
+            console.log('✅ Reservation cancelled:', reservationId);
 
             return { success: true };
         } catch (error) {
             console.error('❌ Cancellation failed:', error);
 
-            // Queue for retry
-            await offlineQueueService.queueMutation('cancel_reservation', { reservationId });
-            await updateSyncMetadata('reservation', reservationId, 'pending');
-
             return {
-                success: true,
-                queued: true
+                success: false,
+                error: error instanceof Error ? error.message : 'Cancellation failed'
             };
         }
     }

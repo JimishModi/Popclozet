@@ -5,6 +5,7 @@ import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, Heart, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { usePersistentGender } from "@/hooks/usePersistentGender";
 
 /* ── Line-art SVG icons matching Figma ── */
 
@@ -85,7 +86,7 @@ const CATEGORIES = [
 
 const CollectionsPage = () => {
   const navigate = useNavigate();
-  const [activeGender, setActiveGender] = useState<"womens" | "mens">("womens");
+  const [activeGender, setActiveGender] = usePersistentGender("womens");
 
   return (
     <MobileShell className="bg-[#0A0A0A] text-white">

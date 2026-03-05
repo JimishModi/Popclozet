@@ -5,6 +5,7 @@ import { MobileShell } from '@/components/layout/MobileShell';
 import { MobileHeader } from '@/components/layout/MobileHeader';
 import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { cn } from '@/lib/utils';
+import { usePersistentGender } from '@/hooks/usePersistentGender';
 
 // Inline SVG icons
 const ArrowRight = ({ className }: { className?: string }) => (
@@ -89,7 +90,7 @@ const categories: Category[] = [
 ];
 
 const GenderCategoryPage: React.FC = () => {
-    const [activeGender, setActiveGender] = useState<Gender>('women');
+    const [activeGender, setActiveGender] = usePersistentGender('womens');
     const navigate = useNavigate();
 
     const handleCategoryClick = (categoryId: string) => {
@@ -117,7 +118,7 @@ const GenderCategoryPage: React.FC = () => {
                         "p-1 rounded-full flex gap-1",
                         "bg-muted/50 dark:bg-white/10"
                     )}>
-                        {(['women', 'men'] as const).map((gender) => (
+                        {(['womens', 'mens'] as const).map((gender) => (
                             <button
                                 key={gender}
                                 onClick={() => setActiveGender(gender)}
@@ -128,7 +129,7 @@ const GenderCategoryPage: React.FC = () => {
                                         : "text-muted-foreground dark:text-white/60 hover:text-foreground dark:hover:text-white"
                                 )}
                             >
-                                {gender.charAt(0).toUpperCase() + gender.slice(1)}
+                                {gender === 'womens' ? 'Women' : 'Men'}
                             </button>
                         ))}
                     </div>

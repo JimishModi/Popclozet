@@ -55,6 +55,7 @@ export interface UserProfile {
     phone: string;
     avatar_url?: string;
     role: UserRole;
+    onboarding_completed: boolean;
     measurements?: BodyMeasurements;
     created_at: string;
     updated_at: string;

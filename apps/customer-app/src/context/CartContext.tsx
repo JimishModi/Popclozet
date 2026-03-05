@@ -11,7 +11,6 @@ import {
   removeFromCartDB,
   updateCartQuantityDB,
   getCartItemsDB,
-  addToOfflineQueueDB,
 } from "@/lib/db";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
@@ -77,13 +76,6 @@ export const CartProvider = ({
     try {
       await addToCartDB(productId, 1);
 
-      if (!isOnline) {
-        await addToOfflineQueueDB("add_to_cart", {
-          productId,
-          quantity: 1,
-        });
-      }
-
       setCartItems((prev) => {
         const newQty = (prev[productId] || 0) + 1;
         setAnnouncement(
@@ -96,9 +88,7 @@ export const CartProvider = ({
       });
 
       toast.success("Added to cart", {
-        description: isOnline
-          ? "Item added to your shopping bag"
-          : "Saved offline – will sync when online",
+        description: "Item added to your shopping bag",
         duration: 2000,
       });
     } catch (error) {
@@ -112,12 +102,6 @@ export const CartProvider = ({
   const removeFromCart = async (productId: string) => {
     try {
       await removeFromCartDB(productId);
-
-      if (!isOnline) {
-        await addToOfflineQueueDB("remove_from_cart", {
-          productId,
-        });
-      }
 
       setCartItems((prev) => {
         const next = { ...prev };

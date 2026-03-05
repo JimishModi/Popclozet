@@ -21,19 +21,30 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    },
-    realtime: {
-        params: {
-            eventsPerSecond: 10,
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...', { url: supabaseUrl });
+
+let client: SupabaseClient;
+try {
+    client = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         },
-    },
-});
+        realtime: {
+            params: {
+                eventsPerSecond: 10,
+            },
+        },
+    });
+    console.log('✅ [@popclozet/api-client] Supabase client created successfully.');
+} catch (e) {
+    console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
+    throw e;
+}
+
+export const supabase = client;
 
 // ==========================================
 // USER HELPERS

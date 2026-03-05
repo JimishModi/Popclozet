@@ -73,11 +73,14 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
+    console.log('[Auth] fetchProfile starting for user:', u.id);
     try {
       const profilePromise = getCurrentProfile(u.id);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 3000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 10000));
 
+      console.log('[Auth] Awaiting profile race...');
       const profileData = await Promise.race([profilePromise, timeoutPromise]) as any;
+      console.log('[Auth] Profile data received:', profileData ? 'Data found' : 'No profile');
 
       if (!profileData) {
         setNeedsOnboarding(true);
@@ -98,11 +101,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   /* ---------- SESSION INIT ---------- */
   useEffect(() => {
-
     // Handle OAuth redirect callback if present in URL (supabase returns session in URL)
-    (async () => {
+    const initSession = async () => {
+      console.log('🔍 [AuthContext] useEffect starting initialization...');
+
       try {
+        console.log('🔍 [AuthContext] Checking getSessionFromUrl...');
         const maybeSession = await (supabase.auth as any).getSessionFromUrl?.();
+        console.log('🔍 [AuthContext] getSessionFromUrl returned');
+
         // supabase may return { data: { session } } or { data }
         const sess = maybeSession?.data?.session || maybeSession?.session || null;
 
@@ -124,7 +131,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
 
         // initial load (refresh) when no OAuth callback present
+        console.log('🔍 [AuthContext] Calling getSession...');
         const { data } = await supabase.auth.getSession();
+        console.log('🔍 [AuthContext] getSession returned');
         const current = data.session;
 
         if (!current) {
@@ -143,7 +152,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('Error during auth session init:', err);
         setLoading(false);
       }
-    })();
+    };
+
+    initSession();
 
     // listen ONLY for real login or session updates without triggering loading states
     const { data: { subscription } } =
@@ -239,7 +250,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   /* ---------- SIGN OUT ---------- */
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 2000))
+      ]);
+    } catch (error) {
+      console.warn("[Auth] Supabase sign out failed or timed out, clearing local state anyway:", error);
+    } finally {
+    }
 
     initialized.current = false;
     setUser(null);

@@ -7,6 +7,7 @@ import { ChevronRight, Search, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
+import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { productService, Product } from "@/services/productService";
 import popclozetLogo from "@/logo/logo.png";
 
@@ -74,7 +75,7 @@ const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = 
 const MobileHome: React.FC = () => {
     const navigate = useNavigate();
     const [activeSlide, setActiveSlide] = useState(1);
-    const [activeGender, setActiveGender] = useState<"womens" | "mens">("womens");
+    const [activeGender, setActiveGender] = usePersistentGender("womens");
     const [activeAboutSlide, setActiveAboutSlide] = useState(0);
     const [userLocation, setUserLocation] = useState("Detecting...");
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);

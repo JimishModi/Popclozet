@@ -4,8 +4,7 @@ import {
     addToWishlistDB,
     removeFromWishlistDB,
     getWishlistItemsDB,
-    isInWishlistDB,
-    addToOfflineQueueDB
+    isInWishlistDB
 } from '@/lib/db';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
@@ -48,14 +47,9 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
             try {
                 await addToWishlistDB(productId);
 
-                // Queue for sync if offline
-                if (!isOnline) {
-                    await addToOfflineQueueDB('add_to_wishlist', { productId });
-                }
-
                 setWishlistItems(prev => [...prev, productId]);
                 toast.success("Added to Wishlist", {
-                    description: isOnline ? "Item saved for later" : "Saved offline - will sync when online",
+                    description: "Item saved for later",
                     duration: 2000,
                 });
             } catch (error) {
@@ -68,11 +62,6 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     const removeFromWishlist = async (productId: string) => {
         try {
             await removeFromWishlistDB(productId);
-
-            // Queue for sync if offline
-            if (!isOnline) {
-                await addToOfflineQueueDB('remove_from_wishlist', { productId });
-            }
 
             setWishlistItems(prev => prev.filter(id => id !== productId));
             toast.success("Removed from Wishlist");

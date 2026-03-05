@@ -4,18 +4,11 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 import { initTheme } from "./utils/theme";
-import { authPersistence } from "@/services/authPersistence";
-
-
-// ================================
-// PRE-RENDER INITIALIZATION
-// ================================
-
 // Apply theme before first paint (correct)
 initTheme();
 
 // Restore Supabase session BEFORE React mounts
-authPersistence.initialize();
+// (Now handled natively by Supabase persistSession: true)
 
 // Register PWA Service Worker (handled by Vite PWA plugin)
 registerSW({

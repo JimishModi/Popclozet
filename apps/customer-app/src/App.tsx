@@ -18,10 +18,7 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { StyleAssistant } from "./components/StyleAssistant";
-import { OfflineIndicator } from "./components/OfflineIndicator";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { SyncNotifications } from "./components/SyncNotifications";
-import { useOfflineSync } from "./hooks/useOfflineSync";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
@@ -48,6 +45,7 @@ const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const SignOutPage = lazy(() => import("./pages/SignOutPage"));
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -83,8 +81,6 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
 
-  useOfflineSync();
-
   useEffect(() => {
     if (!showWelcome && typeof window !== "undefined") {
       sessionStorage.setItem("welcomeSeen", "true");
@@ -103,16 +99,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SupabaseAuthProvider>
-
-        {/* 🔴 THIS MUST BE ABOVE AUTHGATE */}
-
-
         <AuthGate>
           <CartProvider>
             <WishlistProvider>
               <FlyToCartProvider>
                 <TooltipProvider>
-
                   {/* SYSTEM UI */}
                   <ScrollProgress />
                   <Toaster />
@@ -130,9 +121,7 @@ function App() {
                   )}
 
                   <StyleAssistant />
-                  <OfflineIndicator />
                   <InstallPrompt />
-                  <SyncNotifications />
 
                   {/* ROUTES */}
                   <AnimatePresence mode="wait">
@@ -146,6 +135,7 @@ function App() {
                         <Route path="/auth/login" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><LoginPage /></Suspense></PageTransition>} />
                         <Route path="/auth/otp" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OtpVerificationPage /></Suspense></PageTransition>} />
                         <Route path="/auth/create-account" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CreateAccountPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
 
                         <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                         <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
@@ -195,13 +185,11 @@ function App() {
                       </Routes>
                     </div>
                   </AnimatePresence>
-
                 </TooltipProvider>
               </FlyToCartProvider>
             </WishlistProvider>
           </CartProvider>
         </AuthGate>
-
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );

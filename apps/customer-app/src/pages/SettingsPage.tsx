@@ -93,7 +93,7 @@ interface SelectRowProps extends Omit<RowProps, 'right' | 'onClick'> {
     onChange: (v: string) => void;
 }
 
-const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon, iconBg, label, sub, last }) => {
+const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon: Icon, iconBg, label, sub, last }) => {
     const [open, setOpen] = useState(false);
     return (
         <>
@@ -102,7 +102,7 @@ const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon, i
                 className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:scale-[0.98] transition-colors"
             >
                 <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg ?? 'bg-[#ff4d6d]/20'}`}>
-                    <icon.render className={`w-5 h-5 text-[#ff4d6d]`} />
+                    <Icon className={`w-5 h-5 text-[#ff4d6d]`} />
                 </div>
                 <div className="flex flex-1 flex-col items-start min-w-0">
                     <span className="text-sm font-medium text-white">{label}</span>
@@ -165,17 +165,6 @@ const SettingsPage: React.FC = () => {
         storeBool(key, v);
     };
 
-    // ── Rental preferences ────────────────────────────────────────────────
-    const SIZES_CLOTHING = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-    const SIZES_FOOTWEAR = ['5', '6', '7', '8', '9', '10', '11'];
-    const STYLE_PREFS = ['Casual', 'Formal', 'Party / Glam', 'Ethnic / Traditional', 'Streetwear', 'Sporty'];
-    const RENTAL_DURATIONS = ['1 day', '2 days', '3 days', '5 days', '7 days'];
-
-    const [clothingSize, setClothingSize] = useState(() => loadStr('s_clothing_size', 'M'));
-    const [footwearSize, setFootwearSize] = useState(() => loadStr('s_footwear_size', '8'));
-    const [stylePrefs, setStylePrefs] = useState(() => loadStr('s_style_pref', 'Casual'));
-    const [defaultDuration, setDefaultDuration] = useState(() => loadStr('s_rental_duration', '2 days'));
-
     const saveStr = (setter: (v: string) => void, key: string) => (v: string) => {
         setter(v);
         localStorage.setItem(key, v);
@@ -237,110 +226,7 @@ const SettingsPage: React.FC = () => {
                     </Card>
                 </motion.div>
 
-                {/* ── 2. Rental Preferences ── */}
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                    <SectionLabel>Rental Preferences</SectionLabel>
-                    <Card>
-                        {/* Clothing Size */}
-                        <div>
-                            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-                                <div className="flex w-10 h-10 shrink-0 items-center justify-center rounded-xl bg-[#ff4d6d]/20">
-                                    <Ruler className="w-5 h-5 text-[#ff4d6d]" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-white">Clothing Size</p>
-                                    <p className="text-xs text-zinc-500">Used for quick rental suggestions</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 px-4 pb-4">
-                                {SIZES_CLOTHING.map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => { setClothingSize(s); localStorage.setItem('s_clothing_size', s); }}
-                                        className={`w-12 py-2 rounded-xl text-sm font-bold transition-all ${clothingSize === s ? 'bg-[#ff4d6d] text-white shadow-[0_4px_16px_rgba(255,77,109,0.4)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                            <Divider />
-                        </div>
 
-                        {/* Footwear Size */}
-                        <div>
-                            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-                                <div className="flex w-10 h-10 shrink-0 items-center justify-center rounded-xl bg-[#ff4d6d]/20">
-                                    <Zap className="w-5 h-5 text-[#ff4d6d]" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-white">Footwear Size (UK)</p>
-                                    <p className="text-xs text-zinc-500">For shoes & sneaker rentals</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 px-4 pb-4">
-                                {SIZES_FOOTWEAR.map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => { setFootwearSize(s); localStorage.setItem('s_footwear_size', s); }}
-                                        className={`w-12 py-2 rounded-xl text-sm font-bold transition-all ${footwearSize === s ? 'bg-[#ff4d6d] text-white shadow-[0_4px_16px_rgba(255,77,109,0.4)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                            <Divider />
-                        </div>
-
-                        {/* Style Preference */}
-                        <div>
-                            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-                                <div className="flex w-10 h-10 shrink-0 items-center justify-center rounded-xl bg-[#ff4d6d]/20">
-                                    <RefreshCw className="w-5 h-5 text-[#ff4d6d]" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-white">Style Preference</p>
-                                    <p className="text-xs text-zinc-500">Personalises your home feed</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 px-4 pb-4">
-                                {STYLE_PREFS.map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => { setStylePrefs(s); localStorage.setItem('s_style_pref', s); }}
-                                        className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${stylePrefs === s ? 'bg-[#ff4d6d] text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                            <Divider />
-                        </div>
-
-                        {/* Default Rental Duration */}
-                        <div>
-                            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-                                <div className="flex w-10 h-10 shrink-0 items-center justify-center rounded-xl bg-[#ff4d6d]/20">
-                                    <Clock className="w-5 h-5 text-[#ff4d6d]" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-white">Default Rental Duration</p>
-                                    <p className="text-xs text-zinc-500">Pre-filled at checkout</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 px-4 pb-4">
-                                {RENTAL_DURATIONS.map(d => (
-                                    <button
-                                        key={d}
-                                        onClick={() => { setDefaultDuration(d); localStorage.setItem('s_rental_duration', d); }}
-                                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${defaultDuration === d ? 'bg-[#ff4d6d] text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
-                                    >
-                                        {d}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </Card>
-                </motion.div>
 
                 {/* ── 3. Notifications ── */}
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
@@ -375,7 +261,7 @@ const SettingsPage: React.FC = () => {
                             label="Log Out"
                             sub="You'll need to sign in again"
                             danger
-                            onClick={async () => { await signOut(); navigate('/auth/login'); }}
+                            onClick={() => navigate('/auth/signout')}
                         />
                         <Row
                             icon={Trash2}

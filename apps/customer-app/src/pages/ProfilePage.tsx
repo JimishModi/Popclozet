@@ -267,10 +267,7 @@ const ProfilePage: React.FC = () => {
             {user && (
               <div className="px-4 mt-8">
                 <button
-                  onClick={async () => {
-                    await signOut();
-                    navigate("/auth/login");
-                  }}
+                  onClick={() => navigate("/auth/signout")}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold transition-all active:scale-[0.98]"
                 >
                   <LogOut className="w-5 h-5" />

@@ -3,28 +3,13 @@ import { motion } from 'framer-motion';
 import { WifiOff, Bookmark, Clock, ShoppingBag, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { offlineQueueService } from '@/services/offlineQueueService';
-
-interface CachedProduct {
-    id: string;
-    name: string;
-    imageUrl?: string;
-    price?: number;
-}
-
 const OfflinePage: React.FC = () => {
-    const [recentlyViewed, setRecentlyViewed] = useState<CachedProduct[]>([]);
-    const [savedItems, setSavedItems] = useState<CachedProduct[]>([]);
-    const [queueStatus, setQueueStatus] = useState<{ pending: number; processing: number }>({ pending: 0, processing: 0 });
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        loadCachedData();
-
         const handleOnline = () => {
             setIsOnline(true);
-            // Reload after a short delay to ensure connection is stable
             setTimeout(() => window.location.reload(), 1000);
         };
 
@@ -38,24 +23,6 @@ const OfflinePage: React.FC = () => {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
-
-    const loadCachedData = async () => {
-        try {
-            const [recent, saved, status] = await Promise.all([
-                offlineQueueService.getRecentlyViewed(),
-                offlineQueueService.getSavedItems(),
-                offlineQueueService.getQueueStatus()
-            ]);
-
-            setRecentlyViewed(recent);
-            setSavedItems(saved);
-            setQueueStatus({ pending: status.pending, processing: status.processing });
-        } catch (error) {
-            console.error('Error loading cached data:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleRetry = () => {
         window.location.reload();
@@ -123,132 +90,19 @@ const OfflinePage: React.FC = () => {
                     </div>
                 </motion.div>
 
-                {/* Pending Syncs Notice */}
-                {(queueStatus.pending > 0 || queueStatus.processing > 0) && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-8"
-                    >
-                        <Card className="border-0 bg-[#E3BBE6]/20 backdrop-blur-sm">
-                            <CardContent className="p-4 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-[#A855F7] flex items-center justify-center">
-                                    <ShoppingBag className="w-6 h-6 text-white" />
-                                </div>
-                                <div>
-                                    <p className="font-semibold text-foreground">
-                                        {queueStatus.pending + queueStatus.processing} pending action{queueStatus.pending + queueStatus.processing !== 1 ? 's' : ''}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Will sync automatically when you're back online
-                                    </p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                )}
-
-                {/* Saved Items */}
-                {savedItems.length > 0 && (
-                    <motion.section
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mb-8"
-                    >
-                        <div className="flex items-center gap-2 mb-4">
-                            <Bookmark className="w-5 h-5 text-[#EB76C2]" />
-                            <h2 className="text-xl font-playfair font-bold">Saved Items</h2>
-                            <span className="text-sm text-muted-foreground">({savedItems.length})</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {savedItems.slice(0, 8).map((item, index) => (
-                                <motion.div
-                                    key={item.id}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.1 * index }}
-                                >
-                                    <Card className="overflow-hidden border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow">
-                                        <div className="aspect-[3/4] bg-muted">
-                                            {item.imageUrl && (
-                                                <img
-                                                    src={item.imageUrl}
-                                                    alt={item.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            )}
-                                        </div>
-                                        <CardContent className="p-3">
-                                            <p className="text-sm font-medium truncate">{item.name}</p>
-                                            {item.price && (
-                                                <p className="text-sm text-muted-foreground">₹{item.price}</p>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.section>
-                )}
-
-                {/* Recently Viewed */}
-                {recentlyViewed.length > 0 && (
-                    <motion.section
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="mb-8"
-                    >
-                        <div className="flex items-center gap-2 mb-4">
-                            <Clock className="w-5 h-5 text-[#A855F7]" />
-                            <h2 className="text-xl font-playfair font-bold">Recently Viewed</h2>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {recentlyViewed.slice(0, 8).map((item, index) => (
-                                <motion.div
-                                    key={item.id}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.1 * index }}
-                                >
-                                    <Card className="overflow-hidden border-0 bg-white/60 backdrop-blur-sm">
-                                        <div className="aspect-[3/4] bg-muted">
-                                            {item.imageUrl && (
-                                                <img
-                                                    src={item.imageUrl}
-                                                    alt={item.name}
-                                                    className="w-full h-full object-cover opacity-80"
-                                                />
-                                            )}
-                                        </div>
-                                        <CardContent className="p-3">
-                                            <p className="text-sm font-medium truncate">{item.name}</p>
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.section>
-                )}
-
                 {/* No cached content */}
-                {savedItems.length === 0 && recentlyViewed.length === 0 && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-center py-12"
-                    >
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center">
-                            <ShoppingBag className="w-8 h-8 text-muted-foreground" />
-                        </div>
-                        <p className="text-muted-foreground">
-                            No cached items available. Browse products while online to save them for offline viewing.
-                        </p>
-                    </motion.div>
-                )}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-12"
+                >
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center">
+                        <ShoppingBag className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground">
+                        Please check your internet connection and try again.
+                    </p>
+                </motion.div>
 
                 {/* Retry Button */}
                 <motion.div
