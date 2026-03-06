@@ -214,3 +214,77 @@ export async function cancelOrder(orderId: string): Promise<Order> {
 
   return data;
 }
+
+/**
+ * Get active rentals for the Closet page.
+ * Returns orders that are currently active (placed, confirmed, delivered, in_use).
+ */
+export async function getMyActiveRentals() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      *,
+      order_items (
+        id,
+        product_id,
+        size,
+        rental_price,
+        rental_duration_days,
+        item:products (
+          id,
+          title,
+          image_url,
+          rental_price_per_day,
+          deposit_amount
+        )
+      )
+    `)
+    .eq("user_id", user.id)
+    .in("lifecycle_state", ["placed", "confirmed", "delivered", "in_use"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getMyActiveRentals error:", error);
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Schedule a return for an order.
+ */
+export async function scheduleReturn(orderId: string, pickupDate: string, timeSlot: string) {
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      lifecycle_state: "return_scheduled",
+      return_pickup_date: pickupDate,
+      return_time_slot: timeSlot,
+    })
+    .eq("id", orderId);
+
+  if (error) {
+    console.error("scheduleReturn error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Keep an item (buy it out at the fixed price).
+ */
+export async function keepItem(orderId: string) {
+  const { error } = await supabase
+    .from("orders")
+    .update({ lifecycle_state: "kept" })
+    .eq("id", orderId);
+
+  if (error) {
+    console.error("keepItem error:", error);
+    throw error;
+  }
+}
+

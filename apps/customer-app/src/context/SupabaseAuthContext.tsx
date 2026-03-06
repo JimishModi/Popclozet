@@ -25,6 +25,24 @@ const createProfile = async (profileInput: any) => {
 };
 import type { UserProfile } from "@popclozet/domain-contracts";
 
+// ── Local profile cache (avoids Supabase cold-start delay) ──
+const PROFILE_CACHE_KEY = 'popclozet_profile_cache';
+
+function cacheProfile(profile: any) {
+  try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile)); } catch { /* ignore */ }
+}
+
+function getCachedProfile(): any | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function clearCachedProfile() {
+  try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
+
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -57,90 +75,139 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const initialized = useRef(false);
 
   // Safety timeout — fires ONCE on mount only to prevent infinite loading state.
-  // Must NOT have [loading] in deps — that would stack a new timer on every loading change.
+  // Reduced to 4s for snappy UX — if auth hasn't resolved by then, unblock the app.
   useEffect(() => {
     const timeout = setTimeout(() => {
       setLoading((prev) => {
         if (prev) {
-          console.warn('[Auth] Loading timeout — forcing loading=false after 10s');
+          console.warn('[Auth] Safety timeout — forcing loading=false after 4s');
           return false;
         }
         return prev;
       });
-    }, 10000);
+    }, 4000);
     return () => clearTimeout(timeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- PROFILE FETCH ---------- */
   const fetchProfile = async (u: User) => {
-    console.log('[Auth] fetchProfile starting for user:', u.id);
+    console.info('[Auth] fetchProfile started for:', u.email || u.id);
     try {
       const profilePromise = getCurrentProfile(u.id);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 10000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 3000));
 
-      console.log('[Auth] Awaiting profile race...');
       const profileData = await Promise.race([profilePromise, timeoutPromise]) as any;
-      console.log('[Auth] Profile data received:', profileData ? 'Data found' : 'No profile');
 
       if (!profileData) {
+        console.info('[Auth] No profile found — needs onboarding');
         setNeedsOnboarding(true);
         setProfile(null);
       } else {
+        console.info('[Auth] Profile loaded:', profileData.full_name || '(no name)');
         setNeedsOnboarding(!profileData.onboarding_completed);
         setProfile(profileData as any);
+        cacheProfile(profileData); // Cache for instant hydration next time
       }
     } catch (error) {
-      console.warn("[Auth] Error fetching profile:", error);
-      // If offline or timed out, don't trap them in onboarding loop
-      setNeedsOnboarding(false);
-      setProfile(null);
+      console.warn("[Auth] Error/timeout fetching profile:", error);
+      // Try to use cached profile as fallback
+      const cachedProfile = getCachedProfile();
+      if (cachedProfile) {
+        console.info('[Auth] Using cached profile as fallback');
+        setProfile(cachedProfile as any);
+        setNeedsOnboarding(!cachedProfile.onboarding_completed);
+      } else {
+        setNeedsOnboarding(false);
+        setProfile(null);
+      }
     } finally {
+      console.info('[Auth] fetchProfile done — setting loading=false');
       setLoading(false);
     }
   };
 
   /* ---------- SESSION INIT ---------- */
   useEffect(() => {
-    // Handle OAuth redirect callback if present in URL (supabase returns session in URL)
-    const initSession = async () => {
-      console.log('🔍 [AuthContext] useEffect starting initialization...');
 
+    (async () => {
+      console.info('[Auth] Session init started');
       try {
-        console.log('🔍 [AuthContext] Checking getSessionFromUrl...');
-        const maybeSession = await (supabase.auth as any).getSessionFromUrl?.();
-        console.log('🔍 [AuthContext] getSessionFromUrl returned');
+        // ─── STEP 1: Try instant hydration from IndexedDB cache ───
+        // This avoids blocking on Supabase cold-start (free tier can take 5-15s)
+        const { authPersistence } = await import('@/services/authPersistence');
+        const cached = await authPersistence.getCachedSession();
 
-        // supabase may return { data: { session } } or { data }
+        if (cached?.session?.user) {
+          console.info('[Auth] Hydrated from cache:', cached.session.user.email || cached.session.user.id);
+          setSession(cached.session);
+          setUser(cached.session.user);
+
+          // Also restore cached profile instantly
+          const cachedProfile = getCachedProfile();
+          if (cachedProfile) {
+            console.info('[Auth] Profile restored from cache:', cachedProfile.full_name || '(no name)');
+            setProfile(cachedProfile as any);
+            setNeedsOnboarding(!cachedProfile.onboarding_completed);
+            initialized.current = true;
+            setLoading(false);
+            // Still try to refresh profile in the background (non-blocking)
+            getCurrentProfile(cached.session.user.id).then(freshProfile => {
+              if (freshProfile) {
+                setProfile(freshProfile as any);
+                cacheProfile(freshProfile);
+              }
+            }).catch(() => { /* ignore background refresh failure */ });
+          } else if (!initialized.current) {
+            initialized.current = true;
+            fetchProfile(cached.session.user);
+          }
+          return;
+        }
+
+        // ─── STEP 2: Handle OAuth redirect callback ───
+        const maybeSession = await (supabase.auth as any).getSessionFromUrl?.();
         const sess = maybeSession?.data?.session || maybeSession?.session || null;
 
         if (sess) {
+          console.info('[Auth] OAuth session found');
           setSession(sess);
           setUser(sess.user);
           if (!initialized.current) {
             initialized.current = true;
             await fetchProfile(sess.user);
           }
-          // remove auth fragments/queries from URL to avoid confusing router
           try {
             const clean = window.location.origin + window.location.pathname + window.location.search;
             window.history.replaceState({}, document.title, clean);
-          } catch (e) {
-            // ignore
-          }
+          } catch (e) { /* ignore */ }
           return;
         }
 
-        // initial load (refresh) when no OAuth callback present
-        console.log('🔍 [AuthContext] Calling getSession...');
-        const { data } = await supabase.auth.getSession();
-        console.log('🔍 [AuthContext] getSession returned');
-        const current = data.session;
+        // ─── STEP 3: No cache, no OAuth — try getSession with timeout ───
+        console.info('[Auth] No cache — trying getSession()...');
+        const sessionPromise = supabase.auth.getSession();
+        const sessionTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('[Auth] getSession timeout after 3s')), 3000)
+        );
 
-        if (!current) {
+        let current: any = null;
+        try {
+          const { data } = await Promise.race([sessionPromise, sessionTimeout]);
+          current = data.session;
+        } catch (timeoutErr) {
+          console.warn(timeoutErr);
+          // Don't block — onAuthStateChange will pick it up later
           setLoading(false);
           return;
         }
 
+        if (!current) {
+          console.info('[Auth] No active session found');
+          setLoading(false);
+          return;
+        }
+
+        console.info('[Auth] Session recovered for user:', current.user?.email || current.user?.id);
         setSession(current);
         setUser(current.user);
 
@@ -149,12 +216,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           fetchProfile(current.user);
         }
       } catch (err) {
-        console.error('Error during auth session init:', err);
+        console.error('[Auth] Error during session init:', err);
         setLoading(false);
       }
-    };
-
-    initSession();
+    })();
 
     // listen ONLY for real login or session updates without triggering loading states
     const { data: { subscription } } =
@@ -266,6 +331,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setSession(null);
     setNeedsOnboarding(false);
     setLoading(false);
+    clearCachedProfile();
   };
 
   return (

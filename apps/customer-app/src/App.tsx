@@ -73,6 +73,7 @@ import PaymentsPage from "./pages/PaymentsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import HelpPage from "./pages/HelpPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import AboutUsProcessPage from "./pages/AboutUsProcessPage";
 
 const queryClient = new QueryClient();
 
@@ -179,6 +180,7 @@ function App() {
 
                         <Route path="/search" element={<PageTransition><SearchResultsPage /></PageTransition>} />
                         <Route path="/brands" element={<PageTransition><BrandsPage /></PageTransition>} />
+                        <Route path="/about-us" element={<PageTransition><AboutUsProcessPage /></PageTransition>} />
 
                         <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
                         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

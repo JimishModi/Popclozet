@@ -1,386 +1,370 @@
 // src/pages/ProfilePage.tsx
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
-  Bell, CreditCard, HelpCircle, Shield, Sparkles, X,
-  Edit3, Check, Loader2, Phone, Mail, Package
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { User, Settings, Heart, ShoppingBag, LogOut, ChevronRight, HelpCircle, MapPin, Ruler, Sparkles } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import logo from "@/logo/logo.png";
 import { useAuth } from "@/hooks/useAuth";
-import { useWishlist } from "@/context/WishlistContext";
-import { useOrders } from "@/hooks/useOrders";
-import { supabase } from "@popclozet/api-client";
+import { saveUserMeasurements, getUserMeasurements, type BodyType, type UserMeasurements } from "@/services/userMeasurementService";
 
-const ProfilePage: React.FC = () => {
-  const navigate = useNavigate();
-  const { user, profile, loading, signOut, updateProfile } = useAuth();
-  const { wishlistItems } = useWishlist();
-  const { orders, loading: ordersLoading } = useOrders();
+const BODY_TYPES: { value: BodyType; label: string }[] = [
+  { value: 'petite', label: 'Petite' },
+  { value: 'slim', label: 'Slim' },
+  { value: 'regular', label: 'Regular' },
+  { value: 'athletic', label: 'Athletic' },
+  { value: 'curvy', label: 'Curvy' },
+  { value: 'plus', label: 'Plus' },
+];
 
-  // Count items currently "In Closet" = active rentals (delivered, not yet picked up)
-  const inClosetCount = orders.filter(o =>
-    ["delivered", "out_for_delivery", "preparing", "confirmed", "pending"].includes(o.status)
-  ).length;
-
-  const quickStats = [
-    {
-      label: "Orders",
-      value: ordersLoading ? "…" : String(orders.length),
-      icon: ShoppingBag,
-      href: "/orders"
-    },
-    {
-      label: "Wishlist",
-      value: String(wishlistItems.length),
-      icon: Heart,
-      href: "/wishlist"
-    },
-    {
-      label: "In Closet",
-      value: ordersLoading ? "…" : String(inClosetCount),
-      icon: Package,
-      href: "/closet"
-    },
-  ];
-
-  const menuSections = [
-    {
-      title: "Account",
-      items: [
-        { icon: Heart, label: "My Wishlist", href: "/wishlist", badge: wishlistItems.length > 0 ? String(wishlistItems.length) : undefined },
-        { icon: ShoppingBag, label: "My Orders", href: "/orders" },
-        { icon: CreditCard, label: "Payment Methods", href: "/payments" },
-      ]
-    },
-    {
-      title: "Preferences",
-      items: [
-        { icon: Bell, label: "Notifications", href: "/notifications" },
-        { icon: Settings, label: "Settings", href: "/settings" },
-      ]
-    },
-    {
-      title: "Support",
-      items: [
-        { icon: HelpCircle, label: "Help Center", href: "/help" },
-        { icon: Shield, label: "Privacy Policy", href: "/privacy" },
-      ]
-    },
-  ];
-
-  // ── Edit Profile Sheet ──────────────────────────────────────────────────────
-  const [showEditSheet, setShowEditSheet] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
+function MeasurementsSection({ userId }: { userId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [measurements, setMeasurements] = useState<Partial<UserMeasurements>>({
+    bust: 0, waist: 0, hip: 0, height: 0, weight: 0, bodyType: 'regular',
+  });
 
   useEffect(() => {
-    if (showEditSheet) {
-      setEditName(profile?.full_name || user?.user_metadata?.full_name || "");
-      setEditPhone(profile?.phone || user?.phone || "");
-      setSaveError("");
-    }
-  }, [showEditSheet, profile, user]);
+    getUserMeasurements(userId).then((m) => {
+      if (m) setMeasurements(m);
+    });
+  }, [userId]);
 
-  const handleSaveProfile = async () => {
-    if (!editName.trim()) {
-      setSaveError("Name is required");
-      return;
-    }
-    setSaving(true);
-    setSaveError("");
-    try {
-      await updateProfile({ full_name: editName.trim(), phone: editPhone.trim() });
-      setShowEditSheet(false);
-    } catch (e: any) {
-      setSaveError(e?.message || "Failed to save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
+  const handleSave = async () => {
+    await saveUserMeasurements({
+      userId,
+      bust: measurements.bust || 0,
+      waist: measurements.waist || 0,
+      hip: measurements.hip || 0,
+      height: measurements.height || 0,
+      weight: measurements.weight || 0,
+      bodyType: measurements.bodyType || 'regular',
+      updatedAt: new Date().toISOString(),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
-  const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
-  const displayName = (() => { const first = rawName.trim().split(/\s+/)[0]; return first.charAt(0).toUpperCase() + first.slice(1); })();
-  const displaySub = profile?.phone || user?.email || "Signed in";
+  const updateField = (field: string, value: number | string) =>
+    setMeasurements((prev) => ({ ...prev, [field]: value }));
 
   return (
-    <MobileShell className="bg-black text-white">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
-        <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
-        <button
-          onClick={() => navigate("/settings")}
-          className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
-        >
-          <Settings className="w-5 h-5 text-zinc-400" />
-        </button>
-      </div>
+    <div className="mt-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full bg-[#161616] p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-pink-900/30 text-pink-400 flex items-center justify-center">
+            <Ruler className="w-5 h-5" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-bold text-white">My Measurements</div>
+            <div className="text-xs text-gray-400">Body type & sizing info</div>
+          </div>
+        </div>
+        <ChevronRight className={`w-5 h-5 text-gray-400 group-hover:text-[#EB485B] transition-all ${expanded ? 'rotate-90' : ''}`} />
+      </button>
 
-      <main className="flex-1 overflow-y-auto pb-24">
-        {/* Loading skeleton */}
-        {loading && (
-          <div className="px-4 pt-8 space-y-4 animate-pulse">
-            <div className="bg-white/5 rounded-3xl p-6 border border-white/10">
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-white/10" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-5 bg-white/10 rounded-lg w-3/4" />
-                  <div className="h-3 bg-white/10 rounded-lg w-1/2" />
-                </div>
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="mt-3 p-4 rounded-2xl bg-[#161616] border border-white/5 space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: 'bust', label: 'Bust (cm)', icon: '📏' },
+              { key: 'waist', label: 'Waist (cm)', icon: '📐' },
+              { key: 'hip', label: 'Hip (cm)', icon: '📏' },
+              { key: 'height', label: 'Height (cm)', icon: '📐' },
+              { key: 'weight', label: 'Weight (kg)', icon: '⚖️' },
+            ].map(({ key, label, icon }) => (
+              <div key={key}>
+                <label className="text-xs text-gray-500 mb-1 block">{icon} {label}</label>
+                <input
+                  type="number"
+                  value={(measurements as any)[key] || ''}
+                  onChange={(e) => updateField(key, Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm focus:border-[#EB485B] outline-none"
+                  placeholder="0"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="bg-white/5 rounded-2xl p-4 border border-white/5 h-24" />
+            ))}
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 mb-2 block">Body Type</label>
+            <div className="flex flex-wrap gap-2">
+              {BODY_TYPES.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => updateField('bodyType', value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${measurements.bodyType === value
+                    ? 'bg-[#EB485B] text-white'
+                    : 'bg-neutral-800 text-gray-400 hover:bg-neutral-700'
+                    }`}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           </div>
+
+          <button
+            onClick={handleSave}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-[#EB485B] to-pink-600 text-white text-sm font-bold transition-all active:scale-[0.98]"
+          >
+            {saved ? '✅ Saved!' : 'Save Measurements'}
+          </button>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* ── Style gallery data ── */
+const styleItems = [
+  {
+    name: "Summer Vibes",
+    img: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=300&h=400&fit=crop",
+  },
+  {
+    name: "Date Night",
+    img: "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=300&h=400&fit=crop",
+  },
+  {
+    name: "Office Chic",
+    img: "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=300&h=400&fit=crop",
+  },
+];
+
+const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, profile, loading, signOut } = useAuth();
+
+  // Timeout fallback — if auth hangs for >3s, show page anyway
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const showContent = !loading || timedOut;
+
+  const displayName = user
+    ? (profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User')
+    : 'Welcome!';
+
+  const displaySubtitle = user
+    ? (profile?.phone || user.email || 'Signed in')
+    : 'Sign in to unlock your closet';
+
+  const quickStats = [
+    { label: "Closet", value: "142" },
+    { label: "Collections", value: "12", highlight: true },
+    { label: "Wishlist", value: "58" },
+  ];
+
+  const menuItems = [
+    {
+      icon: ShoppingBag,
+      label: "Orders",
+      subtitle: "Track your purchases",
+      href: "/orders",
+      color: "bg-blue-900/30 text-blue-400",
+    },
+    {
+      icon: Sparkles,
+      label: "Refer & Earn",
+      subtitle: "Invite friends, get rewards",
+      href: "#",
+      color: "bg-purple-900/30 text-purple-400",
+    },
+    {
+      icon: HelpCircle,
+      label: "Help Center",
+      subtitle: "FAQs and support",
+      href: "/help",
+      color: "bg-orange-900/30 text-orange-400",
+    },
+  ];
+
+  return (
+    <MobileShell className="bg-[#0A0A0A] text-gray-100" hideGlow>
+      {/* Gradient overlay at top */}
+      <div
+        className="absolute top-0 left-0 w-full h-64 pointer-events-none z-0"
+        style={{
+          background: "linear-gradient(180deg, rgba(235,72,91,0.15) 0%, rgba(10,10,10,0) 100%)",
+        }}
+      />
+
+      {/* Header */}
+      <header className="relative z-10 flex justify-between items-center p-6 pt-12">
+        <div className="flex flex-col">
+          <div className="bg-neutral-800/50 px-3 py-1 rounded text-[10px] tracking-widest font-bold text-[#EB485B] w-fit mb-2 uppercase">
+            PopClozet
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/settings')}
+          className="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-gray-300 hover:bg-neutral-700 transition-colors"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </header>
+
+      {/* Main scrollable content */}
+      <main className="flex-1 overflow-y-auto pb-28">
+
+        {/* Loading spinner — shown briefly while auth resolves */}
+        {!showContent && (
+          <div className="px-6 pt-16 flex flex-col items-center">
+            <div className="w-8 h-8 border-2 border-[#EB485B]/30 border-t-[#EB485B] rounded-full animate-spin" />
+            <div className="text-sm text-gray-500 mt-4">Loading profile…</div>
+          </div>
         )}
 
-        {!loading && (
+        {showContent && (
           <>
-            {/* Hero Profile Section */}
-            <div className="relative px-4 pt-8 pb-6 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-[#ff4d6d]/15 via-purple-500/10 to-transparent pointer-events-none" />
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
-              >
-                <div className="flex items-center gap-4">
-                  {/* Avatar */}
-                  <div className="relative">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px]">
-                      <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                        <User className="w-10 h-10 text-white/80" />
-                      </div>
-                    </div>
-                    {user && (
-                      <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-zinc-900 shadow-[0_0_12px_rgba(34,197,94,0.6)] flex items-center justify-center">
-                        <Sparkles className="w-2.5 h-2.5 text-white" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-1 truncate">
-                      {user ? `Hi, ${displayName}` : "Welcome!"}
-                    </h1>
-                    <p className="text-sm text-zinc-500 mb-3 truncate">
-                      {user ? displaySub : "Sign in to unlock your closet"}
-                    </p>
-                    {user ? (
-                      <button
-                        onClick={() => setShowEditSheet(true)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/8 border border-white/10 text-zinc-300 text-xs font-semibold hover:bg-white/15 transition-all active:scale-95"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        Edit Profile
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => navigate("/auth/login")}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white text-sm font-bold shadow-[0_10px_30px_rgba(255,77,109,0.4)] transition-all active:scale-95"
-                      >
-                        Sign In
-                      </button>
-                    )}
+            {/* Profile hero section */}
+            <section className="px-6 relative z-10 flex flex-col items-center text-center -mt-2">
+              {/* Avatar */}
+              <div className="relative mb-4">
+                <div className="w-28 h-28 rounded-full p-1 bg-gradient-to-tr from-[#EB485B] to-purple-600">
+                  <div className="w-full h-full rounded-full border-4 border-[#0A0A0A] bg-neutral-800 flex items-center justify-center">
+                    <User className="w-14 h-14 text-white/70" />
                   </div>
                 </div>
-              </motion.div>
-            </div>
-
-            {/* Quick Stats Row — live data */}
-            <div className="px-4 mb-6">
-              <div className="grid grid-cols-3 gap-3">
-                {quickStats.map((stat, idx) => {
-                  const Icon = stat.icon;
-                  return (
-                    <motion.div
-                      key={stat.label}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 + idx * 0.05 }}
-                      onClick={() => navigate(stat.href)}
-                      className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/5 text-center group hover:border-[#ff4d6d]/30 transition-all cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-[#ff4d6d]/20 flex items-center justify-center mx-auto mb-2 transition-colors">
-                        <Icon className="w-5 h-5 text-[#ff4d6d]" />
-                      </div>
-                      <div className="text-2xl font-bold text-white">{stat.value}</div>
-                      <div className="text-[10px] text-zinc-600 uppercase tracking-wider font-bold">{stat.label}</div>
-                    </motion.div>
-                  );
-                })}
+                <div className="absolute bottom-1 right-1 bg-[#EB485B] text-white text-xs px-2 py-0.5 rounded-full border-2 border-[#0A0A0A] font-bold">
+                  PRO
+                </div>
               </div>
-            </div>
 
-            {/* Menu Sections */}
-            <div className="px-4 space-y-6">
-              {menuSections.map((section, sectionIdx) => (
-                <motion.div
-                  key={section.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + sectionIdx * 0.05 }}
-                >
-                  <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">{section.title}</h2>
-                  <div className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden">
-                    {section.items.map((item, index) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.label}
-                          onClick={() => navigate(item.href)}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-4 py-4 group text-left",
-                            "hover:bg-white/5 transition-all",
-                            index < section.items.length - 1 && "border-b border-white/5"
-                          )}
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-[#ff4d6d]/20 transition-colors">
-                            <Icon className="w-5 h-5 text-zinc-500 group-hover:text-[#ff4d6d] transition-colors" />
-                          </div>
-                          <span className="flex-1 text-white font-medium">{item.label}</span>
-                          {item.badge && (
-                            <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">
-                              {item.badge}
-                            </span>
-                          )}
-                          <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+              {/* Name */}
+              <div className="text-2xl font-bold tracking-tight text-white mb-1">
+                {displayName}
+              </div>
 
-            {/* Logout Button */}
-            {user && (
-              <div className="px-4 mt-8">
+              {/* Location / subtitle */}
+              <div className="flex items-center text-gray-400 text-sm mb-6">
+                <MapPin className="w-3.5 h-3.5 mr-1" />
+                {displaySubtitle}
+              </div>
+
+              {/* Sign in button when not authenticated */}
+              {!user && (
                 <button
-                  onClick={() => navigate("/auth/signout")}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold transition-all active:scale-[0.98]"
+                  onClick={() => navigate('/auth/login')}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#EB485B] to-pink-600 hover:from-[#d63d50] hover:to-pink-500 text-white text-sm font-bold shadow-[0_10px_30px_rgba(235,72,91,0.4)] transition-all active:scale-95 mb-6"
                 >
-                  <LogOut className="w-5 h-5" />
+                  Sign In
+                </button>
+              )}
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-4 w-full mb-8">
+                {quickStats.map((stat, idx) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 + idx * 0.05 }}
+                    className={cn(
+                      "bg-[#161616] rounded-2xl p-4 flex flex-col items-center shadow-sm",
+                      stat.highlight && "border border-[#EB485B]/20 relative overflow-hidden"
+                    )}
+                  >
+                    {stat.highlight && (
+                      <div className="absolute inset-0 bg-[#EB485B]/10" />
+                    )}
+                    <span className={cn(
+                      "text-xl font-bold relative z-[1]",
+                      stat.highlight ? "text-[#EB485B]" : "text-white"
+                    )}>
+                      {stat.value}
+                    </span>
+                    <span className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold relative z-[1]">
+                      {stat.label}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+
+            {/* My Style Section */}
+            <section className="px-6 mb-8">
+              <div className="flex justify-between items-end mb-4">
+                <div className="text-lg font-bold text-white">My Style</div>
+                <a className="text-[#EB485B] text-sm font-semibold hover:opacity-80" href="#">See All</a>
+              </div>
+              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-6 px-6">
+                {styleItems.map((item) => (
+                  <div key={item.name} className="flex-shrink-0 w-36 group relative">
+                    <div className="h-48 rounded-2xl overflow-hidden relative bg-neutral-800">
+                      <img
+                        alt={item.name}
+                        className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-110"
+                        src={item.img}
+                      />
+                      <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md rounded-full p-1.5 text-white">
+                        <Heart className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm font-medium truncate text-gray-200">{item.name}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Menu items */}
+            <section className="px-6 space-y-3">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => item.href !== '#' && navigate(item.href)}
+                    className="w-full bg-[#161616] p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", item.color)}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold text-white">{item.label}</div>
+                        <div className="text-xs text-gray-400">{item.subtitle}</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#EB485B] transition-colors" />
+                  </button>
+                );
+              })}
+
+              {/* Measurements Section */}
+              {user && <MeasurementsSection userId={user.id} />}
+            </section>
+
+            {/* Sign Out & Version */}
+            <div className="mt-8 text-center px-6">
+              {user && (
+                <button
+                  onClick={async () => {
+                    await signOut();
+                    navigate('/auth/login');
+                  }}
+                  className="text-sm font-medium text-red-400 hover:text-red-300"
+                >
                   Sign Out
                 </button>
-              </div>
-            )}
-
-            {/* App Info Footer */}
-            <div className="mt-12 text-center pb-4">
-              <p className="text-xs text-zinc-700 font-medium">PopClozet v1.0.0</p>
-              <p className="text-xs text-zinc-800 mt-1">Made with ❤️ in Mumbai</p>
+              )}
+              <div className="text-[10px] text-gray-500 mt-2">v2.4.0</div>
             </div>
           </>
         )}
       </main>
-
-      {/* Edit Profile Bottom Sheet */}
-      <AnimatePresence>
-        {showEditSheet && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowEditSheet(false)}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
-            />
-            {/* Sheet */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-10"
-            >
-              {/* Handle */}
-              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
-
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Edit Profile</h2>
-                <button
-                  onClick={() => setShowEditSheet(false)}
-                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <X className="w-4 h-4 text-zinc-400" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Full Name */}
-                <div>
-                  <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Full Name</label>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
-                    <User className="w-4 h-4 text-zinc-500 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      placeholder="Your full name"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Phone Number</label>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
-                    <Phone className="w-4 h-4 text-zinc-500 flex-shrink-0" />
-                    <input
-                      type="tel"
-                      value={editPhone}
-                      onChange={e => setEditPhone(e.target.value)}
-                      placeholder="+91 XXXXX XXXXX"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Email (read-only) */}
-                {user?.email && (
-                  <div>
-                    <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Email</label>
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5">
-                      <Mail className="w-4 h-4 text-zinc-600 flex-shrink-0" />
-                      <span className="text-zinc-600 text-sm">{user.email}</span>
-                    </div>
-                    <p className="text-[10px] text-zinc-700 mt-1 pl-1">Email cannot be changed here</p>
-                  </div>
-                )}
-
-                {saveError && (
-                  <p className="text-red-400 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{saveError}</p>
-                )}
-
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(255,77,109,0.3)] hover:shadow-[0_14px_40px_rgba(255,77,109,0.4)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {saving ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-                  ) : (
-                    <><Check className="w-4 h-4" /> Save Changes</>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       <BottomNavBar />
     </MobileShell>

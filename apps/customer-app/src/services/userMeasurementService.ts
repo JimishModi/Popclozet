@@ -39,7 +39,7 @@ const SIZE_CHART: Record<string, { bust: [number, number]; waist: [number, numbe
     XXL: { bust: [104, 112], waist: [86, 94], hip: [111, 119] },
 };
 
-const TOLERANCE_CM = 3; // allow ±3cm for "close" fit
+const TOLERANCE_CM = 3;
 
 // ==========================================
 // CRUD
@@ -48,7 +48,6 @@ const TOLERANCE_CM = 3; // allow ±3cm for "close" fit
 const STORAGE_KEY = 'user_measurements';
 
 export async function saveUserMeasurements(data: UserMeasurements): Promise<void> {
-    // Always save to localStorage as offline cache
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
     try {
@@ -72,7 +71,6 @@ export async function saveUserMeasurements(data: UserMeasurements): Promise<void
 }
 
 export async function getUserMeasurements(userId: string): Promise<UserMeasurements | null> {
-    // Try Supabase first
     try {
         if (supabase) {
             const { data } = await supabase
@@ -92,7 +90,6 @@ export async function getUserMeasurements(userId: string): Promise<UserMeasureme
                     bodyType: data.body_type,
                     updatedAt: data.updated_at,
                 };
-                // Update local cache
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(measurements));
                 return measurements;
             }
@@ -101,7 +98,6 @@ export async function getUserMeasurements(userId: string): Promise<UserMeasureme
         // Fall through to localStorage
     }
 
-    // Fallback to localStorage
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
         try {
@@ -118,14 +114,7 @@ export async function getUserMeasurements(userId: string): Promise<UserMeasureme
 // FIT MATCHING
 // ==========================================
 
-/**
- * Checks if a product's size range fits the user's measurements.
- * Returns 'perfect' if within range, 'close' if within tolerance, 'no' otherwise.
- */
-export function doesSizeFit(
-    size: string,
-    measurements: UserMeasurements
-): FitResult {
+export function doesSizeFit(size: string, measurements: UserMeasurements): FitResult {
     const chart = SIZE_CHART[size];
     if (!chart) return 'no';
 
@@ -133,32 +122,18 @@ export function doesSizeFit(
     const waistFits = checkRange(measurements.waist, chart.waist, TOLERANCE_CM);
     const hipFits = checkRange(measurements.hip, chart.hip, TOLERANCE_CM);
 
-    if (bustFits === 'perfect' && waistFits === 'perfect' && hipFits === 'perfect') {
-        return 'perfect';
-    }
-    if (bustFits !== 'no' && waistFits !== 'no' && hipFits !== 'no') {
-        return 'close';
-    }
+    if (bustFits === 'perfect' && waistFits === 'perfect' && hipFits === 'perfect') return 'perfect';
+    if (bustFits !== 'no' && waistFits !== 'no' && hipFits !== 'no') return 'close';
     return 'no';
 }
 
-/**
- * Find the best fitting size for the user
- */
 export function findBestSize(measurements: UserMeasurements): { size: string; fit: FitResult } | null {
     const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-
-    // Prefer 'perfect' fit
     for (const size of sizes) {
-        if (doesSizeFit(size, measurements) === 'perfect') {
-            return { size, fit: 'perfect' };
-        }
+        if (doesSizeFit(size, measurements) === 'perfect') return { size, fit: 'perfect' };
     }
-    // Then 'close' fit
     for (const size of sizes) {
-        if (doesSizeFit(size, measurements) === 'close') {
-            return { size, fit: 'close' };
-        }
+        if (doesSizeFit(size, measurements) === 'close') return { size, fit: 'close' };
     }
     return null;
 }
@@ -167,11 +142,7 @@ export function findBestSize(measurements: UserMeasurements): { size: string; fi
 // HELPERS
 // ==========================================
 
-function checkRange(
-    value: number,
-    [min, max]: [number, number],
-    tolerance: number
-): FitResult {
+function checkRange(value: number, [min, max]: [number, number], tolerance: number): FitResult {
     if (value >= min && value <= max) return 'perfect';
     if (value >= min - tolerance && value <= max + tolerance) return 'close';
     return 'no';

@@ -445,7 +445,9 @@ const MobileHome: React.FC = () => {
                             <h2 className="text-xl font-bold text-white tracking-tight">
                                 About Us
                             </h2>
-                            <ChevronRight className="w-4 h-4 text-zinc-400" />
+                            <button onClick={() => navigate('/about-us')} className="p-1">
+                                <ChevronRight className="w-4 h-4 text-zinc-400 hover:text-white transition-colors" />
+                            </button>
                         </div>
 
                         {/* Inner card */}
