@@ -62,7 +62,13 @@ const RulerIcon = () => (
     </svg>
 );
 
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+// Inventory row returned from Supabase
+interface InventoryRow {
+    size: string;
+    available_stock: number;
+    went_for_wash: number;
+    total_stock: number;
+}
 
 const MobileProductDetailPage: React.FC = () => {
     const { id: productId } = useParams<{ id: string }>();
@@ -74,6 +80,7 @@ const MobileProductDetailPage: React.FC = () => {
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
+    const [inventory, setInventory] = useState<InventoryRow[]>([]);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -83,29 +90,39 @@ const MobileProductDetailPage: React.FC = () => {
             }
 
             try {
-                const { data, error } = await supabase
-                    .from('products')
-                    .select('*')
-                    .eq('id', productId)
-                    .single();
+                // Fetch product and its inventory in parallel
+                const [productRes, inventoryRes] = await Promise.all([
+                    supabase
+                        .from('products')
+                        .select('*')
+                        .eq('id', productId)
+                        .single(),
+                    supabase
+                        .from('inventory')
+                        .select('size, available_stock, went_for_wash, total_stock')
+                        .eq('item_id', productId)
+                        .order('size'),
+                ]);
 
-                if (error) throw error;
+                if (productRes.error) throw productRes.error;
 
-                if (data) {
+                if (productRes.data) {
                     setProduct({
-                        ...data,
-                        price: parseFloat(data.rental_price ?? data.price ?? '0'),
-                        rentalPrice: parseFloat(data.rental_price ?? data.price ?? '0'),
-                        imageUrl: data.images?.[0] || '',
-                        // Map DB 'sizes_available' to app 'sizes'
-                        sizes: data.sizes_available
-                            ? (Array.isArray(data.sizes_available)
-                                ? (typeof data.sizes_available[0] === 'object' ? data.sizes_available.map((s: any) => s.size) : data.sizes_available)
-                                : (typeof data.sizes_available === 'object' ? Object.keys(data.sizes_available) : []))
-                            : [],
-                        // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
-                        gender: data.gender === 'men' ? 'mens' : (data.gender === 'women' ? 'womens' : data.gender)
+                        ...productRes.data,
+                        price: parseFloat(productRes.data.rental_price ?? productRes.data.price ?? '0'),
+                        rentalPrice: parseFloat(productRes.data.rental_price ?? productRes.data.price ?? '0'),
+                        imageUrl: productRes.data.images?.[0] || '',
+                        sizes: [],  // sizes now come from inventory
+                        gender: productRes.data.gender === 'men' ? 'mens' : (productRes.data.gender === 'women' ? 'womens' : productRes.data.gender)
                     });
+                }
+
+                if (!inventoryRes.error && inventoryRes.data) {
+                    const rows = inventoryRes.data as InventoryRow[];
+                    setInventory(rows);
+                    // Auto-select the first size that has stock
+                    const firstAvailable = rows.find(r => r.available_stock > 0);
+                    if (firstAvailable) setSelectedSize(firstAvailable.size);
                 }
             } catch (err) {
                 console.error('CRITICAL: Supabase detail fetch failed:', err);
@@ -332,67 +349,47 @@ const MobileProductDetailPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Size buttons */}
-                    <div className="flex items-center gap-3 mt-5 relative">
-                        {(product.sizes && product.sizes.length > 0 ? product.sizes : SIZES).map((size) => {
-                            const isSelected = selectedSize === size;
-                            // Update isDisabled logic to check if size really exists in stock if possible 
-                            // For now keeping it simple or making it false if we have the size list
-                            const isDisabled = false;
+                    {/* Size buttons — sourced from inventory, only show sizes with stock */}
+                    <div className="flex items-center gap-3 mt-5 relative flex-wrap">
+                        {inventory.length === 0 ? (
+                            <span className="text-sm text-zinc-500">No sizes available</span>
+                        ) : (
+                            inventory.map((row) => {
+                                const size = row.size;
+                                const isSelected = selectedSize === size;
+                                const isDisabled = row.available_stock <= 0;
 
-                            return (
-                                <div key={size} className="relative">
-                                    {/* 2h badge for M size */}
-                                    {size === "M" && (
-                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[#8d303f] rounded-lg px-2 py-1">
-                                            <svg
-                                                width="12"
-                                                height="12"
-                                                viewBox="0 0 12 12"
-                                                fill="none"
-                                            >
-                                                <circle
-                                                    cx="6"
-                                                    cy="6"
-                                                    r="5"
-                                                    stroke="white"
-                                                    strokeWidth="1"
-                                                />
-                                                <path
-                                                    d="M6 3v3l2 2"
-                                                    stroke="white"
-                                                    strokeWidth="1"
-                                                    strokeLinecap="round"
-                                                />
-                                            </svg>
-                                            <span
-                                                className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                                style={dmSans}
-                                            >
-                                                2h
+                                return (
+                                    <div key={size} className="relative">
+                                        <button
+                                            onClick={() =>
+                                                !isDisabled && setSelectedSize(size)
+                                            }
+                                            disabled={isDisabled}
+                                            title={isDisabled ? 'Out of stock' : `${row.available_stock} available`}
+                                            className={cn(
+                                                "w-10 h-10 rounded-lg flex items-center justify-center",
+                                                "text-lg font-black tracking-[-0.54px] transition-colors",
+                                                isSelected
+                                                    ? "bg-[#f2546d] text-[#611624]"
+                                                    : isDisabled
+                                                        ? "text-[#3a3a3a] bg-[#1e1e1e] line-through cursor-not-allowed"
+                                                        : "text-white hover:bg-white/10"
+                                            )}
+                                            style={dmSans}
+                                        >
+                                            {size}
+                                        </button>
+                                        {/* Out of stock indicator */}
+                                        {isDisabled && (
+                                            <span className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 text-[9px] text-zinc-600 whitespace-nowrap">
+                                                Out
                                             </span>
-                                        </div>
-                                    )}
-                                    <button
-                                        onClick={() =>
-                                            !isDisabled && setSelectedSize(size)
-                                        }
-                                        className={cn(
-                                            "w-10 h-10 rounded-lg flex items-center justify-center",
-                                            "text-lg font-black tracking-[-0.54px]",
-                                            isSelected
-                                                ? "bg-[#f2546d] text-[#611624]"
-                                                : isDisabled
-                                                    ? "text-[#616161]"
-                                                    : "text-white"
                                         )}
-                                        style={dmSans}
-                                    >
-                                        {size}
-                                    </button>
-                                </div>
-                            );
-                        })}
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
 
                     {/* ─── PRODUCT DETAILS ─── */}

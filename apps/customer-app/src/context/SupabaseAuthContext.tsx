@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@popclozet/api-client";
+import { clearUserDataDB } from "@/lib/db";
 // Inline profile service methods since the separate file is missing
 const getCurrentProfile = async (userId: string) => {
   const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
@@ -250,6 +251,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   /* ---------- SIGN OUT ---------- */
   const signOut = async () => {
+    // Clear this user's cart & wishlist from IndexedDB before signing out
+    if (user?.id) {
+      try {
+        await clearUserDataDB(user.id);
+      } catch (e) {
+        console.warn("[Auth] Failed to clear user data from IndexedDB:", e);
+      }
+    }
+
     try {
       await Promise.race([
         supabase.auth.signOut(),

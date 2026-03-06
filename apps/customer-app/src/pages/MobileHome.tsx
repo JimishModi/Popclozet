@@ -15,13 +15,15 @@ import popclozetLogo from "@/logo/logo.png";
 
 const COLLECTIONS = [
     { id: "jackets", title: "Jackets", image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80" },
-    { id: "shoes", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
+    { id: "footwear", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
 ];
 
 const FEATURED_SLIDES = [
-    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&q=80" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80" },
+    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
+    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&q=80", gender: "womens" },
+    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80", gender: "womens" },
+    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1516259762381-22954d7d3ad2?w=800&q=80", gender: "mens" },
+    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&q=80", gender: "mens" },
 ];
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
@@ -84,13 +86,18 @@ const MobileHome: React.FC = () => {
     const [loadingCatalogue, setLoadingCatalogue] = useState(true);
     const { user } = useAuth();
 
+    // Filter featured slides based on gender
+    const filteredSlides = React.useMemo(() => {
+        return FEATURED_SLIDES.filter(s => s.gender === activeGender || s.gender === "unisex");
+    }, [activeGender]);
+
     // Auto-rotate featured slides
     useEffect(() => {
         const interval = setInterval(() => {
-            setActiveSlide((prev) => (prev + 1) % FEATURED_SLIDES.length);
+            setActiveSlide((prev) => (prev + 1) % filteredSlides.length);
         }, 4000);
         return () => clearInterval(interval);
-    }, []);
+    }, [filteredSlides.length]);
 
     // Auto-detect location using GPS + Mapbox reverse geocoding
     useEffect(() => {
@@ -145,14 +152,14 @@ const MobileHome: React.FC = () => {
     useEffect(() => {
         const fetchBrands = async () => {
             try {
-                const uniqueBrands = await productService.getUniqueBrands();
+                const uniqueBrands = await productService.getUniqueBrands(activeGender);
                 setBrands(uniqueBrands);
             } catch (error) {
                 console.error("Failed to fetch brands:", error);
             }
         };
         fetchBrands();
-    }, []);
+    }, [activeGender]);
 
     // Fetch catalogue products from database
     useEffect(() => {
@@ -308,7 +315,7 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 0.7 }}
                             >
                                 <img
-                                    src={FEATURED_SLIDES[(activeSlide + FEATURED_SLIDES.length - 1) % FEATURED_SLIDES.length].image}
+                                    src={filteredSlides[(activeSlide + filteredSlides.length - 1) % filteredSlides.length].image}
                                     alt="Previous"
                                     className="w-full h-full object-cover opacity-60"
                                 />
@@ -317,26 +324,22 @@ const MobileHome: React.FC = () => {
                             {/* Center card (active) */}
                             <AnimatePresence mode="wait">
                                 <motion.div
-                                    key={activeSlide}
-                                    className="w-[260px] h-[320px] bg-[#232323] rounded-2xl shadow-[6px_6px_8px_rgba(0,0,0,0.25)] overflow-hidden flex-shrink-0 relative cursor-pointer"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.4 }}
                                     onClick={() => {
-                                        const slide = FEATURED_SLIDES[activeSlide];
+                                        const slide = filteredSlides[activeSlide];
                                         const categoryMap: Record<string, string> = {
                                             'New Arrivals': 'Casual',
                                             'Trending Now': 'Party',
                                             'Party Collection': 'Party',
+                                            "Men's Streetwear": 'Casual',
+                                            'Formal Classics': 'Formal'
                                         };
                                         const cat = categoryMap[slide.title] || 'Casual';
                                         navigate(`/category?title=${encodeURIComponent(slide.title)}&category=${cat}`);
                                     }}
                                 >
                                     <img
-                                        src={FEATURED_SLIDES[activeSlide].image}
-                                        alt={FEATURED_SLIDES[activeSlide].title}
+                                        src={filteredSlides[activeSlide].image}
+                                        alt={filteredSlides[activeSlide].title}
                                         className="w-full h-full object-cover"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
@@ -345,7 +348,7 @@ const MobileHome: React.FC = () => {
                                             Trending
                                         </span>
                                         <h3 className="text-base font-bold text-white mt-2">
-                                            {FEATURED_SLIDES[activeSlide].title}
+                                            {filteredSlides[activeSlide].title}
                                         </h3>
                                     </div>
                                 </motion.div>
@@ -357,7 +360,7 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 0.7 }}
                             >
                                 <img
-                                    src={FEATURED_SLIDES[(activeSlide + 1) % FEATURED_SLIDES.length].image}
+                                    src={filteredSlides[(activeSlide + 1) % filteredSlides.length].image}
                                     alt="Next"
                                     className="w-full h-full object-cover opacity-60"
                                 />
@@ -367,7 +370,7 @@ const MobileHome: React.FC = () => {
 
                     {/* Pagination Dots */}
                     <div className="flex items-center justify-center gap-2 mt-3">
-                        {FEATURED_SLIDES.map((_, idx) => (
+                        {filteredSlides.map((_, idx) => (
                             <motion.button
                                 key={idx}
                                 onClick={() => setActiveSlide(idx)}
@@ -412,7 +415,7 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 + index * 0.1 }}
                                 whileTap={{ scale: 0.97 }}
-                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
+                                onClick={() => navigate(`/shop/all?category=${collection.id}&title=${collection.title}&fromHome=true&initialGender=${activeGender}`)}
                                 className="relative h-[250px] rounded-2xl overflow-hidden cursor-pointer bg-[#232323]"
                             >
                                 <img

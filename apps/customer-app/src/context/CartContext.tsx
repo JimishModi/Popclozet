@@ -13,6 +13,7 @@ import {
   getCartItemsDB,
 } from "@/lib/db";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useAuth } from "@/context/SupabaseAuthContext";
 
 /* ----------------------------- */
 /* Cart Context Types            */
@@ -45,15 +46,20 @@ export const CartProvider = ({
   );
   const [announcement, setAnnouncement] = useState("");
   const isOnline = useOnlineStatus();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
-  /* Load cart from IndexedDB */
+  /* Load cart from IndexedDB — re-runs whenever the logged-in user changes */
   useEffect(() => {
+    // Reset immediately so the previous user's data isn't visible
+    setCartItems({});
     loadCartFromDB();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const loadCartFromDB = async () => {
     try {
-      const items = await getCartItemsDB();
+      const items = await getCartItemsDB(userId);
       const cartMap: Record<string, number> = {};
       items.forEach((item) => {
         cartMap[item.productId] = item.quantity;
@@ -61,7 +67,9 @@ export const CartProvider = ({
       setCartItems(cartMap);
     } catch (error) {
       console.error("IndexedDB load failed:", error);
-      const savedCart = localStorage.getItem("cart");
+      // Fallback: avoid leaking another user's localStorage key
+      const key = userId ? `cart_${userId}` : "cart";
+      const savedCart = localStorage.getItem(key);
       if (savedCart) {
         setCartItems(JSON.parse(savedCart));
       }
@@ -69,12 +77,12 @@ export const CartProvider = ({
   };
 
   /* ----------------------------- */
-  /* Add to Cart (NO GEOFENCE)     */
+  /* Add to Cart                   */
   /* ----------------------------- */
 
   const addToCart = async (productId: string) => {
     try {
-      await addToCartDB(productId, 1);
+      await addToCartDB(productId, 1, userId);
 
       setCartItems((prev) => {
         const newQty = (prev[productId] || 0) + 1;
@@ -101,7 +109,7 @@ export const CartProvider = ({
 
   const removeFromCart = async (productId: string) => {
     try {
-      await removeFromCartDB(productId);
+      await removeFromCartDB(productId, userId);
 
       setCartItems((prev) => {
         const next = { ...prev };
@@ -125,7 +133,7 @@ export const CartProvider = ({
     }
 
     try {
-      await updateCartQuantityDB(productId, quantity);
+      await updateCartQuantityDB(productId, quantity, userId);
       setCartItems((prev) => {
         setAnnouncement(`Quantity updated to ${quantity}`);
         return { ...prev, [productId]: quantity };

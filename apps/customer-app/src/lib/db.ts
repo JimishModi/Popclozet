@@ -5,7 +5,7 @@ interface PopClozetDB extends DBSchema {
     cart: {
         key: string;
         value: {
-            productId: string;
+            productId: string;  // stored as "{userId}:{rawProductId}"
             quantity: number;
             addedAt: number;
             updatedAt: number;
@@ -15,7 +15,7 @@ interface PopClozetDB extends DBSchema {
     wishlist: {
         key: string;
         value: {
-            productId: string;
+            productId: string;  // stored as "{userId}:{rawProductId}"
             addedAt: number;
             version: number;
         };
@@ -97,14 +97,34 @@ export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
     return dbInstance;
 }
 
+/* -----------------------------------------------------------------------
+   KEY HELPERS — scope cart/wishlist records by user
+   Key format:  "{userId}:{rawProductId}"
+   For anonymous / no user, fall back to "anon:{rawProductId}"
+----------------------------------------------------------------------- */
+
+const ANON_PREFIX = 'anon';
+
+function cartKey(userId: string | null | undefined, productId: string): string {
+    return `${userId || ANON_PREFIX}:${productId}`;
+}
+
+/** Strip the userId prefix and return just the raw product id */
+function stripPrefix(key: string): string {
+    const idx = key.indexOf(':');
+    return idx === -1 ? key : key.slice(idx + 1);
+}
+
 // Cart operations
-export async function addToCartDB(productId: string, quantity: number = 1) {
+
+export async function addToCartDB(productId: string, quantity: number = 1, userId?: string | null) {
     const db = await initDB();
-    const existing = await db.get('cart', productId);
+    const key = cartKey(userId, productId);
+    const existing = await db.get('cart', key);
     const now = Date.now();
 
     await db.put('cart', {
-        productId,
+        productId: key,
         quantity: existing ? existing.quantity + quantity : quantity,
         addedAt: existing?.addedAt || now,
         updatedAt: now,
@@ -112,20 +132,21 @@ export async function addToCartDB(productId: string, quantity: number = 1) {
     });
 }
 
-export async function removeFromCartDB(productId: string) {
+export async function removeFromCartDB(productId: string, userId?: string | null) {
     const db = await initDB();
-    await db.delete('cart', productId);
+    await db.delete('cart', cartKey(userId, productId));
 }
 
-export async function updateCartQuantityDB(productId: string, quantity: number) {
+export async function updateCartQuantityDB(productId: string, quantity: number, userId?: string | null) {
     const db = await initDB();
+    const key = cartKey(userId, productId);
     if (quantity <= 0) {
-        await removeFromCartDB(productId);
+        await db.delete('cart', key);
     } else {
-        const existing = await db.get('cart', productId);
+        const existing = await db.get('cart', key);
         const now = Date.now();
         await db.put('cart', {
-            productId,
+            productId: key,
             quantity,
             addedAt: existing?.addedAt || now,
             updatedAt: now,
@@ -134,9 +155,14 @@ export async function updateCartQuantityDB(productId: string, quantity: number) 
     }
 }
 
-export async function getCartItemsDB() {
+export async function getCartItemsDB(userId?: string | null) {
     const db = await initDB();
-    return await db.getAll('cart');
+    const prefix = `${userId || ANON_PREFIX}:`;
+    const allItems = await db.getAll('cart');
+    // Return only items that belong to this user, with the raw productId exposed
+    return allItems
+        .filter(item => item.productId.startsWith(prefix))
+        .map(item => ({ ...item, productId: stripPrefix(item.productId) }));
 }
 
 export async function clearCartDB() {
@@ -144,31 +170,73 @@ export async function clearCartDB() {
     await db.clear('cart');
 }
 
-// Wishlist operations
-export async function addToWishlistDB(productId: string) {
+/** Clear only this user's cart items */
+export async function clearUserCartDB(userId: string) {
     const db = await initDB();
-    const existing = await db.get('wishlist', productId);
+    const prefix = `${userId}:`;
+    const tx = db.transaction('cart', 'readwrite');
+    const allKeys = await tx.store.getAllKeys();
+    await Promise.all(
+        allKeys
+            .filter((k) => (k as string).startsWith(prefix))
+            .map((k) => tx.store.delete(k))
+    );
+    await tx.done;
+}
+
+// Wishlist operations
+
+export async function addToWishlistDB(productId: string, userId?: string | null) {
+    const db = await initDB();
+    const key = cartKey(userId, productId);
+    const existing = await db.get('wishlist', key);
     await db.put('wishlist', {
-        productId,
+        productId: key,
         addedAt: existing?.addedAt || Date.now(),
         version: (existing?.version || 0) + 1,
     });
 }
 
-export async function removeFromWishlistDB(productId: string) {
+export async function removeFromWishlistDB(productId: string, userId?: string | null) {
     const db = await initDB();
-    await db.delete('wishlist', productId);
+    await db.delete('wishlist', cartKey(userId, productId));
 }
 
-export async function getWishlistItemsDB() {
+export async function getWishlistItemsDB(userId?: string | null) {
     const db = await initDB();
-    return await db.getAll('wishlist');
+    const prefix = `${userId || ANON_PREFIX}:`;
+    const allItems = await db.getAll('wishlist');
+    return allItems
+        .filter(item => item.productId.startsWith(prefix))
+        .map(item => ({ ...item, productId: stripPrefix(item.productId) }));
 }
 
-export async function isInWishlistDB(productId: string): Promise<boolean> {
+export async function isInWishlistDB(productId: string, userId?: string | null): Promise<boolean> {
     const db = await initDB();
-    const item = await db.get('wishlist', productId);
+    const item = await db.get('wishlist', cartKey(userId, productId));
     return !!item;
+}
+
+/** Clear only this user's wishlist items */
+export async function clearUserWishlistDB(userId: string) {
+    const db = await initDB();
+    const prefix = `${userId}:`;
+    const tx = db.transaction('wishlist', 'readwrite');
+    const allKeys = await tx.store.getAllKeys();
+    await Promise.all(
+        allKeys
+            .filter((k) => (k as string).startsWith(prefix))
+            .map((k) => tx.store.delete(k))
+    );
+    await tx.done;
+}
+
+/** Clear all local data (cart + wishlist) for a specific user */
+export async function clearUserDataDB(userId: string) {
+    await Promise.all([
+        clearUserCartDB(userId),
+        clearUserWishlistDB(userId),
+    ]);
 }
 
 // Product cache operations

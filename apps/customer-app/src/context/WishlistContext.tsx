@@ -7,6 +7,7 @@ import {
     isInWishlistDB
 } from '@/lib/db';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useAuth } from '@/context/SupabaseAuthContext';
 
 interface WishlistContextType {
     wishlistItems: string[];
@@ -20,20 +21,26 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     const [wishlistItems, setWishlistItems] = useState<string[]>([]);
     const isOnline = useOnlineStatus();
+    const { user } = useAuth();
+    const userId = user?.id ?? null;
 
-    // Load wishlist from IndexedDB on mount
+    // Load wishlist from IndexedDB — re-runs whenever the logged-in user changes
     useEffect(() => {
+        // Reset immediately so the previous user's data isn't visible
+        setWishlistItems([]);
         loadWishlistFromDB();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
 
     const loadWishlistFromDB = async () => {
         try {
-            const items = await getWishlistItemsDB();
+            const items = await getWishlistItemsDB(userId);
             setWishlistItems(items.map(item => item.productId));
         } catch (error) {
             console.error('Error loading wishlist from IndexedDB:', error);
-            // Fallback to localStorage if IndexedDB fails
-            const saved = localStorage.getItem('wishlist');
+            // Fallback: use user-scoped localStorage key to avoid leakage
+            const key = userId ? `wishlist_${userId}` : 'wishlist';
+            const saved = localStorage.getItem(key);
             if (saved) {
                 setWishlistItems(JSON.parse(saved));
             }
@@ -41,11 +48,11 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const addToWishlist = async (productId: string) => {
-        const alreadyInWishlist = await isInWishlistDB(productId);
+        const alreadyInWishlist = await isInWishlistDB(productId, userId);
 
         if (!alreadyInWishlist) {
             try {
-                await addToWishlistDB(productId);
+                await addToWishlistDB(productId, userId);
 
                 setWishlistItems(prev => [...prev, productId]);
                 toast.success("Added to Wishlist", {
@@ -61,7 +68,7 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
 
     const removeFromWishlist = async (productId: string) => {
         try {
-            await removeFromWishlistDB(productId);
+            await removeFromWishlistDB(productId, userId);
 
             setWishlistItems(prev => prev.filter(id => id !== productId));
             toast.success("Removed from Wishlist");

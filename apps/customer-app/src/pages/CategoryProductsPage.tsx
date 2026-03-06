@@ -12,7 +12,7 @@ import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 
 
-type FilterTab = "size" | "price" | "brand";
+type FilterTab = "gender" | "size" | "price" | "brand";
 
 const CategoryProductsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -22,6 +22,8 @@ const CategoryProductsPage: React.FC = () => {
     // Category and title from search params
     const category = searchParams.get('category') || '';
     const brandParam = searchParams.get('brand') || '';
+    const fromHome = searchParams.get('fromHome') === 'true';
+    const initialGender = searchParams.get('initialGender');
     const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -79,6 +81,9 @@ const CategoryProductsPage: React.FC = () => {
     const [tempPriceRange, setTempPriceRange] = useState({ min: 0, max: 2000 });
     const [tempSelectedBrands, setTempSelectedBrands] = useState<Set<string>>(new Set());
 
+    const [selectedGenders, setSelectedGenders] = useState<Set<string>>(initialGender ? new Set([initialGender]) : new Set());
+    const [tempSelectedGenders, setTempSelectedGenders] = useState<Set<string>>(initialGender ? new Set([initialGender]) : new Set());
+
     const [nameQuery, setNameQuery] = useState(""); // text search by name
 
     const maxAvailablePrice = useMemo(() => {
@@ -118,6 +123,7 @@ const CategoryProductsPage: React.FC = () => {
     // after resetFilters(), causing an infinite loop. We serialize to string for stable comparison.
     const brandsKey = JSON.stringify(Array.from(selectedBrands).sort());
     const sizesKey = JSON.stringify(Array.from(selectedSizes).sort());
+    const gendersKey = JSON.stringify(Array.from(selectedGenders).sort());
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -128,13 +134,14 @@ const CategoryProductsPage: React.FC = () => {
                 priceMin: priceRange.min,
                 priceMax: priceRange.max,
                 brands: Array.from(selectedBrands),
-                sizes: Array.from(selectedSizes)
+                sizes: Array.from(selectedSizes),
+                genders: Array.from(selectedGenders)
             });
         }, 400); // 400ms debounce
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
+    }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey, gendersKey]);
 
     interface ProductFilters {
         category?: string;
@@ -144,6 +151,7 @@ const CategoryProductsPage: React.FC = () => {
         priceMax?: number;
         brands?: string[];
         sizes?: string[];
+        genders?: string[];
     }
 
     // Background fetch helper
@@ -167,7 +175,7 @@ const CategoryProductsPage: React.FC = () => {
             query = query.eq('category', filters.category);
         }
 
-        if (dbGender) {
+        if (dbGender && dbGender !== 'all') {
             query = query.eq('gender', dbGender);
         }
 
@@ -255,6 +263,7 @@ const CategoryProductsPage: React.FC = () => {
     const handleApplyFilters = () => {
         setSelectedSizes(new Set(tempSelectedSizes));
         setSelectedBrands(new Set(tempSelectedBrands));
+        setSelectedGenders(new Set(tempSelectedGenders));
         setPriceRange({ ...tempPriceRange });
         setShowFilters(false);
     };
@@ -262,6 +271,7 @@ const CategoryProductsPage: React.FC = () => {
     const openFilters = () => {
         setTempSelectedSizes(new Set(selectedSizes));
         setTempSelectedBrands(new Set(selectedBrands));
+        setTempSelectedGenders(new Set(selectedGenders));
         setTempPriceRange({ ...priceRange });
         setShowFilters(true);
     };
@@ -269,9 +279,11 @@ const CategoryProductsPage: React.FC = () => {
     function resetFilters() {
         setSelectedSizes(new Set());
         setSelectedBrands(new Set());
+        setSelectedGenders(new Set());
         setPriceRange({ min: 0, max: maxAvailablePrice });
         setTempSelectedSizes(new Set());
         setTempSelectedBrands(new Set());
+        setTempSelectedGenders(new Set());
         setTempPriceRange({ min: 0, max: maxAvailablePrice });
         setNameQuery("");
     }
@@ -285,8 +297,13 @@ const CategoryProductsPage: React.FC = () => {
         }
 
         // Filter by gender if applicable
-        if (genderFromPath) {
+        if (genderFromPath && genderFromPath !== 'all') {
             filtered = filtered.filter((p: any) => !p.gender || p.gender === genderFromPath);
+        }
+
+        // Apply gender filter if selected
+        if (selectedGenders.size > 0) {
+            filtered = filtered.filter((p: any) => selectedGenders.has(p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)));
         }
         // Filter by name query
         if (nameQuery.trim() !== "") {
@@ -336,7 +353,7 @@ const CategoryProductsPage: React.FC = () => {
                         className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                     >
                         <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
-                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice) && (
+                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice) && (
                             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
                         )}
                     </button>
@@ -467,8 +484,9 @@ const CategoryProductsPage: React.FC = () => {
                             <div className="bg-[#2A2A2E] rounded-b-3xl px-5 py-5 shadow-2xl">
                                 {/* Tab pills – 3 equal width */}
                                 <div className="flex items-center gap-3 mb-5">
-                                    {(["size", "price", "brand"] as FilterTab[])
+                                    {(["gender", "size", "price", "brand"] as FilterTab[])
                                         .filter((tab) => {
+                                            if (tab === "gender") return genderFromPath === 'all' || fromHome;
                                             if (tab === "size") return availableSizes.length > 0;
                                             if (tab === "brand") return availableBrands.length > 0;
                                             return true; // price always
@@ -488,6 +506,33 @@ const CategoryProductsPage: React.FC = () => {
                                             </button>
                                         ))}
                                 </div>
+
+                                {/* === Gender Tab === */}
+                                {activeFilterTab === "gender" && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {["mens", "womens"].map((g) => (
+                                            <button
+                                                key={g}
+                                                onClick={() => {
+                                                    setTempSelectedGenders(prev => {
+                                                        const newSet = new Set(prev);
+                                                        if (newSet.has(g)) newSet.delete(g);
+                                                        else newSet.add(g);
+                                                        return newSet;
+                                                    });
+                                                }}
+                                                className={cn(
+                                                    "h-12 rounded-xl text-sm font-bold border transition-all flex items-center justify-center uppercase",
+                                                    tempSelectedGenders.has(g)
+                                                        ? "bg-[#FF4D6D]/10 border-[#FF4D6D] text-[#FF4D6D]"
+                                                        : "bg-[#1C1C1E] border-white/10 text-zinc-400"
+                                                )}
+                                            >
+                                                {g === 'mens' ? 'Men' : 'Women'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {/* === Size Tab === */}
                                 {activeFilterTab === "size" && availableSizes.length > 0 && (
@@ -652,7 +697,7 @@ const CategoryProductsPage: React.FC = () => {
                                         className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#FF4D6D] text-white hover:bg-[#FF3355]"
                                         onClick={handleApplyFilters}
                                     >
-                                        Apply ({tempSelectedSizes.size + tempSelectedBrands.size})
+                                        Apply ({tempSelectedSizes.size + tempSelectedBrands.size + tempSelectedGenders.size})
                                     </button>
                                 </div>
                             </div>

@@ -251,10 +251,10 @@ class ProductService {
     }
 
     // Get unique brands available in the database
-    async getUniqueBrands(): Promise<string[]> {
-        // Return memory cache if valid
+    async getUniqueBrands(gender?: GenderCategory): Promise<string[]> {
+        // Return memory cache if valid (only if no gender is specified, or handle gender caching)
         const now = Date.now();
-        if (this.brandCache && this.brandCache.length > 0 && (now - this.brandCacheTimestamp < this.BRAND_CACHE_TTL)) {
+        if (!gender && this.brandCache && this.brandCache.length > 0 && (now - this.brandCacheTimestamp < this.BRAND_CACHE_TTL)) {
             return this.brandCache;
         }
 
@@ -262,17 +262,27 @@ class ProductService {
             try {
                 // Check IndexedDB cache first
                 const db = await this.initDB();
-                const cached = await db.get('preferences', 'unique_brands');
+                const cacheKey = gender ? `unique_brands_${gender}` : 'unique_brands';
+                const cached = await db.get('preferences', cacheKey);
                 if (cached && cached.brands && cached.brands.length > 0 && (now - cached.timestamp < this.BRAND_CACHE_TTL)) {
-                    this.brandCache = cached.brands;
-                    this.brandCacheTimestamp = cached.timestamp;
+                    if (!gender) {
+                        this.brandCache = cached.brands;
+                        this.brandCacheTimestamp = cached.timestamp;
+                    }
                     return cached.brands;
                 }
 
-                const { data, error } = await (supabase as any)
+                let query = (supabase as any)
                     .from('products')
                     .select('brand')
                     .eq('is_available', true);
+
+                if (gender) {
+                    const dbGender = gender === 'mens' ? 'men' : 'women';
+                    query = query.eq('gender', dbGender);
+                }
+
+                const { data, error } = await query;
 
                 if (error) throw error;
 
@@ -281,9 +291,11 @@ class ProductService {
 
                 // Only update cache if we actually found brands
                 if (sortedBrands.length > 0) {
-                    this.brandCache = sortedBrands;
-                    this.brandCacheTimestamp = now;
-                    await db.put('preferences', { brands: sortedBrands, timestamp: now }, 'unique_brands');
+                    if (!gender) {
+                        this.brandCache = sortedBrands;
+                        this.brandCacheTimestamp = now;
+                    }
+                    await db.put('preferences', { brands: sortedBrands, timestamp: now }, cacheKey);
                 } else {
                     // If no brands found online, don't update cache, let it fall back
                     console.warn(`⚠️ No brands found in database query. Data count: ${data?.length || 0}`);
@@ -292,16 +304,16 @@ class ProductService {
                 return sortedBrands;
             } catch (error) {
                 console.warn('⚠️ Online brand fetch failed, falling back to local:', error);
-                return this.getUniqueBrandsOffline();
+                return this.getUniqueBrandsOffline(gender);
             }
         } else {
-            return this.getUniqueBrandsOffline();
+            return this.getUniqueBrandsOffline(gender);
         }
     }
 
     // Get unique brands from IndexedDB
-    private async getUniqueBrandsOffline(): Promise<string[]> {
-        const products = await this.getProductsOffline();
+    private async getUniqueBrandsOffline(gender?: GenderCategory): Promise<string[]> {
+        const products = gender ? await this.getProductsByGender(gender) : await this.getProductsOffline();
         const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean))) as string[];
         return brands.sort();
     }
