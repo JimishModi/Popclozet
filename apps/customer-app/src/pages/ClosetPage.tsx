@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/context/SupabaseAuthContext';
+import { getMyActiveRentals, keepItem } from '@/services/ordersService';
+import { getRemainingRentalTime } from '@popclozet/api-client';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -18,46 +23,8 @@ interface RentalItem {
     image?: string;
     type: 'current' | 'future';
     arrivalDays?: number;
+    itemCount?: number;
 }
-
-const MOCK_RENTALS: RentalItem[] = [
-    {
-        id: '1',
-        title: 'Haldi Outfit',
-        dateRange: '1 Feb - 2 Feb',
-        currentPrice: 699,
-        originalPrice: 4000,
-        daysLeft: 2,
-        type: 'current',
-    },
-    {
-        id: '2',
-        title: 'Haldi Outfit',
-        dateRange: '1 Feb - 2 Feb',
-        currentPrice: 699,
-        originalPrice: 4000,
-        returnToday: true,
-        type: 'current',
-    },
-    {
-        id: '3',
-        title: 'Haldi Outfit',
-        dateRange: '1 Feb - 2 Feb',
-        currentPrice: 699,
-        originalPrice: 4000,
-        type: 'future',
-        arrivalDays: 5,
-    },
-    {
-        id: '4',
-        title: 'Haldi Outfit',
-        dateRange: '1 Feb - 2 Feb',
-        currentPrice: 699,
-        originalPrice: 4000,
-        type: 'future',
-        arrivalDays: 5,
-    },
-];
 
 /* Clock/countdown icon */
 const CountdownIcon = () => (
@@ -69,9 +36,88 @@ const CountdownIcon = () => (
 
 const ClosetPage: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const [rentals, setRentals] = useState<RentalItem[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const currentRentals = MOCK_RENTALS.filter((item) => item.type === 'current');
-    const futureRentals = MOCK_RENTALS.filter((item) => item.type === 'future');
+    useEffect(() => {
+        fetchRentals();
+    }, [user]);
+
+    const fetchRentals = async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+        try {
+            setLoading(true);
+
+            // Timeout to prevent infinite hang on Supabase cold-start
+            const rentalsPromise = getMyActiveRentals();
+            const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Rentals fetch timeout')), 4000)
+            );
+
+            let activeOrders: any[];
+            try {
+                activeOrders = await Promise.race([rentalsPromise, timeoutPromise]);
+            } catch (timeoutErr) {
+                console.warn('[Closet] Supabase timed out — showing empty state');
+                setRentals([]);
+                setLoading(false);
+                return;
+            }
+
+            const mapped: RentalItem[] = activeOrders.map((order: any) => {
+                const firstItem = order.order_items?.[0]?.item;
+                const rentalEndTime = new Date(order.rental_end_date);
+                const rentalStartTime = new Date(order.rental_start_date);
+                const now = new Date();
+
+                const timeInfo = getRemainingRentalTime(order.rental_end_date);
+
+                const type = now < rentalStartTime ? 'future' : 'current';
+
+                // Calculate arrival days for future bookings
+                const arrivalDays = Math.ceil((rentalStartTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+                return {
+                    id: order.id,
+                    title: firstItem?.title || 'Rental Outfit',
+                    dateRange: `${format(rentalStartTime, 'd MMM')} - ${format(rentalEndTime, 'd MMM')}`,
+                    currentPrice: order.total_amount,
+                    originalPrice: 4000, // Fixed buy-out price as requested
+                    daysLeft: timeInfo.days,
+                    returnToday: timeInfo.expired || (timeInfo.days === 0 && timeInfo.hours < 24),
+                    image: firstItem?.image_url,
+                    type,
+                    arrivalDays: arrivalDays > 0 ? arrivalDays : 0,
+                    itemCount: order.order_items?.length || 0
+                };
+            });
+
+            setRentals(mapped);
+        } catch (error) {
+            console.error('Error fetching rentals:', error);
+            toast.error('Failed to load your closet');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleKeepIt = async (orderId: string) => {
+        try {
+            await keepItem(orderId);
+            toast.success('Item marked as kept! 🎉');
+            fetchRentals();
+        } catch (err) {
+            console.error('Keep item error:', err);
+            toast.error('Failed to keep item');
+        }
+    };
+
+    const currentRentals = rentals.filter((item) => item.type === 'current');
+    const futureRentals = rentals.filter((item) => item.type === 'future');
 
     return (
         <MobileShell className="bg-[#111111] text-white">
@@ -111,210 +157,223 @@ const ClosetPage: React.FC = () => {
                     Live Closet
                 </h1>
 
-                {/* ─── CURRENT RENTALS ─── */}
-                <div className="grid grid-cols-2 gap-5 mt-6">
-                    {currentRentals.map((item) => (
-                        <motion.div
-                            key={item.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex flex-col"
+                {/* Loading State */}
+                {loading && (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-8 h-8 border-2 border-[#f2546d]/30 border-t-[#f2546d] rounded-full animate-spin" />
+                        <p className="text-sm text-gray-400 mt-4" style={dmSans}>Fetching your outfits...</p>
+                    </div>
+                )}
+
+                {/* Empty State */}
+                {!loading && rentals.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-16 h-16 rounded-full bg-[#232323] flex items-center justify-center mb-4">
+                            <ShoppingBag className="w-8 h-8 text-gray-500" />
+                        </div>
+                        <p className="text-lg font-semibold text-white mb-2" style={dmSans}>Your Closet is Empty</p>
+                        <p className="text-sm text-gray-400 mb-6" style={dmSans}>Start renting outfits to see them here</p>
+                        <button
+                            onClick={() => navigate('/home')}
+                            className="px-6 py-3 rounded-2xl bg-[#f2546d] text-white text-sm font-bold"
+                            style={dmSans}
                         >
-                            {/* ── Dark card body (sits ON TOP of the pink element via z-10) ── */}
-                            <div
-                                className="relative z-10 rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
-                                style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
+                            Explore Outfits
+                        </button>
+                    </div>
+                )}
+
+                {/* ─── CURRENT RENTALS ─── */}
+                {!loading && currentRentals.length > 0 && (
+                    <div className="grid grid-cols-2 gap-5 mt-6">
+                        {currentRentals.map((item) => (
+                            <motion.div
+                                key={item.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex flex-col"
                             >
-                                {/* Image area */}
-                                <div className="relative aspect-[176/255]">
-                                    <img
-                                        src={
-                                            item.image ||
-                                            'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80'
-                                        }
-                                        alt={item.title}
-                                        className="w-full h-full object-cover"
-                                    />
-                                    {/* Bottom gradient overlay */}
-                                    <div
-                                        className="absolute bottom-0 left-0 right-0 h-[45px]"
-                                        style={{
-                                            backdropFilter: 'blur(4.6px)',
-                                            WebkitBackdropFilter: 'blur(4.6px)',
-                                            background:
-                                                'linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,1) 100%)',
-                                        }}
-                                    />
-                                    {/* Status badge */}
-                                    <div className="absolute top-3 left-3 flex items-center gap-2">
-                                        <CountdownIcon />
+                                <div
+                                    className="relative z-10 rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
+                                    style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
+                                >
+                                    <div className="relative aspect-[176/255]">
+                                        <img
+                                            src={
+                                                item.image ||
+                                                'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80'
+                                            }
+                                            alt={item.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div
+                                            className="absolute bottom-0 left-0 right-0 h-[45px]"
+                                            style={{
+                                                backdropFilter: 'blur(4.6px)',
+                                                WebkitBackdropFilter: 'blur(4.6px)',
+                                                background:
+                                                    'linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,1) 100%)',
+                                            }}
+                                        />
+                                        <div className="absolute top-3 left-3 flex items-center gap-2">
+                                            <CountdownIcon />
+                                            <span
+                                                className="text-sm font-semibold text-white tracking-[-0.42px]"
+                                                style={dmSans}
+                                            >
+                                                {item.returnToday
+                                                    ? 'Return Today'
+                                                    : `${item.daysLeft} Days Left`}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-[#484848]" />
+
+                                    <div className="px-4 py-3">
+                                        <h3
+                                            className="text-sm font-semibold text-white tracking-[-0.42px]"
+                                            style={dmSans}
+                                        >
+                                            {item.title}
+                                        </h3>
+
+                                        {!item.returnToday && (
+                                            <>
+                                                <p
+                                                    className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1"
+                                                    style={dmSans}
+                                                >
+                                                    {item.dateRange}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <span
+                                                        className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
+                                                        style={dmSans}
+                                                    >
+                                                        ₹ {item.currentPrice}
+                                                    </span>
+                                                    <span
+                                                        className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
+                                                        style={dmSans}
+                                                    >
+                                                        ₹ {item.originalPrice}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Keep it button */}
+                                <button
+                                    onClick={() => handleKeepIt(item.id)}
+                                    className="-mt-[48px] h-[89px] rounded-2xl bg-[#f2546d] border border-[#ff8597] flex items-end justify-center pb-3 cursor-pointer active:scale-[0.98] transition-transform"
+                                >
+                                    <span
+                                        className="text-sm text-white leading-[14px]"
+                                        style={dmSans}
+                                    >
+                                        <span className="font-semibold tracking-[-0.06px]">
+                                            Keep it for:{' '}
+                                        </span>
+                                        <span className="font-black tracking-[-0.06px]">
+                                            ₹ {item.originalPrice}
+                                        </span>
+                                    </span>
+                                </button>
+
+                                {item.returnToday && (
+                                    <button
+                                        onClick={() => navigate(`/schedule-return?orderId=${item.id}`)}
+                                        className="w-full mt-4 py-2.5 rounded-2xl bg-[#b93e53] border border-[#ffd1d4] text-center"
+                                    >
                                         <span
                                             className="text-sm font-semibold text-white tracking-[-0.42px]"
                                             style={dmSans}
                                         >
-                                            {item.returnToday
-                                                ? 'Return Today'
-                                                : `${item.daysLeft} Days Left`}
+                                            Schedule Return
                                         </span>
-                                    </div>
-                                </div>
-
-                                {/* Divider */}
-                                <div className="h-px bg-[#484848]" />
-
-                                {/* Content below divider */}
-                                <div className="px-4 py-3">
-                                    <h3
-                                        className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                        style={dmSans}
-                                    >
-                                        {item.title}
-                                    </h3>
-
-                                    {/* Date + Price — only for non-return cards */}
-                                    {!item.returnToday && (
-                                        <>
-                                            <p
-                                                className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1"
-                                                style={dmSans}
-                                            >
-                                                {item.dateRange}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span
-                                                    className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                                                    style={dmSans}
-                                                >
-                                                    ₹ {item.currentPrice}
-                                                </span>
-                                                <span
-                                                    className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
-                                                    style={dmSans}
-                                                >
-                                                    ₹ {item.originalPrice}
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/*
-                              ── Pink "Keep it for" element ──
-                              Sits BEHIND the dark card, peeking out at the bottom.
-                              -mt-[48px] pulls it up behind the card.
-                              The card's z-10 ensures it covers the overlap area.
-                              flex items-end puts the text at the visible bottom portion.
-                            */}
-                            <div className="-mt-[48px] h-[89px] rounded-2xl bg-[#f2546d] border border-[#ff8597] flex items-end justify-center pb-3">
-                                <span
-                                    className="text-sm text-white leading-[14px]"
-                                    style={dmSans}
-                                >
-                                    <span className="font-semibold tracking-[-0.06px]">
-                                        Keep it for:{' '}
-                                    </span>
-                                    <span className="font-black tracking-[-0.06px]">
-                                        ₹ {item.originalPrice}
-                                    </span>
-                                </span>
-                            </div>
-
-                            {/*
-                              ── "Schedule Return" — separate button, only for Return Today ──
-                              Different color (#b93e53) with light pink border (#ffd1d4).
-                              Fully rounded, with gap above.
-                            */}
-                            {item.returnToday && (
-                                <button
-                                    onClick={() => navigate('/closet/return')}
-                                    className="w-full mt-4 py-2.5 rounded-2xl bg-[#b93e53] border border-[#ffd1d4] text-center"
-                                >
-                                    <span
-                                        className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                        style={dmSans}
-                                    >
-                                        Schedule Return
-                                    </span>
-                                </button>
-                            )}
-                        </motion.div>
-                    ))}
-                </div>
+                                    </button>
+                                )}
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
 
                 {/* ─── FUTURE BOOKINGS ─── */}
-                <h2
-                    className="text-2xl font-semibold text-white tracking-[-0.72px] mt-10"
-                    style={dmSans}
-                >
-                    Future Bookings
-                </h2>
-
-                <div className="grid grid-cols-2 gap-5 mt-6">
-                    {futureRentals.map((item) => (
-                        <motion.div
-                            key={item.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
-                            style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
+                {!loading && futureRentals.length > 0 && (
+                    <>
+                        <h2
+                            className="text-2xl font-semibold text-white tracking-[-0.72px] mt-10"
+                            style={dmSans}
                         >
-                            {/* Image area */}
-                            <div className="relative aspect-[176/255]">
-                                <img
-                                    src={
-                                        item.image ||
-                                        'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=400&q=80'
-                                    }
-                                    alt={item.title}
-                                    className="w-full h-full object-cover"
-                                />
-                                {/* Arrival badge */}
-                                <div className="absolute top-4 left-8">
-                                    <span
-                                        className="text-sm font-semibold text-[#ff6078] tracking-[-0.42px]"
-                                        style={dmSans}
-                                    >
-                                        Arriving in {item.arrivalDays} Days
-                                    </span>
-                                </div>
-                            </div>
+                            Future Bookings
+                        </h2>
 
-                            {/* Divider */}
-                            <div className="h-px bg-[#484848]" />
+                        <div className="grid grid-cols-2 gap-5 mt-6">
+                            {futureRentals.map((item) => (
+                                <motion.div
+                                    key={item.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
+                                    style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
+                                >
+                                    <div className="relative aspect-[176/255]">
+                                        <img
+                                            src={
+                                                item.image ||
+                                                'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=400&q=80'
+                                            }
+                                            alt={item.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-4 left-8">
+                                            <span
+                                                className="text-sm font-semibold text-[#ff6078] tracking-[-0.42px]"
+                                                style={dmSans}
+                                            >
+                                                Arriving in {item.arrivalDays} Days
+                                            </span>
+                                        </div>
+                                    </div>
 
-                            {/* Content */}
-                            <div className="px-4 py-3">
-                                <h3
-                                    className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                    style={dmSans}
-                                >
-                                    {item.title}
-                                </h3>
-                                <p
-                                    className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1"
-                                    style={dmSans}
-                                >
-                                    {item.dateRange}
-                                </p>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <span
-                                        className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                                        style={dmSans}
-                                    >
-                                        ₹ {item.currentPrice}
-                                    </span>
-                                    <span
-                                        className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
-                                        style={dmSans}
-                                    >
-                                        ₹ {item.originalPrice}
-                                    </span>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
+                                    <div className="h-px bg-[#484848]" />
+
+                                    <div className="px-4 py-3">
+                                        <h3
+                                            className="text-sm font-semibold text-white tracking-[-0.42px]"
+                                            style={dmSans}
+                                        >
+                                            {item.title}
+                                        </h3>
+                                        <p
+                                            className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1"
+                                            style={dmSans}
+                                        >
+                                            {item.dateRange}
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span
+                                                className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
+                                                style={dmSans}
+                                            >
+                                                ₹ {item.currentPrice}
+                                            </span>
+                                            <span
+                                                className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
+                                                style={dmSans}
+                                            >
+                                                ₹ {item.originalPrice}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </>
+                )}
             </main>
 
             <BottomNavBar />
