@@ -20,6 +20,7 @@ export interface Product {
     sizes?: string[];
     brand?: string;
     rental_price?: number;
+    deposit_amount?: string;
     images?: string[];
     leadTimeMinutes?: number;
     rating: number;

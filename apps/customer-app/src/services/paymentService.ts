@@ -14,7 +14,7 @@ export async function getMyPayments() {
   return data;
 }
 
-export async function createPayment(orderId: string, amount: number) {
+export async function createPayment(orderId: string, amount: number, paymentMethod: 'upi' | 'cod' = 'upi') {
   const {
     data: { user },
     error: authError,
@@ -24,11 +24,15 @@ export async function createPayment(orderId: string, amount: number) {
     throw new Error('Not authenticated');
   }
 
+  const provider = paymentMethod === 'cod' ? 'cod' : 'upi';
+  const status = paymentMethod === 'cod' ? 'pending_cod' : 'pending';
+
   const { data, error } = await supabase.from('payments').insert({
     user_id: user.id,
     order_id: orderId,
     amount,
-    status: 'pending',
+    status,
+    provider,
   });
 
   if (error) {

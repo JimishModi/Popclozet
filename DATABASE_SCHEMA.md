@@ -78,9 +78,18 @@ CREATE TABLE orders (
   rental_start_date DATE NOT NULL,
   rental_end_date DATE,
   total_amount DECIMAL(10,2) NOT NULL,
+  subtotal_amount DECIMAL(10,2),
+  discount_amount DECIMAL(10,2),
+  insurance_fee DECIMAL(10,2),
   deposit_amount DECIMAL(10,2) NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
+  payment_method TEXT NOT NULL DEFAULT 'upi' CHECK (payment_method IN ('upi', 'cod')),
+  delivery_fee DECIMAL(10,2) DEFAULT 0,
   delivery_eta TIMESTAMPTZ,
+  acceptance_ip TEXT,
+  acceptance_tc_version TEXT,
+  liability_accepted BOOLEAN DEFAULT FALSE,
+  sizing_accepted BOOLEAN DEFAULT FALSE,
   rider_id UUID,
   rider_distance DOUBLE PRECISION,
   otp_delivery TEXT,
@@ -114,6 +123,36 @@ CREATE TABLE return_requests (
   status TEXT NOT NULL DEFAULT 'requested',
   pickup_eta TIMESTAMPTZ,
   rider_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### user_subscriptions
+```sql
+CREATE TABLE user_subscriptions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  plan_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  current_period_start TIMESTAMPTZ DEFAULT NOW(),
+  current_period_end TIMESTAMPTZ NOT NULL,
+  cancel_at_period_end BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### payments
+```sql
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+  amount DECIMAL(10,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  status TEXT NOT NULL DEFAULT 'captured',
+  provider TEXT NOT NULL DEFAULT 'razorpay',
+  provider_payment_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```

@@ -41,14 +41,40 @@ interface PopClozetDB extends DBSchema {
         };
     };
 
+    receipts: {
+        key: string;
+        value: ReceiptData;
+    };
+
     preferences: {
         key: string;
         value: any;
     };
 }
 
+export interface ReceiptItem {
+    name: string;
+    size: string;
+    quantity: number;
+    days: number;
+    rentalPrice: number;
+}
+
+export interface ReceiptData {
+    orderId: string;
+    placedAt: string;
+    subtotal: number;
+    deliveryFee: number;
+    deposit: number;
+    total: number;
+    deliveryAddress: string;
+    rentalStartDate: string;
+    rentalEndDate: string;
+    items: ReceiptItem[];
+}
+
 const DB_NAME = 'PopClozet';
-const DB_VERSION = 3; // Incremented for category index in products
+const DB_VERSION = 4; // Incremented for receipts store
 
 let dbInstance: IDBPDatabase<PopClozetDB> | null = null;
 
@@ -90,6 +116,11 @@ export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
             // Create preferences store
             if (!db.objectStoreNames.contains('preferences')) {
                 db.createObjectStore('preferences');
+            }
+
+            // Create receipts store
+            if (!db.objectStoreNames.contains('receipts')) {
+                db.createObjectStore('receipts', { keyPath: 'orderId' });
             }
         },
     });
@@ -304,6 +335,17 @@ export async function setPreferenceDB(key: string, value: any) {
 export async function getPreferenceDB(key: string) {
     const db = await initDB();
     return await db.get('preferences', key);
+}
+
+// Receipt operations
+export async function saveReceiptDB(data: ReceiptData) {
+    const db = await initDB();
+    await db.put('receipts', data);
+}
+
+export async function getReceiptDB(orderId: string): Promise<ReceiptData | undefined> {
+    const db = await initDB();
+    return await db.get('receipts', orderId);
 }
 
 // Migration from localStorage

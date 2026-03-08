@@ -5,13 +5,14 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useCart } from "@/context/CartContext";
 import { useServiceAvailability } from "@/hooks/useServiceAvailability";
+import { toast } from "sonner";
 import {
   ChevronLeft,
-  Heart,
-  X,
   ShoppingBag,
   ChevronRight,
+  X,
 } from "lucide-react";
+import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { supabase } from "@popclozet/api-client";
 import SignupModal from "@/components/SignupModal";
 import { Link, useNavigate } from "react-router-dom";
@@ -54,7 +55,7 @@ const getSavedHub = () => {
 };
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, updateQuantity } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateSize } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
 
@@ -65,7 +66,12 @@ const CartPage = () => {
   const [selectedHub, setSelectedHub] = useState<{ name: string; distance_km: number; estimated_minutes: number } | null>(null);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
+  const [cartInventory, setCartInventory] = useState<Record<string, any[]>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Coupon state
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
 
   const cartEntries = Object.entries(cartItems);
 
@@ -83,14 +89,19 @@ const CartPage = () => {
       const uniqueIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
       if (uniqueIds.length === 0) {
         setCartProducts({});
+        setCartInventory({});
         setLoadingProducts(false);
         return;
       }
 
-      const { data, error } = await supabase.from('products').select('*').in('id', uniqueIds);
-      if (data && !error) {
+      const [productsRes, inventoryRes] = await Promise.all([
+        supabase.from('products').select('*').in('id', uniqueIds),
+        supabase.from('inventory').select('*').in('product_id', uniqueIds)
+      ]);
+
+      if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
-        data.forEach((p: any) => {
+        productsRes.data.forEach((p: any) => {
           productMap[p.id] = {
             ...p,
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
@@ -100,11 +111,41 @@ const CartPage = () => {
         });
         setCartProducts(productMap);
       }
+
+      if (inventoryRes.data && !inventoryRes.error) {
+        const invMap: Record<string, any[]> = {};
+        inventoryRes.data.forEach((item: any) => {
+          if (!invMap[item.product_id]) invMap[item.product_id] = [];
+          invMap[item.product_id].push(item);
+        });
+        setCartInventory(invMap);
+      }
       setLoadingProducts(false);
     };
 
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
+
+  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
+
+  // Load saved address, hub, and subscription benefit on mount
+  useEffect(() => {
+    const addresses = getLocalAddresses();
+    if (addresses.length > 0) {
+      setDeliveryAddress(addresses[0]);
+    }
+    const hub = getSavedHub();
+    if (hub) {
+      setSelectedHub(hub);
+    }
+
+    const checkSub = async () => {
+      const { hasFreeDelivery } = await import("@/services/subscriptionService");
+      const isFree = await hasFreeDelivery();
+      setHasFreeDeliveryBenefit(isFree);
+    };
+    checkSub();
+  }, []);
 
   // Calculate subtotal
   const subtotal = useMemo(() => {
@@ -132,13 +173,36 @@ const CartPage = () => {
     if (!selectedHub) {
       return { pricing: null, eta: null };
     }
-    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery');
+    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', hasFreeDeliveryBenefit);
     const eta = calculateETA(selectedHub.distance_km, selectedHub.estimated_minutes);
     return { pricing, eta };
-  }, [selectedHub, subtotal]);
+  }, [selectedHub, subtotal, hasFreeDeliveryBenefit]);
 
-  const deliveryFee = deliveryInfo.pricing?.totalFee || 50;
-  const grandTotal = subtotal + deliveryFee;
+  const deliveryFee = deliveryInfo.pricing?.totalFee ?? (hasFreeDeliveryBenefit ? 0 : 40);
+
+  // Final math with coupons
+  const couponDiscount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.type === 'percent') {
+      return Math.round(subtotal * (appliedCoupon.discount / 100));
+    }
+    return appliedCoupon.discount;
+  }, [appliedCoupon, subtotal]);
+
+  const grandTotal = subtotal + deliveryFee - couponDiscount;
+
+  const handleApplyCoupon = () => {
+    // Mock simple coupon logic
+    if (couponCode.toUpperCase() === 'POP20') {
+      setAppliedCoupon({ id: 'POP20', discount: 20, type: 'percent' });
+      toast.success("Coupon applied! 20% off");
+    } else if (couponCode.toUpperCase() === 'FIRST100') {
+      setAppliedCoupon({ id: 'FIRST100', discount: 100, type: 'fixed' });
+      toast.success("Coupon applied! ₹100 off");
+    } else {
+      toast.error("Invalid coupon code");
+    }
+  };
 
   // Load saved address and hub on mount
   useEffect(() => {
@@ -198,7 +262,7 @@ const CartPage = () => {
               onClick={() => navigate('/closet?tab=wishlist')}
               className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full"
             >
-              <Heart className="w-[19px] h-[19px] text-white/80" />
+              <ClosetIcon className="w-4 h-4 text-white/80" />
             </button>
           </div>
 
@@ -296,12 +360,42 @@ const CartPage = () => {
                         </div>
 
                         {/* Bottom row: Size + Qty + Prices */}
-                        <div className="flex items-center mt-2 gap-2">
-                          <div className="flex items-center gap-1 px-2 py-1.5 bg-[#2a2a2a] rounded">
-                            <span className="text-sm text-white uppercase text-xs font-bold" style={{ fontFamily: "'DM Sans', sans-serif" }}>Size: {size}</span>
+                        <div className="flex items-center mt-3 gap-3">
+                          {/* Size Selector */}
+                          <div className="relative">
+                            <select
+                              value={size}
+                              onChange={(e) => updateSize(id, e.target.value)}
+                              className="appearance-none bg-[#2a2a2a] text-white text-[11px] font-bold uppercase px-3 py-1.5 rounded-xl border border-white/5 focus:outline-none"
+                              style={{ fontFamily: "'DM Sans', sans-serif" }}
+                            >
+                              {(cartInventory[baseId] || []).map((inv: any) => (
+                                <option key={inv.size} value={inv.size} disabled={inv.available_stock <= 0}>
+                                  {inv.size} {inv.available_stock <= 0 ? '(OOS)' : ''}
+                                </option>
+                              ))}
+                              {/* Fallback if inventory is loading or empty */}
+                              {!(cartInventory[baseId] || []).some((inv: any) => inv.size === size) && (
+                                <option value={size}>{size}</option>
+                              )}
+                            </select>
                           </div>
-                          <div className="flex items-center gap-1 px-2 py-1.5 bg-[#2a2a2a] rounded">
-                            <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>Qty: {qty}</span>
+
+                          {/* Quantity Controls */}
+                          <div className="flex items-center bg-[#2a2a2a] rounded-xl border border-white/5">
+                            <button
+                              onClick={() => updateQuantity(id, qty - 1)}
+                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="text-[11px] font-bold text-white min-w-[20px] text-center">{qty}</span>
+                            <button
+                              onClick={() => updateQuantity(id, qty + 1)}
+                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
+                            >
+                              +
+                            </button>
                           </div>
 
                           {/* Prices */}
@@ -327,6 +421,37 @@ const CartPage = () => {
             </section>
 
 
+            {/* ─── COUPON SECTION ─── */}
+            <section className="px-5 mt-8">
+              <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Coupons
+              </h2>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter code (e.g. POP20)"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
+                />
+                <button
+                  onClick={handleApplyCoupon}
+                  className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+              {appliedCoupon && (
+                <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
+                  <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </section>
+
+
             {/* ─── PRICE DETAILS ─── */}
             <section className="px-5 mt-8">
               <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -348,9 +473,20 @@ const CartPage = () => {
                     Discount
                   </span>
                   <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    -₹ {discount || 500}
+                    -₹ {discount + couponDiscount}
                   </span>
                 </div>
+
+                {appliedCoupon && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Coupon ({appliedCoupon.id})
+                    </span>
+                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      -₹ {couponDiscount}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -385,17 +521,22 @@ const CartPage = () => {
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
 
           {/* Subscribe Banner */}
-          <div className="flex items-center gap-4 px-4 py-4 bg-[#732230] rounded-lg">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Subscribe to the Future
-              </p>
-              <p className="text-sm text-white/80 mt-0.5" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Pick any 4 items you like each month for just 1799
-              </p>
+          <button
+            onClick={() => navigate('/subscription-plans')}
+            className="w-full text-left"
+          >
+            <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-2xl relative group overflow-hidden">
+              <div className="flex-1 min-w-0 relative z-10">
+                <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Subscribe to the Future
+                </p>
+                <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Pick any 4 items you like each month for just 1799
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-white flex-shrink-0 relative z-10" />
             </div>
-            <ChevronRight className="w-4 h-4 text-white flex-shrink-0" />
-          </div>
+          </button>
 
           {/* Progress Steps */}
           <div className="flex items-center gap-[11px]">

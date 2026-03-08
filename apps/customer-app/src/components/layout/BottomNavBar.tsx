@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useCart } from '@/context/CartContext';
+import { useWishlist } from '@/context/WishlistContext';
 
 /* ── Navbar icons matching Figma ── */
 
@@ -59,6 +61,9 @@ interface BottomNavBarProps {
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
     const location = useLocation();
+    const { totalItems: cartCount } = useCart();
+    const { wishlistItems } = useWishlist();
+    const wishlistCount = wishlistItems.length;
 
     const isActive = (path: string) => {
         if (path === '/home') {
@@ -101,10 +106,24 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                     : "text-zinc-500 hover:text-zinc-300"
                             )}
                         >
-                            <Icon
-                                className="w-6 h-6"
-                                active={active}
-                            />
+                            <div className="relative">
+                                <Icon
+                                    className="w-6 h-6"
+                                    active={active}
+                                />
+                                {/* Cart badge */}
+                                {item.path === '/cart' && cartCount > 0 && (
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                        {cartCount > 9 ? '9+' : cartCount}
+                                    </span>
+                                )}
+                                {/* Closet/Wishlist badge */}
+                                {item.path === '/closet' && wishlistCount > 0 && (
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                    </span>
+                                )}
+                            </div>
                             <span className={cn(
                                 "text-[10px] font-semibold tracking-wide",
                                 active ? "text-[#ff4d6d]" : "text-zinc-600"

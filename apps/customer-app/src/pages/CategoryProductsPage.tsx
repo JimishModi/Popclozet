@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
-import { ChevronLeft, SlidersHorizontal, Heart, Loader, Search, X } from "lucide-react";
+import { ChevronLeft, SlidersHorizontal, Loader, Search, X, ShoppingBag, Heart } from "lucide-react";
+import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
@@ -348,15 +349,29 @@ const CategoryProductsPage: React.FC = () => {
                         </h1>
                     </div>
 
-                    <button
-                        onClick={openFilters}
-                        className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
-                    >
-                        <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
-                        {(selectedSizes.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice) && (
-                            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
-                        )}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => navigate('/closet?tab=wishlist')}
+                            className="p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                        >
+                            <ClosetIcon className="w-4 h-4 text-zinc-400" />
+                        </button>
+                        <button
+                            onClick={() => navigate('/cart')}
+                            className="p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                        >
+                            <ShoppingBag className="w-4 h-4 text-zinc-400" />
+                        </button>
+                        <button
+                            onClick={openFilters}
+                            className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                        >
+                            <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
+                            {(selectedSizes.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice) && (
+                                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Search bar row */}

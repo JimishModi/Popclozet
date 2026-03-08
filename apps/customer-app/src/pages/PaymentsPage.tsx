@@ -2,9 +2,11 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, CreditCard, Plus, Smartphone, Building2, Check } from "lucide-react";
+import { ChevronLeft, CreditCard, Plus, Smartphone, Building2, Check, History, ReceiptText } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
+import { getMyPayments } from "@/services/paymentService";
+import { useEffect } from "react";
 
 const PaymentsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -14,6 +16,22 @@ const PaymentsPage: React.FC = () => {
         try { return JSON.parse(localStorage.getItem("saved_upis") || "[]"); } catch { return []; }
     });
     const [defaultUPI, setDefaultUPI] = useState(() => localStorage.getItem("default_upi") || "");
+    const [payments, setPayments] = useState<any[]>([]);
+    const [loadingPayments, setLoadingPayments] = useState(true);
+
+    useEffect(() => {
+        const fetchPayments = async () => {
+            try {
+                const data = await getMyPayments();
+                setPayments(data || []);
+            } catch (err) {
+                console.error("Fetch payments failed:", err);
+            } finally {
+                setLoadingPayments(false);
+            }
+        };
+        fetchPayments();
+    }, []);
 
     const addUPI = () => {
         const trimmed = upiInput.trim();
@@ -46,7 +64,45 @@ const PaymentsPage: React.FC = () => {
                 </div>
             </div>
 
-            <main className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-6">
+            <main className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-8">
+                {/* Transaction History */}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="flex items-center justify-between mb-3 pl-1">
+                        <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em]">Transaction History</h2>
+                        <History className="w-3.5 h-3.5 text-zinc-600" />
+                    </div>
+                    <div className="space-y-3">
+                        {loadingPayments ? (
+                            <div className="px-4 py-8 text-center bg-white/5 rounded-2xl border border-white/5 animate-pulse">
+                                <p className="text-zinc-600 text-xs">Loading transactions...</p>
+                            </div>
+                        ) : payments.length === 0 ? (
+                            <div className="px-4 py-8 text-center bg-white/5 rounded-2xl border border-white/5">
+                                <ReceiptText className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
+                                <p className="text-zinc-600 text-xs italic">No transactions found</p>
+                            </div>
+                        ) : (
+                            payments.map((p) => (
+                                <div key={p.id} className="bg-white/5 rounded-2xl border border-white/5 p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center">
+                                            <span className="text-xs font-black text-[#f2546d]">₹</span>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-white tracking-tight">
+                                                {p.order_id ? "Order Purchase" : "Plan Subscription"}
+                                            </p>
+                                            <p className="text-[10px] text-zinc-500 font-medium">
+                                                {new Date(p.created_at).toLocaleDateString()} • {p.status.toUpperCase()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="text-sm font-black text-white">₹ {p.amount}</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </motion.div>
 
                 {/* UPI Section */}
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -60,8 +116,8 @@ const PaymentsPage: React.FC = () => {
                         )}
                         {savedUPI.map((upi, i) => (
                             <div key={upi} className={`flex items-center gap-3 px-4 py-4 ${i < savedUPI.length - 1 ? "border-b border-white/5" : ""}`}>
-                                <div className="w-10 h-10 rounded-xl bg-[#ff4d6d]/20 flex items-center justify-center">
-                                    <Smartphone className="w-5 h-5 text-[#ff4d6d]" />
+                                <div className="w-10 h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                                    <Smartphone className="w-5 h-5 text-[#f2546d]" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-white text-sm font-medium truncate">{upi}</p>

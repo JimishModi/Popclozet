@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Heart, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ShoppingBag } from "lucide-react";
+import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 
@@ -104,11 +105,17 @@ const CollectionsPage = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center">
-              <Heart className="w-4 h-4 text-zinc-400" />
+            <button
+              onClick={() => navigate('/closet?tab=wishlist')}
+              className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center"
+            >
+              <ClosetIcon className="w-5 h-5 text-zinc-400" />
             </button>
-            <button className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4 text-zinc-400" />
+            <button
+              onClick={() => navigate('/cart')}
+              className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center"
+            >
+              <ShoppingBag className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
         </div>

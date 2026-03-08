@@ -20,7 +20,7 @@ const serviceUpdateProfile = async (updates: any) => {
 const createProfile = async (profileInput: any) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not logged in");
-  const { data, error } = await supabase.from('profiles').insert([{ ...profileInput, user_id: user.id }]).select().single();
+  const { data, error } = await supabase.from('profiles').insert([{ ...profileInput, id: user.id, user_id: user.id }]).select().single();
   if (error) throw error;
   return data;
 };
@@ -300,7 +300,6 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const created = await createProfile({
           full_name: updates.full_name || "",
           phone: updates.phone || (user.phone || ""),
-          role: (updates.role as string) || "customer",
         });
 
         setProfile(created as any);

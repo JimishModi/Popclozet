@@ -245,6 +245,7 @@ const SettingsPage: React.FC = () => {
                     <SectionLabel>Support & Legal</SectionLabel>
                     <Card>
                         <Row icon={HelpCircle} label="Help Center" sub="FAQs & contact support" onClick={() => navigate('/help')} />
+                        <Row icon={Zap} label="About PopClozet" sub="Our hygiene process & brand" onClick={() => navigate('/about-us')} />
                         <Row icon={Phone} label="Call Support" sub="+91 98765 43210" onClick={() => window.open('tel:+919876543210')} />
                         <Row icon={Shield} label="Privacy Policy" onClick={() => navigate('/privacy')} />
                         <Row icon={FileText} label="Terms & Conditions" onClick={() => { }} last />

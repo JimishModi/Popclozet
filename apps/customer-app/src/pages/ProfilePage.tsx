@@ -9,6 +9,7 @@ import {
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
+import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import logo from "@/logo/logo.png";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,7 +44,7 @@ const ProfilePage: React.FC = () => {
     {
       label: "In Closet",
       value: ordersLoading ? "…" : String(inClosetCount),
-      icon: Package,
+      icon: ClosetIcon,
       href: "/closet"
     },
   ];
@@ -68,6 +69,7 @@ const ProfilePage: React.FC = () => {
       title: "Support",
       items: [
         { icon: HelpCircle, label: "Help Center", href: "/help" },
+        { icon: Sparkles, label: "About PopClozet", href: "/about-us" },
         { icon: Shield, label: "Privacy Policy", href: "/privacy" },
       ]
     },

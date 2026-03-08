@@ -24,6 +24,7 @@ interface CartContextType {
   addToCart: (productId: string) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateSize: (oldId: string, newSize: string) => void;
   getItemQuantity: (productId: string) => number;
   totalItems: number;
 }
@@ -144,6 +145,37 @@ export const CartProvider = ({
     }
   };
 
+  const updateSize = async (oldId: string, newSize: string) => {
+    const [baseId] = oldId.split('_');
+    const newId = `${baseId}_${newSize}`;
+
+    if (oldId === newId) return;
+
+    try {
+      const quantity = cartItems[oldId] || 1;
+
+      // Remove old item from DB
+      await removeFromCartDB(oldId, userId);
+
+      // Add or update new item in DB
+      const existingQty = cartItems[newId] || 0;
+      await updateCartQuantityDB(newId, existingQty + quantity, userId);
+
+      setCartItems((prev) => {
+        const next = { ...prev };
+        delete next[oldId];
+        next[newId] = (next[newId] || 0) + quantity;
+        setAnnouncement(`Size updated to ${newSize}`);
+        return next;
+      });
+
+      toast.success(`Size updated to ${newSize}`);
+    } catch (error) {
+      console.error("Update size failed:", error);
+      toast.error("Failed to update size");
+    }
+  };
+
   const getItemQuantity = (productId: string) =>
     cartItems[productId] || 0;
 
@@ -159,6 +191,7 @@ export const CartProvider = ({
         addToCart,
         removeFromCart,
         updateQuantity,
+        updateSize,
         getItemQuantity,
         totalItems,
       }}

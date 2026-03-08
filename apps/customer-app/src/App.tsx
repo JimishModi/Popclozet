@@ -46,6 +46,10 @@ const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SignOutPage = lazy(() => import("./pages/SignOutPage"));
+const OrderConfirmedPage = lazy(() => import("./pages/OrderConfirmedPage"));
+const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage"));
+const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage"));
+const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -149,6 +153,7 @@ function App() {
                         <Route path="/privacy" element={<PageTransition><PrivacyPage /></PageTransition>} />
                         <Route path="/settings" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SettingsPage /></Suspense></PageTransition>} />
                         <Route path="/order/:orderId/delivered" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
+                        <Route path="/order-confirmed/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black" style={{ color: 'white' }}>Loading...</div>}><OrderConfirmedPage /></Suspense></PageTransition>} />
 
                         <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />
                         <Route path="/tracking/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><DeliveryTrackingPage /></Suspense></PageTransition>} />
@@ -183,6 +188,9 @@ function App() {
                         <Route path="/about-us" element={<PageTransition><AboutUsProcessPage /></PageTransition>} />
 
                         <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
+                        <Route path="/subscription-plans" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SubscriptionPlansPage /></Suspense></PageTransition>} />
+                        <Route path="/payment-processing" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><PaymentProcessingPage /></Suspense></PageTransition>} />
+                        <Route path="/payment-success" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><PaymentSuccessPage /></Suspense></PageTransition>} />
                         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
                       </Routes>
                     </div>

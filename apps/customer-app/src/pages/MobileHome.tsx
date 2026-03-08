@@ -4,6 +4,9 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Search, Heart } from "lucide-react";
+import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
+import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
@@ -85,6 +88,20 @@ const MobileHome: React.FC = () => {
     const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
     const [loadingCatalogue, setLoadingCatalogue] = useState(true);
     const { user } = useAuth();
+    const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
+    const { totalItems: cartCount } = useCart();
+    const wishlistCount = wishlistItems.length;
+
+    const toggleWishlist = (productId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isInWishlist(productId)) {
+            removeFromWishlist(productId);
+        } else {
+            addToWishlist(productId);
+        }
+    };
+
+    const isWishlisted = (productId: string) => isInWishlist(productId);
 
     // Filter featured slides based on gender
     const filteredSlides = React.useMemo(() => {
@@ -223,19 +240,29 @@ const MobileHome: React.FC = () => {
                         <div className="flex items-center gap-2 mb-1">
                             <button
                                 onClick={() => navigate('/closet?tab=wishlist')}
-                                className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
+                                className="relative w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
-                                <Heart className="w-[19px] h-[19px] text-white/80" />
+                                <ClosetIcon className="w-4 h-4 text-white/80" />
+                                {wishlistCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                    </span>
+                                )}
                             </button>
                             <button
                                 onClick={() => navigate('/cart')}
-                                className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
+                                className="relative w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
-                                <svg className="w-5 h-6 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
                                     <line x1="3" y1="6" x2="21" y2="6" />
                                     <path d="M16 10a4 4 0 01-8 0" />
                                 </svg>
+                                {cartCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                        {cartCount > 9 ? '9+' : cartCount}
+                                    </span>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -342,12 +369,12 @@ const MobileHome: React.FC = () => {
                                         alt={filteredSlides[activeSlide].title}
                                         className="w-full h-full object-cover"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                                    <div className="absolute bottom-4 left-4 right-4">
-                                        <span className="px-3 py-1 rounded-full bg-[#f2546d] text-white text-xs font-bold uppercase tracking-wider">
+                                    <div className="absolute inset-0 bg-black/30 transition-colors" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                                        <span className="px-3 py-1 rounded-full bg-[#f2546d] text-white text-xs font-bold uppercase tracking-wider shadow-sm">
                                             Trending
                                         </span>
-                                        <h3 className="text-base font-bold text-white mt-2">
+                                        <h3 className="text-2xl font-black text-white mt-3 tracking-tight drop-shadow-lg">
                                             {filteredSlides[activeSlide].title}
                                         </h3>
                                     </div>
@@ -442,15 +469,16 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── ABOUT US: Card with Progress Dots ─── */}
                 <section className="px-5 mt-8">
-                    <div className="bg-[#232323] rounded-2xl px-6 py-6">
+                    <div
+                        onClick={() => navigate('/about-us')}
+                        className="bg-[#232323] rounded-2xl px-6 py-6 cursor-pointer active:scale-[0.98] transition-all hover:bg-[#2a2a2a]"
+                    >
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-white tracking-tight">
                                 About Us
                             </h2>
-                            <button onClick={() => navigate('/about-us')} className="p-1">
-                                <ChevronRight className="w-4 h-4 text-zinc-400 hover:text-white transition-colors" />
-                            </button>
+                            <ChevronRight className="w-4 h-4 text-zinc-400" />
                         </div>
 
                         {/* Inner card */}
@@ -612,15 +640,17 @@ const MobileHome: React.FC = () => {
                                 onClick={() => navigate(`/product/${item.id}`)}
                                 className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                             >
-                                {/* Heart icon */}
+                                {/* Wishlist Toggle */}
                                 <button
                                     className="absolute top-4 right-4 z-10"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate('/closet?tab=wishlist');
-                                    }}
+                                    onClick={(e) => toggleWishlist(item.id, e)}
                                 >
-                                    <Heart className="w-[21px] h-[21px] text-white/60 hover:text-[#f2546d] transition-colors" />
+                                    <Heart
+                                        className={cn(
+                                            "w-4 h-4 transition-colors",
+                                            isWishlisted(item.id) ? "text-[#f2546d] fill-[#f2546d]" : "text-white/60"
+                                        )}
+                                    />
                                 </button>
 
                                 {/* Product Image */}

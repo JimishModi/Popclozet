@@ -70,54 +70,17 @@ const PRICING_CONFIG = {
 export function calculateDeliveryPricing(
     distanceKm: number,
     orderAmount: number = 0,
-    orderType: 'delivery' | 'pickup' | 'return' = 'delivery'
+    orderType: 'delivery' | 'pickup' | 'return' = 'delivery',
+    hasFreeDelivery: boolean = false
 ): DeliveryPricing {
-    // Free delivery for high-value orders
-    if (orderAmount >= PRICING_CONFIG.freeThreshold) {
-        return {
-            baseFee: 0,
-            distanceFee: 0,
-            totalFee: 0,
-            isFree: true,
-            freeReason: `Free delivery on orders above ₹${PRICING_CONFIG.freeThreshold}`,
-        };
-    }
-
-    // Calculate base pricing
-    let baseFee = PRICING_CONFIG.baseFee;
-    let distanceFee = 0;
-
-    // Distance fee for distances beyond free km
-    if (distanceKm > PRICING_CONFIG.freeKm) {
-        distanceFee = Math.ceil((distanceKm - PRICING_CONFIG.freeKm) * PRICING_CONFIG.perKmRate);
-    }
-
-    let totalFee = baseFee + distanceFee;
-
-    // Apply pickup/return discount
-    if (orderType !== 'delivery') {
-        totalFee = Math.round(totalFee * PRICING_CONFIG.pickupDiscount);
-    }
-
-    // Apply max fee cap
-    totalFee = Math.min(totalFee, PRICING_CONFIG.maxFee);
-
-    // Free return pickup
-    if (orderType === 'return') {
-        return {
-            baseFee: 0,
-            distanceFee: 0,
-            totalFee: 0,
-            isFree: true,
-            freeReason: 'Free return pickup',
-        };
-    }
+    // Fixed delivery fee of 40 rupees for all
+    const fixedFee = hasFreeDelivery ? 0 : 40;
 
     return {
-        baseFee,
-        distanceFee,
-        totalFee,
-        isFree: false,
+        baseFee: fixedFee,
+        distanceFee: 0,
+        totalFee: fixedFee,
+        isFree: hasFreeDelivery,
     };
 }
 
