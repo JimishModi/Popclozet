@@ -333,18 +333,21 @@ export const reverseGeocode = async (
 /**
  * Get current GPS position as a Promise
  */
-export const getCurrentPosition = (): Promise<GeolocationPosition> => {
+export const getCurrentPosition = (options?: PositionOptions): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
             reject(new Error('Geolocation not supported'));
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
+        const defaultOptions: PositionOptions = {
             enableHighAccuracy: true,
             timeout: 10000,
             maximumAge: 60000,
-        });
+            ...options
+        };
+
+        navigator.geolocation.getCurrentPosition(resolve, reject, defaultOptions);
     });
 };
 

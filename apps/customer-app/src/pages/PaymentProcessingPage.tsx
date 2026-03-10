@@ -13,6 +13,8 @@ export default function PaymentProcessingPage() {
     const orderId = searchParams.get("orderId");
     const amount = searchParams.get("amount");
     const method = searchParams.get("method") || "upi";
+    const upiApp = searchParams.get("upiApp");
+    const upiId = searchParams.get("upiId");
 
     useEffect(() => {
         // Simulate payment processing time
@@ -58,14 +60,20 @@ export default function PaymentProcessingPage() {
                 >
                     <h1 className="text-3xl font-black tracking-tighter mb-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         {isUpi ? (
-                            <>Processing <span className="text-[#f2546d]">UPI Payment</span></>
+                            upiApp ? (
+                                <>Opening <span className="text-[#f2546d]">{upiApp}</span></>
+                            ) : (
+                                <>Processing <span className="text-[#f2546d]">UPI Payment</span></>
+                            )
                         ) : (
                             <>Securing your <span className="text-[#f2546d]">Fashion Future</span></>
                         )}
                     </h1>
                     <p className="text-zinc-500 font-medium mb-12 leading-relaxed">
                         {isUpi
-                            ? "Verifying your UPI transaction..."
+                            ? upiApp
+                                ? `Please complete the payment in your ${upiApp} app...`
+                                : "Verifying your UPI transaction..."
                             : "Verifying transaction details..."
                         }
                     </p>

@@ -6,7 +6,13 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 // Set Mapbox access token
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
+if (!MAPBOX_TOKEN) {
+    console.warn('Mapbox access token is missing! Check your .env file.');
+}
 mapboxgl.accessToken = MAPBOX_TOKEN;
+
+// Try to avoid some CSP issues with workers by using the bundled worker if possible
+// or explicitly allowing the blob. We already updated index.html for this.
 
 // Types for map service
 export interface MapConfig {
@@ -28,7 +34,7 @@ const STYLES = {
     dark: 'mapbox://styles/mapbox/dark-v11',
 };
 
-// Create a map instance
+// Create a map instance - returns immediately with instance, but load can be awaited
 export async function createMap(
     container: HTMLElement | string,
     config: MapConfig
@@ -42,16 +48,15 @@ export async function createMap(
         center: [lng, lat], // Mapbox uses [lng, lat]
         zoom: config.zoom,
         attributionControl: true,
+        // Optimization: Performance hints
+        preserveDrawingBuffer: false,
+        trackResize: true,
     });
 
     // Add navigation controls
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-    // Wait for map to load
-    await new Promise<void>((resolve) => {
-        map.on('load', () => resolve());
-    });
-
+    // Return immediately so UI can show the container/loading state
     return map;
 }
 

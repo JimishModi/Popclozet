@@ -69,13 +69,14 @@ export const DeliveryNavigationPage: React.FC = () => {
     fetchOrder();
   }, [id, navigate, showToast]);
 
-  /* ---------- USER-ACTION GPS ---------- */
+  /* ---------- USER-ACTION GPS (Fast-First) ---------- */
   const startNavigation = () => {
     if (!navigator.geolocation) {
       showToast('GPS not supported', 'error');
       return;
     }
 
+    // Step 1: FAST fix
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords: [number, number] = [
@@ -83,9 +84,18 @@ export const DeliveryNavigationPage: React.FC = () => {
           pos.coords.latitude,
         ];
         setRiderLocation(coords);
+
+        // Step 2: ACCURATE fix in background
+        navigator.geolocation.getCurrentPosition(
+          (highPos) => {
+            setRiderLocation([highPos.coords.longitude, highPos.coords.latitude]);
+          },
+          () => { }, // Silent fail for high accuracy upgrade
+          { enableHighAccuracy: true, timeout: 15000 }
+        );
       },
       () => showToast('Failed to get location', 'error'),
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
     );
   };
 

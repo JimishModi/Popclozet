@@ -69,14 +69,31 @@ export async function getAllHubs(): Promise<RentalHub[]> {
         return getMockHubs();
     }
 
-    const { data, error } = await supabase
+    // Try primary table first
+    let { data, error } = await supabase
         .from('rental_hubs')
         .select('*')
         .eq('is_active', true)
         .order('name');
 
+    // If table doesn't exist, try fallback 'rentals'
+    if (error && error.code === 'PGRST205') {
+        const fallback = await supabase
+            .from('rentals' as any)
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+
+        if (!fallback.error) {
+            data = fallback.data;
+            error = null;
+        }
+    }
+
     if (error) {
-        console.error('Failed to fetch hubs:', error);
+        if (error.code !== 'PGRST205') {
+            console.error('Failed to fetch hubs:', error);
+        }
         return getMockHubs();
     }
 
@@ -150,8 +167,11 @@ export async function getHubById(hubId: string): Promise<RentalHub | null> {
         .single();
 
     if (error) {
-        console.error('Failed to fetch hub:', error);
-        return null;
+        if (error.code !== 'PGRST205') {
+            console.error('Failed to fetch hub:', error);
+        }
+        const mockHubs = getMockHubs();
+        return mockHubs.find((h) => h.id === hubId) || null;
     }
 
     return data;

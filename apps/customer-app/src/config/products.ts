@@ -13,6 +13,10 @@ export interface Product {
     gender?: string;
     eventCategory?: string;
     sizes?: string[];
+    // Discount fields
+    discount_type?: 'percentage' | 'fixed_amount';
+    discount_value?: number;
+    discounted_price?: number;
 }
 
 export const PRODUCTS: Product[] = [

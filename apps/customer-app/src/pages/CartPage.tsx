@@ -95,17 +95,30 @@ const CartPage = () => {
       }
 
       const [productsRes, inventoryRes] = await Promise.all([
-        supabase.from('products').select('*').in('id', uniqueIds),
+        supabase.from('products').select('*, product_discounts(*)').in('id', uniqueIds),
         supabase.from('inventory').select('*').in('product_id', uniqueIds)
       ]);
 
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
+          const originalPriceValue = parseFloat(p.rental_price ?? p.price ?? '0');
+          const disc = p.product_discounts?.[0];
+
+          let finalPrice = originalPriceValue;
+          if (disc) {
+            if (disc.discount_type === 'percentage') {
+              finalPrice = originalPriceValue - (originalPriceValue * (disc.discount_value / 100));
+            } else if (disc.discount_type === 'fixed_amount') {
+              finalPrice = Math.max(0, originalPriceValue - disc.discount_value);
+            }
+          }
+          finalPrice = Math.round(finalPrice);
+
           productMap[p.id] = {
             ...p,
-            price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: parseFloat(p.price ?? '0'),
+            price: finalPrice,
+            originalPrice: originalPriceValue,
             imageUrl: p.images?.[0] || '',
           };
         });

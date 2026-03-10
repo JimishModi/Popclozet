@@ -84,7 +84,23 @@ export const SmartProductCard = ({ product }: SmartProductCardProps) => {
           <div className="text-sm text-muted-foreground flex justify-between items-center">
             <div className="flex-1">
               {/* you can show price here or other meta */}
-              <div className="text-sm font-semibold">{formatPrice(product.price)}</div>
+              <div className="flex flex-col">
+                {product.discounted_price && product.discounted_price < product.price ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-primary">{formatPrice(product.discounted_price)}</span>
+                      <span className="text-[10px] text-muted-foreground line-through opacity-70">
+                        {formatPrice(product.price)}
+                      </span>
+                    </div>
+                    {product.discount_type === 'percentage' && (
+                      <span className="text-[10px] font-bold text-primary italic">Save {product.discount_value}%</span>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm font-semibold">{formatPrice(product.price)}</div>
+                )}
+              </div>
             </div>
 
             <div className="ml-4">

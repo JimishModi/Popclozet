@@ -8,32 +8,32 @@ import { BottomNavBar } from "@/components/layout/BottomNavBar";
 
 const SECTIONS = [
     {
-        title: "Information We Collect",
-        content: "We collect information you provide directly to us, such as your name, phone number, email address, and delivery address when you create an account or place a rental order. We also collect usage data and device information to improve your experience."
+        title: "1. What Information Do We Collect?",
+        content: "We collect personal information that you voluntarily provide to us when you register, express interest in our products, or contact us. This includes names, phone numbers, email addresses, mailing addresses, usernames, passwords, and billing information. We also automatically collect certain technical information (IP addresses, browser characteristics, location) when you visit our Services."
     },
     {
-        title: "How We Use Your Information",
-        content: "We use your information to: process and fulfill rental orders, send order updates and delivery notifications, improve our services and personalize your experience, communicate offers and promotions (only with your consent), and comply with legal obligations."
+        title: "2. How Do We Process Your Information?",
+        content: "We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with the law. We may also process your information for other purposes with your consent."
     },
     {
-        title: "Information Sharing",
-        content: "We do not sell your personal information. We share your details only with delivery partners to fulfill orders, payment processors for secure transactions, and service providers who help us operate our platform, all under strict confidentiality agreements."
+        title: "3. When And With Whom Do We Share Your Information?",
+        content: "We may share information in specific situations and with specific third parties, such as during business transfers, for legal compliance, or with service providers who help us operate our platform."
     },
     {
-        title: "Data Security",
-        content: "We implement industry-standard security measures including encryption in transit (TLS), secure data storage, and access controls. Your payment information is handled by certified third-party payment processors and is never stored on our servers."
+        title: "4. Cookies & Tracking Technologies",
+        content: "We use cookies and similar tracking technologies to access or store information. You can control cookie settings through your device's browser settings."
     },
     {
-        title: "Your Rights",
-        content: "You have the right to access, correct, or delete your personal data. You may also request data portability or withdraw consent for marketing communications at any time through the app's notification settings or by contacting us."
+        title: "5. How Do We Keep Your Information Safe?",
+        content: "We have implemented technical and organizational security measures designed to protect your data. However, no electronic transmission over the internet can be guaranteed to be 100% secure, so we cannot promise absolute security."
     },
     {
-        title: "Cookies & Tracking",
-        content: "We use cookies and similar technologies to remember your preferences and understand how you use our app. You can control cookie settings through your device's browser settings."
+        title: "6. What Are Your Privacy Rights?",
+        content: "Depending on your location, you may have certain rights regarding your personal information, such as the right to access, correct, or delete your data. You can exercise these rights by contacting us."
     },
     {
-        title: "Contact Us",
-        content: "For any privacy-related questions or requests, contact our privacy team at privacy@popclozet.com or write to: PopClozet Pvt. Ltd., Mumbai, Maharashtra, India."
+        title: "7. Contact Us",
+        content: "If you have questions or concerns about this notice, you may email us at businessrep@popclozet.in or contact us by post at: Popclozet Fashion Pvt Ltd, Mumbai, Maharashtra, India."
     },
 ];
 
@@ -64,7 +64,7 @@ const PrivacyPage: React.FC = () => {
                     </div>
                     <div>
                         <p className="text-white font-bold text-sm">Your Privacy Matters</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">Last updated: March 2026</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Last updated: March 08, 2026</p>
                     </div>
                 </motion.div>
 

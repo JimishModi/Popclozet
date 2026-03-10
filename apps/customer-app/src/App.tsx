@@ -77,6 +77,8 @@ import PaymentsPage from "./pages/PaymentsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import HelpPage from "./pages/HelpPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import CookiePolicyPage from "./pages/CookiePolicyPage";
+import TermsPage from "./pages/TermsPage";
 import AboutUsProcessPage from "./pages/AboutUsProcessPage";
 
 const queryClient = new QueryClient();
@@ -151,6 +153,8 @@ function App() {
                         <Route path="/notifications" element={<PageTransition><NotificationsPage /></PageTransition>} />
                         <Route path="/help" element={<PageTransition><HelpPage /></PageTransition>} />
                         <Route path="/privacy" element={<PageTransition><PrivacyPage /></PageTransition>} />
+                        <Route path="/cookies" element={<PageTransition><CookiePolicyPage /></PageTransition>} />
+                        <Route path="/terms" element={<PageTransition><TermsPage /></PageTransition>} />
                         <Route path="/settings" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SettingsPage /></Suspense></PageTransition>} />
                         <Route path="/order/:orderId/delivered" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
                         <Route path="/order-confirmed/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black" style={{ color: 'white' }}>Loading...</div>}><OrderConfirmedPage /></Suspense></PageTransition>} />

@@ -68,9 +68,20 @@ export const SpotlightProductCard: React.FC<SpotlightProductCardProps> = ({ prod
 
           {/* Show only struck MRP   removed green current price */}
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-sm text-muted-foreground line-through">
-              {formatPrice(originalPrice)}
-            </span>
+            {product.discounted_price && product.discounted_price < product.price ? (
+              <>
+                <span className="text-lg font-black text-white">
+                  {formatPrice(product.discounted_price)}
+                </span>
+                <span className="text-sm text-white/50 line-through">
+                  {formatPrice(product.price)}
+                </span>
+              </>
+            ) : (
+              <span className="text-lg font-black text-white">
+                {formatPrice(product.price)}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground">/day</span>
           </div>
 

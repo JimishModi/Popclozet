@@ -58,6 +58,7 @@ export default function CheckoutPage() {
 
   // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>(null);
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const [upiId, setUpiId] = useState("");
 
@@ -109,6 +110,12 @@ export default function CheckoutPage() {
       }
     };
     checkSub();
+
+    // Pre-fill default UPI from settings
+    const savedDefaultUpi = localStorage.getItem("default_upi");
+    if (savedDefaultUpi) {
+      setUpiId(savedDefaultUpi);
+    }
   }, []);
 
   // Fetch cart products dynamically
@@ -203,8 +210,8 @@ export default function CheckoutPage() {
       return false;
     }
 
-    if (paymentMethod === 'upi' && !upiId.trim()) {
-      toast.error("Please enter your UPI ID");
+    if (paymentMethod === 'upi' && !selectedUpiApp && !upiId.trim()) {
+      toast.error("Please select a UPI app or enter your UPI ID");
       return false;
     }
 
@@ -355,7 +362,8 @@ export default function CheckoutPage() {
         navigate(`/order-confirmed/${order.id}`);
       } else {
         // UPI: go through payment processing flow
-        navigate(`/payment-processing?type=order&orderId=${order.id}&amount=${total}&method=upi`);
+        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
+        navigate(`/payment-processing?type=order&orderId=${order.id}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -412,8 +420,14 @@ export default function CheckoutPage() {
                     <Smartphone className="w-5 h-5 text-[#f2546d]" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>UPI Payment</p>
-                    {upiId && <p className="text-xs text-zinc-500 mt-0.5">{upiId}</p>}
+                    <p className="text-sm font-bold text-white" style={dmSans}>
+                      {selectedUpiApp ? `Pay via ${selectedUpiApp}` : "UPI Payment"}
+                    </p>
+                    {(selectedUpiApp || upiId) && (
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {selectedUpiApp || upiId}
+                      </p>
+                    )}
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -597,16 +611,57 @@ export default function CheckoutPage() {
 
                 {/* UPI ID Input (shown when UPI is selected) */}
                 {paymentMethod === 'upi' && (
-                  <div className="px-2 py-3">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 block">UPI ID</label>
-                    <input
-                      type="text"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      placeholder="yourname@upi"
-                      className="w-full bg-[#232323] border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors placeholder:text-zinc-600"
-                      style={dmSans}
-                    />
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-4 gap-3 px-1">
+                      {[
+                        { id: 'PhonePe', icon: '/images/upi-icons/phonepe.png' },
+                        { id: 'Google Pay', icon: '/images/upi-icons/gpay.png' },
+                        { id: 'Paytm', icon: '/images/upi-icons/paytm.png' },
+                        { id: 'Amazon Pay', icon: '/images/upi-icons/amazonpay.png' }
+                      ].map((app) => (
+                        <button
+                          key={app.id}
+                          onClick={() => {
+                            setSelectedUpiApp(app.id);
+                            setUpiId(""); // Clear custom UPI ID if app is selected
+                          }}
+                          className={cn(
+                            "flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all",
+                            selectedUpiApp === app.id
+                              ? "bg-white/5 border-[#f2546d]"
+                              : "bg-[#141414] border-white/5"
+                          )}
+                        >
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center">
+                            <img src={app.icon} alt={app.id} className="w-full h-full object-contain" />
+                          </div>
+                          <span className="text-[10px] font-bold text-zinc-500 text-center leading-tight">{app.id}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-white/5"></span>
+                      </div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
+                        <span className="bg-[#191919] px-4 text-zinc-600">OR Enter UPI ID</span>
+                      </div>
+                    </div>
+
+                    <div className="px-1">
+                      <input
+                        type="text"
+                        value={upiId}
+                        onChange={(e) => {
+                          setUpiId(e.target.value);
+                          setSelectedUpiApp(null); // Clear app selection if custom ID is typed
+                        }}
+                        placeholder="yourname@upi"
+                        className="w-full bg-[#232323] border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors placeholder:text-zinc-600"
+                        style={dmSans}
+                      />
+                    </div>
                   </div>
                 )}
 

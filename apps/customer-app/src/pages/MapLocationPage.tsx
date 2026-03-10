@@ -64,22 +64,20 @@ export default function MapLocationPage() {
         isActive: isSimulationActive && !!selectedAddress && !!simulationOrigin
     });
 
-    // Set initial address from current location ONLY if none selected yet
+    // Initially sync selected address from current location, but don't yank it back if user manually selected something
     useEffect(() => {
         if (address && !selectedAddress) {
             setSelectedAddress(address);
         }
-    }, [address]); // Removed selectedAddress from dependency to prevent loop/overwrite
+    }, [address, selectedAddress]);
 
     const handleAddressSelect = (addr: ValidatedAddress) => {
         // Immediate update of local state
         setSelectedAddress(addr);
 
         // Update map location state - this ensures the marker appears immediately
+        // and persists to localStorage
         setLocationWithAddress(addr.lat, addr.lng, addr);
-
-        // Also update location directly to ensure map centers and marker shows
-        setLocation(addr.lat, addr.lng);
 
         // Force view mode to search to keep context
         setViewMode('search');
@@ -140,7 +138,7 @@ export default function MapLocationPage() {
     const canConfirm = selectedAddress && (!hubs.length || selectedHubId);
 
     return (
-        <MobileShell className="bg-black text-white">
+        <MobileShell className="bg-black text-white" hideBottomNav={true}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 sticky top-0 z-50 bg-black/90 backdrop-blur-md">
                 <div className="flex items-center gap-3">
@@ -165,7 +163,7 @@ export default function MapLocationPage() {
             </div>
 
             {/* Map */}
-            <div className="relative h-80 mx-4 rounded-2xl overflow-hidden border border-zinc-800">
+            <div className="relative h-[450px] mx-4 rounded-2xl overflow-hidden border border-zinc-800">
                 <InteractiveMap
                     center={selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : (location || { lat: 19.076, lng: 72.8777 })}
                     zoom={selectedAddress || location ? 14 : 11}
@@ -301,18 +299,20 @@ export default function MapLocationPage() {
             )}
 
             {/* Confirm button */}
-            <div className="fixed bottom-6 left-4 right-4 z-40">
-                <button
-                    onClick={handleConfirm}
-                    disabled={!canConfirm}
-                    className={`w-full py-4 rounded-full font-bold text-base flex items-center justify-center gap-2 transition-all ${canConfirm
-                        ? 'bg-[#ff4d6d] text-white'
-                        : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                        }`}
-                >
-                    <Check className="w-5 h-5" />
-                    Confirm Location
-                </button>
+            <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-black/80 backdrop-blur-sm border-t border-zinc-800">
+                <div className="max-w-[430px] mx-auto w-full">
+                    <button
+                        onClick={handleConfirm}
+                        disabled={!canConfirm}
+                        className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-xl ${canConfirm
+                            ? 'bg-[#ff4d6d] text-white shadow-[#ff4d6d]/20'
+                            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                            }`}
+                    >
+                        <Check className="w-5 h-5" />
+                        Confirm Location
+                    </button>
+                </div>
             </div>
 
             {/* Hub details sheet */}

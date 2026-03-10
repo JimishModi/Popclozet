@@ -45,7 +45,7 @@ export function useMapLocation() {
         }
     }, []);
 
-    // Request current location
+    // Request current location with Fast-First strategy
     const requestLocation = useCallback(async () => {
         if (!navigator.geolocation) {
             setState((prev) => ({
@@ -58,38 +58,65 @@ export function useMapLocation() {
 
         setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
+        // Phase 1: FAST (Low Accuracy) - Instant via Wifi/Cell
         navigator.geolocation.getCurrentPosition(
             async (position) => {
                 const { latitude, longitude } = position.coords;
                 const location = { lat: latitude, lng: longitude };
 
-                // Store in localStorage
-                localStorage.setItem(
-                    'user_location',
-                    JSON.stringify({ ...location, allowed: true })
-                );
+                // Set initial fast location immediately
+                setState((prev) => ({
+                    ...prev,
+                    location,
+                    permissionState: 'granted'
+                }));
 
-                // Try to get address
+                // Try to get address for first fix
                 try {
                     const address = await reverseGeocode(latitude, longitude);
-                    setState({
-                        location,
-                        address,
-                        isLoading: false,
-                        error: null,
-                        permissionState: 'granted',
-                    });
-                } catch {
-                    setState({
-                        location,
-                        address: null,
-                        isLoading: false,
-                        error: null,
-                        permissionState: 'granted',
-                    });
-                }
+                    setState((prev) => ({ ...prev, address }));
+                } catch (e) { }
+
+                // Phase 2: ACCURATE (High Accuracy) - Background GPS fix
+                navigator.geolocation.getCurrentPosition(
+                    async (highPos) => {
+                        const hLat = highPos.coords.latitude;
+                        const hLng = highPos.coords.longitude;
+                        const hLocation = { lat: hLat, lng: hLng };
+
+                        // Store in localStorage (the accurate one)
+                        localStorage.setItem(
+                            'user_location',
+                            JSON.stringify({ ...hLocation, allowed: true })
+                        );
+
+                        try {
+                            const hAddress = await reverseGeocode(hLat, hLng);
+                            setState({
+                                location: hLocation,
+                                address: hAddress,
+                                isLoading: false,
+                                error: null,
+                                permissionState: 'granted',
+                            });
+                        } catch {
+                            setState((prev) => ({
+                                ...prev,
+                                location: hLocation,
+                                isLoading: false,
+                                permissionState: 'granted',
+                            }));
+                        }
+                    },
+                    (err) => {
+                        // High accuracy failed, but we have the fast one, so just stop loading
+                        setState((prev) => ({ ...prev, isLoading: false }));
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
             },
             (error) => {
+                // Initial fast request failed
                 let errorMessage: string;
                 switch (error.code) {
                     case error.PERMISSION_DENIED:
@@ -113,9 +140,9 @@ export function useMapLocation() {
                 }));
             },
             {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 300000, // Cache for 5 minutes
+                enableHighAccuracy: false, // FAST
+                timeout: 5000,
+                maximumAge: 300000, // Reuse last 5 min cache if available
             }
         );
     }, []);
@@ -186,20 +213,28 @@ export function useMapLocation() {
         });
     }, [state.permissionState]);
 
-    // Load saved location on mount
+    // Load saved location on mount or auto-request if granted
     useEffect(() => {
         const saved = localStorage.getItem('user_location');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
                 if (parsed.lat && parsed.lng) {
+                    // Set saved immediately
                     setLocation(parsed.lat, parsed.lng);
                 }
-            } catch {
-                // Invalid saved data
-            }
+            } catch { }
         }
-    }, [setLocation]);
+
+        // If we already have permission, auto-request for fresh update
+        if (navigator.permissions) {
+            navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+                if (result.state === 'granted') {
+                    requestLocation();
+                }
+            });
+        }
+    }, [setLocation, requestLocation]);
 
     return {
         ...state,

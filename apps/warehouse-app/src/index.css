@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========= BASE ========= */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-black text-zinc-100 font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #2A2A35;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3A3A48;
+  }
+
+  /* Safe area inset for iOS */
+  :root {
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+  }
+}
+
+/* ========= COMPONENTS ========= */
+@layer components {
+  .input-field {
+    @apply w-full px-3 py-2 rounded-xl text-white placeholder-zinc-600 bg-surface border border-surface-border focus:outline-none focus:border-warehouse-500/50 focus:ring-1 focus:ring-warehouse-500/20 transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-warehouse-500 to-warehouse-600 text-white hover:opacity-90 active:scale-[0.98] transition-all duration-200;
+  }
+
+  .btn-success {
+    @apply px-4 py-2 rounded-lg font-semibold text-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25 active:scale-[0.98] transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 rounded-lg font-semibold text-sm bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 active:scale-[0.98] transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold;
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Bottom safe area padding */
+  .pb-safe {
+    padding-bottom: max(0.5rem, var(--sab, 0.5rem));
+  }
+}

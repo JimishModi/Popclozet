@@ -82,6 +82,8 @@ export function InteractiveMap({
                     });
                 }
 
+                // If we already have a style loaded or it's loading, we can try to mark
+                // Mapbox allows adding markers to map instance before style is fully loaded
                 setIsLoading(false);
             } catch (err) {
                 console.error('Failed to initialize map:', err);
@@ -108,18 +110,19 @@ export function InteractiveMap({
 
     // Update center when it changes - use flyTo for smooth animation
     useEffect(() => {
-        if (mapRef.current && center) {
+        if (mapRef.current && center && !isLoading) {
             mapRef.current.flyTo({
                 center: [center.lng, center.lat],
                 zoom,
-                duration: 1500,
+                duration: 1000,
+                essential: true, // This animation is considered essential and will not be interrupted
             });
         }
-    }, [center.lat, center.lng, zoom]);
+    }, [center.lat, center.lng, zoom, isLoading]);
 
     // Add/update user location marker (pink pin)
     useEffect(() => {
-        if (!mapRef.current) return;
+        if (!mapRef.current || isLoading) return;
 
         if (!userLocation) {
             const existingMarker = markersRef.current.get('user');
@@ -164,7 +167,7 @@ export function InteractiveMap({
                 });
             }
         }
-    }, [userLocation?.lat, userLocation?.lng, onMarkerDrag]);
+    }, [userLocation?.lat, userLocation?.lng, onMarkerDrag, isLoading]);
 
     // Add hub markers
     useEffect(() => {
@@ -262,7 +265,7 @@ export function InteractiveMap({
             {/* Map container */}
             <div
                 ref={containerRef}
-                className="w-full h-full rounded-2xl overflow-hidden"
+                className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden"
                 style={{ backgroundColor: darkMode ? '#1f1f1f' : '#f0f0f0' }}
             />
 

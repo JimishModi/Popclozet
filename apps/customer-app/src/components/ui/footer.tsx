@@ -95,6 +95,7 @@ export default function Footer() {
           <div className="flex items-center gap-4">
             <a href="/terms" className="text-sm text-muted-foreground hover:text-primary">Terms</a>
             <a href="/privacy" className="text-sm text-muted-foreground hover:text-primary">Privacy</a>
+            <a href="/cookies" className="text-sm text-muted-foreground hover:text-primary">Cookies</a>
             <span className="text-sm text-muted-foreground">•</span>
             <span className="text-sm text-muted-foreground">Built with ♥ in India</span>
           </div>

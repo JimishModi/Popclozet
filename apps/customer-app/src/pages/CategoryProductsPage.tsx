@@ -12,11 +12,14 @@ import type { Product } from "@/services/productService";
 import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 
+import { usePersistentGender } from "@/hooks/usePersistentGender";
+import { useCart } from "@/context/CartContext";
 
 type FilterTab = "gender" | "size" | "price" | "brand";
 
 const CategoryProductsPage: React.FC = () => {
     const navigate = useNavigate();
+    const { totalItems } = useCart();
     const [searchParams] = useSearchParams();
     const { gender: genderFromPath } = useParams();
 
@@ -358,9 +361,14 @@ const CategoryProductsPage: React.FC = () => {
                         </button>
                         <button
                             onClick={() => navigate('/cart')}
-                            className="p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                            className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                         >
                             <ShoppingBag className="w-4 h-4 text-zinc-400" />
+                            {totalItems > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                    {totalItems > 9 ? '9+' : totalItems}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={openFilters}

@@ -71,8 +71,8 @@ interface InventoryRow {
 const MobileProductDetailPage: React.FC = () => {
     const { id: productId } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { addToCart } = useCart();
-    const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+    const { addToCart, cartItems, totalItems } = useCart();
+    const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const { user } = useAuth();
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
@@ -105,11 +105,11 @@ const MobileProductDetailPage: React.FC = () => {
             }
 
             try {
-                // Fetch product, inventory, discounts, rating, and recent reviews in parallel
-                const [productRes, inventoryRes, discountRes, ratingRes, reviewsRes] = await Promise.all([
+                // Fetch product, inventory, rating, and recent reviews in parallel
+                const [productRes, inventoryRes, ratingRes, reviewsRes] = await Promise.all([
                     supabase
                         .from('products')
-                        .select('*')
+                        .select('*, product_discounts(*)')
                         .eq('id', productId)
                         .single(),
                     supabase
@@ -118,12 +118,6 @@ const MobileProductDetailPage: React.FC = () => {
                         .eq('product_id', productId)
                         .gt('total_stock', 0)
                         .order('size'),
-                    supabase
-                        .from('product_discounts')
-                        .select('discount_type, discount_value')
-                        .eq('product_id', productId)
-                        .eq('is_active', true)
-                        .maybeSingle(),
                     supabase
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
@@ -138,13 +132,30 @@ const MobileProductDetailPage: React.FC = () => {
                 if (productRes.error) throw productRes.error;
 
                 if (productRes.data) {
+                    const dbProduct = productRes.data;
+                    const originalPriceValue = parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0');
+                    const disc = dbProduct.product_discounts?.[0];
+
+                    let finalPrice = originalPriceValue;
+                    if (disc) {
+                        if (disc.discount_type === 'percentage') {
+                            finalPrice = originalPriceValue - (originalPriceValue * (disc.discount_value / 100));
+                        } else if (disc.discount_type === 'fixed_amount') {
+                            finalPrice = Math.max(0, originalPriceValue - disc.discount_value);
+                        }
+                    }
+                    finalPrice = Math.round(finalPrice);
+
                     setProduct({
-                        ...productRes.data,
-                        price: parseFloat(productRes.data.rental_price ?? productRes.data.price ?? '0'),
-                        rentalPrice: parseFloat(productRes.data.rental_price ?? productRes.data.price ?? '0'),
-                        imageUrl: productRes.data.images?.[0] || '',
+                        ...dbProduct,
+                        price: originalPriceValue,
+                        rentalPrice: finalPrice,
+                        discount_type: disc?.discount_type,
+                        discount_value: disc?.discount_value,
+                        discounted_price: finalPrice,
+                        imageUrl: dbProduct.images?.[0] || '',
                         sizes: [],  // sizes now come from inventory
-                        gender: productRes.data.gender === 'men' ? 'mens' : (productRes.data.gender === 'women' ? 'womens' : productRes.data.gender)
+                        gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)
                     });
                 }
 
@@ -153,13 +164,6 @@ const MobileProductDetailPage: React.FC = () => {
                     setInventory(rows);
                     const firstAvailable = rows.find(r => r.available_stock > 0);
                     if (firstAvailable) setSelectedSize(firstAvailable.size);
-                }
-
-                if (!discountRes.error && discountRes.data) {
-                    setDiscount({
-                        type: discountRes.data.discount_type,
-                        value: Number(discountRes.data.discount_value)
-                    });
                 }
 
                 if (!ratingRes.error && ratingRes.data && ratingRes.data.length > 0) {
@@ -185,21 +189,22 @@ const MobileProductDetailPage: React.FC = () => {
     }, [productId]);
 
     // Calculate final prices based on discount
-    const originalPrice = product?.deposit_amount ? parseFloat(product.deposit_amount) : (product?.price || 4000);
-    let rentalPrice = product?.rentalPrice || product?.price || 699;
+    // 1. If we have a promotional discount: Current Rental vs Original Rental
+    // 2. Otherwise: Current Rental vs MRP (Market Value)
+    const baseRental = product?.price || 699;
+    const currentRental = product?.discounted_price || baseRental;
+    const mrp = product?.mrp || (baseRental * 5); // Fallback to 5x if no mrp
 
-    if (discount) {
-        if (discount.type === 'percentage') {
-            rentalPrice = rentalPrice - (rentalPrice * (discount.value / 100));
-        } else if (discount.type === 'fixed_amount') {
-            rentalPrice = Math.max(0, rentalPrice - discount.value);
-        }
-    }
-    rentalPrice = Math.round(rentalPrice);
+    const hasPromoDiscount = currentRental < baseRental;
+
+    const displayOriginalPrice = hasPromoDiscount ? baseRental : mrp;
+    const displayCurrentPrice = currentRental;
 
     const savingsPercent = Math.round(
-        ((originalPrice - rentalPrice) / originalPrice) * 100
+        ((displayOriginalPrice - displayCurrentPrice) / displayOriginalPrice) * 100
     );
+
+    const showSavings = savingsPercent > 0;
 
     const toggleWishlist = () => {
         if (!product) return;
@@ -403,10 +408,15 @@ const MobileProductDetailPage: React.FC = () => {
                         />
                     </button>
                     <button
-                        onClick={() => navigate("/cart")}
-                        className="p-2 rounded-full bg-[#232323]"
+                        onClick={() => navigate('/cart')}
+                        className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center relative"
                     >
-                        <ShoppingBag className="w-4 h-4 text-zinc-400" />
+                        <ShoppingBag className="w-5 h-5 text-white" />
+                        {totalItems > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#ff4d6d] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[#050505] px-1">
+                                {totalItems > 9 ? '9+' : totalItems}
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>
@@ -508,23 +518,27 @@ const MobileProductDetailPage: React.FC = () => {
                             className="text-2xl font-semibold text-white tracking-[-0.72px]"
                             style={dmSans}
                         >
-                            ₹ {rentalPrice}
+                            ₹ {displayCurrentPrice}
                         </span>
-                        <span className="relative">
-                            <span
-                                className="text-2xl font-semibold text-[#5f606a] tracking-[-0.72px]"
-                                style={dmSans}
-                            >
-                                ₹ {originalPrice}
-                            </span>
-                            <span className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#5f606a]" />
-                        </span>
-                        <span
-                            className="text-lg font-semibold text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
-                            style={dmSans}
-                        >
-                            Save {savingsPercent}%
-                        </span>
+                        {showSavings && (
+                            <>
+                                <span className="relative">
+                                    <span
+                                        className="text-2xl font-semibold text-[#5f606a] tracking-[-0.72px]"
+                                        style={dmSans}
+                                    >
+                                        ₹ {displayOriginalPrice}
+                                    </span>
+                                    <span className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#5f606a]" />
+                                </span>
+                                <span
+                                    className="text-lg font-semibold text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
+                                    style={dmSans}
+                                >
+                                    Save {savingsPercent}%
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     {/* ─── SELECT SIZE ─── */}

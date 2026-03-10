@@ -28,6 +28,11 @@ export interface Product {
     isAvailable?: boolean;
     createdAt?: string;
     updatedAt?: string;
+    // Discount fields
+    discount_type?: 'percentage' | 'fixed_amount';
+    discount_value?: number;
+    discounted_price?: number;
+    mrp?: number;
     // Hygiene-related fields
     fabricType?: string;
     fabricHint?: string;
@@ -130,10 +135,10 @@ class ProductService {
         try {
             const db = await this.initDB();
 
-            // Fetch all products from Supabase (with type assertion to avoid TS errors)
+            // Fetch all products from Supabase with discounts
             const { data: products, error } = await (supabase as any)
                 .from('products')
-                .select('*')
+                .select('*, product_discounts(*)')
                 .eq('is_available', true);
 
             if (error) throw error;
@@ -173,6 +178,8 @@ class ProductService {
             description: dbProduct.description,
             price: parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
             rentalPrice: dbProduct.rental_price ? parseFloat(dbProduct.rental_price) : undefined,
+            mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
+            deposit_amount: dbProduct.deposit_amount ? String(dbProduct.deposit_amount) : undefined,
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
             eventCategory: dbProduct.category as EventCategory, // DB uses 'category'
             imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',
@@ -197,7 +204,26 @@ class ProductService {
             rentalCount: dbProduct.rental_count,
             lastCleanedAt: dbProduct.last_cleaned_at,
             conditionStatus: dbProduct.condition_status,
+            // Discount logic
+            discount_type: dbProduct.product_discounts?.[0]?.discount_type || dbProduct.discount_type,
+            discount_value: dbProduct.product_discounts?.[0]?.discount_value || dbProduct.discount_value,
+            discounted_price: this.calculateDiscountedPrice(
+                parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
+                dbProduct.product_discounts?.[0] || { discount_type: dbProduct.discount_type, discount_value: dbProduct.discount_value }
+            ),
         };
+    }
+
+    private calculateDiscountedPrice(originalPrice: number, discount: any): number {
+        if (!discount || !discount.discount_value) return originalPrice;
+
+        let finalPrice = originalPrice;
+        if (discount.discount_type === 'percentage') {
+            finalPrice = originalPrice - (originalPrice * (discount.discount_value / 100));
+        } else if (discount.discount_type === 'fixed_amount') {
+            finalPrice = Math.max(0, originalPrice - discount.discount_value);
+        }
+        return Math.round(finalPrice);
     }
 
     // Transform app product to database format
@@ -227,7 +253,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
@@ -334,7 +360,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('gender', dbGender)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -358,7 +384,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('event_category', event)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -382,7 +408,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('gender', gender)
                     .eq('event_category', event)
                     .eq('is_available', true)
@@ -407,7 +433,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('id', id)
                     .single();
 
@@ -442,7 +468,7 @@ class ProductService {
             try {
                 let supabaseQuery = (supabase as any)
                     .from('products')
-                    .select('*')
+                    .select('*, product_discounts(*)')
                     .eq('is_available', true);
 
                 if (query.trim()) {

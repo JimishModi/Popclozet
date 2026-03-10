@@ -187,7 +187,7 @@ export function AddressSearchInput({
                             {recentAddresses.map((addr, idx) => (
                                 <button
                                     key={idx}
-                                    onClick={() => handleSelect(addr)}
+                                    onMouseDown={() => handleSelect(addr)}
                                     className="w-full text-left p-2 rounded-xl hover:bg-zinc-800 transition-colors mb-1 last:mb-0"
                                 >
                                     <p className="text-sm text-white truncate">{addr.formattedAddress}</p>
@@ -205,7 +205,7 @@ export function AddressSearchInput({
                             {suggestions.map((addr, idx) => (
                                 <button
                                     key={idx}
-                                    onClick={() => handleSelect(addr)}
+                                    onMouseDown={() => handleSelect(addr)}
                                     className="w-full flex items-start gap-3 p-3 hover:bg-zinc-800 transition-colors border-b border-zinc-800/50 last:border-0"
                                 >
                                     <MapPin className="w-5 h-5 text-[#ff4d6d] flex-shrink-0 mt-0.5" />

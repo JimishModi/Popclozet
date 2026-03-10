@@ -7,6 +7,7 @@ import { ChevronLeft, ShoppingBag } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
+import { useCart } from "@/context/CartContext";
 
 /* ── Line-art SVG icons matching Figma ── */
 
@@ -87,6 +88,7 @@ const CATEGORIES = [
 
 const CollectionsPage = () => {
   const navigate = useNavigate();
+  const { totalItems } = useCart();
   const [activeGender, setActiveGender] = usePersistentGender("womens");
 
   return (
@@ -113,9 +115,14 @@ const CollectionsPage = () => {
             </button>
             <button
               onClick={() => navigate('/cart')}
-              className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center"
+              className="w-9 h-9 rounded-full bg-[#1C1C1E] border border-white/10 flex items-center justify-center relative"
             >
               <ShoppingBag className="w-5 h-5 text-zinc-400" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                  {totalItems > 9 ? '9+' : totalItems}
+                </span>
+              )}
             </button>
           </div>
         </div>
