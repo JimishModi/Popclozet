@@ -773,26 +773,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Full Legal Text Areas */}
-              <div className="mb-10 space-y-6">
-                <div>
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest mb-3" style={dmSans}>Full Terms & Conditions</h3>
-                  <div className="bg-[#141414] border border-white/5 rounded-2xl p-4 h-48 overflow-y-auto no-scrollbar">
-                    <pre className="text-zinc-400 text-[11px] font-medium leading-relaxed whitespace-pre-wrap font-sans">
-                      {TERMS_AND_CONDITIONS}
-                    </pre>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest mb-3" style={dmSans}>Cookie Policy</h3>
-                  <div className="bg-[#141414] border border-white/5 rounded-2xl p-4 h-32 overflow-y-auto no-scrollbar">
-                    <pre className="text-zinc-400 text-[11px] font-medium leading-relaxed whitespace-pre-wrap font-sans">
-                      {COOKIE_POLICY}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-5 mb-10">
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
@@ -809,8 +789,11 @@ export default function CheckoutPage() {
                       {agreedToTerms && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
-                  <span className="text-sm text-zinc-300 font-bold leading-snug" style={dmSans}>
-                    I have read and accept the <span className="text-[#f2546d] underline underline-offset-4">Rental Agreement</span> and <span className="text-[#f2546d] underline underline-offset-4">Liability Policy</span>.
+                  <span className="text-sm text-zinc-300 font-bold leading-snug break-words" style={dmSans}>
+                    I have read and accept the{' '}
+                    <a href="/docs/Terms & condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
+                    <a href="/docs/Privacy policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
+                    <a href="/docs/Cookies policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
                   </span>
                 </label>
 
