@@ -1,0 +1,15 @@
+name = "popclozet-edge-security"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+
+# KV Namespace for rate limiting and IP bans
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = ""  # Fill in after running: wrangler kv:namespace create "RATE_LIMIT_KV"
+
+# Routes — deploy in front of your app
+# [env.production]
+# routes = [
+#   { pattern = "popclozet.com/*", zone_name = "popclozet.com" },
+#   { pattern = "rider.popclozet.com/*", zone_name = "popclozet.com" }
+# ]

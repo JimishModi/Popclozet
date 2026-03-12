@@ -1,0 +1,122 @@
+name: Security & Quality Checks
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "0 3 * * *" # nightly at 3 AM UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ─── Dependency Audit ───────────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Run dependency audit (warn on high)
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run dependency audit (fail on critical)
+        run: pnpm audit --audit-level=critical
+
+  # ─── Secret Scanning ───────────────────────────────────────
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  # ─── Lint & Type Check ─────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Lint (customer app)
+        run: pnpm --filter @popclozet/customer-app lint
+        continue-on-error: true
+
+      - name: Type check (customer app)
+        run: pnpm --filter @popclozet/customer-app exec tsc --noEmit
+        continue-on-error: true
+
+      - name: Type check (rider app)
+        run: pnpm --filter @popclozet/rider-app exec tsc --noEmit
+        continue-on-error: true
+
+  # ─── License Compliance ────────────────────────────────────
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Check licenses
+        run: >
+          npx license-checker --production
+          --onlyAllow 'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0'
+        continue-on-error: true
+
+      # Uncomment to integrate Snyk for deeper vulnerability analysis
+      # - name: Run Snyk scan
+      #   uses: snyk/actions/node@master
+      #   with:
+      #     command: test
+      #   env:
+      #     SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

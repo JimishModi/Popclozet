@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Offline mode • PopClozet</title>
+
+    <style>
+      :root {
+        --bg: #0b0b0c;
+        --surface: #121214;
+        --border: #1f1f23;
+        --primary: #ff4d6d;
+        --text: #ffffff;
+        --muted: #a1a1aa;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, sans-serif;
+      }
+
+      /* ==================================================
+         MANACA SYSTEM WATERMARK (REPEATED, SUBTLE)
+         ================================================== */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("/MANACA LOGO IN WHITE .png");
+        background-repeat: repeat;
+        background-size: 140px auto;
+        background-position: 0 0;
+        opacity: 0.028;
+        filter: grayscale(100%);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* ==================================================
+         CENTER LAYOUT
+         ================================================== */
+      .wrapper {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: linear-gradient(
+          180deg,
+          rgba(18, 18, 20, 0.92),
+          rgba(11, 11, 12, 0.92)
+        );
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(6px);
+      }
+
+      /* ==================================================
+         CONTENT
+         ================================================== */
+      .badge {
+        display: inline-block;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 999px;
+        background: rgba(255, 77, 109, 0.14);
+        color: var(--primary);
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+
+      p {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
+
+      /* ==================================================
+         ACTIONS
+         ================================================== */
+      .actions {
+        display: grid;
+        gap: 12px;
+      }
+
+      .primary {
+        height: 48px;
+        border-radius: 12px;
+        border: none;
+        background: var(--primary);
+        color: #000;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+      }
+
+      .secondary {
+        height: 48px;
+        border-radius: 12px;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .footer {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <span class="badge">Offline mode</span>
+
+        <h1>Offline mode</h1>
+
+        <p>
+          You’re not connected to the internet. Previously loaded content remains
+          available. Checkout, payments, and live updates will resume once
+          connectivity is restored.
+        </p>
+
+        <div class="actions">
+          <button class="primary" onclick="location.reload()">
+            Retry connection
+          </button>
+
+          <button class="secondary" onclick="location.href='/'">
+            Return to home
+          </button>
+        </div>
+
+        <div class="footer">Offline state active</div>
+      </div>
+    </div>
+  </body>
+</html>

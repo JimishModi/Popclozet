@@ -1,0 +1,28 @@
+{
+  "name": "@popclozet/auth",
+  "version": "1.1.1",
+  "private": true,
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "pnpm exec tsc -b"
+  },
+  "dependencies": {
+    "@popclozet/api-client": "workspace:*",
+    "@popclozet/domain-contracts": "workspace:*",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0"
+  }
+}

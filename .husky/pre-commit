@@ -1,0 +1,41 @@
+#!/bin/sh
+# Pre-commit hook: Secret & Security Scanning
+# Prevents accidental commits of API keys, tokens, and sensitive data
+
+echo "🔒 Running security checks..."
+
+# ─── 1. Check for leaked secrets ────────────────────────────
+SECRETS_PATTERN='(SUPABASE_KEY|SUPABASE_URL|supabase_service_role|MAPBOX_TOKEN|STRIPE_SECRET|RAZORPAY_SECRET|RESEND_API_KEY|PRIVATE_KEY|BEGIN RSA|BEGIN OPENSSH|password\s*=\s*["\x27][^\s]+)'
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if echo "$STAGED_FILES" | xargs grep -lE "$SECRETS_PATTERN" 2>/dev/null; then
+  echo ""
+  echo "❌ BLOCKED: Potential secrets detected in staged files!"
+  echo "   Review the files above and remove any hardcoded keys/tokens."
+  echo "   Use .env files for secrets (they are .gitignored)."
+  echo ""
+  exit 1
+fi
+
+# ─── 2. Check for .env files being committed ────────────────
+if echo "$STAGED_FILES" | grep -E '\.env($|\.)' 2>/dev/null; then
+  echo ""
+  echo "❌ BLOCKED: .env file detected in commit!"
+  echo "   Never commit environment files. Add them to .gitignore."
+  echo ""
+  exit 1
+fi
+
+# ─── 3. Check for console.log with sensitive vars ────────────
+SENSITIVE_LOG_PATTERN='console\.(log|warn|info|debug)\(.*\b(token|password|secret|apiKey|authToken|refreshToken|accessToken)\b'
+
+if echo "$STAGED_FILES" | xargs grep -lE "$SENSITIVE_LOG_PATTERN" 2>/dev/null; then
+  echo ""
+  echo "⚠️  WARNING: console.log with potentially sensitive variable names detected."
+  echo "   Consider using the logSanitizer utility instead."
+  echo ""
+  # Warning only, don't block
+fi
+
+echo "✅ Security checks passed!"

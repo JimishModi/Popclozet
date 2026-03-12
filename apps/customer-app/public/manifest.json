@@ -1,0 +1,80 @@
+{
+    "name": "Pop Clozet - Rent the Trend",
+    "short_name": "Pop Clozet",
+    "description": "Rent designer fashion for every occasion. PopClozet delivers premium outfits in 60 minutes. Affordable, sustainable, and stylish.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#6366f1",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-maskable-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/icon-maskable-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "New Arrivals",
+            "short_name": "New",
+            "description": "Browse the latest fashion arrivals",
+            "url": "/collections?filter=new",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "My Rentals",
+            "short_name": "Rentals",
+            "description": "View your current rentals",
+            "url": "/profile",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Search",
+            "short_name": "Search",
+            "description": "Search for outfits",
+            "url": "/?search=true",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "categories": [
+        "shopping",
+        "lifestyle",
+        "fashion"
+    ]
+}

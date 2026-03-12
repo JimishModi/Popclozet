@@ -1,0 +1,65 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "target": "ES2020",
+        "useDefineForClassFields": true,
+        "lib": [
+            "ES2020",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "strict": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "noFallthroughCasesInSwitch": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ],
+            "@popclozet/api-client": [
+                "./packages/api-client/src/index.ts"
+            ],
+            "@popclozet/domain-contracts": [
+                "./packages/domain-contracts/src/index.ts"
+            ],
+            "@popclozet/auth": [
+                "./packages/auth/src/index.tsx"
+            ],
+            "@popclozet/mapbox-core": [
+                "./packages/mapbox-core/src/index.ts"
+            ],
+            "@popclozet/ui": [
+                "./packages/ui/src/index.tsx"
+            ]
+        }
+    },
+    "include": [
+        "src/**/*"
+    ],
+    "references": [
+        {
+            "path": "./packages/domain-contracts"
+        },
+        {
+            "path": "./packages/api-client"
+        },
+        {
+            "path": "./packages/auth"
+        },
+        {
+            "path": "./packages/mapbox-core"
+        },
+        {
+            "path": "./packages/ui"
+        }
+    ]
+}
