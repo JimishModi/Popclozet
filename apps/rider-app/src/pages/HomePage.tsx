@@ -104,7 +104,7 @@ export function HomePage() {
                 const { data, error } = await supabase
                     .from('orders')
                     .select(ORDER_SELECT)
-                    .in('status', ['pending', 'ready_for_pickup'])
+                    .in('status', ['ready_for_pickup'])
                     .order('created_at', { ascending: false })
                     .limit(1);
 
@@ -129,7 +129,7 @@ export function HomePage() {
                     event: '*',
                     schema: 'public',
                     table: 'orders',
-                    filter: 'status=eq.pending',
+                    filter: 'status=eq.ready_for_pickup',
                 },
                 async (payload) => {
                     console.log('New order received:', payload);
@@ -156,7 +156,7 @@ export function HomePage() {
                 const { data } = await supabase
                     .from('orders')
                     .select(ORDER_SELECT)
-                    .in('status', ['pending', 'ready_for_pickup'])
+                    .in('status', ['ready_for_pickup'])
                     .order('created_at', { ascending: false })
                     .limit(1);
 
@@ -235,7 +235,7 @@ export function HomePage() {
                     const { data } = await supabase
                         .from('orders')
                         .select(ORDER_SELECT)
-                        .in('status', ['pending', 'ready_for_pickup'])
+                        .in('status', ['ready_for_pickup'])
                         .order('created_at', { ascending: false })
                         .limit(1);
 

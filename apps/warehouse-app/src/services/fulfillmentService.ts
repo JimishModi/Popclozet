@@ -73,7 +73,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
         // Filter to relevant statuses
         const relevant = (data || []).filter(o => {
             const status = getEffectiveStatus(o);
-            return ['pending', 'confirmed', 'packed', 'dispatched', 'placed', 'pending_payment'].includes(status);
+            return ['pending', 'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'placed', 'pending_payment'].includes(status);
         });
 
         return normalizeOrders(relevant);
@@ -154,6 +154,32 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
  */
 export async function confirmOrder(orderId: string, actorId: string) {
     return updateOrderStatus(orderId, 'confirmed', actorId);
+}
+
+/**
+ * Mark order as ready for pickup (packed → ready_for_pickup)
+ * This signals riders that the order is available for collection.
+ */
+export async function markAsReadyForPickup(orderId: string, actorId: string, riderId?: string) {
+    if (riderId) {
+        // Assign rider + transition to ready_for_pickup
+        const { data, error } = await supabase
+            .from('orders')
+            .update({
+                status: 'ready_for_pickup',
+                lifecycle_state: 'ready_for_pickup',
+                rider_id: riderId,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId)
+            .select()
+            .single();
+
+        if (error) throw new Error(error.message);
+        return data;
+    }
+
+    return updateOrderStatus(orderId, 'ready_for_pickup', actorId);
 }
 
 /**
@@ -239,6 +265,34 @@ export async function completeReturn(returnId: string) {
         .eq('id', returnId);
 
     if (error) throw error;
+}
+
+/**
+ * Get active pickup orders (orders the rider is currently handling)
+ * Shows the warehouse which packages have been picked up / are in transit.
+ */
+export async function getActivePickups(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (*),
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                rider:rider_id (full_name)
+            `)
+            .in('status', ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
+            .order('updated_at', { ascending: false });
+
+        if (error) {
+            console.warn('getActivePickups:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch {
+        return [];
+    }
 }
 
 /**

@@ -9,10 +9,8 @@
 
 import mapboxgl from 'mapbox-gl';
 
-const envKey =
-  (import.meta as unknown as Record<string, Record<string, string>>).env?.VITE_MAPBOX_ACCESS_TOKEN || '';
-
-const MAPBOX_TOKEN = envKey;
+// @ts-ignore
+const MAPBOX_TOKEN = import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN || '';
 
 /**
  * Configure Mapbox GL with the provided access token globally.

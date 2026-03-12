@@ -8,16 +8,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
-import { getFulfillmentOrders, confirmOrder, packOrder, dispatchOrder, type OrderWithItems } from '../services/fulfillmentService';
+import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, type OrderWithItems } from '../services/fulfillmentService';
 import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 
-type StatusFilter = 'pending' | 'confirmed' | 'packed' | 'dispatched';
+type StatusFilter = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'dispatched';
 
 const filterTabs: { key: StatusFilter; label: string; icon: any; color: string }[] = [
     { key: 'pending', label: 'New', icon: Clock, color: 'text-amber-400' },
     { key: 'confirmed', label: 'Confirmed', icon: Check, color: 'text-blue-400' },
     { key: 'packed', label: 'Packed', icon: PackageCheck, color: 'text-warehouse-400' },
+    { key: 'ready_for_pickup', label: 'Ready', icon: Truck, color: 'text-purple-400' },
     { key: 'dispatched', label: 'Sent', icon: Truck, color: 'text-emerald-400' },
 ];
 
@@ -56,8 +57,8 @@ export function OrderFulfillmentPage() {
                 await packOrder(order.id, actorId);
                 showToast('Order packed');
             } else if (filter === 'packed') {
-                await dispatchOrder(order.id, actorId);
-                showToast('Order dispatched');
+                await markAsReadyForPickup(order.id, actorId);
+                showToast('Order ready for pickup');
             }
             await loadOrders();
         } catch (err: any) {
@@ -71,7 +72,8 @@ export function OrderFulfillmentPage() {
     const actionLabel: Record<StatusFilter, string> = {
         pending: 'Confirm',
         confirmed: 'Pack',
-        packed: 'Dispatch',
+        packed: 'Ready for Pickup',
+        ready_for_pickup: '',
         dispatched: '',
     };
 

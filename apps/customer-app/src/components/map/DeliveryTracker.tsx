@@ -133,7 +133,7 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
 
     // Simulation hook logic - only active when no real tracking data and order is in transit
     const shouldSimulate = !tracking && !!order && !!hub && !!routeOrigin && !!routeDestination;
-    const isTransitStatus = ['preparing', 'out_for_delivery', 'pickup_scheduled'].includes(order?.status || '');
+    const isTransitStatus = ['preparing', 'dispatched', 'out_for_delivery', 'pickup_scheduled'].includes(order?.status || '');
 
     const { vehicleLocation: simulatedVehicle, routePath } = useDriverSimulation({
         origin: routeOrigin,
