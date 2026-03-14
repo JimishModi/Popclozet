@@ -29,6 +29,7 @@ import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
+import { TERMS_AND_CONDITIONS, COOKIE_POLICY } from "@/constants/legalDocs";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -350,7 +351,18 @@ export default function CheckoutPage() {
         throw new Error("Order items saving failed: " + itemsErr.message);
       }
 
-      // 4) Clear cart
+      // 4) Insert Legal Acceptance Log
+      const { error: legalErr } = await supabase.from("legal_acceptances").insert({
+        user_id: userId,
+        order_id: order.id,
+        ip_address: userIp || 'unknown',
+        tc_version: 'v1.0'
+      });
+      if (legalErr) {
+        console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
+      }
+
+      // 5) Clear cart
       await clearCartDB().catch(() => { });
       for (const [id] of validCartEntries) {
         removeFromCart(id);
@@ -551,7 +563,8 @@ export default function CheckoutPage() {
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-white" style={dmSans}>Select Address</h2>
+                <Drawer.Title className="text-xl font-black text-white" style={dmSans}>Select Address</Drawer.Title>
+                <Drawer.Description className="sr-only">Choose a delivery address</Drawer.Description>
                 <button onClick={() => navigate("/map?returnTo=/checkout")} className="text-sm font-bold text-[#f2546d]">+ Add New</button>
               </div>
               <div className="space-y-4">
@@ -576,7 +589,8 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              <h2 className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</h2>
+              <Drawer.Title className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <Drawer.Description className="sr-only">Select how you want to pay</Drawer.Description>
 
               <div className="space-y-3">
                 {/* UPI Option */}
@@ -722,8 +736,8 @@ export default function CheckoutPage() {
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
 
               <div className="mb-10 text-center">
-                <h2 className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</h2>
-                <p className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</p>
+                <Drawer.Title className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</Drawer.Title>
+                <Drawer.Description className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</Drawer.Description>
               </div>
 
               {/* Legal Icons Summary */}
@@ -755,6 +769,26 @@ export default function CheckoutPage() {
                   <div>
                     <h4 className="text-white font-black text-sm uppercase tracking-widest">Returns are mandatory</h4>
                     <p className="text-zinc-500 text-xs mt-1 font-bold leading-relaxed">Late returns result in forced purchase at full MRP. Be on time!</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Legal Text Areas */}
+              <div className="mb-10 space-y-6">
+                <div>
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest mb-3" style={dmSans}>Full Terms & Conditions</h3>
+                  <div className="bg-[#141414] border border-white/5 rounded-2xl p-4 h-48 overflow-y-auto no-scrollbar">
+                    <pre className="text-zinc-400 text-[11px] font-medium leading-relaxed whitespace-pre-wrap font-sans">
+                      {TERMS_AND_CONDITIONS}
+                    </pre>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest mb-3" style={dmSans}>Cookie Policy</h3>
+                  <div className="bg-[#141414] border border-white/5 rounded-2xl p-4 h-32 overflow-y-auto no-scrollbar">
+                    <pre className="text-zinc-400 text-[11px] font-medium leading-relaxed whitespace-pre-wrap font-sans">
+                      {COOKIE_POLICY}
+                    </pre>
                   </div>
                 </div>
               </div>

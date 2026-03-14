@@ -2,22 +2,11 @@
 // Rider-side delivery helpers (READ / UPDATE only)
 
 import { supabase } from '@popclozet/api-client';
+import type { OrderStatus } from '@popclozet/domain-contracts';
 
 // ==========================================
 // TYPES
 // ==========================================
-
-export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'packed'
-  | 'dispatched'
-  | 'out_for_delivery'
-  | 'delivered'
-  | 'pickup_scheduled'
-  | 'picked_up'
-  | 'return_completed'
-  | 'cancelled';
 
 export interface DeliveryOrder {
   id: string;

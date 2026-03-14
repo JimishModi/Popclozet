@@ -1,71 +1,133 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "@popclozet/auth";
+/**
+ * useActiveOrder – Monitors the customer's most recent active order.
+ * Uses real Supabase data + realtime subscription for live status updates.
+ */
 
-type OrderStatus = "confirmed" | "preparing" | "out_for_delivery" | "delivered" | "in_use" | "return_requested";
+import { useEffect, useState, useCallback } from 'react';
+import { supabase, config } from '@popclozet/api-client';
+import { useAuth } from '@popclozet/auth';
 
 export interface ActiveOrder {
     id: string;
-    status: OrderStatus;
-    etaMinutes?: number;
-    itemCount: number;
-    deliveryPartner?: string;
+    status: string;
+    total_amount: number;
+    rider_id?: string;
+    rider_name?: string;
+    estimated_delivery?: string;
+    delivery_address?: string;
     created_at: string;
-    // Rental-specific fields
-    isRental?: boolean;
-    rentalDurationDays?: number;
-    rentalEndDate?: string;
-    pickupScheduledAt?: string;
+    updated_at: string;
 }
 
-/**
- * Hook to fetch and monitor active orders for the current user
- * Returns the most recent active order (not delivered)
- */
+const ACTIVE_STATUSES = [
+    'pending',
+    'confirmed',
+    'packed',
+    'ready_for_pickup',
+    'driver_arrived_warehouse',
+    'order_picked_up',
+    'dispatched',
+    'out_for_delivery',
+];
+
 export function useActiveOrder() {
     const { user } = useAuth();
-    const config = { USE_MOCK_DATA: true }; // TODO: Import from @popclozet/api-client when package exports are fixed
-
     const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchActiveOrders = async () => {
-            if (config.USE_MOCK_DATA) {
-                // Calculate rental end date (3 days from now for demo)
-                const rentalEndDate = new Date();
-                rentalEndDate.setDate(rentalEndDate.getDate() + 3);
+    const fetchActiveOrder = useCallback(async () => {
+        if (!user?.id) {
+            setLoading(false);
+            return;
+        }
 
-                // Mock data for development - REMOVE IN PRODUCTION
-                const mockOrder: ActiveOrder = {
-                    id: "ORD123456",
-                    status: "in_use", // Changed to rental status
-                    etaMinutes: 15,
-                    itemCount: 2,
-                    deliveryPartner: "Mukesh",
-                    created_at: new Date().toISOString(),
-                    // Rental fields
-                    isRental: true,
-                    rentalDurationDays: 3,
-                    rentalEndDate: rentalEndDate.toISOString(),
-                };
+        // Use mock data if configured
+        if (config.USE_MOCK_DATA) {
+            setActiveOrder({
+                id: 'mock-order-1',
+                status: 'out_for_delivery',
+                total_amount: 999,
+                rider_name: 'Raj K.',
+                estimated_delivery: new Date(Date.now() + 25 * 60000).toISOString(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            });
+            setLoading(false);
+            return;
+        }
 
-                setActiveOrder(mockOrder);
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('id, status, total_amount, rider_id, created_at, updated_at')
+                .eq('user_id', user.id)
+                .in('status', ACTIVE_STATUSES)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                setActiveOrder(null);
                 setLoading(false);
                 return;
             }
 
-            // Real Supabase integration logic would go here
-            if (!user) return;
+            // Fetch rider name if assigned
+            let riderName: string | undefined;
+            if (data.rider_id) {
+                const { data: riderProfile } = await supabase
+                    .from('profiles')
+                    .select('full_name')
+                    .eq('user_id', data.rider_id)
+                    .single();
+                riderName = riderProfile?.full_name;
+            }
 
-            // ... implementation specific to real data
+            setActiveOrder({
+                id: data.id,
+                status: data.status,
+                total_amount: data.total_amount,
+                rider_id: data.rider_id,
+                rider_name: riderName,
+                created_at: data.created_at,
+                updated_at: data.updated_at,
+            });
+        } catch (err) {
+            console.error('Failed to fetch active order:', err);
+            setActiveOrder(null);
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        fetchActiveOrder();
+    }, [fetchActiveOrder]);
+
+    // Realtime subscription for order status changes
+    useEffect(() => {
+        if (!user?.id || config.USE_MOCK_DATA) return;
+
+        const channel = supabase
+            .channel(`active_order_${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `user_id=eq.${user.id}`,
+                },
+                () => {
+                    fetchActiveOrder();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
         };
+    }, [user?.id, fetchActiveOrder]);
 
-        fetchActiveOrders();
-
-        // Poll every 30 seconds for updates
-        const interval = setInterval(fetchActiveOrders, 30000);
-        return () => clearInterval(interval);
-    }, [user, config.USE_MOCK_DATA]);
-
-    return { activeOrder, loading };
+    return { activeOrder, loading, refetch: fetchActiveOrder };
 }

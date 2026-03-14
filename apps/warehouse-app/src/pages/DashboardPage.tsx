@@ -43,20 +43,47 @@ export function DashboardPage() {
     const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
 
+    const [error, setError] = useState<string | null>(null);
+
     const loadData = useCallback(async () => {
         try {
-            const [s, c, ls, oc] = await Promise.all([
-                getStockSummary(),
-                getStockByCategory(),
-                getLowStockItems(3),
-                getOrderCounts(),
-            ]);
-            setSummary(s);
-            setCategories(c);
-            setLowStock(ls);
-            setOrderCounts(oc);
-        } catch (err) {
-            console.error('Dashboard load error:', err);
+            setError(null);
+            console.log('[Dashboard] Starting data fetch...');
+            
+            // 5 second timeout wrapper
+            const withTimeout = (promise: Promise<any>, name: string) => {
+                const timeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error(`${name} timed out after 5s`)), 5000)
+                );
+                return Promise.race([promise, timeout]);
+            };
+
+            console.log('[Dashboard] 1. Calling getStockSummary()');
+            const s = await withTimeout(getStockSummary(), 'getStockSummary');
+            
+            console.log('[Dashboard] 2. Calling getStockByCategory()');
+            const c = await withTimeout(getStockByCategory(), 'getStockByCategory');
+            
+            console.log('[Dashboard] 3. Calling getLowStockItems()');
+            const ls = await withTimeout(getLowStockItems(3), 'getLowStockItems');
+            
+            console.log('[Dashboard] 4. Calling getOrderCounts()');
+            const oc = await withTimeout(getOrderCounts(), 'getOrderCounts');
+
+            console.log('[Dashboard] All data fetched successfully');
+            setSummary(s as any);
+            setCategories(c as any);
+            setLowStock(ls as any);
+            setOrderCounts(oc as any);
+        } catch (err: any) {
+            console.error('[Dashboard] load error:', err);
+            setError(err.message || 'Failed to load dashboard data');
+            
+            // Set empty/fallback states so we can still render the page structure
+            if (!summary) setSummary({ total_stock: 0, available_stock: 0, went_for_wash: 0, in_rental: 0, total_products: 0 });
+            if (categories.length === 0) setCategories([]);
+            if (lowStock.length === 0) setLowStock([]);
+            if (Object.keys(orderCounts).length === 0) setOrderCounts({});
         } finally {
             setLoading(false);
         }
@@ -85,6 +112,17 @@ export function DashboardPage() {
 
     return (
         <div className="px-4 py-5 space-y-5">
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4 flex items-start gap-3">
+                    <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                        <h3 className="text-sm font-semibold text-red-400">Data Load Error</h3>
+                        <p className="text-xs text-red-300 mt-1">{error}</p>
+                        <p className="text-[10px] text-red-400/80 mt-1">Please check if all required Supabase views and tables exist.</p>
+                    </div>
+                </div>
+            )}
+            
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

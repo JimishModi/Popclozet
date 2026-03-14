@@ -24,7 +24,8 @@ interface AuthContextType {
     email: string,
     password: string,
     fullName: string,
-    phone: string
+    phone: string,
+    metadata?: Record<string, any>
   ) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -122,12 +123,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     fullName: string,
-    phone: string
+    phone: string,
+    metadata?: Record<string, any>
   ) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, phone } },
+      options: { data: { full_name: fullName, phone, ...(metadata || {}) } },
     });
     if (error) throw error;
   };

@@ -1,0 +1,42 @@
+﻿
+> popclozet-monorepo@1.0.0 build C:\Users\welcome\Desktop\PopCLozet-Apps-main
+> pnpm -r build
+
+Scope: 8 of 9 workspace projects
+packages/ui build$ pnpm exec tsc -b
+packages/domain-contracts build$ tsc -b
+packages/domain-contracts build: Done
+packages/ui build: Done
+packages/api-client build$ pnpm exec tsc -b
+packages/mapbox-core build$ pnpm exec tsc -b
+packages/mapbox-core build: Done
+packages/api-client build: Done
+packages/auth build$ pnpm exec tsc -b
+packages/auth build: src/captcha.ts(21,10): error TS2352: Conversion of type 'ImportMeta' to type 'Record<string, Record<string, string>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'ImportMeta'.
+packages/auth build: src/captcha.ts(78,21): error TS2352: Conversion of type 'ImportMeta' to type 'Record<string, Record<string, string>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'ImportMeta'.
+packages/auth build: src/captcha.ts(79,27): error TS2352: Conversion of type 'ImportMeta' to type 'Record<string, Record<string, string>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'ImportMeta'.
+packages/auth build: src/nativeSecurity.ts(16,15): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: src/nativeSecurity.ts(34,21): error TS2339: Property 'ScreenProtection' does not exist on type '{}'.
+packages/auth build: src/nativeSecurity.ts(34,43): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, Record<string, unknown>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: src/nativeSecurity.ts(50,21): error TS2339: Property 'ScreenProtection' does not exist on type '{}'.
+packages/auth build: src/nativeSecurity.ts(50,43): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, Record<string, unknown>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: src/nativeSecurity.ts(77,17): error TS2339: Property 'NativeBiometric' does not exist on type '{}'.
+packages/auth build: src/nativeSecurity.ts(77,38): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, Record<string, unknown>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: src/nativeSecurity.ts(100,17): error TS2339: Property 'NativeBiometric' does not exist on type '{}'.
+packages/auth build: src/nativeSecurity.ts(100,38): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, Record<string, unknown>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: src/nativeSecurity.ts(124,17): error TS2339: Property 'RootDetection' does not exist on type '{}'.
+packages/auth build: src/nativeSecurity.ts(124,36): error TS2352: Conversion of type 'Window & typeof globalThis' to type 'Record<string, Record<string, unknown>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/auth build:   Index signature for type 'string' is missing in type 'Window & typeof globalThis'.
+packages/auth build: Failed
+C:\Users\welcome\Desktop\PopCLozet-Apps-main\packages\auth:
+ΓÇëERR_PNPM_RECURSIVE_RUN_FIRST_FAILΓÇë @popclozet/auth@1.1.1 build: `pnpm exec tsc -b`
+Exit status 1
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.

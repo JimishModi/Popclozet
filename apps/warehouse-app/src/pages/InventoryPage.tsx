@@ -1,69 +1,44 @@
-/**
- * Inventory Page — Mobile Layout
- * Uses `products` table (name, brand, category) via inventory join.
- */
-
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Package, Edit2, Check, X } from 'lucide-react';
+import { Search, Package, ChevronRight, BarChart3, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useAuth } from '@popclozet/auth';
-import { getAllInventory, updateStock, type InventoryWithProduct } from '../services/inventoryService';
-import { useToast } from '../contexts/ToastContext';
+import { getAllProductProfiles } from '../services/productProfileService';
 import { useRealtimeInventory } from '../hooks/useRealtimeInventory';
 
 export function InventoryPage() {
-    const { showToast } = useToast();
-    const { user } = useAuth();
-    const [inventory, setInventory] = useState<InventoryWithProduct[]>([]);
+    const navigate = useNavigate();
+    const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editValues, setEditValues] = useState<{ available_stock: number; went_for_wash: number }>({ available_stock: 0, went_for_wash: 0 });
 
-    const loadInventory = useCallback(async () => {
+    const loadProducts = useCallback(async () => {
         try {
-            const data = await getAllInventory();
-            setInventory(data);
+            const data = await getAllProductProfiles();
+            setProducts(data);
         } catch (err) {
-            console.error('Failed to load inventory:', err);
+            console.error('Failed to load products:', err);
         } finally {
             setLoading(false);
         }
     }, []);
 
-    useEffect(() => { loadInventory(); }, [loadInventory]);
-    useRealtimeInventory({ onChange: loadInventory });
+    useEffect(() => { loadProducts(); }, [loadProducts]);
+    useRealtimeInventory({ onChange: loadProducts });
 
-    const filtered = inventory.filter(item => {
-        const name = (item as any).products?.name?.toLowerCase() || '';
-        const brand = (item as any).products?.brand?.toLowerCase() || '';
+    const filtered = products.filter(p => {
+        const name = p.name?.toLowerCase() || '';
+        const brand = p.brand?.toLowerCase() || '';
+        const category = p.category?.toLowerCase() || '';
         const q = search.toLowerCase();
-        return name.includes(q) || brand.includes(q) || (item.size || '').toLowerCase().includes(q);
+        return name.includes(q) || brand.includes(q) || category.includes(q);
     });
-
-    const startEdit = (item: InventoryWithProduct) => {
-        setEditingId(item.id);
-        setEditValues({ available_stock: item.available_stock ?? 0, went_for_wash: item.went_for_wash ?? 0 });
-    };
-
-    const saveEdit = async (id: string) => {
-        try {
-            await updateStock(id, editValues, user?.id || 'anonymous');
-            showToast('Stock updated successfully');
-            setEditingId(null);
-            await loadInventory();
-        } catch (err: any) {
-            console.error('Stock update error:', err);
-            showToast(err.message || 'Failed to update stock', 'error');
-        }
-    };
 
     if (loading) {
         return (
             <div className="px-4 py-5 space-y-4">
                 <div className="h-8 w-48 bg-surface-card rounded-lg animate-pulse" />
-                {[...Array(5)].map((_, i) => <div key={i} className="bg-surface-card rounded-xl h-20 animate-pulse" />)}
+                {[...Array(5)].map((_, i) => <div key={i} className="bg-surface-card rounded-xl h-24 animate-pulse" />)}
             </div>
         );
     }
@@ -74,7 +49,7 @@ export function InventoryPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-lg font-bold text-white">Inventory</h1>
-                    <p className="text-xs text-zinc-500">{inventory.length} entries</p>
+                    <p className="text-xs text-zinc-500">{products.length} products</p>
                 </div>
                 <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -95,99 +70,68 @@ export function InventoryPage() {
             </div>
 
             {/* Card List */}
-            <div className="space-y-2.5">
+            <div className="grid gap-3">
                 {filtered.length === 0 ? (
                     <div className="text-center py-12">
                         <Package size={32} className="mx-auto text-zinc-600 mb-2" />
-                        <p className="text-zinc-500 text-sm">{search ? 'No matches' : 'No inventory data'}</p>
+                        <p className="text-zinc-500 text-sm">{search ? 'No matches' : 'No products found'}</p>
                     </div>
                 ) : (
-                    filtered.map((item) => {
-                        const isEditing = editingId === item.id;
-                        const available = item.available_stock ?? 0;
-                        const wash = (item as any).went_for_wash ?? 0;
-
+                    filtered.map((product) => {
+                        const hasLowStock = product.total_available <= 2;
+                        
                         return (
-                            <motion.div
-                                key={item.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-surface-card border border-surface-border rounded-xl p-3.5"
+                            <motion.button
+                                key={product.id}
+                                layout
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                onClick={() => navigate(`/product/${product.id}`)}
+                                className="group flex items-stretch gap-3 bg-surface-card border border-surface-border rounded-xl p-3 text-left hover:border-warehouse-500/30 transition-all active:scale-[0.99]"
                             >
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-zinc-200 truncate">{(item as any).products?.name || '—'}</p>
-                                        <p className="text-[10px] text-zinc-500">{(item as any).products?.brand || ''} • {(item as any).products?.category || ''}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 ml-2">
-                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warehouse-500/10 text-warehouse-300 border border-warehouse-500/20">
-                                            {item.size || '—'}
-                                        </span>
-                                        {!isEditing && (
-                                            <button onClick={() => startEdit(item)} className="p-1 rounded-lg hover:bg-surface-hover text-zinc-500">
-                                                <Edit2 size={12} />
-                                            </button>
-                                        )}
-                                    </div>
+                                {/* Thumbnail */}
+                                <div className="w-16 h-20 rounded-lg bg-surface overflow-hidden flex-shrink-0 border border-surface-border">
+                                    {product.images && product.images[0] ? (
+                                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                                            <Package size={20} />
+                                        </div>
+                                    )}
                                 </div>
 
-                                {isEditing ? (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex-1">
-                                                <label className="text-[10px] text-zinc-500">In Wash</label>
-                                                <input
-                                                    type="number"
-                                                    value={editValues.went_for_wash}
-                                                    onChange={(e) => setEditValues(v => ({ ...v, went_for_wash: parseInt(e.target.value) || 0 }))}
-                                                    className="w-full h-8 text-center rounded-lg bg-surface border border-warehouse-500/40 text-white text-sm"
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <label className="text-[10px] text-zinc-500">Available</label>
-                                                <input
-                                                    type="number"
-                                                    value={editValues.available_stock}
-                                                    onChange={(e) => setEditValues(v => ({ ...v, available_stock: parseInt(e.target.value) || 0 }))}
-                                                    className="w-full h-8 text-center rounded-lg bg-surface border border-warehouse-500/40 text-white text-sm"
-                                                />
-                                            </div>
+                                {/* Content */}
+                                <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
+                                    <div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <h3 className="text-sm font-semibold text-zinc-200 truncate">{product.name}</h3>
+                                            <ChevronRight size={14} className="text-zinc-600 group-hover:text-warehouse-400 transition-colors" />
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => saveEdit(item.id)} className="flex-1 btn-success text-xs py-1.5 flex items-center justify-center gap-1">
-                                                <Check size={12} /> Save
-                                            </button>
-                                            <button onClick={() => setEditingId(null)} className="flex-1 btn-danger text-xs py-1.5 flex items-center justify-center gap-1">
-                                                <X size={12} /> Cancel
-                                            </button>
-                                        </div>
+                                        <p className="text-[10px] text-zinc-500 uppercase tracking-tight">{product.brand || 'No Brand'} • {product.category || 'Uncategorized'}</p>
                                     </div>
-                                ) : (
-                                    <div className="flex items-center gap-3 text-xs">
-                                        <div className="flex-1 text-center py-1.5 rounded-lg bg-surface-hover">
-                                            <span className="text-zinc-500">Total</span>
-                                            <p className="font-mono font-bold text-zinc-200">{item.total_stock ?? 0}</p>
-                                        </div>
-                                        <div className="flex-1 text-center py-1.5 rounded-lg bg-surface-hover">
-                                            <span className="text-zinc-500">Avail</span>
-                                            <p className={clsx('font-mono font-bold', available > 0 ? 'text-emerald-400' : 'text-red-400')}>{available}</p>
-                                        </div>
-                                        <div className="flex-1 text-center py-1.5 rounded-lg bg-surface-hover">
-                                            <span className="text-zinc-500">Wash</span>
-                                            <p className={clsx('font-mono font-bold', wash > 0 ? 'text-amber-400' : 'text-zinc-500')}>{wash}</p>
-                                        </div>
-                                        <div className="flex-1 text-center">
-                                            {available === 0 ? (
-                                                <span className="text-[10px] font-bold text-red-400">OUT</span>
-                                            ) : available <= 2 ? (
-                                                <span className="text-[10px] font-bold text-amber-400">LOW</span>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-emerald-400">OK</span>
+
+                                    {/* Stats */}
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className={clsx(
+                                                "px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1",
+                                                product.total_available === 0 ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                                                hasLowStock ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                                                "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                            )}>
+                                                {hasLowStock && <AlertTriangle size={10} />}
+                                                {product.total_available} Available
+                                            </div>
+                                            {product.total_wash > 0 && (
+                                                <div className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                                                    <BarChart3 size={10} />
+                                                    {product.total_wash} Washing
+                                                </div>
                                             )}
                                         </div>
                                     </div>
-                                )}
-                            </motion.div>
+                                </div>
+                            </motion.button>
                         );
                     })
                 )}
@@ -195,3 +139,4 @@ export function InventoryPage() {
         </div>
     );
 }
+

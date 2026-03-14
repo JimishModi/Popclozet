@@ -106,7 +106,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
             )
         `)
         .eq('rider_id', riderId)
-        .in('status', ['confirmed', 'packed', 'dispatched', 'out_for_delivery']);
+        .in('status', ['confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery']);
 
     if (error) {
         console.error('Failed to fetch rider orders:', error);
@@ -186,7 +186,11 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         orderType: data.order_type,
         status: data.status,
         pickupAddress: { fullAddress: 'Hub Location', lat: 0, lng: 0 },
-        deliveryAddress: data.delivery_address_snapshot,
+        deliveryAddress: {
+            fullAddress: data.addresses?.full_address || 'Customer Address',
+            lat: data.addresses?.latitude || 0,
+            lng: data.addresses?.longitude || 0,
+        },
         items: [],
         totalAmount: 0,
         deliveryFee: data.delivery_fee,
@@ -220,15 +224,32 @@ export async function markAsPickedUp(orderId: string, riderId: string) {
 }
 
 /**
+ * Mark rider as arrived at warehouse
+ */
+export async function markArrivedAtWarehouse(orderId: string, riderId: string) {
+    return updateOrderAsRider(orderId, 'driver_arrived_warehouse', riderId);
+}
+
+/**
+ * Mark order as picked up from warehouse
+ */
+export async function markOrderPickedUp(orderId: string, riderId: string) {
+    return updateOrderAsRider(orderId, 'order_picked_up', riderId);
+}
+
+/**
+ * Mark order as dispatched (leaving warehouse / out for delivery)
+ */
+export async function markAsDispatched(orderId: string, riderId: string) {
+    return updateOrderAsRider(orderId, 'dispatched', riderId);
+}
+
+/**
  * Mark order as delivered to customer
  */
 export async function markAsDelivered(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'delivered', riderId);
 }
-
-// ==========================================
-// RPC-BASED STATE TRANSITIONS (server-side auth)
-// ==========================================
 
 /**
  * Start pickup from hub (RPC - server validates rider auth)
@@ -260,6 +281,49 @@ export async function startDelivery(orderId: string) {
 export async function completeDelivery(orderId: string) {
     const { error } = await supabase.rpc('complete_delivery', { p_order: orderId });
     if (error) throw error;
+}
+
+// ==========================================
+// RIDER-TO-CUSTOMER MESSAGING
+// ==========================================
+
+/**
+ * Predefined messages the rider can send to the customer
+ */
+export const PREDEFINED_MESSAGES = [
+    'Your package has been dispatched and is on the way.',
+    'I am at the warehouse collecting your package.',
+    'Your package has been picked up. Heading to your location now.',
+    'I will arrive at your location shortly.',
+    'I am near your delivery location. Please be available.',
+];
+
+/**
+ * Send a message from rider to customer via the notifications table
+ */
+export async function sendMessageToCustomer(
+    orderId: string,
+    customerId: string,
+    message: string,
+    riderName?: string
+): Promise<boolean> {
+    const { error } = await supabase
+        .from('notifications')
+        .insert({
+            user_id: customerId,
+            type: 'rider_message',
+            title: `💬 Message from ${riderName || 'your rider'}`,
+            body: message,
+            order_id: orderId,
+            is_read: false,
+        });
+
+    if (error) {
+        console.error('Failed to send message to customer:', error);
+        return false;
+    }
+
+    return true;
 }
 
 // ==========================================

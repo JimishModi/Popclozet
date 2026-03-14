@@ -108,7 +108,15 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
         };
     }, [orderId]);
 
-    const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order?.status);
+    const getLogicalStepIndex = (status?: string) => {
+        if (!status) return -1;
+        if (['pending', 'confirmed'].includes(status)) return 0;
+        if (['preparing', 'packed', 'ready_for_pickup'].includes(status)) return 1;
+        if (['driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery', 'pickup_scheduled'].includes(status)) return 2;
+        if (['delivered', 'completed', 'return_completed'].includes(status)) return 3;
+        return -1;
+    };
+    const currentStepIndex = getLogicalStepIndex(order?.status);
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
@@ -125,7 +133,7 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
 
     // Simulation hook logic - only active when no real tracking data and order is in transit
     const shouldSimulate = !tracking && !!order && !!hub && !!routeOrigin && !!routeDestination;
-    const isTransitStatus = ['preparing', 'out_for_delivery', 'pickup_scheduled'].includes(order.status || '');
+    const isTransitStatus = ['preparing', 'dispatched', 'out_for_delivery', 'pickup_scheduled'].includes(order?.status || '');
 
     const { vehicleLocation: simulatedVehicle, routePath } = useDriverSimulation({
         origin: routeOrigin,

@@ -44,9 +44,9 @@ function mapToOrder(raw: DeliveryOrderType): Order {
         estimatedDeliveryAt: raw.estimated_delivery_at,
         actualDeliveryAt: raw.actual_delivery_at,
         address: {
-            fullAddress: raw.delivery_address_snapshot.full_address,
-            lat: raw.delivery_address_snapshot.lat,
-            lng: raw.delivery_address_snapshot.lng,
+            fullAddress: raw.delivery_address_snapshot?.full_address || "Address not provided",
+            lat: raw.delivery_address_snapshot?.lat || 0,
+            lng: raw.delivery_address_snapshot?.lng || 0,
         },
         hubId: raw.hub_id,
         etaMinutes: raw.estimated_delivery_at
@@ -113,7 +113,7 @@ export function useOrders() {
     }, [user, fetchOrders]);
 
     const activeOrders = orders.filter((o) =>
-        ["pending", "confirmed", "preparing", "out_for_delivery", "pickup_scheduled"].includes(o.status)
+        ["pending", "confirmed", "packed", "ready_for_pickup", "preparing", "driver_arrived_warehouse", "order_picked_up", "dispatched", "out_for_delivery", "pickup_scheduled"].includes(o.status)
     );
 
     const pastOrders = orders.filter((o) =>
@@ -130,17 +130,7 @@ export function useOrders() {
     };
 }
 
-/**
- * Hook to get the most recent active order (for tracking banner, etc.)
- */
-export function useActiveOrder() {
-    const { activeOrders, loading } = useOrders();
 
-    // Return most recent active order
-    const activeOrder = activeOrders[0] || null;
-
-    return { activeOrder, loading };
-}
 
 /**
  * Hook to get a specific order by ID with real-time updates

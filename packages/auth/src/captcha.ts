@@ -18,7 +18,7 @@ const HCAPTCHA_VERIFY_URL = 'https://hcaptcha.com/siteverify';
  */
 export function getCaptchaSiteKey(): string {
     return (
-        (import.meta as Record<string, Record<string, string>>).env?.VITE_HCAPTCHA_SITE_KEY ||
+        (import.meta as any).env?.VITE_HCAPTCHA_SITE_KEY ||
         '10000000-ffff-ffff-ffff-000000000001' // hCaptcha test key
     );
 }
@@ -75,7 +75,7 @@ export async function verifyCaptchaServer(
  * Returns true if we should show captcha (production only).
  */
 export function isCaptchaRequired(): boolean {
-    const isProd = (import.meta as Record<string, Record<string, string>>).env?.PROD === 'true';
-    const hasSiteKey = !!(import.meta as Record<string, Record<string, string>>).env?.VITE_HCAPTCHA_SITE_KEY;
+    const isProd = (import.meta as any).env?.PROD === 'true';
+    const hasSiteKey = !!(import.meta as any).env?.VITE_HCAPTCHA_SITE_KEY;
     return isProd && hasSiteKey;
 }

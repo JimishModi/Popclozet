@@ -154,7 +154,7 @@ export async function updateRiderProfile(
   const { error } = await supabase
     .from('riders')
     .update(payload)
-    .eq('id', riderId);
+    .eq('user_id', riderId);
 
   if (error) {
     console.error('Update rider profile failed:', error);
@@ -177,7 +177,7 @@ export async function updateRiderStatus(
       status,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', riderId);
+    .eq('user_id', riderId);
 
   if (error) {
     console.error('Update rider status failed:', error);
@@ -193,7 +193,7 @@ export async function getRiderStatus(
   const { data } = await supabase
     .from('riders')
     .select('status')
-    .eq('id', riderId)
+    .eq('user_id', riderId)
     .maybeSingle();
 
   return data?.status ?? null;

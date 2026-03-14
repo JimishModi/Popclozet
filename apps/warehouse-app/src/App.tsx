@@ -22,6 +22,8 @@ import { ReturnsPage } from './pages/ReturnsPage';
 import { DispatchPage } from './pages/DispatchPage';
 import { ProductIntakePage } from './pages/ProductIntakePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ProductProfilePage } from './pages/ProductProfilePage';
+import { ActivePickupsPage } from './pages/ActivePickupsPage';
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -46,10 +48,10 @@ function App() {
         );
     }
 
-    // Role check: Only profiles with role='admin'
-    const isAdmin = profile?.role === 'admin';
-    if (profile && !isAdmin) {
-        return <WrongRoleScreen expectedRole="admin" currentRole={profile.role} />;
+    // Role check: Only profiles with role='admin' or 'warehouse'
+    const hasAccess = profile?.role === 'admin' || profile?.role === 'warehouse';
+    if (profile && !hasAccess) {
+        return <WrongRoleScreen expectedRole="warehouse" currentRole={profile.role} />;
     }
 
     return (
@@ -63,6 +65,8 @@ function App() {
                     <Route path="/returns" element={<ReturnsPage />} />
                     <Route path="/dispatch" element={<DispatchPage />} />
                     <Route path="/intake" element={<ProductIntakePage />} />
+                    <Route path="/product/:productId" element={<ProductProfilePage />} />
+                    <Route path="/active-pickups" element={<ActivePickupsPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />

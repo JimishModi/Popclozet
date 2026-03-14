@@ -7,9 +7,19 @@
  * Role-specific modules in apps import from here.
  */
 
-import * as mapboxgl from 'mapbox-gl';
+import mapboxgl from 'mapbox-gl';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+// @ts-ignore
+const MAPBOX_TOKEN = import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN || '';
+
+/**
+ * Configure Mapbox GL with the provided access token globally.
+ * This MUST be called at the root of the React app to ensure WebWorkers have access before any map is rendered.
+ */
+export const configureMapbox = (token: string) => {
+    if (!token) return;
+    (mapboxgl as any).accessToken = token;
+};
 
 if (MAPBOX_TOKEN) {
     (mapboxgl as any).accessToken = MAPBOX_TOKEN;
@@ -37,11 +47,15 @@ export const getMapboxToken = (): string | undefined => {
 export const initializeMap = (
     container: HTMLElement,
     center: [number, number],
-    zoom: number = 14
+    zoom: number = 14,
+    token?: string
 ): mapboxgl.Map => {
-    if (!MAPBOX_TOKEN) {
+    const activeToken = token || MAPBOX_TOKEN;
+    if (!activeToken) {
         throw new Error('Mapbox access token is not configured');
     }
+
+    (mapboxgl as any).accessToken = activeToken;
 
     // Destroy existing instance if any
     if (mapInstance) {
@@ -84,10 +98,15 @@ export const drawRoute = async (
     start: [number, number],
     end: [number, number]
 ): Promise<void> => {
-    if (!MAPBOX_TOKEN) return;
+    // Read the directly injected token from map instance since Vite static vars fail across workspaces
+    const activeToken = (map as any)?._requestManager?._transformRequestFn?.()?.access_token || 
+                        (mapboxgl as any).accessToken || 
+                        MAPBOX_TOKEN;
+                        
+    if (!activeToken) return;
 
     const query = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${activeToken}`
     );
     const json = await query.json();
 

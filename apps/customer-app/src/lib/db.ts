@@ -76,15 +76,15 @@ export interface ReceiptData {
 const DB_NAME = 'PopClozet';
 const DB_VERSION = 4; // Incremented for receipts store
 
-let dbInstance: IDBPDatabase<PopClozetDB> | null = null;
+let dbPromise: Promise<IDBPDatabase<PopClozetDB>> | null = null;
 
 // Initialize the database
-export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
-    if (dbInstance) {
-        return dbInstance;
+export function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
+    if (dbPromise) {
+        return dbPromise;
     }
 
-    dbInstance = await openDB<PopClozetDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<PopClozetDB>(DB_NAME, DB_VERSION, {
         upgrade(db, oldVersion, newVersion, transaction) {
             // Create cart store
             if (!db.objectStoreNames.contains('cart')) {
@@ -125,7 +125,7 @@ export async function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
         },
     });
 
-    return dbInstance;
+    return dbPromise;
 }
 
 /* -----------------------------------------------------------------------

@@ -122,7 +122,7 @@ const MobileProductDetailPage: React.FC = () => {
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
                         .from('product_reviews')
-                        .select('id, rating, review_text, created_at, user_id, profiles(full_name)')
+                        .select('id, rating, review_text, created_at, user_id')
                         .eq('product_id', productId)
                         .not('review_text', 'is', null)
                         .order('created_at', { ascending: false })

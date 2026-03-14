@@ -1,0 +1,6 @@
+src/pages/HomePage.tsx(140,47): error TS2339: Property 'id' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'id' does not exist on type '{}'.
+src/services/riderOrderService.ts(226,40): error TS2345: Argument of type '"driver_arrived_warehouse"' is not assignable to parameter of type 'OrderStatus'.
+src/services/riderOrderService.ts(233,40): error TS2345: Argument of type '"order_picked_up"' is not assignable to parameter of type 'OrderStatus'.
+../../packages/api-client/src/index.ts(128,13): error TS2353: Object literal may only specify known properties, and 'ready_for_pickup' does not exist in type 'Partial<Record<OrderStatus, OrderStatus[]>>'.
+../../packages/api-client/src/index.ts(141,22): error TS2322: Type '"ready_for_pickup"' is not assignable to type 'OrderStatus'.

@@ -8,7 +8,7 @@ export default defineConfig({
     envDir: path.resolve(__dirname, "../.."),
     server: {
         host: "::",
-        port: 5173,
+        port: 5500,
     },
     plugins: [
         react(),
@@ -170,6 +170,10 @@ export default defineConfig({
         },
     },
     optimizeDeps: {
+        // Disable dependency pre-bundling to avoid esbuild/spawned-process memory OOM
+        // on low-memory/dev Windows environments. This makes cold-starts slower
+        // but prevents the esbuild Go runtime from being invoked during dev.
+        include: ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client'],
         exclude: [
             "@popclozet/api-client",
             "@popclozet/auth",
