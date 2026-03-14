@@ -12,7 +12,7 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signIn: (email: string, password: string) => Promise<void>;
-    signUp: (email: string, password: string, fullName: string, phone: string) => Promise<void>;
+    signUp: (email: string, password: string, fullName: string, phone: string, metadata?: Record<string, any>) => Promise<void>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
