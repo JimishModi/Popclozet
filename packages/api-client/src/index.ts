@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...', { url: supabaseUrl });
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...');
 
 let client: SupabaseClient;
 try {
@@ -100,6 +100,7 @@ export const transitionOrderState = async (
         p_new_status: newStatus,
         p_actor_role: actorRole,
         p_actor_id: actorId,
+        p_rider_id: null, // Explicitly provide null to resolve overload ambiguity
     });
 
     if (error) {

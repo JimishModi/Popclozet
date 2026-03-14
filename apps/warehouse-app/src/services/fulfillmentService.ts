@@ -119,7 +119,8 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
             p_order_id: orderId,
             p_new_status: newStatus,
             p_actor_role: 'warehouse',
-            p_actor_id: actorId
+            p_actor_id: actorId,
+            p_rider_id: null // Explicitly provide null to resolve overload ambiguity
         });
 
         if (!error && (data as any)?.success) {
@@ -135,7 +136,7 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
     const updatePayload: Record<string, any> = {
         status: newStatus,
         lifecycle_state: newStatus,
-        updated_at: new Date().toISOString(),
+        // updated_at: new Date().toISOString(), // Column not in schema cache
     };
 
     const { data: directData, error: directError } = await supabase
@@ -169,7 +170,7 @@ export async function markAsReadyForPickup(orderId: string, actorId: string, rid
                 status: 'ready_for_pickup',
                 lifecycle_state: 'ready_for_pickup',
                 rider_id: riderId,
-                updated_at: new Date().toISOString(),
+                // updated_at: new Date().toISOString(),
             })
             .eq('id', orderId)
             .select()
@@ -203,7 +204,7 @@ export async function dispatchOrder(orderId: string, actorId: string, riderId?: 
                 status: 'dispatched',
                 lifecycle_state: 'dispatched',
                 rider_id: riderId,
-                updated_at: new Date().toISOString(),
+                // updated_at: new Date().toISOString(),
             })
             .eq('id', orderId)
             .select()

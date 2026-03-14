@@ -238,10 +238,17 @@ export async function markOrderPickedUp(orderId: string, riderId: string) {
 }
 
 /**
- * Mark order as dispatched (leaving warehouse / out for delivery)
+ * Mark order as dispatched (item handed over to rider, leaving warehouse)
  */
 export async function markAsDispatched(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'dispatched', riderId);
+}
+
+/**
+ * Mark order as out for delivery (rider has started driving to the customer)
+ */
+export async function markAsOutForDelivery(orderId: string, riderId: string) {
+    return updateOrderAsRider(orderId, 'out_for_delivery', riderId);
 }
 
 /**

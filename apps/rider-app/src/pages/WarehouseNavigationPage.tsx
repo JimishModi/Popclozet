@@ -26,6 +26,7 @@ import {
     markArrivedAtWarehouse,
     markOrderPickedUp,
     markAsDispatched,
+    markAsOutForDelivery,
     sendMessageToCustomer,
     PREDEFINED_MESSAGES,
 } from '@/services/riderOrderService';
@@ -35,7 +36,7 @@ import { MapPin, Navigation, Package, CheckCircle, MessageCircle, Truck, Chevron
 const WAREHOUSE_LOCATION: [number, number] = [72.8567, 19.1234];
 const WAREHOUSE_ADDRESS = 'PopClozet Warehouse, Near IIT Main Gate, Powai, Mumbai';
 
-type PickupStep = 'navigating' | 'arrived' | 'picked_up' | 'dispatched';
+type PickupStep = 'navigating' | 'arrived' | 'picked_up' | 'dispatched' | 'out_for_delivery';
 
 interface WarehouseOrder {
     id: string;
@@ -223,10 +224,41 @@ export const WarehouseNavigationPage: React.FC = () => {
                 });
             }
 
-            showToast('Dispatched! Starting delivery navigation.', 'success');
-            navigate(`/delivery/${id}`);
+            showToast('Dispatched! Waiting to start delivery.', 'success');
+            setStep('dispatched');
         } catch (err: any) {
             showToast(err.message || 'Failed to dispatch', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleOutForDelivery = async () => {
+        if (!id || !user?.id) return;
+        setActionLoading(true);
+
+        try {
+            const result = await markAsOutForDelivery(id, user.id);
+            if (!result.success) throw new Error(result.message);
+
+            // Notify customer of final delivery leg
+            if (order?.user_id) {
+                const riderName = (profile as any)?.full_name || 'Your rider';
+                const message = `${riderName} is heading to your location with your package.`;
+                await supabase.from('notifications').insert({
+                    user_id: order.user_id,
+                    type: 'out_for_delivery',
+                    title: '🚗 Your package is on the way!',
+                    body: message,
+                    order_id: id,
+                    is_read: false,
+                });
+            }
+
+            showToast('Out for delivery! Heading to customer.', 'success');
+            navigate(`/delivery/${id}`);
+        } catch (err: any) {
+            showToast(err.message || 'Failed to start delivery', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -277,9 +309,14 @@ export const WarehouseNavigationPage: React.FC = () => {
             icon: Package,
         },
         dispatched: {
-            badge: 'Dispatched',
+            badge: 'Package Dispatched',
             badgeColor: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
             icon: Truck,
+        },
+        out_for_delivery: {
+            badge: 'Out for Delivery',
+            badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+            icon: Navigation,
         },
     };
 
@@ -333,10 +370,10 @@ export const WarehouseNavigationPage: React.FC = () => {
 
                     {/* Progress Steps */}
                     <div className="flex items-center gap-1 mb-4">
-                        {(['navigating', 'arrived', 'picked_up', 'dispatched'] as PickupStep[]).map((s, i) => (
+                        {(['navigating', 'arrived', 'picked_up', 'dispatched', 'out_for_delivery'] as PickupStep[]).map((s, i) => (
                             <React.Fragment key={s}>
                                 <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${
-                                    ['navigating', 'arrived', 'picked_up', 'dispatched'].indexOf(step) >= i
+                                    ['navigating', 'arrived', 'picked_up', 'dispatched', 'out_for_delivery'].indexOf(step) >= i
                                         ? 'bg-gradient-to-r from-blue-500 to-emerald-500'
                                         : 'bg-zinc-800'
                                 }`} />
@@ -430,7 +467,40 @@ export const WarehouseNavigationPage: React.FC = () => {
                         )}
 
                         {step === 'dispatched' && (
-                            <motion.div key="dispatch-done" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
+                            <motion.div key="out-for-delivery" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
+                                <button
+                                    onClick={handleOutForDelivery}
+                                    disabled={actionLoading}
+                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {actionLoading ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Navigation size={18} />
+                                            Mark as Out for Delivery
+                                            <ChevronRight size={16} />
+                                        </>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={() => setShowMessageModal(true)}
+                                    disabled={messageSent}
+                                    className={`w-full py-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+                                        messageSent
+                                            ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                                            : 'border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800'
+                                    }`}
+                                >
+                                    <MessageCircle size={16} />
+                                    {messageSent ? 'Message Sent ✓' : 'Send Message to Customer'}
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {step === 'out_for_delivery' && (
+                            <motion.div key="delivery-nav" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
                                 <button
                                     onClick={() => navigate(`/delivery/${id}`)}
                                     className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
