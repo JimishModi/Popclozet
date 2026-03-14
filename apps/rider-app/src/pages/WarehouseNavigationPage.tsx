@@ -138,8 +138,7 @@ export const WarehouseNavigationPage: React.FC = () => {
         const map = initializeMap(
             mapRef.current, 
             riderLocation, 
-            13, 
-            import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+            13
         );
         mapInstance.current = map;
 
