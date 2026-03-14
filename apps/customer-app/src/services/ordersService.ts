@@ -107,6 +107,7 @@ export async function createOrder(
       rental_end_date: rentalEndDate,
       total_amount: totalAmount,
       deposit_amount: depositAmount,
+      status: "pending",
       lifecycle_state: "placed",
     })
     .select()
@@ -148,7 +149,7 @@ export async function createOrder(
 export async function confirmOrderPayment(orderId: string): Promise<void> {
   const { error } = await supabase
     .from("orders")
-    .update({ lifecycle_state: "confirmed" })
+    .update({ status: "confirmed", lifecycle_state: "confirmed" })
     .eq("id", orderId);
 
   if (error) {
@@ -202,7 +203,7 @@ export async function getOrderWithDelivery(orderId: string) {
 export async function cancelOrder(orderId: string): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
-    .update({ lifecycle_state: "cancelled" })
+    .update({ status: "cancelled", lifecycle_state: "cancelled" })
     .eq("id", orderId)
     .select()
     .single();

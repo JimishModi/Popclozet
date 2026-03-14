@@ -75,7 +75,13 @@ function mapDbOrderToIncoming(dbOrder: any): IncomingOrder {
 export function HomePage() {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const [isOnline, setIsOnline] = useState(false);
+    
+    // Initialize online status from localStorage to persist across tab switches
+    const [isOnline, setIsOnline] = useState(() => {
+        const saved = localStorage.getItem('rider_is_online');
+        return saved === 'true';
+    });
+    
     const [isSearching, setIsSearching] = useState(false);
     const [pendingOrder, setPendingOrder] = useState<IncomingOrder | null>(null);
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
@@ -189,8 +195,11 @@ export function HomePage() {
 
         const result = await updateRiderStatus(user.id, newStatus);
         if (result.success) {
-            setIsOnline(!isOnline);
-            if (!isOnline === false) {
+            const newState = !isOnline;
+            setIsOnline(newState);
+            localStorage.setItem('rider_is_online', String(newState));
+            
+            if (!newState) {
                 setPendingOrder(null);
                 setIsSearching(false);
             }

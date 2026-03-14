@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { InteractiveMap } from "@/components/map/InteractiveMap";
 import deliveryPartnerAvatar from "@/assets/icons/delivery-partner-avatar.svg";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -60,39 +59,29 @@ export default function PickupTrackingPage() {
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
             <main className="flex-1 overflow-y-auto flex flex-col">
-                {/* ─── MAP + GRADIENT GLOW + BACK BUTTON ─── */}
-                <section className="relative h-[344px] flex-shrink-0">
+                <section className="relative h-[240px] flex-shrink-0 bg-gradient-to-br from-[#1a1a1a] to-black rounded-b-3xl mb-6">
                     {/* Gradient Glow Orb */}
                     <div
-                        className="absolute -top-20 -left-14 w-36 h-36 rounded-full rotate-[23deg] blur-[100px] pointer-events-none z-20"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full blur-[100px] pointer-events-none z-10"
                         style={{
                             background:
-                                "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)",
+                                "radial-gradient(circle, rgba(242,84,109,0.3) 0%, rgba(0,0,0,0) 70%)",
                         }}
                     />
 
                     {/* Back Button */}
                     <button
                         onClick={() => navigate(-1)}
-                        className="absolute top-6 left-5 z-30 flex items-center justify-center"
+                        className="absolute top-6 left-5 z-20 flex items-center justify-center"
                     >
                         <ChevronLeft className="w-6 h-6 text-white" />
                     </button>
 
-                    {/* Map Display */}
-                    <div className="w-full h-full">
-                        <InteractiveMap
-                            center={{
-                                lat: pickupData.address.lat,
-                                lng: pickupData.address.lng,
-                            }}
-                            zoom={14}
-                            darkMode
-                            userLocation={{
-                                lat: pickupData.address.lat,
-                                lng: pickupData.address.lng,
-                            }}
-                        />
+                    {/* Information Placeholder */}
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-8">
+                         <div className="w-16 h-1 bg-zinc-800 rounded-full mb-6"></div>
+                         <h2 className="text-xl font-bold text-white tracking-tight">Active Tracking</h2>
+                         <p className="text-zinc-400 text-sm mt-1">Live location hidden</p>
                     </div>
                 </section>
 

@@ -9,7 +9,7 @@
  */
 export type UserRole = 'customer' | 'rider' | 'warehouse' | 'admin';
 export type ActorRole = 'customer' | 'rider' | 'warehouse';
-export type OrderStatus = 'pending' | 'confirmed' | 'packed' | 'dispatched' | 'out_for_delivery' | 'delivered' | 'in_use' | 'return_requested' | 'return_dispatched' | 'return_picked_up' | 'returned' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'driver_arrived_warehouse' | 'order_picked_up' | 'dispatched' | 'out_for_delivery' | 'delivered' | 'in_use' | 'return_requested' | 'return_dispatched' | 'return_picked_up' | 'returned' | 'completed' | 'cancelled';
 export interface User {
     id: string;
     email: string;

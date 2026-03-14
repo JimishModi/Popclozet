@@ -8,9 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
-import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, type OrderWithItems } from '../services/fulfillmentService';
+import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
 import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
+import { KeyRound } from 'lucide-react';
 
 type StatusFilter = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'dispatched';
 
@@ -29,6 +30,7 @@ export function OrderFulfillmentPage() {
     const [allOrders, setAllOrders] = useState<OrderWithItems[]>([]);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState<string | null>(null);
+    const [generatingOtp, setGeneratingOtp] = useState<string | null>(null);
 
     const loadOrders = useCallback(async () => {
         try {
@@ -66,6 +68,20 @@ export function OrderFulfillmentPage() {
             showToast(err.message || 'Action failed', 'error');
         } finally {
             setProcessing(null);
+        }
+    };
+
+    const handleGenerateOtp = async (orderId: string) => {
+        setGeneratingOtp(orderId);
+        try {
+            const { otp } = await generateWarehouseOtp(orderId);
+            showToast('OTP generated successfully!', 'success');
+            await loadOrders();
+        } catch (err: any) {
+            console.error('Failed to generate OTP:', err);
+            showToast(err.message || 'Failed to generate OTP', 'error');
+        } finally {
+            setGeneratingOtp(null);
         }
     };
 
@@ -136,15 +152,50 @@ export function OrderFulfillmentPage() {
                                             <p className="text-xs text-zinc-500">#{order.id.slice(0, 8)}</p>
                                             <p className="text-sm font-medium text-zinc-200 mt-0.5">₹{order.total_amount}</p>
                                         </div>
-                                        <span className={clsx(
-                                            'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                                            filter === 'pending' && 'bg-amber-500/15 text-amber-400',
-                                            filter === 'confirmed' && 'bg-blue-500/15 text-blue-400',
-                                            filter === 'packed' && 'bg-warehouse-500/15 text-warehouse-400',
-                                            filter === 'dispatched' && 'bg-emerald-500/15 text-emerald-400',
-                                        )}>
-                                            {order.status}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className={clsx(
+                                                'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                                                filter === 'pending' && 'bg-amber-500/15 text-amber-400',
+                                                filter === 'confirmed' && 'bg-blue-500/15 text-blue-400',
+                                                filter === 'packed' && 'bg-warehouse-500/15 text-warehouse-400',
+                                                filter === 'ready_for_pickup' && 'bg-purple-500/15 text-purple-400',
+                                                filter === 'dispatched' && 'bg-emerald-500/15 text-emerald-400',
+                                            )}>
+                                                {order.status}
+                                            </span>
+                                            {filter === 'ready_for_pickup' && (
+                                                <div className="flex flex-col items-end">
+                                                    {order.warehouse_otp ? (
+                                                        <div className="flex flex-col items-end">
+                                                            <div className="flex items-center gap-1 text-white font-mono font-bold text-sm bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">
+                                                                <KeyRound size={10} className="text-purple-400" />
+                                                                {order.warehouse_otp}
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleGenerateOtp(order.id)}
+                                                                disabled={generatingOtp === order.id}
+                                                                className="text-[8px] text-zinc-500 hover:text-zinc-300 mt-0.5"
+                                                            >
+                                                                {generatingOtp === order.id ? '...' : 'Regenerate'}
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleGenerateOtp(order.id)}
+                                                            disabled={generatingOtp === order.id}
+                                                            className="flex items-center gap-1 text-[9px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 hover:bg-purple-500/20"
+                                                        >
+                                                            {generatingOtp === order.id ? (
+                                                                <RefreshCw size={8} className="animate-spin" />
+                                                            ) : (
+                                                                <KeyRound size={8} />
+                                                            )}
+                                                            Generate OTP
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {order.addresses?.full_address && (

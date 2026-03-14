@@ -53,7 +53,7 @@ BEGIN
   UPDATE orders
   SET 
     rider_id = p_rider_id,
-    status = 'assigned',
+    status = 'ready_for_pickup',
     updated_at = NOW()
   WHERE id = p_order_id;
 

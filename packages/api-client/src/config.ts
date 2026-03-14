@@ -7,7 +7,7 @@
 
 export const config = {
     // Toggle this to false to use real Supabase data
-    USE_MOCK_DATA: true,
+    USE_MOCK_DATA: false,
 
     // Feature flags
     features: {

@@ -20,6 +20,9 @@ export interface OrderWithItems {
     status: string;
     delivery_eta: string | null;
     rider_id: string | null;
+    warehouse_otp?: string | null;
+    warehouse_otp_expires_at?: string | null;
+    warehouse_otp_used?: boolean;
     created_at: string;
     order_items?: Array<{
         id: string;
@@ -119,7 +122,7 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
             p_order_id: orderId,
             p_new_status: newStatus,
             p_actor_role: 'warehouse',
-            p_actor_id: actorId
+            p_actor_id: actorId,
         });
 
         if (!error && (data as any)?.success) {
@@ -135,7 +138,7 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
     const updatePayload: Record<string, any> = {
         status: newStatus,
         lifecycle_state: newStatus,
-        updated_at: new Date().toISOString(),
+        // updated_at: new Date().toISOString(), // Column not in schema cache
     };
 
     const { data: directData, error: directError } = await supabase
@@ -169,7 +172,7 @@ export async function markAsReadyForPickup(orderId: string, actorId: string, rid
                 status: 'ready_for_pickup',
                 lifecycle_state: 'ready_for_pickup',
                 rider_id: riderId,
-                updated_at: new Date().toISOString(),
+                // updated_at: new Date().toISOString(),
             })
             .eq('id', orderId)
             .select()
@@ -180,6 +183,23 @@ export async function markAsReadyForPickup(orderId: string, actorId: string, rid
     }
 
     return updateOrderStatus(orderId, 'ready_for_pickup', actorId);
+}
+
+/**
+ * Generate a secure 6-digit OTP for rider arrival verification
+ */
+export async function generateWarehouseOtp(orderId: string): Promise<{ otp: string, expiresAt: string }> {
+    const { data, error } = await supabase.rpc('generate_warehouse_otp', {
+        p_order_id: orderId
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.message || 'Failed to generate OTP');
+
+    return {
+        otp: data.otp,
+        expiresAt: data.expires_at
+    };
 }
 
 /**
@@ -203,7 +223,7 @@ export async function dispatchOrder(orderId: string, actorId: string, riderId?: 
                 status: 'dispatched',
                 lifecycle_state: 'dispatched',
                 rider_id: riderId,
-                updated_at: new Date().toISOString(),
+                // updated_at: new Date().toISOString(),
             })
             .eq('id', orderId)
             .select()

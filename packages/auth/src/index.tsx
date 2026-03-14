@@ -47,19 +47,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /* ---------- SAFETY TIMEOUT ---------- */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('⚠️ [Auth] Safety timeout reached (5s). Forcing loading state to false.');
+          return false;
+        }
+        return prev;
+      });
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   /* ---------- PROFILE FETCH (SAFE) ---------- */
   const fetchProfile = async (userId: string) => {
+    console.log(`[Auth] Fetching profile for user: ${userId}`);
     try {
-      const { data, error } = await supabase
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
+      );
+
+      const { data, error } = await Promise.race([
+        profilePromise,
+        timeoutPromise
+      ]) as any;
+
       if (error) throw error;
+      console.log('✅ [Auth] Profile fetched:', data?.role || 'no profile');
       setProfile(data ?? null);
     } catch (err) {
-      console.error('❌ Failed to fetch profile:', err);
+      console.error('❌ [Auth] Profile resolution failed or timed out:', err);
       setProfile(null);
     }
   };
@@ -69,27 +94,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     const bootstrap = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      console.log('[Auth] Bootstrapping session...');
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
+        );
 
-      if (!mounted) return;
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
 
-      setSession(session);
-      setUser(session?.user ?? null);
+        if (!mounted) return;
 
-      if (session?.user?.id) {
-        await fetchProfile(session.user.id);
+        setSession(session);
+        setUser(session?.user ?? null);
+        console.log(`[Auth] Session resolved: ${session ? 'User logged in' : 'No user'}`);
+
+        if (session?.user?.id) {
+          await fetchProfile(session.user.id);
+        }
+      } catch (err) {
+        console.error('❌ [Auth] Bootstrap failed or timed out:', err);
+      } finally {
+        if (mounted) {
+          console.log('[Auth] Bootstrap complete, dismissing loader');
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     bootstrap();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`[Auth] State changed: ${event}`);
       if (!mounted) return;
 
       setSession(session);

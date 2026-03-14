@@ -26,16 +26,18 @@ import {
     markArrivedAtWarehouse,
     markOrderPickedUp,
     markAsDispatched,
+    markAsOutForDelivery,
     sendMessageToCustomer,
+    verifyWarehouseOtp,
     PREDEFINED_MESSAGES,
 } from '@/services/riderOrderService';
-import { MapPin, Navigation, Package, CheckCircle, MessageCircle, Truck, ChevronRight, X } from 'lucide-react';
+import { MapPin, Navigation, Package, CheckCircle, MessageCircle, Truck, ChevronRight, X, KeyRound, Loader2 } from 'lucide-react';
 
 // Warehouse location (PopClozet HQ)
 const WAREHOUSE_LOCATION: [number, number] = [72.8567, 19.1234];
 const WAREHOUSE_ADDRESS = 'PopClozet Warehouse, Near IIT Main Gate, Powai, Mumbai';
 
-type PickupStep = 'navigating' | 'arrived' | 'picked_up' | 'dispatched';
+type PickupStep = 'navigating' | 'arrived' | 'picked_up' | 'dispatched' | 'out_for_delivery';
 
 interface WarehouseOrder {
     id: string;
@@ -67,6 +69,11 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [actionLoading, setActionLoading] = useState(false);
     const [showMessageModal, setShowMessageModal] = useState(false);
     const [messageSent, setMessageSent] = useState(false);
+
+    // OTP Modal states
+    const [showOtpModal, setShowOtpModal] = useState(false);
+    const [otpValue, setOtpValue] = useState('');
+    const [otpVerifying, setOtpVerifying] = useState(false);
 
     /* ---------- FETCH ORDER ---------- */
     useEffect(() => {
@@ -149,24 +156,31 @@ export const WarehouseNavigationPage: React.FC = () => {
     }, [order?.id, riderLocation?.[0], riderLocation?.[1]]);
 
     /* ---------- ACTIONS ---------- */
-    const handleConfirmArrival = async () => {
-        console.log("👉 handleConfirmArrival clicked", { id, userId: user?.id });
-        if (!id || !user?.id) return;
-        setActionLoading(true);
+    const handleConfirmArrival = () => {
+        // Instead of calling API immediately, open OTP modal
+        setShowOtpModal(true);
+        setOtpValue('');
+    };
 
+    const handleVerifyOtp = async () => {
+        if (!id || !user?.id) return;
+        if (otpValue.length !== 6) {
+            showToast('Please enter a 6-digit PIN', 'error');
+            return;
+        }
+
+        setOtpVerifying(true);
         try {
-            console.log("Calling markArrivedAtWarehouse...");
-            const result = await markArrivedAtWarehouse(id, user.id);
-            console.log("Result:", result);
+            const result = await verifyWarehouseOtp(id, otpValue, user.id);
             if (!result.success) throw new Error(result.message);
 
             setStep('arrived');
+            setShowOtpModal(false);
             showToast('Arrival confirmed! Proceed to pickup.', 'success');
         } catch (err: any) {
-            console.error("❌ Error in handleConfirmArrival:", err);
-            showToast(err.message || 'Failed to confirm arrival', 'error');
+            showToast(err.message || 'Failed to verify PIN', 'error');
         } finally {
-            setActionLoading(false);
+            setOtpVerifying(false);
         }
     };
 
@@ -223,10 +237,41 @@ export const WarehouseNavigationPage: React.FC = () => {
                 });
             }
 
-            showToast('Dispatched! Starting delivery navigation.', 'success');
-            navigate(`/delivery/${id}`);
+            showToast('Dispatched! Waiting to start delivery.', 'success');
+            setStep('dispatched');
         } catch (err: any) {
             showToast(err.message || 'Failed to dispatch', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleOutForDelivery = async () => {
+        if (!id || !user?.id) return;
+        setActionLoading(true);
+
+        try {
+            const result = await markAsOutForDelivery(id, user.id);
+            if (!result.success) throw new Error(result.message);
+
+            // Notify customer of final delivery leg
+            if (order?.user_id) {
+                const riderName = (profile as any)?.full_name || 'Your rider';
+                const message = `${riderName} is heading to your location with your package.`;
+                await supabase.from('notifications').insert({
+                    user_id: order.user_id,
+                    type: 'out_for_delivery',
+                    title: '🚗 Your package is on the way!',
+                    body: message,
+                    order_id: id,
+                    is_read: false,
+                });
+            }
+
+            showToast('Out for delivery! Heading to customer.', 'success');
+            navigate(`/delivery/${id}`);
+        } catch (err: any) {
+            showToast(err.message || 'Failed to start delivery', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -277,9 +322,14 @@ export const WarehouseNavigationPage: React.FC = () => {
             icon: Package,
         },
         dispatched: {
-            badge: 'Dispatched',
+            badge: 'Package Dispatched',
             badgeColor: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
             icon: Truck,
+        },
+        out_for_delivery: {
+            badge: 'Out for Delivery',
+            badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+            icon: Navigation,
         },
     };
 
@@ -333,10 +383,10 @@ export const WarehouseNavigationPage: React.FC = () => {
 
                     {/* Progress Steps */}
                     <div className="flex items-center gap-1 mb-4">
-                        {(['navigating', 'arrived', 'picked_up', 'dispatched'] as PickupStep[]).map((s, i) => (
+                        {(['navigating', 'arrived', 'picked_up', 'dispatched', 'out_for_delivery'] as PickupStep[]).map((s, i) => (
                             <React.Fragment key={s}>
                                 <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${
-                                    ['navigating', 'arrived', 'picked_up', 'dispatched'].indexOf(step) >= i
+                                    ['navigating', 'arrived', 'picked_up', 'dispatched', 'out_for_delivery'].indexOf(step) >= i
                                         ? 'bg-gradient-to-r from-blue-500 to-emerald-500'
                                         : 'bg-zinc-800'
                                 }`} />
@@ -430,7 +480,40 @@ export const WarehouseNavigationPage: React.FC = () => {
                         )}
 
                         {step === 'dispatched' && (
-                            <motion.div key="dispatch-done" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
+                            <motion.div key="out-for-delivery" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
+                                <button
+                                    onClick={handleOutForDelivery}
+                                    disabled={actionLoading}
+                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {actionLoading ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Navigation size={18} />
+                                            Mark as Out for Delivery
+                                            <ChevronRight size={16} />
+                                        </>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={() => setShowMessageModal(true)}
+                                    disabled={messageSent}
+                                    className={`w-full py-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+                                        messageSent
+                                            ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                                            : 'border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800'
+                                    }`}
+                                >
+                                    <MessageCircle size={16} />
+                                    {messageSent ? 'Message Sent ✓' : 'Send Message to Customer'}
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {step === 'out_for_delivery' && (
+                            <motion.div key="delivery-nav" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
                                 <button
                                     onClick={() => navigate(`/delivery/${id}`)}
                                     className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
@@ -452,38 +535,99 @@ export const WarehouseNavigationPage: React.FC = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/70 z-50 flex items-end"
-                        onClick={() => setShowMessageModal(false)}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                     >
                         <motion.div
-                            initial={{ y: '100%' }}
-                            animate={{ y: 0 }}
-                            exit={{ y: '100%' }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="w-full bg-[#0f0f0f] rounded-t-3xl border-t border-zinc-800/50 p-6"
-                            onClick={(e) => e.stopPropagation()}
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-white font-bold text-base">Send to Customer</h3>
+                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                                <h3 className="font-semibold text-white">Send Update to Customer</h3>
                                 <button
                                     onClick={() => setShowMessageModal(false)}
-                                    className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center"
+                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
                                 >
-                                    <X size={16} className="text-zinc-400" />
+                                    <X size={20} />
                                 </button>
                             </div>
 
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {PREDEFINED_MESSAGES.map((msg, idx) => (
+                            <div className="p-4 space-y-3">
+                                {PREDEFINED_MESSAGES.map((msg, i) => (
                                     <button
-                                        key={idx}
+                                        key={i}
                                         onClick={() => handleSendMessage(msg)}
                                         disabled={actionLoading}
-                                        className="w-full text-left py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm hover:bg-zinc-800 hover:border-zinc-700 transition-all active:scale-[0.98] disabled:opacity-50"
+                                        className="w-full text-left p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors text-sm text-zinc-300 disabled:opacity-50"
                                     >
-                                        {msg}
+                                        "{msg}"
                                     </button>
                                 ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* OTP VERIFICATION MODAL */}
+            <AnimatePresence>
+                {showOtpModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
+                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                    <KeyRound size={18} className="text-blue-400" />
+                                    Verify Arrival
+                                </h3>
+                                <button
+                                    onClick={() => !otpVerifying && setShowOtpModal(false)}
+                                    disabled={otpVerifying}
+                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-5 text-center">
+                                <p className="text-sm text-zinc-400">
+                                    Ask the warehouse staff for the 6-digit Arrival PIN to confirm you are at the correct location.
+                                </p>
+
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="\d*"
+                                    maxLength={6}
+                                    value={otpValue}
+                                    onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="000000"
+                                    className="w-full text-center text-4xl font-mono font-bold tracking-[0.2em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-800"
+                                />
+
+                                <button
+                                    onClick={handleVerifyOtp}
+                                    disabled={otpValue.length !== 6 || otpVerifying}
+                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {otpVerifying ? (
+                                        <>
+                                            <Loader2 size={18} className="animate-spin" /> Verifying...
+                                        </>
+                                    ) : (
+                                        'Verify PIN'
+                                    )}
+                                </button>
                             </div>
                         </motion.div>
                     </motion.div>

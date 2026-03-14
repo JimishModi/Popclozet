@@ -170,7 +170,28 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
 
     const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+            id,
+            user_id,
+            status,
+            order_type,
+            total_amount,
+            delivery_fee,
+            route_distance_km,
+            route_polyline,
+            created_at,
+            delivery_eta,
+            addresses:delivery_address_id (
+                full_address,
+                latitude,
+                longitude
+            ),
+            order_items (
+                id,
+                product_id,
+                rental_price
+            )
+        `)
         .eq('id', orderId)
         .single();
 
@@ -179,21 +200,26 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         return null;
     }
 
+    const addr = data.addresses as any;
+
     return {
         id: data.id,
         orderId: data.id,
         customerId: data.user_id,
-        orderType: data.order_type,
+        orderType: data.order_type || 'delivery',
         status: data.status,
         pickupAddress: { fullAddress: 'Hub Location', lat: 0, lng: 0 },
         deliveryAddress: {
-            fullAddress: data.addresses?.full_address || 'Customer Address',
-            lat: data.addresses?.latitude || 0,
-            lng: data.addresses?.longitude || 0,
+            fullAddress: addr?.full_address || 'Customer Address',
+            lat: addr?.latitude || 0,
+            lng: addr?.longitude || 0,
         },
-        items: [],
-        totalAmount: 0,
-        deliveryFee: data.delivery_fee,
+        items: (data.order_items || []).map((item: any) => ({
+            name: `Product ${item.product_id.slice(0, 8)}`,
+            qty: 1,
+        })),
+        totalAmount: data.total_amount || 0,
+        deliveryFee: data.delivery_fee || 0,
         distanceKm: data.route_distance_km,
         routePolyline: data.route_polyline,
         assignedAt: data.created_at,
@@ -224,7 +250,24 @@ export async function markAsPickedUp(orderId: string, riderId: string) {
 }
 
 /**
- * Mark rider as arrived at warehouse
+ * Mark rider as arrived at warehouse (Requires OTP)
+ */
+export async function verifyWarehouseOtp(orderId: string, otp: string, riderId: string) {
+    const { data, error } = await supabase.rpc('verify_warehouse_otp', {
+        p_order_id: orderId,
+        p_otp: otp,
+        p_actor_id: riderId
+    });
+
+    if (error) {
+        return { success: false, message: error.message };
+    }
+    
+    return data;
+}
+
+/**
+ * Mark rider as arrived at warehouse (Legacy/Fallback if needed)
  */
 export async function markArrivedAtWarehouse(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'driver_arrived_warehouse', riderId);
@@ -238,10 +281,17 @@ export async function markOrderPickedUp(orderId: string, riderId: string) {
 }
 
 /**
- * Mark order as dispatched (leaving warehouse / out for delivery)
+ * Mark order as dispatched (item handed over to rider, leaving warehouse)
  */
 export async function markAsDispatched(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'dispatched', riderId);
+}
+
+/**
+ * Mark order as out for delivery (rider has started driving to the customer)
+ */
+export async function markAsOutForDelivery(orderId: string, riderId: string) {
+    return updateOrderAsRider(orderId, 'out_for_delivery', riderId);
 }
 
 /**

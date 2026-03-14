@@ -773,7 +773,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="space-y-5 mb-10">
+               <div className="space-y-5 mb-10">
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
                     <input

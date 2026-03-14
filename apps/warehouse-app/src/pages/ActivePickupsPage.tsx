@@ -9,7 +9,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, Package, MapPin, User, Clock, CheckCircle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { getActivePickups, type OrderWithItems } from '../services/fulfillmentService';
+import { KeyRound, RefreshCw } from 'lucide-react';
+import { getActivePickups, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
+import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -36,8 +38,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 export function ActivePickupsPage() {
+    const { showToast } = useToast();
     const [orders, setOrders] = useState<OrderWithItems[]>([]);
     const [loading, setLoading] = useState(true);
+    const [generatingOtp, setGeneratingOtp] = useState<string | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -52,6 +56,21 @@ export function ActivePickupsPage() {
 
     useEffect(() => { loadData(); }, [loadData]);
     useRealtimeOrders({ onChange: loadData });
+
+    const handleGenerateOtp = async (orderId: string) => {
+        setGeneratingOtp(orderId);
+        try {
+            const { otp } = await generateWarehouseOtp(orderId);
+            showToast('OTP generated successfully!', 'success');
+            // Optimistically update the local order state
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, warehouse_otp: otp } : o));
+        } catch (err: any) {
+            console.error('Failed to generate OTP:', err);
+            showToast(err.message || 'Failed to generate OTP', 'error');
+        } finally {
+            setGeneratingOtp(null);
+        }
+    };
 
     if (loading) {
         return (
@@ -152,6 +171,43 @@ export function ActivePickupsPage() {
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* OTP Section (Only for ready_for_pickup) */}
+                                    {order.status === 'ready_for_pickup' && (
+                                        <div className="mt-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50 flex flex-col items-center justify-center gap-2">
+                                            {order.warehouse_otp ? (
+                                                <>
+                                                    <div className="flex items-center gap-2 text-zinc-400 text-xs">
+                                                        <KeyRound size={14} /> Arrival PIN for Driver
+                                                    </div>
+                                                    <div className="text-2xl font-mono font-bold tracking-[0.2em] text-white">
+                                                        {order.warehouse_otp}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleGenerateOtp(order.id)}
+                                                        disabled={generatingOtp === order.id}
+                                                        className="mt-1 flex items-center gap-1.5 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                                                    >
+                                                        <RefreshCw size={10} className={clsx(generatingOtp === order.id && "animate-spin")} />
+                                                        Regenerate PIN
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleGenerateOtp(order.id)}
+                                                    disabled={generatingOtp === order.id}
+                                                    className="w-full py-2 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-semibold hover:bg-purple-500/25 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {generatingOtp === order.id ? (
+                                                        <RefreshCw size={14} className="animate-spin" />
+                                                    ) : (
+                                                        <KeyRound size={14} />
+                                                    )}
+                                                    Generate Arrival PIN
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Progress Indicator */}
                                     <div className="flex items-center gap-1">
