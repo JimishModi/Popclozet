@@ -123,6 +123,7 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
             p_new_status: newStatus,
             p_actor_role: 'warehouse',
             p_actor_id: actorId,
+            p_rider_id: null // Explicitly provide null to resolve overload ambiguity
         });
 
         if (!error && (data as any)?.success) {
