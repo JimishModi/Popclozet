@@ -153,7 +153,7 @@ export default defineConfig({
                 navigateFallbackDenylist: [/^\/api/, /^\/admin/],
             },
             devOptions: {
-                enabled: false,
+                enabled: true,
             },
         }),
     ],

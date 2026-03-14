@@ -10,7 +10,7 @@
 import mapboxgl from 'mapbox-gl';
 
 // @ts-ignore
-const MAPBOX_TOKEN = import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN || '';
+const CONFIGURED_TOKEN = import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN || '';
 
 /**
  * Configure Mapbox GL with the provided access token globally.
@@ -21,8 +21,8 @@ export const configureMapbox = (token: string) => {
     (mapboxgl as any).accessToken = token;
 };
 
-if (MAPBOX_TOKEN) {
-    (mapboxgl as any).accessToken = MAPBOX_TOKEN;
+if (CONFIGURED_TOKEN) {
+    (mapboxgl as any).accessToken = CONFIGURED_TOKEN;
 }
 
 let mapInstance: mapboxgl.Map | null = null;
@@ -31,14 +31,14 @@ let mapInstance: mapboxgl.Map | null = null;
  * Check if Mapbox is configured and available
  */
 export const isMapboxAvailable = (): boolean => {
-    return !!MAPBOX_TOKEN;
+    return !!CONFIGURED_TOKEN;
 };
 
 /**
  * Get the Mapbox access token (for static map URLs)
  */
 export const getMapboxToken = (): string | undefined => {
-    return MAPBOX_TOKEN;
+    return CONFIGURED_TOKEN;
 };
 
 /**
@@ -50,7 +50,7 @@ export const initializeMap = (
     zoom: number = 14,
     token?: string
 ): mapboxgl.Map => {
-    const activeToken = token || MAPBOX_TOKEN;
+    const activeToken = token || CONFIGURED_TOKEN;
     if (!activeToken) {
         throw new Error('Mapbox access token is not configured');
     }
@@ -101,7 +101,7 @@ export const drawRoute = async (
     // Read the directly injected token from map instance since Vite static vars fail across workspaces
     const activeToken = (map as any)?._requestManager?._transformRequestFn?.()?.access_token || 
                         (mapboxgl as any).accessToken || 
-                        MAPBOX_TOKEN;
+                        CONFIGURED_TOKEN;
                         
     if (!activeToken) return;
 
@@ -241,7 +241,7 @@ export const reverseGeocode = async (
     lat: number,
     lng: number
 ): Promise<ReverseGeocodeResult | null> => {
-    if (!MAPBOX_TOKEN) {
+    if (!CONFIGURED_TOKEN) {
         console.error('Mapbox token not configured');
         return null;
     }
@@ -249,7 +249,7 @@ export const reverseGeocode = async (
     try {
         // Don't restrict types - get all results for better coverage
         const response = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${CONFIGURED_TOKEN}`
         );
 
         if (!response.ok) {
