@@ -1,8 +1,0 @@
-
-> @popclozet/mapbox-core@1.1.1 build C:\Users\welcome\Desktop\PopCLozet-Apps-main\packages\mapbox-core
-> pnpm exec tsc -b
-
-src/index.ts(12,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
-C:\Users\welcome\Desktop\PopCLozet-Apps-main\packages\mapbox-core:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @popclozet/mapbox-core@1.1.1 build: `pnpm exec tsc -b`
-Exit status 1

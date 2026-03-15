@@ -16,6 +16,7 @@
   "devDependencies": {
     "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^22.19.10",
+    "@types/react": "~18.2.79",
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.3.1",
     "husky": "^9.1.7",

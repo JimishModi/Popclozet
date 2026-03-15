@@ -4,6 +4,7 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import logoImage from "@/logo/logo.png";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { Loader2 } from "lucide-react";
+import { loadAndInitMsg91, sendOtp } from "@/services/msg91OtpService"; // ✅ MSG91
 
 // Generate the grid of small rounded-rect tiles for background
 function BackgroundGrid() {
@@ -46,7 +47,7 @@ export default function LoginPage() {
     const navigate = useNavigate();
     const [phoneNumber, setPhoneNumber] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const { signInWithGoogle, signInWithPhoneNumber } = useAuth();
+    const { signInWithGoogle } = useAuth(); // ✅ removed signInWithPhoneNumber
     const [error, setError] = useState<string | null>(null);
 
     const handlePhoneLogin = useCallback(async () => {
@@ -57,8 +58,15 @@ export default function LoginPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const formattedNumber = `+91${phoneNumber}`;
-            await signInWithPhoneNumber(formattedNumber);
+            const identifier = `91${phoneNumber}`; // MSG91 format: country code without +
+
+            // ✅ Step 1: Load & init MSG91 SDK
+            await loadAndInitMsg91(identifier);
+
+            // ✅ Step 2: Send OTP via MSG91
+            await sendOtp(identifier);
+
+            // ✅ Step 3: Navigate to OTP page
             navigate("/auth/otp", { state: { phone: phoneNumber } });
         } catch (err: unknown) {
             const error = err as { message?: string };
@@ -66,7 +74,7 @@ export default function LoginPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [phoneNumber, signInWithPhoneNumber, navigate]);
+    }, [phoneNumber, navigate]);
 
     const handleGoogleSignIn = async () => {
         setIsLoading(true);
@@ -144,7 +152,7 @@ export default function LoginPage() {
                         <div className="flex-1 h-px bg-zinc-800" />
                     </div>
 
-                    {/* Google Sign In – white button like Figma */}
+                    {/* Google Sign In */}
                     <button
                         onClick={handleGoogleSignIn}
                         disabled={isLoading}

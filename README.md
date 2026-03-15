@@ -6,6 +6,7 @@ Production-grade customer PWA for PopClozet rental fashion platform with Zepto-s
 
 ### Core Features
 - **Authentication**: Secure customer-only authentication with Supabase
+- **Phone OTP Verification**: Mobile number verification via MSG91 OTP widget with custom UI
 - **Product Discovery**: NLP-powered search with occasion-based filtering
 - **Smart Cart**: 15-minute reservation timer with auto-expiry
 - **Seamless Checkout**: Address management and rental period selection
@@ -13,6 +14,13 @@ Production-grade customer PWA for PopClozet rental fashion platform with Zepto-s
 - **OTP Confirmation**: Secure delivery and return confirmation
 - **Return Workflow**: Easy return request with pickup scheduling
 - **PWA Support**: Offline-first with background sync
+
+### Phone OTP Authentication Flow
+- **Send OTP**: MSG91 SDK sends OTP to Indian mobile numbers (+91)
+- **Verify OTP**: Client-side verification via MSG91 widget returns access token
+- **Server Validation**: Supabase Edge Function validates MSG91 access token server-side
+- **Session Creation**: Automatic Supabase user creation and session management
+- **Resend Support**: 30-second cooldown with retry via MSG91 retryOtp
 
 ### Unique Zepto-Style Map Logic
 - **Default View**: ETA countdown + Order timeline (NO map)
@@ -28,6 +36,7 @@ Production-grade customer PWA for PopClozet rental fashion platform with Zepto-s
 - **Animations**: Framer Motion
 - **Routing**: React Router v6
 - **Backend**: Supabase (Auth, Database, Realtime, Storage)
+- **OTP Verification**: MSG91 OTP Widget SDK
 - **Maps**: Mapbox GL JS (conditional rendering)
 - **PWA**: vite-plugin-pwa with Workbox
 
@@ -37,6 +46,19 @@ Production-grade customer PWA for PopClozet rental fashion platform with Zepto-s
 - Node.js 18+ and npm
 - Supabase account
 - Mapbox account
+- MSG91 account with OTP widget configured
+
+### MSG91 Setup
+1. Create an account at [msg91.com](https://msg91.com)
+2. Complete DLT registration (required for India — takes 3–7 days)
+3. Create an Authkey at `control.msg91.com/developer` with `##OTP##` use case
+4. Create an OTP Widget at `control.msg91.com` → OTP → Widget
+5. Copy the `widgetId` and `tokenAuth` from the widget code snippet
+6. Deploy the Supabase Edge Function and set the secret:
+```bash
+supabase functions deploy verify-otp-token
+supabase secrets set MSG91_AUTH_KEY=your_authkey_here
+```
 
 ### Installation
 
@@ -55,7 +77,13 @@ cp .env.example .env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_MAPBOX_ACCESS_TOKEN=your_mapbox_access_token
+
+# MSG91 OTP Verification
+VITE_MSG91_WIDGET_ID=your_msg91_widget_id
+VITE_MSG91_TOKEN_AUTH=your_msg91_token_auth
 ```
+
+> ⚠️ Never commit `.env` to Git. Make sure it's in `.gitignore`.
 
 3. **Run development server**:
 ```bash
@@ -82,7 +110,7 @@ src/
 │   │   └── cart/        # Cart components
 │   └── ProtectedRoute.tsx
 ├── pages/
-│   ├── auth/            # Login, Signup
+│   ├── auth/            # Login, Signup, OTP Verification
 │   ├── products/        # Product list, detail
 │   ├── cart/            # Cart page
 │   ├── checkout/        # Checkout flow
@@ -91,10 +119,16 @@ src/
 │   └── HomePage.tsx
 ├── contexts/            # React contexts (Auth, Cart, Toast)
 ├── hooks/               # Custom hooks (geolocation, realtime)
-├── services/            # API services (Supabase, Mapbox, Realtime)
+├── services/            # API services (Supabase, Mapbox, MSG91, Realtime)
+│   └── msg91OtpService.ts  # MSG91 SDK wrapper
 ├── utils/               # Utility functions
 ├── types/               # TypeScript type definitions
 └── styles/              # Global styles
+
+supabase/
+└── functions/
+    └── verify-otp-token/   # Edge function for MSG91 token verification
+        └── index.ts
 ```
 
 ## 🗄️ Database Schema
@@ -115,6 +149,27 @@ src/
 - Rider location updates
 
 ## 🎯 Key Implementation Details
+
+### Phone OTP Verification
+```typescript
+// 1. Load MSG91 SDK and send OTP
+await loadAndInitMsg91(`91${phoneNumber}`);
+await sendOtp(`91${phoneNumber}`);
+
+// 2. Verify OTP — returns access token
+const { message: accessToken } = await verifyOtp(otp);
+
+// 3. Validate token server-side via Supabase Edge Function
+const res = await fetch(process.env.VITE_SUPABASE_URL + '/functions/v1/verify-otp-token', {
+  method: 'POST',
+  headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+  body: JSON.stringify({ accessToken, mobile: phoneNumber })
+});
+
+// 4. Set Supabase session
+const { session } = await res.json();
+await supabase.auth.setSession(session);
+```
 
 ### Proximity-Based Map Activation
 ```typescript
@@ -147,9 +202,11 @@ if (distance <= 100) {
 
 - Customer-only role validation
 - Protected routes
+- MSG91 server-side OTP token validation via Supabase Edge Function
 - OTP verification for delivery/return
 - Secure session management
 - Environment variable protection
+- MSG91 Authkey IP whitelisting (enable in production)
 
 ## 📱 PWA Features
 
