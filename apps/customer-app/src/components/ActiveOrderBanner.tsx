@@ -4,28 +4,50 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Package, MapPin, Clock, X, ChevronRight } from "lucide-react";
 import { useActiveOrder } from "@/hooks/useActiveOrder";
 
-type OrderStatus = "confirmed" | "preparing" | "out_for_delivery" | "delivered";
+import { ActiveOrder } from "@/hooks/useActiveOrder";
 
-interface ActiveOrder {
-    id: string;
-    status: OrderStatus;
-    etaMinutes?: number;
-    itemCount: number;
-    deliveryPartner?: string;
-}
-
-const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+    pending: {
+        label: "Order Placed",
+        icon: <Package className="w-4 h-4" />,
+        color: "text-zinc-400",
+        bgColor: "bg-zinc-500/20",
+    },
     confirmed: {
         label: "Order Confirmed",
         icon: <Package className="w-4 h-4" />,
         color: "text-blue-400",
         bgColor: "bg-blue-500/20",
     },
-    preparing: {
-        label: "Preparing Your Order",
+    packed: {
+        label: "Order Packed",
         icon: <Package className="w-4 h-4" />,
-        color: "text-yellow-400",
-        bgColor: "bg-yellow-500/20",
+        color: "text-blue-400",
+        bgColor: "bg-blue-500/20",
+    },
+    ready_for_pickup: {
+        label: "Ready for Pickup",
+        icon: <Package className="w-4 h-4" />,
+        color: "text-indigo-400",
+        bgColor: "bg-indigo-500/20",
+    },
+    driver_arrived_warehouse: {
+        label: "Rider at Warehouse",
+        icon: <MapPin className="w-4 h-4" />,
+        color: "text-purple-400",
+        bgColor: "bg-purple-500/20",
+    },
+    order_picked_up: {
+        label: "Package Collected",
+        icon: <Package className="w-4 h-4" />,
+        color: "text-purple-400",
+        bgColor: "bg-purple-500/20",
+    },
+    dispatched: {
+        label: "Dispatched",
+        icon: <MapPin className="w-4 h-4" />,
+        color: "text-orange-400",
+        bgColor: "bg-orange-500/20",
     },
     out_for_delivery: {
         label: "On the Way",
@@ -87,19 +109,19 @@ export function ActiveOrderBanner() {
                         {/* Order Info */}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
-                                <p className={`text-sm font-semibold ${statusConfig.color}`}>
-                                    {statusConfig.label}
+                                <p className={`text-sm font-semibold ${statusConfig?.color || 'text-zinc-400'}`}>
+                                    {statusConfig?.label || "Order Update"}
                                 </p>
-                                {activeOrder.etaMinutes && (
+                                {activeOrder.estimated_delivery && (
                                     <div className="flex items-center gap-1 text-xs text-zinc-400">
                                         <Clock className="w-3 h-3" />
-                                        <span>{activeOrder.etaMinutes} min</span>
+                                        <span>ETA: {new Date(activeOrder.estimated_delivery).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
                                 )}
                             </div>
                             <p className="text-xs text-zinc-500 truncate">
-                                {activeOrder.itemCount} item{activeOrder.itemCount > 1 ? "s" : ""}
-                                {activeOrder.deliveryPartner && ` • ${activeOrder.deliveryPartner}`}
+                                Total: ₹{activeOrder.total_amount}
+                                {activeOrder.rider_name && ` • Rider: ${activeOrder.rider_name}`}
                             </p>
                         </div>
 

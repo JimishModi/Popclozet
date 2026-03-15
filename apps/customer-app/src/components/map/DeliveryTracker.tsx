@@ -3,8 +3,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Clock, MapPin, Phone, CheckCircle } from 'lucide-react';
-import { InteractiveMap } from './InteractiveMap';
+import { Package, Clock, MapPin, Phone, CheckCircle, Truck } from 'lucide-react';
 import { supabase } from '@popclozet/api-client';
 import { getOrderById, DeliveryOrder, OrderStatus } from '@/services/deliveryService';
 import { getHubById, RentalHub } from '@/services/hubService';
@@ -28,6 +27,9 @@ interface TrackingData {
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ReactNode }[] = [
     { status: 'confirmed', label: 'Order Confirmed', icon: <CheckCircle className="w-4 h-4" /> },
     { status: 'preparing', label: 'Preparing', icon: <Package className="w-4 h-4" /> },
+    { status: 'ready_for_pickup', label: 'Ready for Pickup', icon: <Package className="w-4 h-4" /> },
+    { status: 'driver_arrived_warehouse', label: 'Rider at Warehouse', icon: <Truck className="w-4 h-4" /> },
+    { status: 'order_picked_up', label: 'Package Collected', icon: <Package className="w-4 h-4" /> },
     { status: 'out_for_delivery', label: 'On the Way', icon: <MapPin className="w-4 h-4" /> },
     { status: 'delivered', label: 'Delivered', icon: <CheckCircle className="w-4 h-4" /> },
 ];
@@ -108,7 +110,18 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
         };
     }, [orderId]);
 
-    const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order?.status);
+    const getLogicalStepIndex = (status?: string) => {
+        if (!status) return -1;
+        if (['pending', 'confirmed'].includes(status)) return 0;
+        if (['preparing', 'packed'].includes(status)) return 1;
+        if (['ready_for_pickup'].includes(status)) return 2;
+        if (['driver_arrived_warehouse'].includes(status)) return 3;
+        if (['order_picked_up', 'dispatched'].includes(status)) return 4;
+        if (['out_for_delivery', 'pickup_scheduled'].includes(status)) return 5;
+        if (['delivered', 'completed', 'return_completed'].includes(status)) return 6;
+        return -1;
+    };
+    const currentStepIndex = getLogicalStepIndex(order?.status);
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
@@ -125,7 +138,7 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
 
     // Simulation hook logic - only active when no real tracking data and order is in transit
     const shouldSimulate = !tracking && !!order && !!hub && !!routeOrigin && !!routeDestination;
-    const isTransitStatus = ['preparing', 'out_for_delivery', 'pickup_scheduled'].includes(order.status || '');
+    const isTransitStatus = ['preparing', 'dispatched', 'out_for_delivery', 'pickup_scheduled'].includes(order?.status || '');
 
     const { vehicleLocation: simulatedVehicle, routePath } = useDriverSimulation({
         origin: routeOrigin,
@@ -155,18 +168,9 @@ export function DeliveryTracker({ orderId, className }: DeliveryTrackerProps) {
 
     return (
         <div className={className}>
-            {/* Map */}
-            <div className="relative h-64 mb-6 rounded-2xl overflow-hidden">
-                <InteractiveMap
-                    center={displayVehicle || userLocation || undefined}
-                    zoom={14}
-                    darkMode
-                    userLocation={userLocation}
-                    hubs={hub ? [hub] : []}
-                    routePath={routePath}
-                    vehicleLocation={displayVehicle}
-                    trackerMode={!!displayVehicle && order.status === 'out_for_delivery'}
-                />
+            {/* Map Placeholder */}
+            <div className="relative h-48 mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 flex items-center justify-center">
+                <Truck className="w-12 h-12 text-zinc-700 opacity-50" />
 
                 {/* Live ETA overlay */}
                 {(tracking?.eta_minutes || simulatedVehicle) && order.status === 'out_for_delivery' && (

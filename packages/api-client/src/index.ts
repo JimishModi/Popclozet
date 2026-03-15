@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...', { url: supabaseUrl });
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...');
 
 let client: SupabaseClient;
 try {
@@ -100,6 +100,7 @@ export const transitionOrderState = async (
         p_new_status: newStatus,
         p_actor_role: actorRole,
         p_actor_id: actorId,
+        p_rider_id: null, // Explicitly provide null to resolve overload ambiguity
     });
 
     if (error) {
@@ -125,6 +126,9 @@ export const getAllowedTransitions = (
 ): OrderStatus[] => {
     const transitions: Record<ActorRole, Partial<Record<OrderStatus, OrderStatus[]>>> = {
         rider: {
+            ready_for_pickup: ['driver_arrived_warehouse'],
+            driver_arrived_warehouse: ['order_picked_up'],
+            order_picked_up: ['dispatched'],
             dispatched: ['out_for_delivery'],
             out_for_delivery: ['delivered'],
         },
@@ -135,7 +139,7 @@ export const getAllowedTransitions = (
         warehouse: {
             pending: ['confirmed'],
             confirmed: ['packed'],
-            packed: ['dispatched'],
+            packed: ['ready_for_pickup'],
         },
     };
 
@@ -259,6 +263,9 @@ export * from './rentalOrderService';
 
 // Re-export pickup scheduler
 export * from './pickupScheduler';
+
+// Re-export customer notification service
+export * from './notifyCustomerService';
 
 // Export config
 export * from './config';

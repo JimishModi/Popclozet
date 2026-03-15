@@ -8,6 +8,10 @@
  */
 import * as mapboxgl from 'mapbox-gl';
 /**
+ * Configure Mapbox GL with the provided access token globally.
+ */
+export declare const configureMapbox: (token: string) => void;
+/**
  * Check if Mapbox is configured and available
  */
 export declare const isMapboxAvailable: () => boolean;
@@ -18,7 +22,7 @@ export declare const getMapboxToken: () => string | undefined;
 /**
  * Initialize a Mapbox map instance
  */
-export declare const initializeMap: (container: HTMLElement, center: [number, number], zoom?: number) => mapboxgl.Map;
+export declare const initializeMap: (container: HTMLElement, center: [number, number], zoom?: number, token?: string) => mapboxgl.Map;
 /**
  * Destroy the current map instance and clean up resources
  */

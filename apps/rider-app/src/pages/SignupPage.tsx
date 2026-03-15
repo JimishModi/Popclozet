@@ -111,7 +111,12 @@ export function SignupPage() {
         setIsLoading(true);
 
         try {
-            await signUp(formData.email, formData.password, formData.name, formData.phone);
+            await signUp(formData.email, formData.password, formData.name, formData.phone, {
+                role: 'rider',
+                vehicle_type: formData.vehicleType,
+                vehicle_number: formData.vehicleNumber,
+                license_number: formData.licenseNumber
+            });
             // Navigate to home on success
             navigate('/');
         } catch (err: any) {

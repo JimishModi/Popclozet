@@ -141,7 +141,7 @@ export async function updateTrackingPosition(
         .select('*')
         .eq('order_id', orderId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
     if (!tracking) {
         console.warn('No active tracking record found for order:', orderId);
@@ -227,7 +227,7 @@ export async function getTrackingRecord(orderId: string): Promise<TrackingRecord
         .select('*')
         .eq('order_id', orderId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
     if (error) {
         if (error.code !== 'PGRST116') { // Not found error

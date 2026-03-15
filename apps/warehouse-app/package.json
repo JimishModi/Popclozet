@@ -5,8 +5,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite --port 5502",
-        "build": "tsc -b && vite build",
-        "preview": "vite preview"
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
     },
     "dependencies": {
         "@popclozet/api-client": "workspace:*",

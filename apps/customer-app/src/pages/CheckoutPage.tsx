@@ -30,6 +30,7 @@ import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
+import { TERMS_AND_CONDITIONS, COOKIE_POLICY } from "@/constants/legalDocs";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -464,7 +465,18 @@ export default function CheckoutPage() {
         throw new Error("Order items saving failed: " + itemsErr.message);
       }
 
-      // 4) Clear cart
+      // 4) Insert Legal Acceptance Log
+      const { error: legalErr } = await supabase.from("legal_acceptances").insert({
+        user_id: userId,
+        order_id: order.id,
+        ip_address: userIp || 'unknown',
+        tc_version: 'v1.0'
+      });
+      if (legalErr) {
+        console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
+      }
+
+      // 5) Clear cart
       await clearCartDB().catch(() => { });
       for (const [id] of validCartEntries) {
         removeFromCart(id);
@@ -721,7 +733,8 @@ export default function CheckoutPage() {
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-white" style={dmSans}>Select Address</h2>
+                <Drawer.Title className="text-xl font-black text-white" style={dmSans}>Select Address</Drawer.Title>
+                <Drawer.Description className="sr-only">Choose a delivery address</Drawer.Description>
                 <button onClick={() => navigate("/map?returnTo=/checkout")} className="text-sm font-bold text-[#f2546d]">+ Add New</button>
               </div>
               <div className="space-y-4">
@@ -746,7 +759,8 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              <h2 className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</h2>
+              <Drawer.Title className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <Drawer.Description className="sr-only">Select how you want to pay</Drawer.Description>
 
               <div className="space-y-3">
                 {/* UPI Option */}
@@ -892,8 +906,8 @@ export default function CheckoutPage() {
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
 
               <div className="mb-10 text-center">
-                <h2 className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</h2>
-                <p className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</p>
+                <Drawer.Title className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</Drawer.Title>
+                <Drawer.Description className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</Drawer.Description>
               </div>
 
               {/* Legal Icons Summary */}
@@ -929,7 +943,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="space-y-5 mb-10">
+               <div className="space-y-5 mb-10">
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
                     <input
@@ -945,8 +959,11 @@ export default function CheckoutPage() {
                       {agreedToTerms && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
-                  <span className="text-sm text-zinc-300 font-bold leading-snug" style={dmSans}>
-                    I have read and accept the <span className="text-[#f2546d] underline underline-offset-4">Rental Agreement</span> and <span className="text-[#f2546d] underline underline-offset-4">Liability Policy</span>.
+                  <span className="text-sm text-zinc-300 font-bold leading-snug break-words" style={dmSans}>
+                    I have read and accept the{' '}
+                    <a href="/docs/Terms & condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
+                    <a href="/docs/Privacy policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
+                    <a href="/docs/Cookies policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
                   </span>
                 </label>
 

@@ -33,7 +33,12 @@ export interface DeliveryOrder {
 export type OrderStatus =
     | 'pending'
     | 'confirmed'
+    | 'packed'
+    | 'ready_for_pickup'
     | 'preparing'
+    | 'driver_arrived_warehouse'
+    | 'order_picked_up'
+    | 'dispatched'
     | 'out_for_delivery'
     | 'delivered'
     | 'pickup_scheduled'
@@ -273,7 +278,7 @@ export async function updateOrderStatus(
     // Send notification if enabled (default: true)
     if (options?.sendNotification !== false) {
         try {
-            await notifyOrderStatusChange(orderId, status);
+            await notifyOrderStatusChange(currentOrder.user_id, orderId, status);
         } catch (error) {
             console.warn('Failed to send notification:', error);
             // Don't fail the status update if notification fails

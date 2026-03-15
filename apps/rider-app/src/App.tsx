@@ -13,6 +13,7 @@ import { Loader, WrongRoleScreen } from '@popclozet/ui';
 // Legacy pages (existing)
 import { RiderDashboardPage } from './pages/RiderDashboardPage';
 import { DeliveryNavigationPage } from './pages/DeliveryNavigationPage';
+import { WarehouseNavigationPage } from './pages/WarehouseNavigationPage';
 
 // New integrated pages
 import { HomePage } from './pages/HomePage';
@@ -28,6 +29,12 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { SupportPage } from './pages/SupportPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { EarningsPage } from './pages/EarningsPage';
+import { configureMapbox } from '@popclozet/mapbox-core';
+
+// Ensure WebWorker has access to Mapbox Token globally on init
+if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+    configureMapbox(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
+}
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -66,7 +73,8 @@ function App() {
             {/* Legacy Dashboard (for backwards compatibility) */}
             <Route path="/dashboard-legacy" element={<RiderDashboardPage />} />
 
-            {/* Delivery Flow */}
+            {/* Warehouse Pickup + Delivery Flow */}
+            <Route path="/warehouse/:id" element={<WarehouseNavigationPage />} />
             <Route path="/delivery/:id" element={<DeliveryNavigationPage />} />
             <Route path="/otp-verify/:orderId" element={<OtpVerificationPage />} />
             <Route path="/order-complete" element={<OrderCompletePage />} />

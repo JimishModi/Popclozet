@@ -1,0 +1,7 @@
+src/components/ActiveOrderBanner.tsx(93,46): error TS2339: Property 'etaMinutes' does not exist on type 'ActiveOrder'.
+src/components/ActiveOrderBanner.tsx(96,60): error TS2339: Property 'etaMinutes' does not exist on type 'ActiveOrder'.
+src/components/ActiveOrderBanner.tsx(101,46): error TS2339: Property 'itemCount' does not exist on type 'ActiveOrder'.
+src/components/ActiveOrderBanner.tsx(101,74): error TS2339: Property 'itemCount' does not exist on type 'ActiveOrder'.
+src/components/ActiveOrderBanner.tsx(102,46): error TS2339: Property 'deliveryPartner' does not exist on type 'ActiveOrder'.
+src/components/ActiveOrderBanner.tsx(102,83): error TS2339: Property 'deliveryPartner' does not exist on type 'ActiveOrder'.
+src/services/deliveryService.ts(276,19): error TS2554: Expected 3 arguments, but got 2.

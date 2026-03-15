@@ -20,6 +20,9 @@ export interface OrderWithItems {
     status: string;
     delivery_eta: string | null;
     rider_id: string | null;
+    warehouse_otp?: string | null;
+    warehouse_otp_expires_at?: string | null;
+    warehouse_otp_used?: boolean;
     created_at: string;
     order_items?: Array<{
         id: string;
@@ -73,7 +76,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
         // Filter to relevant statuses
         const relevant = (data || []).filter(o => {
             const status = getEffectiveStatus(o);
-            return ['pending', 'confirmed', 'packed', 'dispatched', 'placed', 'pending_payment'].includes(status);
+            return ['pending', 'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'placed', 'pending_payment'].includes(status);
         });
 
         return normalizeOrders(relevant);
@@ -119,7 +122,8 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
             p_order_id: orderId,
             p_new_status: newStatus,
             p_actor_role: 'warehouse',
-            p_actor_id: actorId
+            p_actor_id: actorId,
+            p_rider_id: null // Explicitly provide null to resolve overload ambiguity
         });
 
         if (!error && (data as any)?.success) {
@@ -135,7 +139,7 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
     const updatePayload: Record<string, any> = {
         status: newStatus,
         lifecycle_state: newStatus,
-        updated_at: new Date().toISOString(),
+        // updated_at: new Date().toISOString(), // Column not in schema cache
     };
 
     const { data: directData, error: directError } = await supabase
@@ -154,6 +158,49 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
  */
 export async function confirmOrder(orderId: string, actorId: string) {
     return updateOrderStatus(orderId, 'confirmed', actorId);
+}
+
+/**
+ * Mark order as ready for pickup (packed → ready_for_pickup)
+ * This signals riders that the order is available for collection.
+ */
+export async function markAsReadyForPickup(orderId: string, actorId: string, riderId?: string) {
+    if (riderId) {
+        // Assign rider + transition to ready_for_pickup
+        const { data, error } = await supabase
+            .from('orders')
+            .update({
+                status: 'ready_for_pickup',
+                lifecycle_state: 'ready_for_pickup',
+                rider_id: riderId,
+                // updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId)
+            .select()
+            .single();
+
+        if (error) throw new Error(error.message);
+        return data;
+    }
+
+    return updateOrderStatus(orderId, 'ready_for_pickup', actorId);
+}
+
+/**
+ * Generate a secure 6-digit OTP for rider arrival verification
+ */
+export async function generateWarehouseOtp(orderId: string): Promise<{ otp: string, expiresAt: string }> {
+    const { data, error } = await supabase.rpc('generate_warehouse_otp', {
+        p_order_id: orderId
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.message || 'Failed to generate OTP');
+
+    return {
+        otp: data.otp,
+        expiresAt: data.expires_at
+    };
 }
 
 /**
@@ -177,7 +224,7 @@ export async function dispatchOrder(orderId: string, actorId: string, riderId?: 
                 status: 'dispatched',
                 lifecycle_state: 'dispatched',
                 rider_id: riderId,
-                updated_at: new Date().toISOString(),
+                // updated_at: new Date().toISOString(),
             })
             .eq('id', orderId)
             .select()
@@ -239,6 +286,34 @@ export async function completeReturn(returnId: string) {
         .eq('id', returnId);
 
     if (error) throw error;
+}
+
+/**
+ * Get active pickup orders (orders the rider is currently handling)
+ * Shows the warehouse which packages have been picked up / are in transit.
+ */
+export async function getActivePickups(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (*),
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                rider:rider_id (full_name)
+            `)
+            .in('status', ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
+            .order('updated_at', { ascending: false });
+
+        if (error) {
+            console.warn('getActivePickups:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch {
+        return [];
+    }
 }
 
 /**

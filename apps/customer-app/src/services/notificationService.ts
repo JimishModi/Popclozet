@@ -14,6 +14,8 @@ export type NotificationType =
   | "new_arrival"
   | "rental_reminder"
   | "order_confirmed"
+  | "order_dispatched"
+  | "rider_message"
   | "out_for_delivery"
   | "delivered"
   | "pickup_scheduled"
@@ -291,21 +293,72 @@ async function createNotification(
 ================================ */
 
 export async function notifyOrderStatusChange(
+    userId: string,
     orderId: string,
-    newStatus: string
+    status: string
 ): Promise<void> {
-    const statusToType: Record<string, NotificationType> = {
-        confirmed: 'order_confirmed',
-        out_for_delivery: 'out_for_delivery',
-        delivered: 'delivered',
-        pickup_scheduled: 'pickup_scheduled',
-        picked_up: 'pickup_completed',
-        return_scheduled: 'return_scheduled',
-        return_completed: 'return_completed',
+    const notifications: Record<string, { type: string; title: string; message: string }> = {
+        confirmed: {
+            type: 'order_update',
+            title: '✅ Order Confirmed',
+            message: 'Your order has been confirmed and is being prepared.',
+        },
+        packed: {
+            type: 'order_update',
+            title: '📦 Order Packed',
+            message: 'Your order has been packed and is ready for pickup by a rider.',
+        },
+        ready_for_pickup: {
+            type: 'order_update',
+            title: '🏭 Ready for Pickup',
+            message: 'Your package is ready and a rider has been assigned to collect it.',
+        },
+        driver_arrived_warehouse: {
+            type: 'order_update',
+            title: '🚗 Rider at Warehouse',
+            message: 'Your assigned rider has arrived at the warehouse to collect your package.',
+        },
+        order_picked_up: {
+            type: 'order_update',
+            title: '✅ Package Picked Up!',
+            message: 'Your package has been collected from the warehouse and is being prepared for delivery.',
+        },
+        dispatched: {
+            type: 'order_dispatched',
+            title: '📦 Package Dispatched!',
+            message: 'Your package has been dispatched from the warehouse. A rider is on the way!',
+        },
+        out_for_delivery: {
+            type: 'order_update',
+            title: '🚗 Out for Delivery!',
+            message: 'Your package is out for delivery. The rider is heading to your location.',
+        },
+        delivered: {
+            type: 'order_update',
+            title: '🎉 Package Delivered!',
+            message: 'Your package has been delivered. Enjoy!',
+        },
     };
 
-    const type = statusToType[newStatus];
-    if (type) {
-        await createNotification(type, orderId);
+    const notifConfig = notifications[status];
+    if (!notifConfig) return;
+
+    try {
+        const { error } = await supabase
+            .from('notifications')
+            .insert({
+                user_id: userId,
+                type: notifConfig.type,
+                title: notifConfig.title,
+                message: notifConfig.message,
+                order_id: orderId,
+                is_read: false,
+            });
+
+        if (error) {
+            console.error('Failed to create order status notification:', error);
+        }
+    } catch (error) {
+        console.error('Failed to create order status notification:', error);
     }
 }

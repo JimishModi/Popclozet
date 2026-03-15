@@ -13,7 +13,7 @@
 // ─── Feature Detection ───────────────────────────────────────
 
 export function isNativeApp(): boolean {
-    return !!(window as Record<string, unknown>).Capacitor;
+    return !!(window as any).Capacitor;
 }
 
 export function isPWA(): boolean {
@@ -31,7 +31,7 @@ export function enableScreenProtection(): void {
     if (isNativeApp()) {
         // Capacitor native call (requires capacitor-screen-protection plugin)
         try {
-            const { ScreenProtection } = (window as Record<string, Record<string, unknown>>).Capacitor?.Plugins || {};
+            const { ScreenProtection } = (window as any).Capacitor?.Plugins || {};
             if (ScreenProtection?.enable) {
                 (ScreenProtection.enable as () => void)();
             }
@@ -47,7 +47,7 @@ export function enableScreenProtection(): void {
 export function disableScreenProtection(): void {
     if (isNativeApp()) {
         try {
-            const { ScreenProtection } = (window as Record<string, Record<string, unknown>>).Capacitor?.Plugins || {};
+            const { ScreenProtection } = (window as any).Capacitor?.Plugins || {};
             if (ScreenProtection?.disable) {
                 (ScreenProtection.disable as () => void)();
             }
@@ -74,7 +74,7 @@ export async function isBiometricAvailable(): Promise<boolean> {
     if (!isNativeApp()) return false;
 
     try {
-        const { NativeBiometric } = (window as Record<string, Record<string, unknown>>).Capacitor?.Plugins || {};
+        const { NativeBiometric } = (window as any).Capacitor?.Plugins || {};
         if (NativeBiometric?.isAvailable) {
             const result = await (NativeBiometric.isAvailable as () => Promise<{ isAvailable: boolean }>)();
             return result.isAvailable;
@@ -97,7 +97,7 @@ export async function authenticateWithBiometric(
     }
 
     try {
-        const { NativeBiometric } = (window as Record<string, Record<string, unknown>>).Capacitor?.Plugins || {};
+        const { NativeBiometric } = (window as any).Capacitor?.Plugins || {};
         if (NativeBiometric?.verifyIdentity) {
             await (NativeBiometric.verifyIdentity as (opts: { reason: string }) => Promise<void>)({
                 reason,
@@ -121,7 +121,7 @@ export async function isDeviceCompromised(): Promise<boolean> {
     if (!isNativeApp()) return false;
 
     try {
-        const { RootDetection } = (window as Record<string, Record<string, unknown>>).Capacitor?.Plugins || {};
+        const { RootDetection } = (window as any).Capacitor?.Plugins || {};
         if (RootDetection?.isRooted) {
             const result = await (RootDetection.isRooted as () => Promise<{ isRooted: boolean }>)();
             return result.isRooted;

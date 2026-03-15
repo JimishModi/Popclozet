@@ -1,0 +1,145 @@
+/**
+ * MSG91 OTP Service
+ * Handles all interactions with MSG91's browser-side OTP SDK.
+ * Script: https://verify.msg91.com/otp-provider.js
+ */
+
+const MSG91_SCRIPT_URL = 'https://verify.msg91.com/otp-provider.js';
+const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
+const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
+
+let sdkReady = false;
+let sdkInitPromise: Promise<void> | null = null;
+
+function loadAndInit(identifier: string): Promise<void> {
+    // If already ready, resolve immediately
+    if (sdkReady) return Promise.resolve();
+    // If already initializing, return the same promise
+    if (sdkInitPromise) return sdkInitPromise;
+
+    sdkInitPromise = new Promise<void>((resolve, reject) => {
+        const configuration: Record<string, any> = {
+            widgetId: WIDGET_ID,
+            tokenAuth: TOKEN_AUTH,
+            identifier,
+            exposeMethods: true,
+            success: (data: any) => console.info('[MSG91] success callback', data),
+            failure: (error: any) => console.error('[MSG91] failure callback', error),
+        };
+
+        // Remove any existing script to avoid duplicates
+        const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`);
+        if (existing) existing.remove();
+
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = MSG91_SCRIPT_URL;
+        script.async = true;
+
+        script.onload = () => {
+            try {
+                if (typeof (window as any).initSendOTP !== 'function') {
+                    reject(new Error('initSendOTP not found after script load'));
+                    return;
+                }
+
+                (window as any).initSendOTP(configuration);
+                console.info('[MSG91] initSendOTP called');
+
+                // Poll until SDK methods appear on window (max 10s)
+                const start = Date.now();
+                const poll = () => {
+                    if (typeof (window as any).sendOtp === 'function') {
+                        sdkReady = true;
+                        console.info('[MSG91] SDK ready');
+                        resolve();
+                        return;
+                    }
+                    if (Date.now() - start >= 10000) {
+                        reject(new Error('MSG91 SDK timed out'));
+                        return;
+                    }
+                    setTimeout(poll, 150);
+                };
+                poll();
+            } catch (err) {
+                reject(err);
+            }
+        };
+
+        script.onerror = () => {
+            sdkInitPromise = null;
+            reject(new Error('Failed to load MSG91 OTP script'));
+        };
+
+        document.head.appendChild(script);
+    });
+
+    return sdkInitPromise;
+}
+
+/**
+ * Load & initialise the MSG91 SDK with the given phone identifier.
+ * Identifier format: 91XXXXXXXXXX (country code without +)
+ */
+export async function loadAndInitMsg91(identifier: string): Promise<void> {
+    await loadAndInit(identifier);
+}
+/**
+ * Send OTP to the given identifier.
+ * Must call loadAndInitMsg91() first.
+ */
+export function sendOtp(identifier: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if (typeof (window as any).sendOtp !== 'function') {
+            return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
+        }
+        (window as any).sendOtp(
+            identifier,
+            (data: any) => { console.info('[MSG91] OTP sent', data); resolve(data); },
+            (error: any) => {
+                const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to send OTP';
+                reject(new Error(msg));
+            },
+        );
+    });
+}
+
+/**
+ * Verify the OTP entered by the user.
+ * Returns response data including the access token on success.
+ */
+export function verifyOtp(otpValue: string): Promise<{ message: string; type: string }> {
+    return new Promise((resolve, reject) => {
+        if (typeof (window as any).verifyOtp !== 'function') {
+            return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
+        }
+        (window as any).verifyOtp(
+            otpValue,
+            (data: any) => { console.info('[MSG91] OTP verified', data); resolve(data); },
+            (error: any) => {
+                const msg = typeof error === 'string' ? error : error?.message || error?.error || 'OTP verification failed';
+                reject(new Error(msg));
+            },
+        );
+    });
+}
+
+/**
+ * Resend OTP via default channel.
+ */
+export function resendOtp(): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if (typeof (window as any).retryOtp !== 'function') {
+            return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
+        }
+        (window as any).retryOtp(
+            null,
+            (data: any) => { console.info('[MSG91] OTP resent', data); resolve(data); },
+            (error: any) => {
+                const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to resend OTP';
+                reject(new Error(msg));
+            },
+        );
+    });
+}

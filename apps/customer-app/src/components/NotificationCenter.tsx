@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, X, Check, Package, Truck, RotateCcw } from 'lucide-react';
+import { Bell, X, Check, Package, Truck, RotateCcw, MessageCircle, MapPin } from 'lucide-react';
 import {
     Notification,
     getNotifications,
@@ -21,7 +21,10 @@ interface NotificationCenterProps {
 
 const NOTIFICATION_ICONS: Record<string, React.ReactNode> = {
     order_confirmed: <Package className="w-4 h-4" />,
+    order_picked_up: <Package className="w-4 h-4" />,
+    order_dispatched: <Truck className="w-4 h-4" />,
     out_for_delivery: <Truck className="w-4 h-4" />,
+    rider_message: <MessageCircle className="w-4 h-4" />,
     delivered: <Check className="w-4 h-4" />,
     pickup_scheduled: <Package className="w-4 h-4" />,
     pickup_completed: <Check className="w-4 h-4" />,

@@ -15,29 +15,13 @@ export interface StockSummary {
     total_products: number;
 }
 
-/**
- * Helper: detect whether inventory rows use product_id or item_id
- * Returns the FK column name and the array of FK values.
- */
-function getInventoryFkColumn(rows: any[]): { column: string; getId: (row: any) => string } {
-    if (rows.length === 0) return { column: 'product_id', getId: (r) => r.product_id };
-    // Check which column exists on the first row
-    const sample = rows[0];
-    if (sample.product_id) {
-        return { column: 'product_id', getId: (r) => r.product_id };
-    }
-    if (sample.item_id) {
-        return { column: 'item_id', getId: (r) => r.item_id };
-    }
-    // Fallback
-    return { column: 'product_id', getId: (r) => r.product_id || r.item_id };
-}
+// Helper function removed because we now use the product_stock_summary view
 
 export async function getStockSummary(): Promise<StockSummary> {
     try {
         const { data, error } = await supabase
-            .from('inventory')
-            .select('*');
+            .from('product_stock_summary')
+            .select('total_stock, total_available, total_wash');
 
         if (error) {
             console.warn('getStockSummary:', error.message);
@@ -46,8 +30,8 @@ export async function getStockSummary(): Promise<StockSummary> {
 
         const rows = data || [];
         const total_stock = rows.reduce((sum, r) => sum + (r.total_stock ?? 0), 0);
-        const available_stock = rows.reduce((sum, r) => sum + (r.available_stock ?? 0), 0);
-        const went_for_wash = rows.reduce((sum, r) => sum + (r.went_for_wash ?? 0), 0);
+        const available_stock = rows.reduce((sum, r) => sum + (r.total_available ?? 0), 0);
+        const went_for_wash = rows.reduce((sum, r) => sum + (r.total_wash ?? 0), 0);
 
         return {
             total_stock,
@@ -69,36 +53,19 @@ export interface CategoryStock {
 
 export async function getStockByCategory(): Promise<CategoryStock[]> {
     try {
-        // Fetch all inventory rows (select * to get whichever FK column exists)
-        const { data: inventory, error } = await supabase
-            .from('inventory')
-            .select('*');
+        const { data, error } = await supabase
+            .from('product_stock_summary')
+            .select('category, total_stock, total_available');
 
-        if (error || !inventory || inventory.length === 0) return [];
-
-        const { getId } = getInventoryFkColumn(inventory);
-
-        // Fetch products for category info
-        const productIds = [...new Set(inventory.map(i => getId(i)).filter(Boolean))];
-        if (productIds.length === 0) return [];
-
-        const { data: products } = await supabase
-            .from('products')
-            .select('id, category')
-            .in('id', productIds);
-
-        const categoryLookup = new Map<string, string>();
-        for (const p of products || []) {
-            categoryLookup.set(p.id, p.category || 'Uncategorized');
-        }
+        if (error || !data || data.length === 0) return [];
 
         const categoryMap = new Map<string, { total: number; available: number }>();
-        for (const row of inventory) {
-            const fkId = getId(row);
-            const cat = categoryLookup.get(fkId) || 'Uncategorized';
+        
+        for (const row of data) {
+            const cat = row.category || 'Uncategorized';
             const entry = categoryMap.get(cat) || { total: 0, available: 0 };
             entry.total += row.total_stock ?? 0;
-            entry.available += row.available_stock ?? 0;
+            entry.available += row.total_available ?? 0;
             categoryMap.set(cat, entry);
         }
 

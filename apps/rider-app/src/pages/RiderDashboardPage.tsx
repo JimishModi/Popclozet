@@ -57,7 +57,7 @@ export const RiderDashboardPage: React.FC = () => {
                     delivery_address:addresses(full_address, latitude, longitude)
                 `)
                 .eq('rider_id', user.id)
-                .in('status', ['dispatched', 'out_for_delivery'])
+                .in('status', ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'])
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -123,6 +123,10 @@ export const RiderDashboardPage: React.FC = () => {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
+            case 'ready_for_pickup':
+            case 'driver_arrived_warehouse':
+            case 'order_picked_up':
+                return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
             case 'dispatched':
                 return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
             case 'out_for_delivery':
@@ -219,14 +223,22 @@ export const RiderDashboardPage: React.FC = () => {
                                         <span className="text-lg font-bold text-[#ff4d6d]">
                                             {formatCurrency(order.total_amount)}
                                         </span>
-                                        {order.status === 'dispatched' && (
+                                        {order.status === 'dispatched' ? (
                                             <Button
                                                 onClick={() => handleStartDelivery(order.id)}
                                                 size="sm"
                                             >
                                                 Start Delivery
                                             </Button>
-                                        )}
+                                        ) : ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up'].includes(order.status) ? (
+                                            <Button
+                                                onClick={() => navigate(`/warehouse-navigation/${order.id}`)}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Warehouse Pickup
+                                            </Button>
+                                        ) : null}
                                     </div>
                                 </motion.div>
                             ))}

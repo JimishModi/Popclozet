@@ -39,6 +39,7 @@ interface RazorpayOptions {
     name: string;
     description: string;
     order_id: string;
+    customer_id?: string;
     prefill: {
         name: string;
         email: string;
@@ -64,7 +65,7 @@ declare global {
 // ─── Config ──────────────────────────────────────────────────
 
 function getRazorpayKeyId(): string {
-    return (import.meta as Record<string, Record<string, string>>).env?.VITE_RAZORPAY_KEY_ID || '';
+    return (import.meta as unknown as Record<string, Record<string, string>>).env?.VITE_RAZORPAY_KEY_ID || '';
 }
 
 // ─── Load Razorpay Script ────────────────────────────────────
@@ -87,7 +88,8 @@ export function loadRazorpayScript(): Promise<void> {
 export async function createPaymentOrder(
     orderTotal: number,
     internalOrderId: string,
-    idempotencyKey: string
+    idempotencyKey: string,
+    customerId?: string
 ): Promise<PaymentOrder> {
     const { data, error } = await supabase.functions.invoke('create-payment-order', {
         body: {
@@ -95,6 +97,7 @@ export async function createPaymentOrder(
             currency: 'INR',
             receipt: internalOrderId,
             idempotency_key: idempotencyKey,
+            customer_id: customerId, // Used for Tokenization (Card-on-file)
         },
     });
 
@@ -106,7 +109,8 @@ export async function createPaymentOrder(
 
 export async function processPayment(
     paymentOrder: PaymentOrder,
-    userInfo: { name: string; email: string; phone: string }
+    userInfo: { name: string; email: string; phone: string },
+    customerId?: string
 ): Promise<PaymentResult> {
     await loadRazorpayScript();
 
@@ -123,6 +127,7 @@ export async function processPayment(
                 email: userInfo.email,
                 contact: userInfo.phone,
             },
+            customer_id: customerId, // Necessary if the order was created associated with a Razorpay customer
             theme: { color: '#6366f1' },
             handler: (response: RazorpayResponse) => {
                 resolve({

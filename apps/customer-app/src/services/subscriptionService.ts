@@ -113,7 +113,7 @@ export async function getActiveSubscription(): Promise<UserSubscription | null> 
             .eq('user_id', user.id)
             .eq('status', 'active')
             .gte('current_period_end', new Date().toISOString())
-            .single();
+            .maybeSingle();
 
         if (!error && data) return data as UserSubscription;
     } catch (e) {

@@ -21,11 +21,11 @@ interface DeliveryOrder {
   id: string;
   status: string;
   otp_delivery?: string;
-  delivery_address_snapshot: {
+  addresses: {
     full_address: string;
-    lat: number;
-    lng: number;
-  };
+    latitude: number;
+    longitude: number;
+  }[];
 }
 
 export const DeliveryNavigationPage: React.FC = () => {
@@ -51,12 +51,12 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,otp_delivery,delivery_address_snapshot')
+          .select('id,status,otp_delivery,addresses:delivery_address_id(full_address, latitude, longitude)')
           .eq('id', id)
           .single();
 
         if (error || !data) throw error;
-        setOrder(data);
+        setOrder(data as unknown as DeliveryOrder);
       } catch (err) {
         console.error(err);
         showToast('Order not found', 'error');
@@ -102,12 +102,18 @@ export const DeliveryNavigationPage: React.FC = () => {
   /* ---------- INIT MAP ---------- */
   useEffect(() => {
     if (!order || !riderLocation || !mapRef.current) return;
-    if (!isMapboxAvailable()) return;
+    if (!isMapboxAvailable() && !import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) return;
     if (mapInstance.current) return;
 
-    const { lat, lng } = order.delivery_address_snapshot;
+    const lat = order.addresses?.[0]?.latitude || 0;
+    const lng = order.addresses?.[0]?.longitude || 0;
 
-    const map = initializeMap(mapRef.current, riderLocation, 15);
+    const map = initializeMap(
+        mapRef.current, 
+        riderLocation, 
+        15, 
+        import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+    );
     mapInstance.current = map;
 
     map.on('load', async () => {
@@ -128,11 +134,15 @@ export const DeliveryNavigationPage: React.FC = () => {
         user.id
       );
 
-      if (!result.success) throw new Error(result.message);
+      if (!result.success) {
+         showToast(result.message || 'Failed to complete delivery', 'error');
+         return;
+      }
+      
       showToast('Delivery completed', 'success');
       navigate('/');
     } catch (err: any) {
-      showToast(err.message || 'Failed to complete delivery', 'error');
+      showToast(err.message || 'Network error confirming delivery', 'error');
     }
   };
 
@@ -164,7 +174,7 @@ export const DeliveryNavigationPage: React.FC = () => {
         className="absolute bottom-0 left-0 right-0 bg-[#0f0f0f] rounded-t-3xl p-6"
       >
         <p className="text-white mb-4">
-          {order.delivery_address_snapshot.full_address}
+          {order.addresses?.[0]?.full_address || 'Delivery Address'}
         </p>
         <Button onClick={handleMarkDelivered} className="w-full">
           Mark as Delivered

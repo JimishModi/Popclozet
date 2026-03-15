@@ -75,7 +75,13 @@ function mapDbOrderToIncoming(dbOrder: any): IncomingOrder {
 export function HomePage() {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const [isOnline, setIsOnline] = useState(false);
+    
+    // Initialize online status from localStorage to persist across tab switches
+    const [isOnline, setIsOnline] = useState(() => {
+        const saved = localStorage.getItem('rider_is_online');
+        return saved === 'true';
+    });
+    
     const [isSearching, setIsSearching] = useState(false);
     const [pendingOrder, setPendingOrder] = useState<IncomingOrder | null>(null);
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
@@ -104,7 +110,7 @@ export function HomePage() {
                 const { data, error } = await supabase
                     .from('orders')
                     .select(ORDER_SELECT)
-                    .eq('status', 'pending')
+                    .in('status', ['ready_for_pickup'])
                     .order('created_at', { ascending: false })
                     .limit(1);
 
@@ -126,18 +132,19 @@ export function HomePage() {
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: '*',
                     schema: 'public',
                     table: 'orders',
-                    filter: 'status=eq.pending',
+                    filter: 'status=eq.ready_for_pickup',
                 },
                 async (payload) => {
                     console.log('New order received:', payload);
                     // Realtime payload won't have the joined address, so re-fetch
+                    const newPayload = payload.new as any;
                     const { data } = await supabase
                         .from('orders')
                         .select(ORDER_SELECT)
-                        .eq('id', payload.new.id)
+                        .eq('id', newPayload.id)
                         .single();
                     setPendingOrder(mapDbOrderToIncoming(data || payload.new));
                     setIsSearching(false);
@@ -155,7 +162,7 @@ export function HomePage() {
                 const { data } = await supabase
                     .from('orders')
                     .select(ORDER_SELECT)
-                    .eq('status', 'pending')
+                    .in('status', ['ready_for_pickup'])
                     .order('created_at', { ascending: false })
                     .limit(1);
 
@@ -188,8 +195,11 @@ export function HomePage() {
 
         const result = await updateRiderStatus(user.id, newStatus);
         if (result.success) {
-            setIsOnline(!isOnline);
-            if (!isOnline === false) {
+            const newState = !isOnline;
+            setIsOnline(newState);
+            localStorage.setItem('rider_is_online', String(newState));
+            
+            if (!newState) {
                 setPendingOrder(null);
                 setIsSearching(false);
             }
@@ -200,21 +210,25 @@ export function HomePage() {
     const handleAcceptOrder = async () => {
         if (!pendingOrder || !supabase) return;
 
-        // Update order status to confirmed and assign rider
+        // Securely claim order via RPC to bypass RLS
         try {
-            await supabase
-                .from('orders')
-                .update({
-                    status: 'confirmed',
-                    rider_id: user?.id || null,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', pendingOrder.id);
+            const { data, error } = await supabase.rpc('claim_order', {
+                p_order_id: pendingOrder.id,
+                p_rider_id: user.id
+            });
+
+            if (error || (data && typeof data === 'object' && 'success' in data && !data.success)) {
+                console.error('Failed to claim order:', error || data?.message);
+                // Return early so we don't navigate if someone else grabbed it
+                return;
+            }
         } catch (err) {
-            console.error('Failed to accept order:', err);
+            console.error('Failed to claim order:', err);
+            return;
         }
 
-        navigate(`/delivery/${pendingOrder.id}`, {
+        // Navigate to warehouse pickup first, then delivery
+        navigate(`/warehouse/${pendingOrder.id}`, {
             state: { order: pendingOrder }
         });
     };
@@ -230,7 +244,7 @@ export function HomePage() {
                     const { data } = await supabase
                         .from('orders')
                         .select(ORDER_SELECT)
-                        .eq('status', 'pending')
+                        .in('status', ['ready_for_pickup'])
                         .order('created_at', { ascending: false })
                         .limit(1);
 

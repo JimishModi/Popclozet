@@ -10,7 +10,7 @@ import { Truck, User, MapPin, RefreshCw, CheckCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
-import { dispatchOrder, getPackedOrders, type OrderWithItems } from '../services/fulfillmentService';
+import { markAsReadyForPickup, getPackedOrders, type OrderWithItems } from '../services/fulfillmentService';
 import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 
@@ -60,11 +60,11 @@ export function DispatchPage() {
 
         setDispatching(orderId);
         try {
-            await dispatchOrder(orderId, user.id, riderId);
-            showToast('Order dispatched!');
+            await markAsReadyForPickup(orderId, user.id, riderId);
+            showToast('Rider assigned! Ready for pickup.');
             await loadData();
         } catch (err) {
-            showToast('Dispatch failed', 'error');
+            showToast('Assignment failed', 'error');
         } finally {
             setDispatching(null);
         }
@@ -86,6 +86,12 @@ export function DispatchPage() {
                     <Truck size={20} className="text-blue-400" /> Dispatch
                 </h1>
                 <p className="text-xs text-zinc-500">{orders.length} packed orders • {riders.length} riders</p>
+            </div>
+
+            <div className="mb-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <p className="text-xs text-blue-300">
+                    💡 Select a rider and press Go to mark as <strong>Ready for Pickup</strong>. The rider will then navigate to the warehouse and confirm collection from their app.
+                </p>
             </div>
 
             <div className="space-y-2.5">

@@ -7,12 +7,22 @@
  * Role-specific modules in apps import from here.
  */
 
-import * as mapboxgl from 'mapbox-gl';
+import mapboxgl from 'mapbox-gl';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+// @ts-ignore
+const CONFIGURED_TOKEN = import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN || '';
 
-if (MAPBOX_TOKEN) {
-    (mapboxgl as any).accessToken = MAPBOX_TOKEN;
+/**
+ * Configure Mapbox GL with the provided access token globally.
+ * This MUST be called at the root of the React app to ensure WebWorkers have access before any map is rendered.
+ */
+export const configureMapbox = (token: string) => {
+    if (!token) return;
+    (mapboxgl as any).accessToken = token;
+};
+
+if (CONFIGURED_TOKEN) {
+    (mapboxgl as any).accessToken = CONFIGURED_TOKEN;
 }
 
 let mapInstance: mapboxgl.Map | null = null;
@@ -21,14 +31,14 @@ let mapInstance: mapboxgl.Map | null = null;
  * Check if Mapbox is configured and available
  */
 export const isMapboxAvailable = (): boolean => {
-    return !!MAPBOX_TOKEN;
+    return !!CONFIGURED_TOKEN;
 };
 
 /**
  * Get the Mapbox access token (for static map URLs)
  */
 export const getMapboxToken = (): string | undefined => {
-    return MAPBOX_TOKEN;
+    return CONFIGURED_TOKEN;
 };
 
 /**
@@ -37,11 +47,15 @@ export const getMapboxToken = (): string | undefined => {
 export const initializeMap = (
     container: HTMLElement,
     center: [number, number],
-    zoom: number = 14
+    zoom: number = 14,
+    token?: string
 ): mapboxgl.Map => {
-    if (!MAPBOX_TOKEN) {
+    const activeToken = token || CONFIGURED_TOKEN;
+    if (!activeToken) {
         throw new Error('Mapbox access token is not configured');
     }
+
+    (mapboxgl as any).accessToken = activeToken;
 
     // Destroy existing instance if any
     if (mapInstance) {
@@ -82,8 +96,34 @@ export const getMapInstance = (): mapboxgl.Map | null => mapInstance;
  */
 export const drawRouteFromCoords = (
     map: mapboxgl.Map,
+<<<<<<< HEAD
     coordinates: number[][] // [lng, lat] expected by Mapbox
 ): void => {
+=======
+    start: [number, number],
+    end: [number, number]
+): Promise<void> => {
+    // Read the directly injected token from map instance since Vite static vars fail across workspaces
+    const activeToken = (map as any)?._requestManager?._transformRequestFn?.()?.access_token || 
+                        (mapboxgl as any).accessToken || 
+                        CONFIGURED_TOKEN;
+                        
+    if (!activeToken) return;
+
+    const query = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${activeToken}`
+    );
+    const json = await query.json();
+
+    if (!json.routes || json.routes.length === 0) {
+        console.warn('No route found');
+        return;
+    }
+
+    const data = json.routes[0];
+    const route = data.geometry.coordinates;
+
+>>>>>>> origin/main
     const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
         type: 'Feature',
         properties: {},
@@ -191,6 +231,133 @@ export const getDistanceFromWarehouse = (lat: number, lng: number): number => {
 // REVERSE GEOCODING
 // ==========================================
 
+<<<<<<< HEAD
+=======
+export interface ReverseGeocodeResult {
+    city: string;
+    locality: string;
+    fullAddress: string;
+    state: string;
+    country: string;
+}
+
+/**
+ * Reverse geocode coordinates to get city/locality name
+ * Uses Mapbox Geocoding API
+ */
+export const reverseGeocode = async (
+    lat: number,
+    lng: number
+): Promise<ReverseGeocodeResult | null> => {
+    if (!CONFIGURED_TOKEN) {
+        console.error('Mapbox token not configured');
+        return null;
+    }
+
+    try {
+        // Don't restrict types - get all results for better coverage
+        const response = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${CONFIGURED_TOKEN}`
+        );
+
+        if (!response.ok) {
+            console.error('Geocoding request failed:', response.status);
+            throw new Error('Geocoding request failed');
+        }
+
+        const data = await response.json();
+        console.log('Mapbox geocoding response:', data);
+
+        if (!data.features || data.features.length === 0) {
+            console.error('No features in geocoding response');
+            return null;
+        }
+
+        // Parse the response to extract city and locality
+        let city = '';
+        let locality = '';
+        let state = '';
+        let country = '';
+        let fullAddress = data.features[0]?.place_name || '';
+
+        // First, check all features for place, locality, neighborhood
+        for (const feature of data.features) {
+            const placeType = feature.place_type?.[0] || '';
+
+            if (placeType === 'place' && !city) {
+                city = feature.text;
+            }
+            if ((placeType === 'locality' || placeType === 'neighborhood') && !locality) {
+                locality = feature.text;
+            }
+            if (placeType === 'region' && !state) {
+                state = feature.text;
+            }
+            if (placeType === 'country' && !country) {
+                country = feature.text;
+            }
+        }
+
+        // Also extract from context of the first (most specific) feature
+        const mainFeature = data.features[0];
+        if (mainFeature?.context) {
+            for (const ctx of mainFeature.context) {
+                const id = ctx.id || '';
+                if (id.startsWith('place') && !city) {
+                    city = ctx.text;
+                }
+                if (id.startsWith('locality') && !locality) {
+                    locality = ctx.text;
+                }
+                if (id.startsWith('region') && !state) {
+                    state = ctx.text;
+                }
+                if (id.startsWith('country') && !country) {
+                    country = ctx.text;
+                }
+            }
+        }
+
+        // If main feature is a neighborhood/locality, use it
+        const mainType = mainFeature?.place_type?.[0];
+        if (!locality && (mainType === 'neighborhood' || mainType === 'locality' || mainType === 'poi')) {
+            locality = mainFeature.text;
+        }
+
+        // If we still don't have city, try to get it from the first feature's name
+        if (!city && mainFeature?.text) {
+            // Try to extract city from place_name
+            const parts = fullAddress.split(',').map((s: string) => s.trim());
+            if (parts.length >= 2) {
+                // Usually: locality, city, state, country
+                if (!locality) locality = parts[0];
+                city = parts[1] || parts[0];
+            } else {
+                city = mainFeature.text;
+            }
+        }
+
+        // Final fallback: use state as city if nothing else
+        if (!city && state) {
+            city = state;
+        }
+
+        console.log('Parsed location:', { city, locality, state, country });
+
+        return {
+            city: city || 'Unknown Location',
+            locality: locality || city || 'Unknown',
+            fullAddress,
+            state,
+            country,
+        };
+    } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        return null;
+    }
+};
+
+>>>>>>> origin/main
 /**
  * Get current GPS position as a Promise
  */
