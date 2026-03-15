@@ -63,6 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /* ---------- SAFETY TIMEOUT ---------- */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('[@popclozet/auth] Safety timeout: forcing loading=false');
+          return false;
+        }
+        return prev;
+      });
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   /* ---------- AUTH BOOTSTRAP ---------- */
   useEffect(() => {
     let mounted = true;

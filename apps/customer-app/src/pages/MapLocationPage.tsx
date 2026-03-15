@@ -12,7 +12,7 @@ import { NearbyHubs } from '@/components/map/NearbyHubs';
 import { HubDetailsSheet } from '@/components/map/HubDetailsSheet';
 import { useMapLocation } from '@/hooks/useMapLocation';
 import { useNearbyHubs } from '@/hooks/useNearbyHubs';
-import { saveAddressLocally, ValidatedAddress } from '@/services/addressService';
+import { saveAddressLocally, ValidatedAddress, getAddressDetail } from '@/services/addressService';
 import { HubWithDistance } from '@/services/hubService';
 import { useDriverSimulation } from '@/hooks/useDriverSimulation';
 
@@ -28,6 +28,15 @@ export default function MapLocationPage() {
     const [showHubSheet, setShowHubSheet] = useState(false);
     const [detailedHub, setDetailedHub] = useState<HubWithDistance | null>(null);
     const [isSimulationActive, setIsSimulationActive] = useState(false);
+    
+    // Clear corrupt localStorage on mount
+    useEffect(() => {
+        const saved = localStorage.getItem('user_location');
+        if (saved && (saved.includes('undefined') || saved.includes('null'))) {
+            localStorage.removeItem('user_location');
+            window.location.reload(); // Force refresh to clear internal hook state
+        }
+    }, []);
 
     const {
         location,
@@ -71,16 +80,34 @@ export default function MapLocationPage() {
         }
     }, [address, selectedAddress]);
 
-    const handleAddressSelect = (addr: ValidatedAddress) => {
-        // Immediate update of local state
+    const handleAddressSelect = async (addr: ValidatedAddress) => {
+        // Immediate update so UI feels responsive
         setSelectedAddress(addr);
-
-        // Update map location state - this ensures the marker appears immediately
-        // and persists to localStorage
-        setLocationWithAddress(addr.lat, addr.lng, addr);
-
-        // Force view mode to search to keep context
         setViewMode('search');
+        const hasCoords = addr.lat && addr.lng && Math.abs(addr.lat) > 0.01;
+        if (hasCoords) {
+        // Coords already present — just sync map
+            setLocationWithAddress(addr.lat, addr.lng, addr);
+        } else if (addr.eLoc) {
+            // eLoc present but no coords — fetch them from detail API
+            console.log("[MapLocationPage] Fetching coords for eLoc:", addr.eLoc);
+            const detail = await getAddressDetail(addr.eLoc);
+            if (detail) {
+               const enriched: ValidatedAddress = {
+                   ...addr,
+                   lat: detail.lat,
+                   lng: detail.lng,
+                };
+                setSelectedAddress(enriched);
+                setLocationWithAddress(detail.lat, detail.lng, enriched);
+            } 
+            else {
+                console.warn("[MapLocationPage] Could not fetch coords for eLoc:", addr.eLoc);
+            }
+        }
+        else {
+            console.warn("[MapLocationPage] Address has no eLoc or coords:", addr.formattedAddress);
+        }
     };
 
     const handleMapClick = (pos: { lat: number; lng: number }) => {
@@ -93,9 +120,8 @@ export default function MapLocationPage() {
                 lat: pos.lat,
                 lng: pos.lng,
                 formattedAddress: `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`,
-                city: '',
-                postalCode: '',
-                country: '',
+                city: 'Mumbai',
+                pincode: '',
             };
             setSelectedAddress(clickedAddress);
         }
@@ -118,7 +144,7 @@ export default function MapLocationPage() {
     const handleConfirm = () => {
         if (selectedAddress) {
             // Save address locally
-            saveAddressLocally(selectedAddress, 'Delivery Address');
+            saveAddressLocally(selectedAddress);
 
             // Save hub selection if any
             if (selectedHub) {
@@ -130,8 +156,10 @@ export default function MapLocationPage() {
                 }));
             }
 
-            // Navigate back
-            navigate(returnTo);
+            // Navigate back with the specific address in state for immediate reactivity
+            navigate(returnTo, { 
+                state: { selectedAddress } 
+            });
         }
     };
 
@@ -167,7 +195,7 @@ export default function MapLocationPage() {
                 <InteractiveMap
                     center={selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : (location || { lat: 19.076, lng: 72.8777 })}
                     zoom={selectedAddress || location ? 14 : 11}
-                    darkMode={true}
+                    darkMode={false}
                     userLocation={selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : location}
                     hubs={hubs}
                     selectedHubId={selectedHubId || undefined}
@@ -254,7 +282,9 @@ export default function MapLocationPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800"
                 >
-                    <p className="text-xs text-zinc-400 mb-1">Delivery Address</p>
+                    <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-zinc-400">Delivery Address</p>
+                    </div>
                     <p className="text-sm text-white">{selectedAddress.formattedAddress}</p>
                 </motion.div>
             )}

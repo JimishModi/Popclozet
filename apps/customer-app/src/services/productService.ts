@@ -12,8 +12,10 @@ export interface Product {
     description?: string;
     price: number;
     rentalPrice?: number;
+    category: string;
     gender: GenderCategory;
     eventCategory: EventCategory;
+    occasions?: string[];
     imageUrl: string;
     videoUrl?: string;
     color: string;
@@ -180,8 +182,10 @@ class ProductService {
             rentalPrice: dbProduct.rental_price ? parseFloat(dbProduct.rental_price) : undefined,
             mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
             deposit_amount: dbProduct.deposit_amount ? String(dbProduct.deposit_amount) : undefined,
+            category: dbProduct.category || '',
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
-            eventCategory: dbProduct.category as EventCategory, // DB uses 'category'
+            eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as EventCategory, 
+            occasions: dbProduct.occasion || [],
             imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',
             videoUrl: dbProduct.video_url,
             color: dbProduct.color || '',
@@ -678,6 +682,32 @@ class ProductService {
 
         // Fallback: use event category as category hint
         return product.eventCategory || 'clothing';
+    }
+
+    // Get recommended products based on category
+    async getRecommendedProducts(category: string, excludeId: string, limit: number = 4): Promise<Product[]> {
+        try {
+            if (this.isOnline()) {
+                const { data, error } = await (supabase as any)
+                    .from('products')
+                    .select('*, product_discounts(*)')
+                    .eq('category', category)
+                    .eq('is_available', true)
+                    .neq('id', excludeId)
+                    .limit(limit);
+
+                if (error) throw error;
+                return (data || []).map((p: any) => this.transformFromDB(p));
+            } else {
+                const allProducts = await this.getAllProducts();
+                return allProducts
+                    .filter(p => p.eventCategory === category && p.id !== excludeId)
+                    .slice(0, limit);
+            }
+        } catch (error) {
+            console.error('Error fetching recommended products:', error);
+            return [];
+        }
     }
 }
 

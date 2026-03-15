@@ -1,278 +1,143 @@
 // src/services/addressService.ts
-// Enhanced address service with reverse geocoding and Supabase integration
+// Standardized address service using Mappls via Backend Proxy
 
-import { supabase } from '@popclozet/api-client';
+const API_URL = 'http://localhost:3001';
 
-export type ValidatedAddress = {
+export interface SavedAddress {
   lat: number;
   lng: number;
   formattedAddress: string;
+  pincode?: string;
   city?: string;
-  postalCode?: string;
-  country?: string;
-};
-
-export interface SavedAddress {
-  id: string;
-  user_id: string;
-  label: string;
-  full_address: string;
-  city: string | null;
-  postal_code: string | null;
-  country: string;
-  lat: number;
-  lng: number;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
+  eLoc?: string; // MapmyIndia's proprietary eLoc
 }
 
-const NOMINATIM_USER_AGENT = 'PopClozet/1.0 (startup use)';
+export type ValidatedAddress = SavedAddress;
 
-// Forward geocoding: address string -> coordinates
-export async function validateAddress(input: string): Promise<ValidatedAddress> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(
-    input
-  )}`;
+function mapMapplsPlace(place: any): ValidatedAddress {
+    // Determine the best address display string
+    const name = place.placeName || place.item_name || '';
+    const address = place.placeAddress || place.formatted_address || place.address || '';
+    const displayAddress = name && address && !address.startsWith(name) 
+        ? `${name}, ${address}` 
+        : (address || name);
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': NOMINATIM_USER_AGENT,
-    },
-  });
+    const mapped = {
+        lat: parseFloat(place.latitude || place.lat || 0),
+        lng: parseFloat(place.longitude || place.lng || 0),
+        formattedAddress: displayAddress,
+        pincode: place.pincode || '',
+        city: place.city || '',
+        // Handle all common variations of eLoc/eloc key
+        eLoc: place.eLoc || place.eloc || place.elt || ''
+    };
 
-  if (!res.ok) {
-    throw new Error('Address lookup failed');
-  }
-
-  const data = await res.json();
-
-  if (!data || data.length === 0) {
-    throw new Error('Address not found');
-  }
-
-  const place = data[0];
-
-  return {
-    lat: Number(place.lat),
-    lng: Number(place.lon),
-    formattedAddress: place.display_name,
-    city: place.address?.city || place.address?.town || place.address?.suburb,
-    postalCode: place.address?.postcode,
-    country: place.address?.country,
-  };
+    console.log("[AddressService] Mapped Mappls result:", mapped);
+    return mapped;
 }
 
-// Reverse geocoding: coordinates -> address
-export async function reverseGeocode(
-  lat: number,
-  lng: number
-): Promise<ValidatedAddress> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
-
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': NOMINATIM_USER_AGENT,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error('Reverse geocoding failed');
-  }
-
-  const data = await res.json();
-
-  if (!data || data.error) {
-    throw new Error('Location not found');
-  }
-
-  return {
-    lat,
-    lng,
-    formattedAddress: data.display_name,
-    city: data.address?.city || data.address?.town || data.address?.suburb,
-    postalCode: data.address?.postcode,
-    country: data.address?.country,
-  };
-}
-
-// Address autocomplete (returns multiple suggestions)
-export async function searchAddresses(query: string, limit: number = 5): Promise<ValidatedAddress[]> {
+/**
+ * Search for locations using Mappls AutoSuggest
+ */
+export async function searchLocations(query: string): Promise<ValidatedAddress[]> {
   if (!query || query.length < 3) return [];
 
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&addressdetails=1&countrycodes=in&q=${encodeURIComponent(
-    query
-  )}`;
-
   try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': NOMINATIM_USER_AGENT,
-      },
-    });
-
-    if (!res.ok) return [];
-
-    const data = await res.json();
-
-    return data.map((place: any) => ({
-      lat: Number(place.lat),
-      lng: Number(place.lon),
-      formattedAddress: place.display_name,
-      city: place.address?.city || place.address?.town || place.address?.suburb,
-      postalCode: place.address?.postcode,
-      country: place.address?.country,
-    }));
-  } catch {
+    const response = await fetch(`${API_URL}/api/location/search?query=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Search failed');
+    
+    const data = await response.json();
+    const locations = Array.isArray(data) ? data : (data.suggestedLocations || []);
+    
+    return locations.map(mapMapplsPlace);
+  } catch (error) {
+    console.error('Error searching locations:', error);
     return [];
   }
 }
 
-// Save address to Supabase
-export async function saveAddress(
-  userId: string,
-  address: ValidatedAddress,
-  label: string = 'Home',
-  isDefault: boolean = false
-): Promise<SavedAddress | null> {
-  if (!supabase) {
-    console.warn('Supabase not configured');
-    return null;
-  }
-
-  // If setting as default, unset other defaults first
-  if (isDefault) {
-    await supabase
-      .from('addresses')
-      .update({ is_default: false })
-      .eq('user_id', userId)
-      .eq('is_default', true);
-  }
-
-  const { data, error } = await supabase
-    .from('addresses')
-    .insert({
-      user_id: userId,
-      label,
-      full_address: address.formattedAddress,
-      city: address.city || null,
-      postal_code: address.postalCode || null,
-      country: address.country || 'India',
-      lat: address.lat,
-      lng: address.lng,
-      is_default: isDefault,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Failed to save address:', error);
-    return null;
-  }
-
-  return data;
+/**
+ * Legacy wrapper for searchLocations to maintain compatibility with older calls if any
+ */
+export async function searchAddresses(query: string): Promise<ValidatedAddress[]> {
+    return searchLocations(query);
 }
 
-// Get user's saved addresses
-export async function getUserAddresses(userId: string): Promise<SavedAddress[]> {
-  if (!supabase) {
-    return getLocalAddresses();
-  }
-
-  const { data, error } = await supabase
-    .from('addresses')
-    .select('*')
-    .eq('user_id', userId)
-    .order('is_default', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Failed to fetch addresses:', error);
-    return getLocalAddresses();
-  }
-
-  return data || [];
-}
-
-// Get default address
-export async function getDefaultAddress(userId: string): Promise<SavedAddress | null> {
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from('addresses')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('is_default', true)
-    .single();
-
-  if (error) return null;
-  return data;
-}
-
-// Update address
-export async function updateAddress(
-  addressId: string,
-  updates: Partial<Pick<SavedAddress, 'label' | 'is_default'>>
-): Promise<boolean> {
-  if (!supabase) return false;
-
-  const { error } = await supabase
-    .from('addresses')
-    .update(updates)
-    .eq('id', addressId);
-
-  return !error;
-}
-
-// Delete address
-export async function deleteAddress(addressId: string): Promise<boolean> {
-  if (!supabase) return false;
-
-  const { error } = await supabase
-    .from('addresses')
-    .delete()
-    .eq('id', addressId);
-
-  return !error;
-}
-
-// Local storage fallback for addresses
-const LOCAL_ADDRESSES_KEY = 'popclozet_addresses';
-
-export function saveAddressLocally(address: ValidatedAddress, label: string = 'Home') {
+/**
+ * Get coordinates for a specific eLoc
+ */
+export async function getAddressDetail(eloc: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const addresses = getLocalAddresses();
-    const newAddress: SavedAddress = {
-      id: `local-${Date.now()}`,
-      user_id: 'local',
-      label,
-      full_address: address.formattedAddress,
-      city: address.city || null,
-      postal_code: address.postalCode || null,
-      country: address.country || 'India',
-      lat: address.lat,
-      lng: address.lng,
-      is_default: addresses.length === 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    const response = await fetch(`${API_URL}/api/location/detail/${eloc}`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    return {
+      lat: data.latitude,
+      lng: data.longitude
     };
-    localStorage.setItem(LOCAL_ADDRESSES_KEY, JSON.stringify([newAddress, ...addresses]));
-    return newAddress;
-  } catch {
+  } catch (error) {
+    console.error('Error getting address detail:', error);
     return null;
   }
 }
 
-export function getLocalAddresses(): SavedAddress[] {
+/**
+ * Reverse geocode coordinates
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<ValidatedAddress | null> {
   try {
-    const raw = localStorage.getItem(LOCAL_ADDRESSES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const response = await fetch(`${API_URL}/api/location/reverse?lat=${lat}&lng=${lng}`);
+    if (!response.ok) throw new Error('Reverse geocode failed');
+    
+    const data = await response.json();
+    if (!data) return null;
+    
+    return mapMapplsPlace(data);
+  } catch (error) {
+    console.error('Error reverse geocoding:', error);
+    return null;
+  }
+}
+
+/**
+ * Recent addresses management
+ */
+const RECENT_ADDRESSES_KEY = 'popclozet_recent_addresses';
+
+export function saveRecentAddress(address: ValidatedAddress) {
+  try {
+    const saved = getRecentAddresses();
+    // Keep last 10, remove duplicates
+    const updated = [
+      address,
+      ...saved.filter((a) => a.formattedAddress !== address.formattedAddress),
+    ].slice(0, 10);
+    localStorage.setItem(RECENT_ADDRESSES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed to save recent address', e);
+  }
+}
+
+/**
+ * Legacy wrapper for saveRecentAddress to maintain compatibility
+ */
+export function saveAddressLocally(address: ValidatedAddress) {
+    saveRecentAddress(address);
+}
+
+export function getRecentAddresses(): ValidatedAddress[] {
+  try {
+    const saved = localStorage.getItem(RECENT_ADDRESSES_KEY);
+    return saved ? JSON.parse(saved) : [];
   } catch {
     return [];
   }
 }
 
-export function clearLocalAddresses() {
-  localStorage.removeItem(LOCAL_ADDRESSES_KEY);
+/**
+ * Legacy wrapper for getRecentAddresses
+ */
+export function getLocalAddresses(): ValidatedAddress[] {
+    return getRecentAddresses();
 }
-

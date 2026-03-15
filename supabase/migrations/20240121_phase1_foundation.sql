@@ -3,7 +3,8 @@
 
 -- 1. Enable PostGIS Extension
 CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS timescaledb; -- Attempt to enable if available
+-- NOTE: TimescaleDB is NOT available on Supabase hosted Postgres.
+-- The DO block below handles this gracefully with a fallback.
 
 -- 2. User Addresses (Permanent Geocoding Cache)
 CREATE TABLE IF NOT EXISTS public.addresses (

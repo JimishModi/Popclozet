@@ -2,7 +2,7 @@
 // Checkout flow — creates order and notifies rider app via Supabase
 
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ChevronLeft,
@@ -16,19 +16,30 @@ import {
   Check,
   Smartphone,
   Banknote,
-  CreditCard
+  CreditCard,
+  Loader2
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
-import { getLocalAddresses, SavedAddress } from "@/services/addressService";
+import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
+
+/* ---------------------------------- */
+/* Constants                          */
+/* ---------------------------------- */
+const WAREHOUSE_LOCATION = {
+  name: "Hostel 5, IIT Bombay",
+  lat: 19.1306,
+  lng: 72.9155
+};
+const MAX_DELIVERY_DISTANCE_KM = 6;
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -47,6 +58,7 @@ const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation() as any;
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
   const [showAddressSelector, setShowAddressSelector] = useState(false);
@@ -75,6 +87,11 @@ export default function CheckoutPage() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [popInsurance, setPopInsurance] = useState(true);
+  const [actualDistance, setActualDistance] = useState<number | null>(null);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
+  const [distanceError, setDistanceError] = useState<string | null>(null);
+  const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
 
   const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
 
@@ -91,11 +108,20 @@ export default function CheckoutPage() {
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
 
-  // Load saved address, hub, and subscription benefit
+  // Load subscription benefit and handle passed address
   useEffect(() => {
-    const addresses = getLocalAddresses();
-    setAddressList(addresses);
-    if (addresses.length > 0) setDeliveryAddress(addresses[0]);
+    // Check if an address was passed from AddressSelectionPage
+    const passedAddress = location.state?.selectedAddress;
+    if (passedAddress) {
+      setDeliveryAddress(passedAddress);
+    } else {
+      // Fallback: check if we have any addresses at all
+      const addresses = getLocalAddresses();
+      if (addresses.length > 0) {
+        setDeliveryAddress(addresses[0]);
+      }
+    }
+
     const hub = getSavedHub();
     if (hub) setSelectedHub(hub);
 
@@ -117,6 +143,95 @@ export default function CheckoutPage() {
       setUpiId(savedDefaultUpi);
     }
   }, []);
+
+
+  // Distance Check Effect (Strictly MapmyIndia API)
+  useEffect(() => {
+    const fetchDistance = async (destination: string) => {
+      setDistanceLoading(true);
+      setDistanceError(null);
+      
+      try {
+        const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
+        console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
+        
+        const response = await fetch(`http://localhost:3001/api/location/distance?origin=${origin}&destination=${destination}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const distance = data.distance;
+          
+          console.log("[DistanceCheck] API verified distance:", distance);
+          setActualDistance(distance);
+          
+          if (distance > MAX_DELIVERY_DISTANCE_KM) {
+            setShowDistanceWarningPopup(true);
+            toast.info(`Delivery address is ${distance.toFixed(1)} km from our warehouse. ₹10/km additional charges apply beyond 6km.`, {
+              duration: 8000,
+              position: "top-center"
+            });
+          }
+        } else {
+          throw new Error("MapmyIndia API service error");
+        }
+      } catch (error) {
+        console.warn("[Checkout] Strict Distance API failed:", error);
+        setDistanceError("Distance service temporarily unavailable");
+        setActualDistance(null);
+      } finally {
+        setDistanceLoading(false);
+      }
+    };
+
+    if (deliveryAddress) {
+      console.log("[Checkout] Starting distance check for:", deliveryAddress.formattedAddress);
+
+  // Coerce lat/lng to numbers — they may be stored as strings in localStorage
+      const lat = typeof deliveryAddress.lat === 'number' ? deliveryAddress.lat : parseFloat(deliveryAddress.lat as any);
+      const lng = typeof deliveryAddress.lng === 'number' ? deliveryAddress.lng : parseFloat(deliveryAddress.lng as any);
+      const hasCoords = !isNaN(lat) && !isNaN(lng) && Math.abs(lat) > 0.01;
+
+      console.log("[Checkout] Address Data:", { eLoc: deliveryAddress.eLoc, lat, lng, hasCoords });
+
+  // Priority 1: eLoc (most reliable for MapmyIndia POIs)
+    if (deliveryAddress.eLoc) {
+      console.log("[Checkout] Using eLoc for distance calculation:", deliveryAddress.eLoc);
+      fetchDistance(deliveryAddress.eLoc);
+    }
+    // Priority 2: Parsed coordinates
+    else if (hasCoords) {
+      console.log("[Checkout] Using coordinates for distance calculation");
+      fetchDistance(`${lng},${lat}`);
+    }
+    // Priority 3: Resolve via searchLocations fallback
+    else if (deliveryAddress.formattedAddress) {
+      console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
+      setIsResolvingAddress(true);
+      setDistanceError(null);
+      searchLocations(deliveryAddress.formattedAddress)
+        .then((results) => {
+          const first = results?.[0];
+          if (first?.eLoc) {
+            fetchDistance(first.eLoc);
+          } else if (first?.lat && first?.lng) {
+            fetchDistance(`${first.lng},${first.lat}`);
+          } else {
+            setDistanceError("Could not resolve address coordinates");
+            setActualDistance(null);
+          }
+        })
+        .catch(() => {
+          setDistanceError("Could not resolve address coordinates");
+          setActualDistance(null);
+        })
+        .finally(() => setIsResolvingAddress(false));
+    }
+    else {
+      setDistanceError("Location coordinates not found");
+      setActualDistance(null);
+    }
+  }
+  }, [deliveryAddress]);
 
   // Fetch cart products dynamically
   useEffect(() => {
@@ -183,14 +298,13 @@ export default function CheckoutPage() {
 
   const discount = originalTotal - subtotal;
 
-  const deliveryInfo = useMemo(() => {
-    const distance = selectedHub?.distance_km || 5;
-    const pricing = calculateDeliveryPricing(distance, subtotal, "delivery", hasFreeDeliveryBenefit);
-    const eta = calculateETA(distance, selectedHub?.estimated_minutes || 45);
-    return { pricing, eta };
-  }, [selectedHub, subtotal, hasFreeDeliveryBenefit]);
+  const deliveryFeeBase = 40;
+  const distanceSurcharge = useMemo(() => {
+    if (!actualDistance || actualDistance <= MAX_DELIVERY_DISTANCE_KM) return 0;
+    return Math.ceil(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
+  }, [actualDistance]);
 
-  const deliveryFee = deliveryInfo.pricing?.totalFee ?? (hasFreeDeliveryBenefit ? 0 : 40);
+  const deliveryFee = hasFreeDeliveryBenefit ? 0 : (deliveryFeeBase + distanceSurcharge);
   const insuranceFee = hasInsuranceBenefit ? 0 : (popInsurance ? 200 : 0);
   const total = subtotal + deliveryFee + insuranceFee;
 
@@ -250,7 +364,7 @@ export default function CheckoutPage() {
       if (!userId) throw new Error("Please sign in to place an order");
 
       // 1) Get or create a delivery address
-      const addrFull = deliveryAddress?.full_address || "Default Address, Mumbai";
+      const addrFull = deliveryAddress?.formattedAddress || "Default Address, Mumbai";
       const addrLat = deliveryAddress?.lat || 19.076;
       const addrLng = deliveryAddress?.lng || 72.8777;
 
@@ -287,7 +401,7 @@ export default function CheckoutPage() {
       const rentalDays = 4;
       const startDate = new Date().toISOString().split("T")[0];
       const endDate = new Date(Date.now() + rentalDays * 86400000).toISOString().split("T")[0];
-      const deliveryEta = new Date(Date.now() + (deliveryInfo.eta?.minutes || 60) * 60000).toISOString();
+      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString(); // fallback 60 mins
 
       const orderStatus = paymentMethod === 'cod' ? 'pending' : 'pending_payment';
 
@@ -399,8 +513,41 @@ export default function CheckoutPage() {
             <button onClick={() => setShowAddressSelector(true)} className="text-xs font-bold text-[#f2546d] uppercase">Change</button>
           </div>
           {deliveryAddress ? (
-            <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
-              <p className="text-sm text-[#b4b4b4] leading-relaxed" style={dmSans}>{deliveryAddress.full_address}</p>
+            <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+              <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+              
+              <div className="mt-3 flex items-center gap-2 relative z-10">
+                {isResolvingAddress ? (
+                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
+                  </div>
+                ) : distanceLoading ? (
+                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
+                  </div>
+                ) : actualDistance !== null ? (
+                  <div className="px-2 py-0.5 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
+                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
+                      {actualDistance.toFixed(1)} km from warehouse
+                    </span>
+                  </div>
+                ) : distanceError ? (
+                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
+                      {distanceError}
+                    </span>
+                  </div>
+                ) : !deliveryAddress.lat || !deliveryAddress.lng ? (
+                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
+                      Coordinate search failed
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              
+              {/* Subtle accent blur */}
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
             </div>
           ) : (
             <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
@@ -480,8 +627,31 @@ export default function CheckoutPage() {
               <span>-₹ {discount}</span>
             </div>
             <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
-              <span>Delivery fee</span>
-              <span>₹ {deliveryFee}</span>
+              <div className="flex flex-col">
+                <span>Delivery fee</span>
+                {isResolvingAddress ? (
+                  <span className="text-[11px] text-zinc-500 animate-pulse">Resolving address...</span>
+                ) : distanceLoading ? (
+                  <span className="text-[11px] text-zinc-500 animate-pulse">Checking distance...</span>
+                ) : actualDistance !== null ? (
+                  <span className="text-[11px] text-[#f2546d] font-bold">
+                    Distance: {actualDistance.toFixed(1)} km
+                  </span>
+                ) : distanceError ? (
+                  <span className="text-[10px] text-amber-500 italic">{distanceError}</span>
+                ) : (!deliveryAddress?.lat || !deliveryAddress?.lng) ? (
+                  <span className="text-[10px] text-amber-500 italic">Coordinate search failed</span>
+                ) : null}
+                {distanceSurcharge > 0 && (
+                  <span className="text-[10px] text-zinc-500 font-medium">
+                    (₹40 base + ₹{distanceSurcharge} long-distance)
+                  </span>
+                )}
+              </div>
+              <div className="text-right">
+                <span className={cn(hasFreeDeliveryBenefit && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
+                {hasFreeDeliveryBenefit && <span className="ml-2">₹ 0</span>}
+              </div>
             </div>
             <div className="flex justify-between items-center text-lg text-[#b4b4b4]" style={dmSans}>
               <div className="flex items-center gap-2">
@@ -556,10 +726,10 @@ export default function CheckoutPage() {
               </div>
               <div className="space-y-4">
                 {addressList.map((addr) => (
-                  <button key={addr.full_address} onClick={() => { setDeliveryAddress(addr); setShowAddressSelector(false); }} className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.full_address === addr.full_address ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}>
+                  <button key={addr.formattedAddress} onClick={() => { setDeliveryAddress(addr); setShowAddressSelector(false); }} className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.formattedAddress === addr.formattedAddress ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}>
                     <div className="flex items-start gap-4">
-                      <MapPin className={cn("w-5 h-5 mt-0.5", deliveryAddress?.full_address === addr.full_address ? "text-[#f2546d]" : "text-zinc-600")} />
-                      <p className="text-sm text-white font-bold leading-relaxed">{addr.full_address}</p>
+                      <MapPin className={cn("w-5 h-5 mt-0.5", deliveryAddress?.formattedAddress === addr.formattedAddress ? "text-[#f2546d]" : "text-zinc-600")} />
+                      <p className="text-sm text-white font-bold leading-relaxed">{addr.formattedAddress}</p>
                     </div>
                   </button>
                 ))}
@@ -819,6 +989,57 @@ export default function CheckoutPage() {
         </Drawer.Portal>
       </Drawer.Root>
 
+      {/* Distance Warning Popup */}
+      <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+            <div className="p-8">
+              <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
+              
+              <div className="flex flex-col items-center text-center mb-8">
+                <div className="w-16 h-16 rounded-3xl bg-[#f2546d]/10 flex items-center justify-center mb-6">
+                  <Clock className="w-8 h-8 text-[#f2546d]" />
+                </div>
+                <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>
+                  Long Distance Delivery
+                </h2>
+                <div className="mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 w-full">
+                  <p className="text-zinc-400 text-sm font-medium leading-relaxed">
+                    Your delivery address is <span className="text-white font-bold">{actualDistance?.toFixed(1)} km</span> from our warehouse.
+                  </p>
+                  <p className="text-[#f2546d] text-[13px] font-bold mt-2">
+                    A surcharge of ₹10 per km applies for distances beyond 6 km.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-[#141414] p-5 rounded-2xl border border-white/5 mb-8">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-zinc-500 text-sm font-bold uppercase tracking-wider">Base Delivery</span>
+                  <span className="text-white font-bold">₹ 40</span>
+                </div>
+                <div className="flex justify-between items-center text-[#f2546d]">
+                  <span className="text-sm font-bold uppercase tracking-wider">Distance Surcharge</span>
+                  <span className="font-bold">+ ₹ {(actualDistance && actualDistance > 6) ? Math.ceil(actualDistance - 6) * 10 : 0}</span>
+                </div>
+                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+                  <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
+                  <span className="text-white font-black text-xl">₹ {40 + ((actualDistance && actualDistance > 6) ? Math.ceil(actualDistance - 6) * 10 : 0)}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowDistanceWarningPopup(false)}
+                className="w-full h-14 flex items-center justify-center rounded-[20px] bg-[#f2546d] text-white font-black text-lg shadow-xl shadow-[#f2546d]/20 active:scale-95 transition-all"
+                style={dmSans}
+              >
+                GOT IT
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </MobileShell>
   );
 }

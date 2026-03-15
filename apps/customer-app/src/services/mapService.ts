@@ -53,8 +53,7 @@ export async function createMap(
         trackResize: true,
     });
 
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    // Navigation controls removed per user request (the "white box")
 
     // Return immediately so UI can show the container/loading state
     return map;
@@ -62,8 +61,8 @@ export async function createMap(
 
 // Marker icon configs
 const MARKER_CONFIGS = {
-    user: { color: '#ff4d6d', symbol: '📍', size: 42 },
-    hub: { color: '#22c55e', symbol: '🏪', size: 36 },
+    user: { color: '#8b5cf6', symbol: '📍', size: 42 }, // Purple for premium feel
+    hub: { color: '#10b981', symbol: '🏪', size: 36 },
     vehicle: { color: '#3b82f6', symbol: '🚗', size: 36 },
 };
 
@@ -133,45 +132,6 @@ export function addMarker(
     return marker;
 }
 
-// Calculate route between two points using Mapbox Directions API
-export async function calculateRoute(
-    origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number }
-): Promise<RouteResult | null> {
-    try {
-        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.error('Mapbox Directions request failed:', response.status);
-            return null;
-        }
-
-        const data = await response.json();
-
-        if (!data.routes || data.routes.length === 0) {
-            console.error('No routes found');
-            return null;
-        }
-
-        const route = data.routes[0];
-        // GeoJSON coordinates are [lng, lat], convert to [lat, lng] for internal use
-        const coordinates: [number, number][] = route.geometry.coordinates.map(
-            (coord: [number, number]) => [coord[1], coord[0]]
-        );
-
-        return {
-            distance: route.distance / 1000,
-            duration: route.duration / 60,
-            polyline: '',
-            coordinates,
-        };
-    } catch (error) {
-        console.error('Route calculation failed:', error);
-        return null;
-    }
-}
-
 // Draw route on map using a GeoJSON source + layer
 export function drawRoute(
     map: mapboxgl.Map,
@@ -238,5 +198,49 @@ export function removeRoute(map: mapboxgl.Map) {
 
 // Clean up map instance
 export function destroyMap(map: mapboxgl.Map) {
-    map.remove();
+    if (map) {
+        map.remove();
+    }
+}
+
+/**
+ * Calculate route between two points using MapmyIndia via Backend Proxy
+ */
+export async function calculateRoute(
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number }
+): Promise<RouteResult | null> {
+    try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const url = `${API_URL}/api/location/directions?origin=${origin.lng},${origin.lat}&destination=${destination.lng},${destination.lat}`;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error('Routing request failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+
+        if (!data.routes || data.routes.length === 0) {
+            console.error('No routes found');
+            return null;
+        }
+
+        const route = data.routes[0];
+        // MapmyIndia GeoJSON coordinates are [lng, lat], convert to [lat, lng] for internal use
+        const coordinates: [number, number][] = route.geometry.coordinates.map(
+            (coord: [number, number]) => [coord[1], coord[0]]
+        );
+
+        return {
+            distance: route.distance / 1000,
+            duration: route.duration / 60,
+            polyline: '',
+            coordinates,
+        };
+    } catch (error) {
+        console.error('Route calculation failed:', error);
+        return null;
+    }
 }

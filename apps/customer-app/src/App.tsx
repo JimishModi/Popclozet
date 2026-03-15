@@ -41,6 +41,7 @@ const CreateAccountPage = lazy(() => import("./pages/CreateAccountPage"));
 const MapLocationPage = lazy(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const AddressSelectionPage = lazy(() => import("./pages/AddressSelectionPage"));
 const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
@@ -145,6 +146,7 @@ function App() {
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
 
                         <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
+                        <Route path="/checkout/address" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><AddressSelectionPage /></Suspense></PageTransition>} />
                         <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                         <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
                         <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />

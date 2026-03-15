@@ -12,6 +12,7 @@ import { Drawer } from "vaul";
 import type { Product } from "@/services/productService";
 import { fullImage } from "@/lib/optimizeImage";
 import shareButtonIcon from "@/assets/icons/share-button.svg";
+import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 // import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -155,7 +156,10 @@ const MobileProductDetailPage: React.FC = () => {
                         discounted_price: finalPrice,
                         imageUrl: dbProduct.images?.[0] || '',
                         sizes: [],  // sizes now come from inventory
-                        gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)
+                        gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender),
+                        category: dbProduct.category || '',
+                        eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as any,
+                        occasions: dbProduct.occasion || []
                     });
                 }
 
@@ -649,6 +653,9 @@ const MobileProductDetailPage: React.FC = () => {
                             </motion.div>
                         )}
                     </div>
+
+                    {/* ─── RECOMMENDED PRODUCTS ─── */}
+                    <RecommendedProducts currentProduct={product} />
 
                     {/* ─── SERVICE BADGES ─── */}
                     <div className="mt-8 grid grid-cols-3 gap-3 py-6 px-4 rounded-3xl border border-white/5 bg-[#141414]">

@@ -9,6 +9,7 @@
     "build": "pnpm -r build",
     "dev:rider": "pnpm --filter @popclozet/rider-app dev",
     "dev:customer": "pnpm --filter @popclozet/customer-app dev",
+    "dev:api": "pnpm --filter @popclozet/api dev",
     "build:rider": "pnpm --filter @popclozet/rider-app build",
     "build:customer": "pnpm --filter @popclozet/customer-app build",
     "prepare": "husky"
