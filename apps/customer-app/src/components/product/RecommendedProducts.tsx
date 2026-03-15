@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Product, productService } from "@/services/productService";
@@ -14,6 +14,16 @@ const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 export const RecommendedProducts: React.FC<RecommendedProductsProps> = ({ currentProduct }) => {
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (scrollRef.current) {
+      // If the user scrolls vertically, scroll horizontally instead
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        scrollRef.current.scrollLeft += e.deltaY;
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -53,7 +63,11 @@ export const RecommendedProducts: React.FC<RecommendedProductsProps> = ({ curren
         You May Also Like
       </h2>
       
-      <div className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-4 -mx-5 px-5">
+      <div 
+        ref={scrollRef}
+        onWheel={handleWheel}
+        className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-4 -mx-5 px-5"
+      >
         {recommendations.map((item, idx) => (
           <motion.div
             key={item.id}

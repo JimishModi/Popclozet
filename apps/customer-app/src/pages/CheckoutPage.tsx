@@ -302,7 +302,7 @@ export default function CheckoutPage() {
   const deliveryFeeBase = 40;
   const distanceSurcharge = useMemo(() => {
     if (!actualDistance || actualDistance <= MAX_DELIVERY_DISTANCE_KM) return 0;
-    return Math.ceil(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
+    return Math.round(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
   }, [actualDistance]);
 
   const deliveryFee = hasFreeDeliveryBenefit ? 0 : (deliveryFeeBase + distanceSurcharge);
@@ -1038,11 +1038,11 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between items-center text-[#f2546d]">
                   <span className="text-sm font-bold uppercase tracking-wider">Distance Surcharge</span>
-                  <span className="font-bold">+ ₹ {(actualDistance && actualDistance > 6) ? Math.ceil(actualDistance - 6) * 10 : 0}</span>
+                  <span className="font-bold">+ ₹ {(actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0}</span>
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {40 + ((actualDistance && actualDistance > 6) ? Math.ceil(actualDistance - 6) * 10 : 0)}</span>
+                  <span className="text-white font-black text-xl">₹ {40 + ((actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0)}</span>
                 </div>
               </div>
 
