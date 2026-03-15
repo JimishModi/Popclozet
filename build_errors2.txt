@@ -1,9 +1,0 @@
-
-> @popclozet/api-client@1.0.0 build C:\Users\welcome\Desktop\PopCLozet-Apps-main\packages\api-client
-> pnpm exec tsc -b
-
-src/paymentService.ts(67,13): error TS2352: Conversion of type 'ImportMeta' to type 'Record<string, Record<string, string>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
-  Index signature for type 'string' is missing in type 'ImportMeta'.
-C:\Users\welcome\Desktop\PopCLozet-Apps-main\packages\api-client:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @popclozet/api-client@1.0.0 build: `pnpm exec tsc -b`
-Exit status 1

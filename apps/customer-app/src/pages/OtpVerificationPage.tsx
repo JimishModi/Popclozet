@@ -9,27 +9,38 @@ import {
     InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Button } from "@/components/ui/button";
+import { verifyOtp, resendOtp } from "@/services/msg91OtpService";
+import { supabase } from "@popclozet/api-client";
+
+const SUPABASE_VERIFY_URL =
+    "https://hfcdvcpgpkdgmcakgiuy.supabase.co/functions/v1/verify-otp-token";
 
 export default function OtpVerificationPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { confirmOTP, hasConfirmationResult, user, needsOnboarding, loading } = useAuth();
+    const { user, needsOnboarding, loading } = useAuth();
 
     const phoneNumber = location.state?.phone || "";
 
     const [otp, setOtp] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
-    // Set to true after confirmOTP succeeds — actual navigation happens in useEffect
     const [verified, setVerified] = useState(false);
+    const [resendTimer, setResendTimer] = useState(30);
 
+    // Redirect if no phone in state
     useEffect(() => {
-        if (!phoneNumber) {
-            navigate("/auth/login");
-        }
+        if (!phoneNumber) navigate("/auth/login");
     }, [phoneNumber, navigate]);
 
-    // Navigate ONLY after auth context has settled with the real user — no more 404 flash
+    // Resend countdown
+    useEffect(() => {
+        if (resendTimer <= 0) return;
+        const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendTimer]);
+
+    // Navigate after auth context settles
     useEffect(() => {
         if (!verified || loading) return;
         if (user) {
@@ -47,18 +58,50 @@ export default function OtpVerificationPage() {
         setError("");
 
         try {
-            await confirmOTP(otp);
-            // Don't navigate yet — wait for auth context to update (see useEffect above)
+            // Step 1: Verify OTP with MSG91 SDK — returns access token
+            const msg91Data = await verifyOtp(otp);
+            console.log('[OtpPage] MSG91 verify response:', msg91Data);
+
+            const accessToken = msg91Data?.message;
+            if (!accessToken) {
+                throw new Error("OTP verification failed. No token received.");
+            }
+
+            // Step 2: Send access token to Supabase edge function
+            const res = await fetch(SUPABASE_VERIFY_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+                    "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({ accessToken, mobile: phoneNumber }),
+            });
+
+            const result = await res.json();
+            console.log('[OtpPage] Edge function response:', result);
+
+            if (!result.success) {
+                throw new Error(result.error || "Server verification failed.");
+            }
+
+            // Step 3: Set Supabase session from edge function response
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: result.session.access_token,
+                refresh_token: result.session.refresh_token,
+            });
+
+            if (sessionError) throw new Error(sessionError.message);
+
             setVerified(true);
+
         } catch (err: unknown) {
             const error = err as { message?: string };
             console.error("[OtpPage] Verification failed:", error);
 
-            if (error.message?.includes("No OTP request")) {
-                setError("Session expired. Please go back and request a new OTP.");
-            } else if (error.message?.includes("Token has expired") || error.message?.includes("expired")) {
+            if (error.message?.includes("expired")) {
                 setError("OTP has expired. Please request a new one.");
-            } else if (error.message?.includes("invalid") || error.message?.includes("Invalid")) {
+            } else if (error.message?.toLowerCase().includes("invalid")) {
                 setError("Invalid OTP. Please check and try again.");
             } else {
                 setError(error.message || "Verification failed. Please try again.");
@@ -68,9 +111,16 @@ export default function OtpVerificationPage() {
         }
     };
 
-    const handleResend = () => {
-        // Go back to login page to resend OTP
-        navigate("/auth/login");
+    const handleResend = async () => {
+        if (resendTimer > 0) return;
+        try {
+            await resendOtp();
+            setResendTimer(30);
+            setError("");
+        } catch (err: unknown) {
+            const error = err as { message?: string };
+            setError(error.message || "Failed to resend OTP.");
+        }
     };
 
     return (
@@ -135,9 +185,13 @@ export default function OtpVerificationPage() {
                             Didn't receive code?{" "}
                             <button
                                 onClick={handleResend}
-                                className="text-[#ff4d6d] font-bold hover:underline"
+                                disabled={resendTimer > 0}
+                                className={`font-bold transition-colors ${resendTimer > 0
+                                    ? "text-zinc-600 cursor-not-allowed"
+                                    : "text-[#ff4d6d] hover:underline"
+                                    }`}
                             >
-                                Resend
+                                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend"}
                             </button>
                         </p>
                     </div>
