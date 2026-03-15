@@ -1,6 +1,6 @@
 /**
  * Rider Order Service
- * 
+ *
  * Connects riders to customer orders and provides location updates.
  * Used by rider-app; customer-app subscribes to these updates.
  */
@@ -8,9 +8,7 @@
 import { supabase, transitionOrderState, config } from '@popclozet/api-client';
 import type { OrderStatus } from '@popclozet/domain-contracts';
 
-// ==========================================
-// TYPES
-// ==========================================
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface RiderOrder {
     id: string;
@@ -20,16 +18,8 @@ export interface RiderOrder {
     customerPhone?: string;
     orderType: 'delivery' | 'pickup' | 'return';
     status: OrderStatus;
-    pickupAddress: {
-        fullAddress: string;
-        lat: number;
-        lng: number;
-    };
-    deliveryAddress: {
-        fullAddress: string;
-        lat: number;
-        lng: number;
-    };
+    pickupAddress: { fullAddress: string; lat: number; lng: number };
+    deliveryAddress: { fullAddress: string; lat: number; lng: number };
     items: Array<{ name: string; qty: number }>;
     totalAmount: number;
     deliveryFee: number;
@@ -49,177 +39,225 @@ export interface RiderLocation {
     updatedAt: string;
 }
 
-// ==========================================
-// RIDER ORDER FETCHING
-// ==========================================
+// Used by OrderRequestsPage
+export interface RiderNotification {
+    id: string;
+    order_id: string;
+    rider_id: string;
+    status: 'pending' | 'declined';
+    created_at: string;
+}
+
+export interface ClaimResult {
+    success: boolean;
+    message?: string;
+    already_claimed?: boolean;
+}
+
+// ─── Order request actions ────────────────────────────────────────────────────
 
 /**
- * Get all assigned orders for a rider
- * Updated to use correct schema: orders table with rider_id and addresses join
+ * Atomically claim an order using the claim_order RPC.
+ * Uses SELECT FOR UPDATE — safe against concurrent claims.
+ *
+ * Returns already_claimed=true when another rider beat this one.
+ * The caller must remove the card in BOTH success and already_claimed cases —
+ * the difference is only in the toast message shown.
  */
+export async function claimOrder(
+    orderId: string,
+    riderId: string,
+): Promise<ClaimResult> {
+    const { data, error } = await supabase.rpc('claim_order', {
+        p_order_id: orderId,
+        p_rider_id: riderId,
+    });
+
+    if (error) {
+        console.error('[riderOrderService] claimOrder:', error);
+        return { success: false, message: error.message };
+    }
+
+    const result = data as { success: boolean; message?: string };
+
+    if (!result.success && result.message?.toLowerCase().includes('already claimed')) {
+        return { success: false, already_claimed: true, message: result.message };
+    }
+
+    return result;
+}
+
+/**
+ * Release an order back to the pool.
+ * Records cancellation so this rider won't see the order again.
+ * The release_order RPC resets status to ready_for_pickup which
+ * re-fires the broadcast trigger.
+ */
+export async function releaseOrder(
+    orderId: string,
+    riderId: string,
+    reason = 'Cancelled by rider',
+): Promise<{ success: boolean; message?: string }> {
+    const { data, error } = await supabase.rpc('release_order', {
+        p_order_id: orderId,
+        p_rider_id: riderId,
+        p_reason: reason,
+    });
+
+    if (error) {
+        console.error('[riderOrderService] releaseOrder:', error);
+        return { success: false, message: error.message };
+    }
+
+    return data as { success: boolean; message?: string };
+}
+
+/**
+ * Decline an order notification (rider says no without accepting).
+ * Sets notification status to 'declined' so the DB keeps a record,
+ * but the card is removed from the UI immediately before this call.
+ */
+export async function declineOrderNotification(notificationId: string): Promise<void> {
+    const { error } = await supabase
+        .from('rider_notifications')
+        .update({ status: 'declined' })
+        .eq('id', notificationId);
+
+    if (error) console.error('[riderOrderService] declineNotification:', error);
+}
+
+/**
+ * Subscribe to incoming order request notifications for this rider.
+ * Returns a cleanup function.
+ *
+ * onNew    — fired when a new pending notification is inserted
+ * onDeleted — fired when a notification is deleted (another rider claimed it)
+ */
+export function subscribeToOrderRequests(
+    riderId: string,
+    onNew: (notification: RiderNotification) => void,
+    onDeleted: (notificationId: string) => void,
+): () => void {
+    const channel = supabase
+        .channel(`rider_requests:${riderId}`)
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'rider_notifications',
+                filter: `rider_id=eq.${riderId}`,
+            },
+            (payload) => onNew(payload.new as RiderNotification),
+        )
+        .on(
+            'postgres_changes',
+            {
+                event: 'DELETE',
+                schema: 'public',
+                table: 'rider_notifications',
+                filter: `rider_id=eq.${riderId}`,
+            },
+            (payload) => onDeleted((payload.old as { id: string }).id),
+        )
+        .subscribe();
+
+    return () => supabase.removeChannel(channel);
+}
+
+// ─── Rider order fetching ─────────────────────────────────────────────────────
+
 export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
     if (config.USE_MOCK_DATA) {
-        return [
-            {
-                id: 'order-123',
-                orderId: 'order-123',
-                customerId: 'cust-1',
-                customerName: 'Alice Smith',
-                orderType: 'delivery',
-                status: 'confirmed',
-                pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
-                deliveryAddress: {
-                    fullAddress: '123 Main St, Mumbai',
-                    lat: 19.1100,
-                    lng: 72.8600,
-                },
-                items: [{ name: 'Designer Dress', qty: 1 }],
-                totalAmount: 1500,
-                deliveryFee: 150,
-                etaMinutes: 15,
-                distanceKm: 2.5,
-                routePolyline: '',
-                assignedAt: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
-            }
-        ];
+        return [{
+            id: 'order-123', orderId: 'order-123', customerId: 'cust-1',
+            customerName: 'Alice Smith', orderType: 'delivery', status: 'confirmed',
+            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
+            deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
+            items: [{ name: 'Designer Dress', qty: 1 }],
+            totalAmount: 1500, deliveryFee: 150, etaMinutes: 15, distanceKm: 2.5,
+            routePolyline: '', assignedAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+        }];
     }
 
     const { data, error } = await supabase
         .from('orders')
         .select(`
-            id,
-            user_id,
-            status,
-            total_amount,
-            created_at,
-            delivery_eta,
-            addresses:delivery_address_id (
-                full_address,
-                latitude,
-                longitude
-            ),
-            order_items (
-                id,
-                product_id,
-                rental_price
-            )
+            id, user_id, status, total_amount, created_at, delivery_eta,
+            addresses:delivery_address_id (full_address, latitude, longitude),
+            order_items (id, product_id, rental_price)
         `)
         .eq('rider_id', riderId)
-        .in('status', ['confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery']);
+        .in('status', [
+            'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
+            'order_picked_up', 'dispatched', 'out_for_delivery',
+        ]);
 
-    if (error) {
-        console.error('Failed to fetch rider orders:', error);
-        return [];
-    }
+    if (error) { console.error('[riderOrderService] getRiderOrders:', error); return []; }
 
-    return (data || []).map((order: any) => {
+    return (data ?? []).map((order: any) => {
         const addr = order.addresses;
         return {
-            id: order.id,
-            orderId: order.id,
-            customerId: order.user_id,
-            orderType: 'delivery' as const,
-            status: order.status,
+            id: order.id, orderId: order.id, customerId: order.user_id,
+            orderType: 'delivery' as const, status: order.status,
             pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
             deliveryAddress: {
-                fullAddress: addr?.full_address || 'Customer Address',
-                lat: addr?.latitude || 0,
-                lng: addr?.longitude || 0,
+                fullAddress: addr?.full_address ?? 'Customer Address',
+                lat: addr?.latitude ?? 0,
+                lng: addr?.longitude ?? 0,
             },
-            items: (order.order_items || []).map((item: any) => ({
-                name: `Product ${item.product_id.slice(0, 8)}`,
-                qty: 1,
+            items: (order.order_items ?? []).map((i: any) => ({
+                name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
             })),
-            totalAmount: order.total_amount || 0,
-            deliveryFee: Math.round((order.total_amount || 0) * 0.15),
+            totalAmount: order.total_amount ?? 0,
+            deliveryFee: Math.round((order.total_amount ?? 0) * 0.15),
             assignedAt: order.created_at,
             createdAt: order.created_at,
         };
     });
 }
 
-/**
- * Get a single order by ID for the rider
- */
 export async function getRiderOrderById(orderId: string): Promise<RiderOrder | null> {
     if (config.USE_MOCK_DATA) {
         return {
-            id: orderId,
-            orderId: orderId,
-            customerId: 'cust-1',
-            customerName: 'Alice Smith',
-            orderType: 'delivery',
-            status: 'out_for_delivery',
+            id: orderId, orderId, customerId: 'cust-1', customerName: 'Alice Smith',
+            orderType: 'delivery', status: 'out_for_delivery',
             pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
-            deliveryAddress: {
-                fullAddress: '123 Main St, Mumbai',
-                lat: 19.1100,
-                lng: 72.8600,
-            },
+            deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
             items: [{ name: 'Designer Dress', qty: 1 }],
-            totalAmount: 1500,
-            deliveryFee: 150,
-            etaMinutes: 10,
-            distanceKm: 1.2,
-            routePolyline: '',
-            assignedAt: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
+            totalAmount: 1500, deliveryFee: 150, etaMinutes: 10, distanceKm: 1.2,
+            routePolyline: '', assignedAt: new Date().toISOString(), createdAt: new Date().toISOString(),
         };
     }
 
     const { data, error } = await supabase
         .from('orders')
         .select(`
-            id,
-            user_id,
-            status,
-            order_type,
-            total_amount,
-            delivery_fee,
-            route_distance_km,
-            route_polyline,
-            created_at,
-            delivery_eta,
-            addresses:delivery_address_id (
-                full_address,
-                latitude,
-                longitude
-            ),
-            order_items (
-                id,
-                product_id,
-                rental_price
-            )
+            id, user_id, status, order_type, total_amount, delivery_fee,
+            route_distance_km, route_polyline, created_at, delivery_eta,
+            addresses:delivery_address_id (full_address, latitude, longitude),
+            order_items (id, product_id, rental_price)
         `)
         .eq('id', orderId)
         .single();
 
-    if (error || !data) {
-        console.error('Failed to fetch order:', error);
-        return null;
-    }
+    if (error || !data) { console.error('[riderOrderService] getRiderOrderById:', error); return null; }
 
     const addr = data.addresses as any;
-
     return {
-        id: data.id,
-        orderId: data.id,
-        customerId: data.user_id,
-        orderType: data.order_type || 'delivery',
-        status: data.status,
-        pickupAddress: { fullAddress: 'Hub Location', lat: 0, lng: 0 },
+        id: data.id, orderId: data.id, customerId: data.user_id,
+        orderType: data.order_type ?? 'delivery', status: data.status,
+        pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
         deliveryAddress: {
-            fullAddress: addr?.full_address || 'Customer Address',
-            lat: addr?.latitude || 0,
-            lng: addr?.longitude || 0,
+            fullAddress: addr?.full_address ?? 'Customer Address',
+            lat: addr?.latitude ?? 0,
+            lng: addr?.longitude ?? 0,
         },
-        items: (data.order_items || []).map((item: any) => ({
-            name: `Product ${item.product_id.slice(0, 8)}`,
-            qty: 1,
+        items: (data.order_items ?? []).map((i: any) => ({
+            name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
         })),
-        totalAmount: data.total_amount || 0,
-        deliveryFee: data.delivery_fee || 0,
+        totalAmount: data.total_amount ?? 0,
+        deliveryFee: data.delivery_fee ?? 0,
         distanceKm: data.route_distance_km,
         routePolyline: data.route_polyline,
         assignedAt: data.created_at,
@@ -227,119 +265,54 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     };
 }
 
-// ==========================================
-// ORDER STATUS UPDATES
-// ==========================================
+// ─── Order status transitions ─────────────────────────────────────────────────
 
-/**
- * Update order status as rider
- */
-export async function updateOrderAsRider(
-    orderId: string,
-    newStatus: OrderStatus,
-    riderId: string
-) {
+export async function updateOrderAsRider(orderId: string, newStatus: OrderStatus, riderId: string) {
     return transitionOrderState(orderId, newStatus, 'rider', riderId);
 }
 
-/**
- * Mark order as picked up from hub
- */
 export async function markAsPickedUp(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'out_for_delivery', riderId);
 }
 
-/**
- * Mark rider as arrived at warehouse (Requires OTP)
- */
 export async function verifyWarehouseOtp(orderId: string, otp: string, riderId: string) {
     const { data, error } = await supabase.rpc('verify_warehouse_otp', {
-        p_order_id: orderId,
-        p_otp: otp,
-        p_actor_id: riderId
+        p_order_id: orderId, p_otp: otp, p_actor_id: riderId,
     });
-
-    if (error) {
-        return { success: false, message: error.message };
-    }
-    
+    if (error) return { success: false, message: error.message };
     return data;
 }
 
-/**
- * Mark rider as arrived at warehouse (Legacy/Fallback if needed)
- */
 export async function markArrivedAtWarehouse(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'driver_arrived_warehouse', riderId);
 }
 
-/**
- * Mark order as picked up from warehouse
- */
 export async function markOrderPickedUp(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'order_picked_up', riderId);
 }
 
-/**
- * Mark order as dispatched (item handed over to rider, leaving warehouse)
- */
 export async function markAsDispatched(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'dispatched', riderId);
 }
 
-/**
- * Mark order as out for delivery (rider has started driving to the customer)
- */
 export async function markAsOutForDelivery(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'out_for_delivery', riderId);
 }
 
-/**
- * Mark order as delivered to customer
- */
 export async function markAsDelivered(orderId: string, riderId: string) {
     return updateOrderAsRider(orderId, 'delivered', riderId);
 }
 
 /**
- * Start pickup from hub (RPC - server validates rider auth)
- */
-export async function startPickup(orderId: string) {
-    const { error } = await supabase.rpc('start_pickup', { p_order: orderId });
-    if (error) throw error;
-}
-
-/**
- * Mark items as picked up (RPC)
- */
-export async function markPicked(orderId: string) {
-    const { error } = await supabase.rpc('mark_picked', { p_order: orderId });
-    if (error) throw error;
-}
-
-/**
- * Start delivery / out for delivery (RPC)
- */
-export async function startDelivery(orderId: string) {
-    const { error } = await supabase.rpc('out_for_delivery', { p_order: orderId });
-    if (error) throw error;
-}
-
-/**
  * Complete delivery via RPC (server-side auth, credits wallet automatically)
  */
-export async function completeDelivery(orderId: string) {
+export async function completeDelivery(orderId: string): Promise<void> {
     const { error } = await supabase.rpc('complete_delivery', { p_order: orderId });
     if (error) throw error;
 }
 
-// ==========================================
-// RIDER-TO-CUSTOMER MESSAGING
-// ==========================================
+// ─── Messaging ────────────────────────────────────────────────────────────────
 
-/**
- * Predefined messages the rider can send to the customer
- */
 export const PREDEFINED_MESSAGES = [
     'Your package has been dispatched and is on the way.',
     'I am at the warehouse collecting your package.',
@@ -348,148 +321,84 @@ export const PREDEFINED_MESSAGES = [
     'I am near your delivery location. Please be available.',
 ];
 
-/**
- * Send a message from rider to customer via the notifications table
- */
 export async function sendMessageToCustomer(
-    orderId: string,
-    customerId: string,
-    message: string,
-    riderName?: string
+    orderId: string, customerId: string, message: string, riderName?: string,
 ): Promise<boolean> {
-    const { error } = await supabase
-        .from('notifications')
-        .insert({
-            user_id: customerId,
-            type: 'rider_message',
-            title: `💬 Message from ${riderName || 'your rider'}`,
-            body: message,
-            order_id: orderId,
-            is_read: false,
-        });
-
-    if (error) {
-        console.error('Failed to send message to customer:', error);
-        return false;
-    }
-
+    const { error } = await supabase.from('notifications').insert({
+        user_id: customerId,
+        type: 'rider_message',
+        title: `💬 Message from ${riderName ?? 'your rider'}`,
+        body: message,
+        order_id: orderId,
+        is_read: false,
+    });
+    if (error) { console.error('[riderOrderService] sendMessageToCustomer:', error); return false; }
     return true;
 }
 
-// ==========================================
-// RIDER LOCATION UPDATES
-// ==========================================
+// ─── Location ─────────────────────────────────────────────────────────────────
 
-/**
- * Update rider's current location
- * Called frequently from rider app (every 5-10 seconds during active delivery)
- */
 export async function updateRiderLocation(
-    riderId: string,
-    lat: number,
-    lng: number,
-    heading?: number,
-    speed?: number
+    riderId: string, latitude: number, longitude: number,
+    heading?: number, speed?: number,
 ): Promise<boolean> {
-    const { error } = await supabase
-        .from('rider_locations')
-        .upsert({
-            rider_id: riderId,
-            lat,
-            lng,
-            heading,
-            speed,
-            updated_at: new Date().toISOString(),
-        }, { onConflict: 'rider_id' });
-
-    if (error) {
-        console.error('Failed to update rider location:', error);
-        return false;
-    }
-
+    const { error } = await supabase.from('rider_locations').upsert(
+        { 
+            rider_id: riderId, 
+            latitude, 
+            longitude, 
+            heading, 
+            speed, 
+            timestamp: new Date().toISOString() 
+        },
+        { onConflict: 'rider_id' },
+    );
+    if (error) { console.error('[riderOrderService] updateRiderLocation:', error); return false; }
     return true;
 }
 
-/**
- * Get current location of a rider
- */
 export async function getRiderLocation(riderId: string): Promise<RiderLocation | null> {
     const { data, error } = await supabase
-        .from('rider_locations')
-        .select('*')
-        .eq('rider_id', riderId)
-        .single();
-
-    if (error || !data) {
-        return null;
-    }
-
+        .from('rider_locations').select('*').eq('rider_id', riderId).single();
+    if (error || !data) return null;
     return {
         riderId: data.rider_id,
-        lat: data.lat,
-        lng: data.lng,
+        lat: data.latitude,
+        lng: data.longitude,
         heading: data.heading,
         speed: data.speed,
-        updatedAt: data.updated_at,
+        updatedAt: data.timestamp,
     };
 }
 
-// ==========================================
-// REALTIME SUBSCRIPTIONS
-// ==========================================
+// ─── Realtime helpers ─────────────────────────────────────────────────────────
 
-/**
- * Subscribe to new order assignments for a rider
- * Watches for orders where rider_id is set to this rider
- */
 export function subscribeToRiderOrderAssignments(
-    riderId: string,
-    callback: (orderId: string) => void
+    riderId: string, callback: (orderId: string) => void,
 ) {
     const channel = supabase
         .channel(`rider_assignments_${riderId}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'orders',
-                filter: `rider_id=eq.${riderId}`,
-            },
-            (payload) => {
-                // Only notify if this update assigned the order to this rider
-                if (payload.new.rider_id === riderId && payload.old?.rider_id !== riderId) {
-                    callback(payload.new.id);
-                }
+        .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'orders',
+            filter: `rider_id=eq.${riderId}`,
+        }, (payload) => {
+            if (payload.new.rider_id === riderId && payload.old?.rider_id !== riderId) {
+                callback(payload.new.id);
             }
-        )
+        })
         .subscribe();
-
     return () => supabase.removeChannel(channel);
 }
 
-/**
- * Subscribe to order status updates (for rider UI)
- */
 export function subscribeToOrderUpdates(
-    orderId: string,
-    callback: (status: OrderStatus) => void
+    orderId: string, callback: (status: OrderStatus) => void,
 ) {
     const channel = supabase
         .channel(`order_status_${orderId}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'orders',
-                filter: `id=eq.${orderId}`,
-            },
-            (payload) => {
-                callback(payload.new.status);
-            }
-        )
+        .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'orders',
+            filter: `id=eq.${orderId}`,
+        }, (payload) => callback(payload.new.status))
         .subscribe();
-
     return () => supabase.removeChannel(channel);
 }

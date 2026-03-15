@@ -203,7 +203,7 @@ export async function getOrderWithDelivery(orderId: string) {
 export async function cancelOrder(orderId: string): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
-    .update({ status: "cancelled", lifecycle_state: "cancelled" })
+    .update({ status: "cancelled" })
     .eq("id", orderId)
     .select()
     .single();
@@ -236,15 +236,19 @@ export async function getMyActiveRentals() {
         rental_duration_days,
         item:products (
           id,
-          title,
-          image_url,
-          rental_price_per_day,
+          name,
+          images,
+          rental_price,
           deposit_amount
         )
       )
     `)
     .eq("user_id", user.id)
-    .in("lifecycle_state", ["placed", "confirmed", "delivered", "in_use"])
+    .in("status", [
+      "pending", "confirmed", "packed", "ready_for_pickup",
+      "driver_arrived_warehouse", "order_picked_up",
+      "dispatched", "out_for_delivery", "delivered", "in_use"
+    ])
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -262,7 +266,7 @@ export async function scheduleReturn(orderId: string, pickupDate: string, timeSl
   const { error } = await supabase
     .from("orders")
     .update({
-      lifecycle_state: "return_scheduled",
+      status: "return_requested",
       return_pickup_date: pickupDate,
       return_time_slot: timeSlot,
     })
@@ -280,7 +284,7 @@ export async function scheduleReturn(orderId: string, pickupDate: string, timeSl
 export async function keepItem(orderId: string) {
   const { error } = await supabase
     .from("orders")
-    .update({ lifecycle_state: "kept" })
+    .update({ status: "completed" })
     .eq("id", orderId);
 
   if (error) {

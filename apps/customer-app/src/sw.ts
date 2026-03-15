@@ -121,10 +121,15 @@ registerRoute(
 
 // Offline fallback
 self.addEventListener('fetch', (event) => {
+    // Only handle navigation requests for HTML pages
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            fetch(event.request).catch(() => {
-                return caches.match('/index.html');
+            fetch(event.request).catch((error) => {
+                console.warn('[SW] Navigation failed, serving fallback:', error);
+                // Return the precached /index.html if we're genuinely offline
+                return caches.match('/index.html').then((response) => {
+                    return response || caches.match('/offline.html');
+                });
             })
         );
     }

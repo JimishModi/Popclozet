@@ -24,6 +24,10 @@ interface RentalItem {
     type: 'current' | 'future';
     arrivalDays?: number;
     itemCount?: number;
+    isInTransit?: boolean;
+    isDelivered?: boolean;
+    hoursLeft?: number;
+    minutesLeft?: number;
 }
 
 /* Clock/countdown icon */
@@ -39,10 +43,16 @@ const ClosetPage: React.FC = () => {
     const { user } = useAuth();
     const [rentals, setRentals] = useState<RentalItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         fetchRentals();
-    }, [user]);
+    }, [user, tick]);
 
     const fetchRentals = async () => {
         if (!user) {
@@ -70,28 +80,49 @@ const ClosetPage: React.FC = () => {
 
             const mapped: RentalItem[] = activeOrders.map((order: any) => {
                 const firstItem = order.order_items?.[0]?.item;
-                const rentalEndTime = new Date(order.rental_end_date);
-                const rentalStartTime = new Date(order.rental_start_date);
                 const now = new Date();
+                
+                // If not delivered yet, these might be null or initial booking dates
+                const rentalStartTime = order.rental_start_date ? new Date(order.rental_start_date) : null;
+                const rentalEndTime = order.rental_end_date ? new Date(order.rental_end_date) : null;
 
-                const timeInfo = getRemainingRentalTime(order.rental_end_date);
+                const timeInfo = rentalEndTime ? getRemainingRentalTime(order.rental_end_date) : { expired: false, days: 3, hours: 0, minutes: 0 };
 
-                const type = now < rentalStartTime ? 'future' : 'current';
+                // Status Logic:
+                // If status is 'delivered' or 'in_use' -> 'current'
+                // Else -> 'future' (ignore for now per user request)
+                const isDelivered = ['delivered', 'in_use'].includes(order.status);
+                const isInTransit = ['out_for_delivery', 'dispatched'].includes(order.status);
+                
+                const type = (isDelivered || isInTransit) ? 'current' : 'future';
 
-                // Calculate arrival days for future bookings
-                const arrivalDays = Math.ceil((rentalStartTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                // Date label
+                let dateRange = 'Dates TBD';
+                if (rentalStartTime && rentalEndTime) {
+                    dateRange = `${format(rentalStartTime, 'd MMM')} - ${format(rentalEndTime, 'd MMM')}`;
+                }
+
+                // Arrival days (for future)
+                let arrivalDays = 0;
+                if (type === 'future' && rentalStartTime) {
+                    arrivalDays = Math.max(0, Math.ceil((rentalStartTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                }
 
                 return {
                     id: order.id,
-                    title: firstItem?.title || 'Rental Outfit',
-                    dateRange: `${format(rentalStartTime, 'd MMM')} - ${format(rentalEndTime, 'd MMM')}`,
+                    title: firstItem?.name || 'Rental Outfit',
+                    dateRange,
                     currentPrice: order.total_amount,
-                    originalPrice: 4000, // Fixed buy-out price as requested
+                    originalPrice: order.deposit_amount || 4000, 
                     daysLeft: timeInfo.days,
-                    returnToday: timeInfo.expired || (timeInfo.days === 0 && timeInfo.hours < 24),
-                    image: firstItem?.image_url,
+                    hoursLeft: (timeInfo as any).hours,
+                    minutesLeft: (timeInfo as any).minutes,
+                    returnToday: isDelivered && (timeInfo.expired || (timeInfo.days === 0 && (timeInfo as any).hours < 24)),
+                    image: Array.isArray(firstItem?.images) ? firstItem.images[0] : firstItem?.images,
                     type,
-                    arrivalDays: arrivalDays > 0 ? arrivalDays : 0,
+                    arrivalDays,
+                    isInTransit,
+                    isDelivered,
                     itemCount: order.order_items?.length || 0
                 };
             });
@@ -105,15 +136,8 @@ const ClosetPage: React.FC = () => {
         }
     };
 
-    const handleKeepIt = async (orderId: string) => {
-        try {
-            await keepItem(orderId);
-            toast.success('Item marked as kept! 🎉');
-            fetchRentals();
-        } catch (err) {
-            console.error('Keep item error:', err);
-            toast.error('Failed to keep item');
-        }
+    const handleKeepIt = (orderId: string) => {
+        navigate(`/checkout?buyoutOrderId=${orderId}`);
     };
 
     const currentRentals = rentals.filter((item) => item.type === 'current');
@@ -221,9 +245,11 @@ const ClosetPage: React.FC = () => {
                                                 className="text-sm font-semibold text-white tracking-[-0.42px]"
                                                 style={dmSans}
                                             >
-                                                {item.returnToday
-                                                    ? 'Return Today'
-                                                    : `${item.daysLeft} Days Left`}
+                                                {item.isInTransit 
+                                                    ? 'In Transit'
+                                                    : (item.daysLeft ?? 0) > 0
+                                                        ? `${item.daysLeft}d ${item.hoursLeft}h Left`
+                                                        : `${item.hoursLeft}h ${item.minutesLeft}m Left`}
                                             </span>
                                         </div>
                                     </div>
@@ -267,29 +293,34 @@ const ClosetPage: React.FC = () => {
 
                                 {/* Keep it button */}
                                 <button
-                                    onClick={() => handleKeepIt(item.id)}
-                                    className="-mt-[48px] h-[89px] rounded-2xl bg-[#f2546d] border border-[#ff8597] flex items-end justify-center pb-3 cursor-pointer active:scale-[0.98] transition-transform"
+                                    onClick={() => !item.isInTransit && handleKeepIt(item.id)}
+                                    disabled={item.isInTransit}
+                                    className={`-mt-[48px] h-[89px] rounded-2xl border flex items-end justify-center pb-3 cursor-pointer active:scale-[0.98] transition-all ${
+                                        item.isInTransit ? 'bg-zinc-800 border-zinc-700 opacity-50' : 'bg-[#f2546d] border-[#ff8597]'
+                                    }`}
                                 >
                                     <span
                                         className="text-sm text-white leading-[14px]"
                                         style={dmSans}
                                     >
                                         <span className="font-semibold tracking-[-0.06px]">
-                                            Keep it for:{' '}
+                                            {item.isInTransit ? 'Arriving Soon' : 'Keep it for:'}{' '}
                                         </span>
-                                        <span className="font-black tracking-[-0.06px]">
-                                            ₹ {item.originalPrice}
-                                        </span>
+                                        {!item.isInTransit && (
+                                            <span className="font-black tracking-[-0.06px]">
+                                                ₹ {Math.round(item.currentPrice * 0.7)}
+                                            </span>
+                                        )}
                                     </span>
                                 </button>
 
-                                {item.returnToday && (
+                                {item.isDelivered && (
                                     <button
                                         onClick={() => navigate(`/schedule-return?orderId=${item.id}`)}
-                                        className="w-full mt-4 py-2.5 rounded-2xl bg-[#b93e53] border border-[#ffd1d4] text-center"
+                                        className="w-full mt-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all"
                                     >
                                         <span
-                                            className="text-sm font-semibold text-white tracking-[-0.42px]"
+                                            className="text-sm font-semibold text-zinc-300 tracking-[-0.42px]"
                                             style={dmSans}
                                         >
                                             Schedule Return
@@ -301,79 +332,7 @@ const ClosetPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* ─── FUTURE BOOKINGS ─── */}
-                {!loading && futureRentals.length > 0 && (
-                    <>
-                        <h2
-                            className="text-2xl font-semibold text-white tracking-[-0.72px] mt-10"
-                            style={dmSans}
-                        >
-                            Future Bookings
-                        </h2>
-
-                        <div className="grid grid-cols-2 gap-5 mt-6">
-                            {futureRentals.map((item) => (
-                                <motion.div
-                                    key={item.id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
-                                    style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
-                                >
-                                    <div className="relative aspect-[176/255]">
-                                        <img
-                                            src={
-                                                item.image ||
-                                                'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=400&q=80'
-                                            }
-                                            alt={item.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                        <div className="absolute top-4 left-8">
-                                            <span
-                                                className="text-sm font-semibold text-[#ff6078] tracking-[-0.42px]"
-                                                style={dmSans}
-                                            >
-                                                Arriving in {item.arrivalDays} Days
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="h-px bg-[#484848]" />
-
-                                    <div className="px-4 py-3">
-                                        <h3
-                                            className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                            style={dmSans}
-                                        >
-                                            {item.title}
-                                        </h3>
-                                        <p
-                                            className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1"
-                                            style={dmSans}
-                                        >
-                                            {item.dateRange}
-                                        </p>
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <span
-                                                className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                                                style={dmSans}
-                                            >
-                                                ₹ {item.currentPrice}
-                                            </span>
-                                            <span
-                                                className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
-                                                style={dmSans}
-                                            >
-                                                ₹ {item.originalPrice}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </>
-                )}
+                {/* FUTURE BOOKINGS HIDDEN PER USER REQUEST */}
             </main>
 
             <BottomNavBar />

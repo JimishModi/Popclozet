@@ -80,18 +80,21 @@ export function OrderCard({
             )}
         >
             {/* Order Type badge (DELIVERY / PICKUP) */}
-            {orderType && (
-                <div className="absolute top-3 left-3 z-10">
+            <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
+                {orderType && (
                     <span className={clsx(
-                        "px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide",
+                        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide",
                         orderType === 'delivery'
                             ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                             : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                     )}>
                         {orderType === 'delivery' ? '📦 Delivery' : '🔄 Pickup'}
                     </span>
-                </div>
-            )}
+                )}
+                <span className="px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold bg-zinc-800/80 text-zinc-400 border border-zinc-700/50 backdrop-blur-sm self-start">
+                    #{_id.slice(0, 8).toUpperCase()}
+                </span>
+            </div>
 
             {/* Status badge */}
             {status && (

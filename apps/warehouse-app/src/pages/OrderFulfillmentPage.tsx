@@ -74,8 +74,10 @@ export function OrderFulfillmentPage() {
     const handleGenerateOtp = async (orderId: string) => {
         setGeneratingOtp(orderId);
         try {
+            console.log('[Warehouse] Generating OTP for order:', orderId);
             const { otp } = await generateWarehouseOtp(orderId);
-            showToast('OTP generated successfully!', 'success');
+            showToast('OTP generated: ' + otp, 'success');
+            // Explicitly reload to reflect the OTP in the UI immediately
             await loadOrders();
         } catch (err: any) {
             console.error('Failed to generate OTP:', err);
@@ -149,8 +151,8 @@ export function OrderFulfillmentPage() {
                                 >
                                     <div className="flex items-start justify-between mb-2">
                                         <div>
-                                            <p className="text-xs text-zinc-500">#{order.id.slice(0, 8)}</p>
-                                            <p className="text-sm font-medium text-zinc-200 mt-0.5">₹{order.total_amount}</p>
+                                            <p className="text-sm font-bold text-white mb-0.5">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                                            <p className="text-xs text-zinc-400 font-medium">₹{order.total_amount}</p>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={clsx(

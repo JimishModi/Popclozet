@@ -1,0 +1,1 @@
+const a={getCachedSession:async()=>{try{for(let e=0;e<localStorage.length;e++){const s=localStorage.key(e);if(s&&s.endsWith("-auth-token")){const t=localStorage.getItem(s);if(t)return{session:JSON.parse(t)}}}}catch(e){console.warn("[authPersistence] Failed to read auth session from storage",e)}return{session:null}}};export{a as authPersistence};
