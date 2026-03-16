@@ -1,0 +1,102 @@
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 401,
+  "data": {
+    "error": "invalid_token",
+    "error_description": "shzhghdenmmxxeldzirbgqwrtffctxsfxppf"
+  },
+  "message": "Request failed with status code 401",
+  "stack": "AxiosError: Request failed with status code 401\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 401,
+  "data": {
+    "error": "invalid_token",
+    "error_description": "shzhghdenmmxxeldzirbgqwrtffctxsfxppf"
+  },
+  "message": "Request failed with status code 401",
+  "stack": "AxiosError: Request failed with status code 401\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 401,
+  "data": {
+    "error": "invalid_token",
+    "error_description": "shzhghdenmmxxeldzirbgqwrtffctxsfxppf"
+  },
+  "message": "Request failed with status code 401",
+  "stack": "AxiosError: Request failed with status code 401\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 401,
+  "data": {
+    "error": "invalid_token",
+    "error_description": "shzhghdenmmxxeldzirbgqwrtffctxsfxppf"
+  },
+  "message": "Request failed with status code 401",
+  "stack": "AxiosError: Request failed with status code 401\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}
+{
+  "status": 400,
+  "data": {},
+  "message": "Request failed with status code 400",
+  "stack": "AxiosError: Request failed with status code 400\n    at settle (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\settle.js:20:7)\n    at IncomingMessage.handleStreamEnd (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\adapters\\http.js:844:13)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (D:\\PopClozet\\PopCLozet-Apps\\node_modules\\.pnpm\\axios@1.13.6\\node_modules\\axios\\lib\\core\\Axios.js:46:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async <anonymous> (D:\\PopClozet\\PopCLozet-Apps\\apps\\api\\src\\server.ts:35:26)"
+}

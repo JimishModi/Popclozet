@@ -41,19 +41,28 @@ export function AddressSearchInput({
                 saved.slice(0, 3).map((addr) => ({
                     lat: addr.lat,
                     lng: addr.lng,
-                    formattedAddress: addr.full_address,
+                    formattedAddress: addr.formattedAddress,
                     city: addr.city || undefined,
                 }))
             );
         }
     }, [showRecentAddresses]);
 
-    // Sync query with value prop when it changes externally
+    // Clean incoming value to avoid "undefined" artifacts
+    const cleanValue = (val: string | undefined): string => {
+        if (!val) return '';
+        return val.replace(/undefined/g, '').replace(/null/g, '').trim().replace(/^, /, '');
+    };
+
+    // Sync query only when value is a real address (not just coordinates) or when it specifically changed
     useEffect(() => {
-        if (value && value !== query) {
-            setQuery(value);
+        const cleaned = cleanValue(value);
+        // Only overwrite if it looks like a real address and we are not focused
+        const isCoordinates = /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(cleaned);
+        if (cleaned && cleaned !== query && !isFocused && !isCoordinates) {
+            setQuery(cleaned);
         }
-    }, [value]);
+    }, [value, isFocused, query]);
 
     // Debounced search
     const handleSearch = useCallback(async (searchQuery: string) => {
@@ -64,7 +73,7 @@ export function AddressSearchInput({
 
         setIsLoading(true);
         try {
-            const results = await searchAddresses(searchQuery, 5);
+            const results = await searchAddresses(searchQuery);
             setSuggestions(results);
         } catch (error) {
             console.error('Search failed:', error);
@@ -108,7 +117,7 @@ export function AddressSearchInput({
     const showDropdown = isFocused && (suggestions.length > 0 || (recentAddresses.length > 0 && !query));
 
     return (
-        <div className={cn('relative isolate', className)} style={{ zIndex: 1100 }}>
+        <div className={cn('relative', className)} style={{ zIndex: 1100 }}>
             {/* Input container */}
             <div className="relative">
                 {/* Search icon */}
@@ -172,11 +181,12 @@ export function AddressSearchInput({
                     style={{
                         zIndex: 9999,
                         position: 'absolute',
-                        maxHeight: '300px',
+                        maxHeight: '400px',
                         overflowY: 'auto',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
                     }}
                 >
+
                     {/* Recent addresses */}
                     {!query && recentAddresses.length > 0 && (
                         <div className="p-3 border-b border-zinc-800">
@@ -211,9 +221,11 @@ export function AddressSearchInput({
                                     <MapPin className="w-5 h-5 text-[#ff4d6d] flex-shrink-0 mt-0.5" />
                                     <div className="text-left min-w-0">
                                         <p className="text-sm text-white">{addr.formattedAddress}</p>
-                                        {addr.city && (
-                                            <p className="text-xs text-zinc-500 mt-0.5">{addr.city}</p>
-                                        )}
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            {addr.city && (
+                                                <p className="text-xs text-zinc-500">{addr.city}</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </button>
                             ))}

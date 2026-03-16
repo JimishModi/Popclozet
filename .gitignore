@@ -1,6 +1,8 @@
 # dependencies
 node_modules/
 .pnpm-store
+**/node_modules/
+**/.vite/
 
 # build output
 dist/

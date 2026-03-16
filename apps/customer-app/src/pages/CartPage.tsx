@@ -233,11 +233,7 @@ const CartPage = () => {
   /* Checkout handler                   */
   /* ---------------------------------- */
   const handleCheckout = () => {
-    if (!deliveryAddress) {
-      navigate("/map?returnTo=/cart");
-      return;
-    }
-    navigate("/checkout");
+    navigate("/checkout/address");
   };
 
   return (

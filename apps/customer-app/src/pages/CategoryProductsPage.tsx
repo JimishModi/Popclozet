@@ -90,16 +90,7 @@ const CategoryProductsPage: React.FC = () => {
 
     const [nameQuery, setNameQuery] = useState(""); // text search by name
 
-    const maxAvailablePrice = useMemo(() => {
-        if (products.length === 0) return 2000;
-        let max = 0;
-        products.forEach(p => {
-            const currentPrice = p.price || p.rental_price || 0;
-            if (currentPrice > max) max = currentPrice;
-        });
-        const finalMax = Math.ceil(max / 500) * 500;
-        return finalMax > 0 ? finalMax : 2000; // Fallback to avoid max="0" in range slider
-    }, [products]);
+    const maxAvailablePrice = 2000;
 
     // Load products on mount or when category/gender/brand changes
     useEffect(() => {
@@ -135,8 +126,6 @@ const CategoryProductsPage: React.FC = () => {
                 category: category,
                 gender: genderFromPath,
                 nameQuery: nameQuery,
-                priceMin: priceRange.min,
-                priceMax: priceRange.max,
                 brands: Array.from(selectedBrands),
                 sizes: Array.from(selectedSizes),
                 genders: Array.from(selectedGenders)
@@ -144,8 +133,16 @@ const CategoryProductsPage: React.FC = () => {
         }, 400); // 400ms debounce
 
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey, gendersKey]);
+
+    // Fix: Ensure priceRange stays within the 2000 limit for UI consistency
+    useEffect(() => {
+        if (priceRange.max > 2000) {
+            setPriceRange(prev => ({ ...prev, max: 2000 }));
+            setTempPriceRange(prev => ({ ...prev, max: 2000 }));
+        }
+    }, [priceRange.max]);
 
     interface ProductFilters {
         category?: string;
@@ -284,11 +281,11 @@ const CategoryProductsPage: React.FC = () => {
         setSelectedSizes(new Set());
         setSelectedBrands(new Set());
         setSelectedGenders(new Set());
-        setPriceRange({ min: 0, max: maxAvailablePrice });
+        setPriceRange({ min: 0, max: 2000 });
         setTempSelectedSizes(new Set());
         setTempSelectedBrands(new Set());
         setTempSelectedGenders(new Set());
-        setTempPriceRange({ min: 0, max: maxAvailablePrice });
+        setTempPriceRange({ min: 0, max: 2000 });
         setNameQuery("");
     }
 
@@ -600,15 +597,15 @@ const CategoryProductsPage: React.FC = () => {
                                         </div>
 
                                         {/* Range slider track */}
-                                        <div className="relative pt-3 pb-1 px-1">
+                                        <div className="relative pt-3 pb-1 px-1 overflow-hidden">
                                             {/* Track background with dots */}
                                             <div className="relative h-[2px] bg-zinc-600 rounded-full">
                                                 {/* Active track */}
                                                 <div
                                                     className="absolute h-full bg-[#FF4D6D] rounded-full"
                                                     style={{
-                                                        left: `${(tempPriceRange.min / Math.max(maxAvailablePrice, 500)) * 100}%`,
-                                                        width: `${((tempPriceRange.max - tempPriceRange.min) / Math.max(maxAvailablePrice, 500)) * 100}%`
+                                                        left: `${(tempPriceRange.min / 2000) * 100}%`,
+                                                        width: `${((tempPriceRange.max - tempPriceRange.min) / 2000) * 100}%`
                                                     }}
                                                 />
                                                 {/* Dot markers along track */}
@@ -623,7 +620,7 @@ const CategoryProductsPage: React.FC = () => {
                                                 <div
                                                     className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md z-10"
                                                     style={{
-                                                        left: `calc(${(tempPriceRange.min / Math.max(maxAvailablePrice, 500)) * 100}% - 10px)`,
+                                                        left: `calc(${(tempPriceRange.min / 2000) * 100}% - 10px)`,
                                                         pointerEvents: 'none' // visuals only
                                                     }}
                                                 />
@@ -631,7 +628,7 @@ const CategoryProductsPage: React.FC = () => {
                                                 <div
                                                     className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md z-10"
                                                     style={{
-                                                        left: `calc(${(tempPriceRange.max / Math.max(maxAvailablePrice, 500)) * 100}% - 10px)`,
+                                                        left: `calc(${(tempPriceRange.max / 2000) * 100}% - 10px)`,
                                                         pointerEvents: 'none' // visuals only
                                                     }}
                                                 />
@@ -640,7 +637,8 @@ const CategoryProductsPage: React.FC = () => {
                                             <input
                                                 type="range"
                                                 min="0"
-                                                max={Math.max(maxAvailablePrice, 500)}
+                                                max="2000"
+                                                step="500"
                                                 value={tempPriceRange.min}
                                                 onChange={(e) => {
                                                     const val = Number(e.target.value);
@@ -650,12 +648,13 @@ const CategoryProductsPage: React.FC = () => {
                                                     }));
                                                 }}
                                                 className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer z-30"
-                                                style={{ pointerEvents: tempPriceRange.min > maxAvailablePrice / 2 ? 'auto' : 'none' }}
+                                                style={{ pointerEvents: tempPriceRange.min > 1000 ? 'auto' : 'none' }}
                                             />
                                             <input
                                                 type="range"
                                                 min="0"
-                                                max={Math.max(maxAvailablePrice, 500)}
+                                                max="2000"
+                                                step="500"
                                                 value={tempPriceRange.max}
                                                 onChange={(e) => {
                                                     const val = Number(e.target.value);
@@ -670,7 +669,8 @@ const CategoryProductsPage: React.FC = () => {
                                             <input
                                                 type="range"
                                                 min="0"
-                                                max={Math.max(maxAvailablePrice, 500)}
+                                                max="2000"
+                                                step="500"
                                                 value={tempPriceRange.min}
                                                 onChange={(e) => {
                                                     const val = Number(e.target.value);
@@ -680,7 +680,7 @@ const CategoryProductsPage: React.FC = () => {
                                                     }));
                                                 }}
                                                 className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer z-40"
-                                                style={{ width: '50%', pointerEvents: tempPriceRange.min <= maxAvailablePrice / 2 ? 'auto' : 'none' }}
+                                                style={{ width: '50%', pointerEvents: tempPriceRange.min <= 1000 ? 'auto' : 'none' }}
                                             />
                                         </div>
                                     </div>
