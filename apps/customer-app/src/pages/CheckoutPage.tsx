@@ -25,7 +25,7 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
-import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
+/*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -74,6 +74,10 @@ export default function CheckoutPage() {
   const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>(null);
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const [upiId, setUpiId] = useState("");
+  const lookup = new URLSearchParams(window.location.search);
+  const buyoutOrderId = lookup.get("buyoutOrderId");
+  const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
+  const [buyoutLoading, setBuyoutLoading] = useState(false);
 
   // Fetch IP address for legal logging
   useEffect(() => {
@@ -279,23 +283,53 @@ export default function CheckoutPage() {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
 
+  // Load Buyout Order if specified
+  useEffect(() => {
+    if (!buyoutOrderId) return;
+    const fetchBuyout = async () => {
+      setBuyoutLoading(true);
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            item:products (*)
+          )
+        `)
+        .eq('id', buyoutOrderId)
+        .single();
+      
+      if (data && !error) {
+        setBuyoutOrderData(data);
+      }
+      setBuyoutLoading(false);
+    };
+    fetchBuyout();
+  }, [buyoutOrderId]);
+
   // Calculate totals
   const subtotal = useMemo(() => {
+    if (buyoutOrderData) {
+      // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
+      return Math.round(buyoutOrderData.total_amount * 0.7);
+    }
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [validCartEntries, cartProducts]);
+  }, [validCartEntries, cartProducts, buyoutOrderData]);
 
   const originalTotal = useMemo(() => {
+    if (buyoutOrderData) return buyoutOrderData?.total_amount ?? 0;
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
       const orig = product?.originalPrice || product?.price || 0;
       return total + orig * qty;
     }, 0);
-  }, [validCartEntries, cartProducts]);
+  }, [validCartEntries, cartProducts, buyoutOrderData]);
 
   const discount = originalTotal - subtotal;
 
@@ -339,7 +373,7 @@ export default function CheckoutPage() {
   /* Place Order                        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
-    if (validCartEntries.length === 0) return;
+    if (!buyoutOrderId && validCartEntries.length === 0) return;
     if (!agreedToTerms || !agreedToSizing) {
       setShowTermsModal(true);
       return;
@@ -356,6 +390,28 @@ export default function CheckoutPage() {
     if (!paymentSuccess) {
       setIsPlacingOrder(false);
       return;
+    }
+
+    // --- Buyout Flow ---
+    if (buyoutOrderId) {
+      try {
+        // Just update existing order status to 'completed'
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: 'completed' })
+          .eq('id', buyoutOrderId);
+        
+        if (error) throw error;
+
+        // Navigate to payment processing
+        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
+        navigate(`/payment-processing?type=order&orderId=${buyoutOrderId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        return;
+      } catch (err: any) {
+        toast.error(err.message);
+        setIsPlacingOrder(false);
+        return;
+      }
     }
 
     try {
@@ -476,20 +532,21 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 5) Clear cart
-      await clearCartDB().catch(() => { });
-      for (const [id] of validCartEntries) {
-        removeFromCart(id);
+      // 5) Clear cart (if not buyout)
+      if (!buyoutOrderId) {
+        await clearCartDB().catch(() => { });
+        for (const [id] of validCartEntries) {
+          removeFromCart(id);
+        }
       }
 
-      // 5) Navigate based on payment method
+      // 6) Navigate based on payment method
+      const targetId = buyoutOrderId || (order as any).id;
       if (paymentMethod === 'cod') {
-        // COD: skip payment processing, go directly to order confirmed
-        navigate(`/order-confirmed/${order.id}`);
+        navigate(`/order-confirmed/${targetId}`);
       } else {
-        // UPI: go through payment processing flow
         const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${order.id}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -503,6 +560,13 @@ export default function CheckoutPage() {
   return (
     <MobileShell className="bg-[#111111] text-white">
       <main className="flex-1 overflow-y-auto pb-64">
+        {buyoutLoading && (
+          <div className="flex flex-col items-center justify-center pt-20">
+            <div className="w-8 h-8 border-2 border-[#f2546d]/30 border-t-[#f2546d] rounded-full animate-spin" />
+            <p className="text-sm text-zinc-500 mt-4">Loading order details...</p>
+          </div>
+        )}
+        
         {/* Header */}
         <section className="relative px-5 pt-6 pb-2">
           <div className="absolute -top-20 -left-14 w-36 h-36 rounded-full blur-[100px] pointer-events-none" style={{ background: "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)" }} />
@@ -615,14 +679,22 @@ export default function CheckoutPage() {
         {/* Items */}
         <section className="px-5 mt-8">
           <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
-            {validCartEntries.map(([id]) => {
-              const product = cartProducts[id.split('_')[0]];
-              return (
-                <div key={id} className="w-[100px] h-[120px] rounded-2xl flex-shrink-0 bg-[#232323] overflow-hidden border border-white/5 shadow-xl">
-                  {product?.imageUrl && <img src={product.imageUrl} className="w-full h-full object-cover" alt="" />}
+            {buyoutOrderData ? (
+              buyoutOrderData.order_items?.map((oi: any) => (
+                <div key={oi.id} className="w-[100px] h-[120px] rounded-2xl flex-shrink-0 bg-[#232323] overflow-hidden border border-white/5 shadow-xl">
+                  {oi.item?.images?.[0] && <img src={oi.item.images[0]} className="w-full h-full object-cover" alt="" />}
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              validCartEntries.map(([id]) => {
+                const product = cartProducts[id.split('_')[0]];
+                return (
+                  <div key={id} className="w-[100px] h-[120px] rounded-2xl flex-shrink-0 bg-[#232323] overflow-hidden border border-white/5 shadow-xl">
+                    {product?.imageUrl && <img src={product.imageUrl} className="w-full h-full object-cover" alt="" />}
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
 
@@ -707,7 +779,7 @@ export default function CheckoutPage() {
             </div>
             <button
               onClick={handlePlaceOrder}
-              disabled={isPlacingOrder || validCartEntries.length === 0}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId)}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
                 isPlacingOrder ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"

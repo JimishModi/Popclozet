@@ -1,14 +1,19 @@
 # dependencies
-node_modules
+node_modules/
 .pnpm-store
 **/node_modules/
 **/.vite/
 
-# build
-dist
-build
-.next
-out
+# build output
+dist/
+dev-dist/
+build/
+.next/
+out/
+.turbo/
+
+# vite
+.vite/
 
 # logs
 npm-debug.log*
@@ -16,18 +21,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# environment
+# env
 .env
 .env.local
 .env.*.local
 
-# turbo
-.turbo
-
-# vite
-.vite
-
-# OS
+# mac / OS
 .DS_Store
 Thumbs.db
 

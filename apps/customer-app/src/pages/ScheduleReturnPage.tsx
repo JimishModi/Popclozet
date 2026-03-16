@@ -1,22 +1,14 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
-import { ChevronLeft, ChevronDown, Pencil } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getOrderById, scheduleReturn } from '@/services/ordersService';
+import { useAuth } from '@/context/SupabaseAuthContext';
+import { format, addDays } from 'date-fns';
+import { toast } from 'sonner';
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
-
-/* ─── Outfit items mock ─── */
-interface OutfitItem {
-    id: string;
-    label: string;
-    highlighted?: boolean;
-}
-const OUTFIT_ITEMS: OutfitItem[] = [
-    { id: '1', label: 'Kurta', highlighted: true },
-    { id: '2', label: 'Pants' },
-    { id: '3', label: 'Vest' },
-];
 
 /* ─── Time‑slot mock ─── */
 interface TimeSlot {
@@ -25,12 +17,12 @@ interface TimeSlot {
     discount: number;
 }
 const TIME_SLOTS: TimeSlot[] = [
-    { id: 'a', label: '3 pm - 4 pm', discount: 50 },
-    { id: 'b', label: '3 pm - 4 pm', discount: 50 },
-    { id: 'c', label: '6 pm - 7 pm', discount: 30 },
-    { id: 'd', label: '6 pm - 7 pm', discount: 30 },
-    { id: 'e', label: '8 pm - 9 pm', discount: 20 },
-    { id: 'f', label: '8 pm - 9 pm', discount: 20 },
+    { id: 'a', label: '10 am - 11 am', discount: 50 },
+    { id: 'b', label: '12 pm - 1 pm', discount: 50 },
+    { id: 'c', label: '3 pm - 4 pm', discount: 30 },
+    { id: 'd', label: '5 pm - 6 pm', discount: 30 },
+    { id: 'e', label: '7 pm - 8 pm', discount: 20 },
+    { id: 'f', label: '9 pm - 10 pm', discount: 20 },
 ];
 
 /* ─── Back‑arrow icon ─── */
@@ -42,8 +34,76 @@ const BackArrow = () => (
 
 const ScheduleReturnPage: React.FC = () => {
     const navigate = useNavigate();
-    const [selectedSlot, setSelectedSlot] = useState<string>('c'); // default 6pm-7pm left
-    const [customSlot, setCustomSlot] = useState('3 pm - 4 pm');
+    const [searchParams] = useSearchParams();
+    const orderId = searchParams.get('orderId');
+    const { user } = useAuth();
+
+    const [order, setOrder] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [selectedSlot, setSelectedSlot] = useState<string>('c');
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (orderId) {
+            fetchOrder();
+        } else {
+            setLoading(false);
+            toast.error("No order ID found");
+        }
+    }, [orderId]);
+
+    const fetchOrder = async () => {
+        try {
+            setLoading(true);
+            const data = await getOrderById(orderId!);
+            setOrder(data);
+        } catch (error) {
+            console.error("Fetch order error:", error);
+            toast.error("Failed to load order details");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleReturn = async () => {
+        if (!orderId) return;
+        try {
+            setSubmitting(true);
+            const slotLabel = TIME_SLOTS.find(s => s.id === selectedSlot)?.label || '3 pm - 4 pm';
+            // Defaulting to tomorrow for pickup in this mock-to-real transition
+            const pickupDate = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+            
+            await scheduleReturn(orderId, pickupDate, slotLabel);
+            
+            toast.success("Return scheduled! A rider will reach out soon.");
+            navigate('/closet');
+        } catch (error) {
+            console.error("Schedule return error:", error);
+            toast.error("Failed to schedule return");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <MobileShell className="bg-[#111111] text-white flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
+            </MobileShell>
+        );
+    }
+
+    if (!order) {
+        return (
+            <MobileShell className="bg-[#111111] text-white flex flex-col items-center justify-center px-6">
+                <p className="text-zinc-400 mb-6">Order not found</p>
+                <button onClick={() => navigate('/closet')} className="px-6 py-2 bg-[#f2546d] rounded-xl font-bold">Back to Closet</button>
+            </MobileShell>
+        );
+    }
+
+    const itemsCount = order.order_items?.length || 0;
+    const firstItem = order.order_items?.[0];
 
     return (
         <MobileShell className="bg-[#111111] text-white">
@@ -80,49 +140,44 @@ const ScheduleReturnPage: React.FC = () => {
                             className="text-2xl font-semibold text-white tracking-[-0.72px]"
                             style={dmSans}
                         >
-                            Haldi Outfit
+                            {itemsCount > 1 ? 'Multi-item Rental' : 'Haldi Outfit'}
                         </h2>
                         <span
                             className="text-lg font-normal text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
                             style={dmSans}
                         >
-                            3 Items
+                            {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'}
                         </span>
                     </div>
 
                     {/* Item cards row */}
                     <div className="flex gap-2 mt-4">
-                        {/* First item - highlighted with accent bg */}
-                        <div className="relative w-24 h-36 rounded-lg bg-[#8d303f] overflow-hidden shrink-0">
-                            <div className="absolute inset-1 rounded-lg bg-[#313131]" />
+                        <div className="relative w-24 h-36 rounded-lg bg-[#8d303f] overflow-hidden shrink-0 border border-white/10">
+                            {order.order_items?.[0]?.product?.image_url ? (
+                                <img src={order.order_items[0].product.image_url} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="absolute inset-1 rounded-lg bg-[#313131]" />
+                            )}
                         </div>
 
-                        {/* Remaining items in grey container */}
-                        <div className="flex-1 rounded-lg bg-[#232323] p-2 flex gap-2">
-                            {[1, 2, 3].map((i) => (
+                        <div className="flex-1 rounded-lg bg-[#232323] p-2 flex gap-2 overflow-x-auto no-scrollbar">
+                            {order.order_items?.slice(1).map((item: any, idx: number) => (
                                 <div
-                                    key={i}
-                                    className="flex-1 h-[104px] rounded-lg bg-[#313131]"
-                                />
+                                    key={idx}
+                                    className="w-20 h-[104px] rounded-lg bg-[#313131] shrink-0 overflow-hidden border border-white/5"
+                                >
+                                    {item.product?.image_url && <img src={item.product.image_url} className="w-full h-full object-cover" />}
+                                </div>
                             ))}
+                            {itemsCount === 1 && (
+                                <div className="flex-1 flex items-center justify-center text-zinc-600 text-xs">
+                                    Single item order
+                                </div>
+                            )}
                         </div>
-                    </div>
-
-                    {/* Labels */}
-                    <div className="flex mt-2 ml-[88px] gap-[8px]">
-                        {OUTFIT_ITEMS.map((item) => (
-                            <span
-                                key={item.id}
-                                className="flex-1 text-sm font-semibold text-white tracking-[-0.42px] text-center"
-                                style={dmSans}
-                            >
-                                {item.label}
-                            </span>
-                        ))}
                     </div>
                 </section>
 
-                {/* ── Divider ── */}
                 <div className="h-px bg-[#484848] mt-6" />
 
                 {/* ═══════════════ RETURN TIME‑SLOT ═══════════════ */}
@@ -135,15 +190,14 @@ const ScheduleReturnPage: React.FC = () => {
                             Return Time-slot
                         </h3>
                         <span
-                            className="text-sm font-semibold text-[#8d303f] tracking-[-0.42px]"
+                            className="text-sm font-semibold text-[#f2546d] tracking-[-0.42px]"
                             style={dmSans}
                         >
-                            Discounts on prefered slots
+                            Discounts on preferred slots
                         </span>
                     </div>
 
-                    {/* Time‑slot grid (2 columns × 3 rows) */}
-                    <div className="grid grid-cols-2 gap-x-9 gap-y-5 mt-6">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 mt-6">
                         {TIME_SLOTS.map((slot) => {
                             const isSelected = selectedSlot === slot.id;
                             return (
@@ -152,141 +206,69 @@ const ScheduleReturnPage: React.FC = () => {
                                     whileTap={{ scale: 0.96 }}
                                     className="relative"
                                 >
-                                    {/* Discount badge */}
-                                    <div className="absolute -top-3 right-0 flex items-center justify-center bg-[#8d303f] rounded-full px-2 py-1 z-10">
-                                        <span
-                                            className="text-sm font-semibold text-white tracking-[-0.42px]"
-                                            style={dmSans}
-                                        >
-                                            - ₹ {slot.discount}
-                                        </span>
+                                    <div className="absolute -top-2.5 -right-1 flex items-center justify-center bg-[#8d303f] rounded-full px-2 py-0.5 z-10 border border-white/10">
+                                        <span className="text-[10px] font-bold text-white">- ₹ {slot.discount}</span>
                                     </div>
 
-                                    {/* Slot button */}
                                     <button
                                         onClick={() => setSelectedSlot(slot.id)}
-                                        className={`w-full h-[42px] rounded-lg border text-center ${isSelected
-                                                ? 'bg-[#f2546d] border-[#8d303f]'
-                                                : 'bg-[#19191b] border-[#484848]'
+                                        className={`w-full h-[48px] rounded-xl border transition-all ${isSelected
+                                                ? 'bg-[#f2546d] border-[#ff8597] shadow-[0_0_15px_rgba(242,84,109,0.3)]'
+                                                : 'bg-[#19191b] border-[#484848] text-zinc-400'
                                             }`}
                                     >
-                                        <span
-                                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                                            style={dmSans}
-                                        >
-                                            {slot.label}
-                                        </span>
+                                        <span className="text-sm font-bold tracking-tight">{slot.label}</span>
                                     </button>
                                 </motion.div>
                             );
                         })}
                     </div>
-
-                    {/* Custom slot */}
-                    <div className="flex items-center justify-center gap-3 mt-10">
-                        <span
-                            className="text-lg font-semibold text-[#ff6078] tracking-[-0.54px]"
-                            style={dmSans}
-                        >
-                            Custom Slot :
-                        </span>
-
-                        <div className="flex items-center h-[48px] rounded-lg border border-[#5f606a] bg-[#19191b] overflow-hidden">
-                            <span
-                                className="px-4 text-lg font-semibold text-white tracking-[-0.54px]"
-                                style={dmSans}
-                            >
-                                {customSlot}
-                            </span>
-                            <div className="w-px h-full bg-[#5f606a]" />
-                            <button className="px-3 flex items-center justify-center">
-                                <ChevronDown className="w-5 h-3 text-white" />
-                            </button>
-                        </div>
-                    </div>
                 </section>
 
-                {/* ── Divider ── */}
                 <div className="h-px bg-[#484848] mt-8" />
 
-                {/* ═══════════════ MY INFORMATION ═══════════════ */}
-                <section className="mt-6">
-                    <div className="flex items-center justify-between">
-                        <h3
-                            className="text-lg font-black text-white tracking-[-0.54px]"
-                            style={dmSans}
-                        >
-                            My Information
-                        </h3>
-                        <Pencil className="w-5 h-5 text-white" />
+                {/* ═══════════════ USER INFO ═══════════════ */}
+                <section className="mt-6 space-y-6">
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-black text-white uppercase tracking-wider">My Information</h3>
+                            <Pencil className="w-4 h-4 text-zinc-500" />
+                        </div>
+                        <p className="text-base font-medium text-zinc-300">{user?.user_metadata?.full_name || 'Amogh Shete'}</p>
                     </div>
-                    <p
-                        className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-3"
-                        style={dmSans}
-                    >
-                        Amogh Shete
-                    </p>
-                </section>
 
-                {/* ═══════════════ CONTACT DETAILS ═══════════════ */}
-                <section className="mt-6">
-                    <div className="flex items-center justify-between">
-                        <h3
-                            className="text-lg font-black text-white tracking-[-0.54px]"
-                            style={dmSans}
-                        >
-                            Contact Details
-                        </h3>
-                        <Pencil className="w-5 h-5 text-white" />
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-black text-white uppercase tracking-wider">Contact Details</h3>
+                            <Pencil className="w-4 h-4 text-zinc-500" />
+                        </div>
+                        <p className="text-base font-medium text-zinc-300">{user?.email || 'sheteamogh@gmail.com'}</p>
                     </div>
-                    <p
-                        className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-3"
-                        style={dmSans}
-                    >
-                        sheteamogh@gmail.com
-                    </p>
-                </section>
 
-                {/* ═══════════════ ADDRESS ═══════════════ */}
-                <section className="mt-6">
-                    <div className="flex items-center justify-between">
-                        <h3
-                            className="text-lg font-black text-white tracking-[-0.54px]"
-                            style={dmSans}
-                        >
-                            Address
-                        </h3>
-                        <Pencil className="w-5 h-5 text-white" />
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-black text-white uppercase tracking-wider">Pickup Address</h3>
+                            <Pencil className="w-4 h-4 text-zinc-500" />
+                        </div>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                            IIT Bombay, Powai, Mumbai 400076<br/>
+                            Maharashtra, India
+                        </p>
                     </div>
-                    <p
-                        className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-3 leading-relaxed"
-                        style={dmSans}
-                    >
-                        IIT, Powai
-                        <br />
-                        400076
-                        <br />
-                        Mumbai, Maharashtra
-                        <br />
-                        India
-                    </p>
                 </section>
             </main>
 
-            {/* ═══════════════ RETURN BUTTON (STICKY) ═══════════════ */}
-            <div className="sticky bottom-0 px-5 py-4 bg-[#111111]">
+            <div className="sticky bottom-0 px-5 py-6 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent">
                 <button
-                    onClick={() => {
-                        navigate('/closet');
-                    }}
-                    className="w-full h-12 rounded-2xl bg-[#f2546d] text-center"
+                    disabled={submitting}
+                    onClick={handleReturn}
+                    className="w-full h-14 rounded-2xl bg-[#f2546d] flex items-center justify-center gap-3 shadow-lg shadow-[#f2546d]/20 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                    <span
-                        className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                        style={dmSans}
-                    >
-                        Return
-                    </span>
+                    {submitting ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                        <span className="text-lg font-bold text-white">Schedule Return</span>
+                    )}
                 </button>
             </div>
         </MobileShell>

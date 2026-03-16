@@ -1,0 +1,86 @@
+warning: in the working copy of 'apps/customer-app/dev-dist/sw.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@google_generative-ai.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-dialog.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-label.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-scroll-area.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-select.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-separator.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-slider.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-slot.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tabs.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-toast.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tooltip.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@supabase_supabase-js.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@supabase_supabase-js.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@tanstack_react-query.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@yudiel_react-qr-scanner.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/@yudiel_react-qr-scanner.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/_metadata.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/class-variance-authority.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/date-fns.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/framer-motion.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/framer-motion.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/idb.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/input-otp.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/lucide-react.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/lucide-react.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/next-themes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/next-themes.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/qrcode.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react-dom.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react-dom_client.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react-dom_client.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react-router-dom.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react_jsx-dev-runtime.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react_jsx-dev-runtime.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/react_jsx-runtime.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/sonner.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/sonner.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/tailwind-merge.js.map', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/vaul.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/customer-app/node_modules/.vite/deps/vaul.js.map', LF will be replaced by CRLF the next time Git touches it
+apps/customer-app/dev-dist/sw.js
+apps/customer-app/node_modules/.vite/deps/@google_generative-ai.js.map
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-dialog.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-label.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-scroll-area.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-select.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-separator.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-slider.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-slot.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tabs.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-toast.js
+apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tooltip.js
+apps/customer-app/node_modules/.vite/deps/@supabase_supabase-js.js
+apps/customer-app/node_modules/.vite/deps/@supabase_supabase-js.js.map
+apps/customer-app/node_modules/.vite/deps/@tanstack_react-query.js
+apps/customer-app/node_modules/.vite/deps/@yudiel_react-qr-scanner.js
+apps/customer-app/node_modules/.vite/deps/@yudiel_react-qr-scanner.js.map
+apps/customer-app/node_modules/.vite/deps/_metadata.json
+apps/customer-app/node_modules/.vite/deps/class-variance-authority.js.map
+apps/customer-app/node_modules/.vite/deps/date-fns.js.map
+apps/customer-app/node_modules/.vite/deps/framer-motion.js
+apps/customer-app/node_modules/.vite/deps/framer-motion.js.map
+apps/customer-app/node_modules/.vite/deps/idb.js.map
+apps/customer-app/node_modules/.vite/deps/input-otp.js
+apps/customer-app/node_modules/.vite/deps/lucide-react.js
+apps/customer-app/node_modules/.vite/deps/lucide-react.js.map
+apps/customer-app/node_modules/.vite/deps/next-themes.js
+apps/customer-app/node_modules/.vite/deps/next-themes.js.map
+apps/customer-app/node_modules/.vite/deps/qrcode.js.map
+apps/customer-app/node_modules/.vite/deps/react-dom.js
+apps/customer-app/node_modules/.vite/deps/react-dom_client.js
+apps/customer-app/node_modules/.vite/deps/react-dom_client.js.map
+apps/customer-app/node_modules/.vite/deps/react-router-dom.js
+apps/customer-app/node_modules/.vite/deps/react.js
+apps/customer-app/node_modules/.vite/deps/react_jsx-dev-runtime.js
+apps/customer-app/node_modules/.vite/deps/react_jsx-dev-runtime.js.map
+apps/customer-app/node_modules/.vite/deps/react_jsx-runtime.js
+apps/customer-app/node_modules/.vite/deps/sonner.js
+apps/customer-app/node_modules/.vite/deps/sonner.js.map
+apps/customer-app/node_modules/.vite/deps/tailwind-merge.js.map
+apps/customer-app/node_modules/.vite/deps/vaul.js
+apps/customer-app/node_modules/.vite/deps/vaul.js.map
+apps/customer-app/src/pages/CheckoutPage.tsx
+packages/auth/src/index.tsx

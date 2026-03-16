@@ -26,6 +26,7 @@ export interface DeliveryOrder {
     scheduled_slot: TimeSlot | null;
     delivery_fee: number;
     is_free_delivery: boolean;
+    total_amount?: number;
     created_at: string;
     updated_at: string;
 }
@@ -294,7 +295,11 @@ export async function getUserOrders(userId: string): Promise<DeliveryOrder[]> {
 
     const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+            *,
+            order_items (id),
+            delivery_address:delivery_address_id (full_address, latitude, longitude)
+        `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -312,7 +317,11 @@ export async function getOrderById(orderId: string): Promise<DeliveryOrder | nul
 
     const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+            *,
+            order_items (id, product_id, size, rental_price),
+            delivery_address:delivery_address_id (full_address, latitude, longitude)
+        `)
         .eq('id', orderId)
         .single();
 

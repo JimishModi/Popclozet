@@ -167,7 +167,7 @@ Thank you for renting with PopClozet!
                 {/* ─── STATUS BANNER ─── */}
                 <div className="w-full py-6 bg-[#f2546d] text-center shadow-[0_4px_30px_rgba(242,84,109,0.3)] z-10">
                     <h1 className="text-[32px] font-black text-white tracking-tight uppercase" style={dmSans}>
-                        Order Confirmed
+                        {order?.status === 'pending' || order?.status === 'confirmed' ? 'Order Confirmed' : order?.status?.replace(/_/g, ' ') || 'Order Confirmed'}
                     </h1>
                 </div>
 
@@ -234,21 +234,30 @@ Thank you for renting with PopClozet!
                     </div>
 
                     {/* ACTIONS */}
-                    <div className="flex gap-4 mt-6 pb-12">
+                    <div className="flex flex-col gap-4 mt-6 pb-12">
                         <button
-                            onClick={handleDownloadInvoice}
-                            className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                            onClick={() => navigate(`/tracking/${orderId}`)}
+                            className="w-full py-4.5 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-[0_8px_30px_rgba(242,84,109,0.2)] active:scale-95 transition-all uppercase"
                             style={dmSans}
                         >
-                            Invoice
+                            Track My Ride
                         </button>
-                        <button
-                            onClick={() => navigate("/orders")}
-                            className="flex-1 py-4.5 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-[0_8px_30px_rgba(242,84,109,0.2)] active:scale-95 transition-all"
-                            style={dmSans}
-                        >
-                            Done
-                        </button>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={handleDownloadInvoice}
+                                className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                                style={dmSans}
+                            >
+                                Invoice
+                            </button>
+                            <button
+                                onClick={() => navigate("/home")}
+                                className="flex-1 py-4.5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                                style={dmSans}
+                            >
+                                Home
+                            </button>
+                        </div>
                     </div>
                 </section>
             </main>

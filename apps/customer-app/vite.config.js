@@ -115,7 +115,7 @@ export default defineConfig({
                         handler: "NetworkFirst",
                         options: {
                             cacheName: "supabase-api-cache",
-                            networkTimeoutSeconds: 3,
+                            networkTimeoutSeconds: 10, // Increased from 3 to 10 for better resilience
                             cacheableResponse: { statuses: [200] },
                         },
                     },
@@ -149,11 +149,12 @@ export default defineConfig({
                         },
                     },
                 ],
-                navigateFallback: "/offline.html",
+                navigateFallback: "/index.html",
+                navigateFallbackAllowlist: [/^\/(?!api|admin)/],
                 navigateFallbackDenylist: [/^\/api/, /^\/admin/],
             },
             devOptions: {
-                enabled: true,
+                enabled: false, // DISABLED to prevent "Offline mode" error on local reloads
             },
         }),
     ],

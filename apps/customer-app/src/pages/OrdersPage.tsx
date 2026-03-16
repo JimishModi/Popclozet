@@ -9,12 +9,21 @@ import { useOrders, Order } from "@/hooks/useOrders";
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
     pending: { label: "Pending", color: "text-zinc-400", bgColor: "bg-zinc-500/20" },
     confirmed: { label: "Confirmed", color: "text-blue-400", bgColor: "bg-blue-500/20" },
+    packed: { label: "Packed", color: "text-blue-300", bgColor: "bg-blue-500/10" },
+    ready_for_pickup: { label: "Ready", color: "text-indigo-400", bgColor: "bg-indigo-500/20" },
     preparing: { label: "Preparing", color: "text-yellow-400", bgColor: "bg-yellow-500/20" },
+    driver_arrived_warehouse: { label: "At Warehouse", color: "text-orange-400", bgColor: "bg-orange-500/20" },
+    order_picked_up: { label: "Picked Up", color: "text-pink-400", bgColor: "bg-pink-500/20" },
+    dispatched: { label: "Dispatched", color: "text-pink-500", bgColor: "bg-pink-500/20" },
     out_for_delivery: { label: "Out for Delivery", color: "text-pink-400", bgColor: "bg-pink-500/20" },
     pickup_scheduled: { label: "Pickup Scheduled", color: "text-purple-400", bgColor: "bg-purple-500/20" },
     delivered: { label: "Delivered", color: "text-green-400", bgColor: "bg-green-500/20" },
     picked_up: { label: "Picked Up", color: "text-green-400", bgColor: "bg-green-500/20" },
+    return_requested: { label: "Return Requested", color: "text-orange-400", bgColor: "bg-orange-500/10" },
+    return_picked_up: { label: "Return Collected", color: "text-green-500", bgColor: "bg-green-500/10" },
+    returned: { label: "Returned", color: "text-green-400", bgColor: "bg-green-500/20" },
     return_completed: { label: "Returned", color: "text-green-400", bgColor: "bg-green-500/20" },
+    completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
     cancelled: { label: "Cancelled", color: "text-red-400", bgColor: "bg-red-500/20" },
 };
 

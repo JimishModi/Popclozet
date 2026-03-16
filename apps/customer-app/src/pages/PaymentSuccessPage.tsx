@@ -162,7 +162,7 @@ export default function PaymentSuccessPage() {
                     className="mt-auto"
                 >
                     <button
-                        onClick={() => navigate("/home")}
+                        onClick={() => navigate(type === 'order' ? `/tracking/${orderId}` : "/home")}
                         className="w-full h-16 rounded-[24px] bg-white text-black font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-white/10"
                         style={{ fontFamily: "'DM Sans', sans-serif" }}
                     >

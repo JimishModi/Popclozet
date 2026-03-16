@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...');
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...', { url: supabaseUrl });
 
 let client: SupabaseClient;
 try {

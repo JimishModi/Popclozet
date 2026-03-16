@@ -58,6 +58,11 @@ export const initializeMap = (
     (mapboxgl as any).accessToken = activeToken;
 
     // Destroy existing instance if any
+    const existingMap = (container as any)._mapboxMap;
+    if (existingMap) {
+        try { existingMap.remove(); } catch (_) {}
+    }
+    
     if (mapInstance) {
         destroyMap();
     }
@@ -78,10 +83,17 @@ export const initializeMap = (
 /**
  * Destroy the current map instance and clean up resources
  */
-export const destroyMap = (): void => {
-    if (mapInstance) {
-        mapInstance.remove();
-        mapInstance = null;
+export const destroyMap = (map?: mapboxgl.Map | null): void => {
+    const target = map || mapInstance;
+    if (target) {
+        try {
+            target.remove();
+        } catch (e) {
+            // Already destroyed or invalid instance
+        }
+        if (target === mapInstance) {
+            mapInstance = null;
+        }
     }
 };
 

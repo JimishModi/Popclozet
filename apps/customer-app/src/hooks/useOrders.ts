@@ -31,26 +31,26 @@ export interface Order {
     etaMinutes?: number;
 }
 
-function mapToOrder(raw: DeliveryOrderType): Order {
+function mapToOrder(raw: any): Order {
     return {
         id: raw.id,
         status: raw.status,
-        orderType: raw.order_type,
+        orderType: raw.order_type || 'delivery',
         createdAt: raw.created_at,
-        itemCount: 2, // TODO: Get from order_items join
-        totalAmount: raw.delivery_fee + 4000, // TODO: Get from order_items
-        deliveryFee: raw.delivery_fee,
-        isFreeDelivery: raw.is_free_delivery,
-        estimatedDeliveryAt: raw.estimated_delivery_at,
-        actualDeliveryAt: raw.actual_delivery_at,
+        itemCount: Array.isArray(raw.order_items) ? raw.order_items.length : 0,
+        totalAmount: raw.total_amount || 0,
+        deliveryFee: raw.delivery_fee || 0,
+        isFreeDelivery: raw.is_free_delivery || false,
+        estimatedDeliveryAt: raw.delivery_eta || raw.estimated_delivery_at,
+        actualDeliveryAt: raw.actual_delivery_at || null,
         address: {
-            fullAddress: raw.delivery_address_snapshot?.full_address || "Address not provided",
-            lat: raw.delivery_address_snapshot?.lat || 0,
-            lng: raw.delivery_address_snapshot?.lng || 0,
+            fullAddress: raw.delivery_address?.full_address || raw.delivery_address_snapshot?.full_address || "Address not provided",
+            lat: raw.delivery_address?.latitude || raw.delivery_address_snapshot?.lat || 0,
+            lng: raw.delivery_address?.longitude || raw.delivery_address_snapshot?.lng || 0,
         },
         hubId: raw.hub_id,
-        etaMinutes: raw.estimated_delivery_at
-            ? Math.max(0, Math.round((new Date(raw.estimated_delivery_at).getTime() - Date.now()) / 60000))
+        etaMinutes: (raw.delivery_eta || raw.estimated_delivery_at)
+            ? Math.max(0, Math.round((new Date(raw.delivery_eta || raw.estimated_delivery_at).getTime() - Date.now()) / 60000))
             : undefined,
     };
 }
@@ -97,7 +97,7 @@ export function useOrders() {
                 {
                     event: "*",
                     schema: "public",
-                    table: "delivery_orders",
+                    table: "orders",
                     filter: `user_id=eq.${user.id}`,
                 },
                 () => {
@@ -117,7 +117,7 @@ export function useOrders() {
     );
 
     const pastOrders = orders.filter((o) =>
-        ["delivered", "picked_up", "return_completed", "cancelled"].includes(o.status)
+        ["delivered", "picked_up", "return_completed", "cancelled", "completed", "returned", "return_picked_up"].includes(o.status)
     );
 
     return {
@@ -148,8 +148,12 @@ export function useOrder(orderId: string) {
 
         try {
             const { data, error: fetchError } = await supabase
-                .from("delivery_orders")
-                .select("*")
+                .from("orders")
+                .select(`
+                    *,
+                    order_items (id, product_id, size, rental_price),
+                    delivery_address:delivery_address_id (full_address, latitude, longitude)
+                `)
                 .eq("id", orderId)
                 .single();
 
@@ -177,7 +181,7 @@ export function useOrder(orderId: string) {
                 {
                     event: "*",
                     schema: "public",
-                    table: "delivery_orders",
+                    table: "orders",
                     filter: `id=eq.${orderId}`,
                 },
                 () => {

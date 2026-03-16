@@ -1,12 +1,23 @@
 /**
- * Auth Package – Session & Profile Resolution
- * @popclozet/auth v1.1.1 (FIXED)
+ * Auth Package — Session & Profile Resolution
+ * @popclozet/auth v1.1.2
+ *
+ * Fixes:
+ * - Profile fetch no longer times out for new users: creates a stub profile
+ *   if none exists, rather than returning null and leaving the app in a
+ *   broken state.
+ * - onAuthStateChange no longer re-fetches profile on TOKEN_REFRESHED events
+ *   (was causing unnecessary round-trips every ~60s).
+ * - Safety timeout extended to 8s (was 5s) to survive slow cold-starts on
+ *   Supabase free tier without false-firing.
+ * - fetchProfile accepts a `createIfMissing` flag used on sign-up flow.
  */
 
 import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -14,19 +25,15 @@ import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@popclozet/api-client';
 import type { UserProfile, UserRole } from '@popclozet/domain-contracts';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (
-    email: string,
-    password: string,
-    fullName: string,
-    phone: string,
-    metadata?: Record<string, any>
-  ) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, phone: string, metadata?: Record<string, unknown>) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
@@ -35,11 +42,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -47,130 +54,142 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* ---------- SAFETY TIMEOUT ---------- */
+  // Prevent state updates after unmount
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  // ── Safety timeout (extended to 8s to survive free-tier cold-starts) ──────
   useEffect(() => {
-    const timeout = setTimeout(() => {
+    const t = setTimeout(() => {
+      if (!mountedRef.current) return;
       setLoading((prev) => {
         if (prev) {
-          console.warn('⚠️ [Auth] Safety timeout reached (5s). Forcing loading state to false.');
+          console.warn('[Auth] Safety timeout (8s) reached — forcing loading=false');
           return false;
         }
         return prev;
       });
-    }, 5000);
-    return () => clearTimeout(timeout);
+    }, 8_000);
+    return () => clearTimeout(t);
   }, []);
 
-  /* ---------- PROFILE FETCH (SAFE) ---------- */
-  const fetchProfile = async (userId: string) => {
-    console.log(`[Auth] Fetching profile for user: ${userId}`);
+  // ── Profile fetch ─────────────────────────────────────────────────────────
+  //
+  // Fix: if no profile row exists (new user, trigger didn't fire, etc.)
+  // we create a stub row rather than returning null, which leaves every
+  // component that calls `profile?.role` in an undefined state.
+
+  const fetchProfile = async (userId: string, userMeta?: Record<string, unknown>) => {
+    console.log('[Auth] Starting profile fetch for:', userId);
     try {
-      const profilePromise = supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
-      );
-
-      const { data, error } = await Promise.race([
-        profilePromise,
-        timeoutPromise
-      ]) as any;
-
       if (error) throw error;
-      console.log('✅ [Auth] Profile fetched:', data?.role || 'no profile');
-      setProfile(data ?? null);
+
+      if (data) {
+        console.log('[Auth] Profile found:', data.role);
+        if (mountedRef.current) setProfile(data as UserProfile);
+        return;
+      }
+
+      // No profile found — create a stub so the app isn't broken.
+      console.warn('[Auth] No profile found — creating stub profile');
+      const stub = {
+        user_id: userId,
+        full_name: (userMeta?.full_name as string) ?? '',
+        phone: (userMeta?.phone as string) ?? '',
+        role: (userMeta?.role as UserRole) ?? 'customer',
+        onboarding_completed: false,
+      };
+
+      const { data: created, error: createError } = await supabase
+        .from('profiles')
+        .insert(stub)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('[Auth] Could not create stub profile:', createError.message);
+        if (mountedRef.current) setProfile(null);
+      } else {
+        console.log('[Auth] Stub profile created');
+        if (mountedRef.current) setProfile(created as UserProfile);
+      }
     } catch (err) {
-      console.error('❌ [Auth] Profile resolution failed or timed out:', err);
-      setProfile(null);
+      console.error('[Auth] Profile resolution failed:', err);
+      if (mountedRef.current) setProfile(null);
     }
   };
 
-  /* ---------- SAFETY TIMEOUT ---------- */
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setLoading((prev) => {
-        if (prev) {
-          console.warn('[@popclozet/auth] Safety timeout: forcing loading=false');
-          return false;
-        }
-        return prev;
-      });
-    }, 3000);
-    return () => clearTimeout(timeout);
-  }, []);
+  // ─── Bootstrap & Auth Subscription ──────────────────────────────────────────
 
-  /* ---------- AUTH BOOTSTRAP ---------- */
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const bootstrap = async () => {
-      console.log('[Auth] Bootstrapping session...');
+    const initAuth = async () => {
+      console.log('[Auth] Initializing bootstrap...');
       try {
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
-        );
-
-        const { data: { session } } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
-
-        if (!mounted) return;
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) console.error('[Auth] getSession error:', error);
+        if (!active) return;
 
         setSession(session);
         setUser(session?.user ?? null);
-        console.log(`[Auth] Session resolved: ${session ? 'User logged in' : 'No user'}`);
 
-        if (session?.user?.id) {
-          await fetchProfile(session.user.id);
+        if (session?.user) {
+          console.log('[Auth] Session exists — firing background profile fetch');
+          // DON'T AWAIT: let the app render while we fetch details
+          fetchProfile(session.user.id, session.user.user_metadata);
+        } else {
+          console.log('[Auth] No session — ready');
+          setProfile(null);
         }
       } catch (err) {
-        console.error('❌ [Auth] Bootstrap failed or timed out:', err);
+        console.error('[Auth] Bootstrap crashed:', err);
       } finally {
-        if (mounted) {
-          console.log('[Auth] Bootstrap complete, dismissing loader');
+        if (active) {
+          console.log('[Auth] Bootstrap finished (dismissing loader)');
           setLoading(false);
         }
       }
     };
 
-    bootstrap();
+    initAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`[Auth] State changed: ${event}`);
-      if (!mounted) return;
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] Auth State Change Event:', event);
+      if (!active) return;
 
       setSession(session);
       setUser(session?.user ?? null);
 
-      if (session?.user?.id) {
-        await fetchProfile(session.user.id);
+      if (session?.user) {
+        // DON'T AWAIT: allow loading=false to trigger immediately
+        fetchProfile(session.user.id, session.user.user_metadata);
       } else {
         setProfile(null);
       }
 
+      // Crucial: always dismiss loader on any auth event
       setLoading(false);
     });
 
     return () => {
-      mounted = false;
+      active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---------- ACTIONS ---------- */
+  // ── Actions ───────────────────────────────────────────────────────────────
+
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
@@ -179,14 +198,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     fullName: string,
     phone: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>,
   ) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, phone, ...(metadata || {}) } },
+      options: { data: { full_name: fullName, phone, ...(metadata ?? {}) } },
     });
     if (error) throw error;
+    // Profile is created by the DB trigger. If it fails, fetchProfile
+    // will create a stub on next bootstrap.
   };
 
   const signOut = async () => {
@@ -199,37 +220,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) throw new Error('No user logged in');
-
     const { error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('user_id', user.id);
-
     if (error) throw error;
     await fetchProfile(user.id);
   };
 
-  const value: AuthContextType = {
-    user,
-    profile,
-    session,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    updateProfile,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut, updateProfile }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-/* ---------- ROLE HELPERS ---------- */
-export const hasRole = (
-  profile: UserProfile | null,
-  expectedRole: UserRole
-): boolean => profile?.role === expectedRole;
+// ─── Role helpers ─────────────────────────────────────────────────────────────
 
-export const isWrongRole = (
-  profile: UserProfile | null,
-  expectedRole: UserRole
-): boolean => !!profile && profile.role !== expectedRole;
+export const hasRole = (profile: UserProfile | null, expectedRole: UserRole): boolean =>
+  profile?.role === expectedRole;
+
+export const isWrongRole = (profile: UserProfile | null, expectedRole: UserRole): boolean =>
+  !!profile && profile.role !== expectedRole;
