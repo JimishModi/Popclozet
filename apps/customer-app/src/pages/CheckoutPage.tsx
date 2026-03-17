@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,7 +16,8 @@ import {
   Check,
   Smartphone,
   Banknote,
-  CreditCard
+  CreditCard,
+  Mail
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
@@ -233,10 +234,18 @@ export default function CheckoutPage() {
   /* ---------------------------------- */
   /* Payment Processing                  */
   /* ---------------------------------- */
+  /* ---------------------------------- */
+  const [showEmailGate, setShowEmailGate] = useState(false);
+
   const processPayment = async () => {
     if (!agreedToTerms || !agreedToSizing) {
       toast.error("Please accept the terms and sizing agreement");
       setShowTermsModal(true);
+      return false;
+    }
+
+    if (!profile?.email_verified) {
+      setShowEmailGate(true);
       return false;
     }
 
@@ -800,6 +809,66 @@ export default function CheckoutPage() {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+
+      {/* Email Verification Gate */}
+      <AnimatePresence>
+        {showEmailGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEmailGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto mb-6">
+                <Mail className="w-10 h-10 text-orange-500" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Verify Email</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                For security and order confirmation, please verify your email address <span className="text-white font-bold">{user?.email}</span> before placing your first order.
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase.auth.signInWithOtp({
+                        email: user?.email!,
+                        options: {
+                          emailRedirectTo: `${window.location.origin}/auth/verify-email-callback`,
+                        },
+                      });
+                      if (error) throw error;
+                      toast.success("Verification link sent!");
+                      setShowEmailGate(false);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to send link");
+                    }
+                  }}
+                  className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold text-lg shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  SEND LINK
+                </button>
+                <button
+                  onClick={() => setShowEmailGate(false)}
+                  className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase"
+                  style={dmSans}
+                >
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>

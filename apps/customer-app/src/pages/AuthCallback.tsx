@@ -19,7 +19,7 @@ export default function AuthCallback() {
         if (loading) return;
 
         if (user && needsOnboarding) {
-            navigate('/auth/create-account', { replace: true });
+            navigate('/auth/google-onboarding', { replace: true });
         } else if (user) {
             navigate('/home', { replace: true });
         } else {

@@ -26,18 +26,8 @@ import { CitySelectorModal } from "@/components/CitySelectorModal";
 
 // Lazy pages
 const CartPage = lazy(() => import("./pages/CartPage"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
-const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
-const ChromaticClosetPage = lazy(() => import("./pages/ChromaticClosetPage"));
-const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
-const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
-const ClosetPage = lazy(() => import("./pages/ClosetPage"));
-const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
-const SignInPage = lazy(() => import("./pages/SignInPage"));
-const SignUpPage = lazy(() => import("./pages/SignUpPage"));
-const LoginPage = lazy(() => import("./pages/LoginPage"));
-const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
 const CreateAccountPage = lazy(() => import("./pages/CreateAccountPage"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const MapLocationPage = lazy(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
@@ -50,6 +40,18 @@ const OrderConfirmedPage = lazy(() => import("./pages/OrderConfirmedPage"));
 const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage"));
 const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage"));
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
+const ChromaticClosetPage = lazy(() => import("./pages/ChromaticClosetPage"));
+const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
+const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
+const ClosetPage = lazy(() => import("./pages/ClosetPage"));
+const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
+const GoogleOnboardingPage = lazy(() => import("./pages/GoogleOnboardingPage"));
+const EmailVerifyCallbackPage = lazy(() => import("./pages/EmailVerifyCallbackPage"));
+
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -121,6 +123,7 @@ function App() {
                   {/* SYSTEM UI */}
                   <ScrollProgress />
                   <Toaster />
+                  <Toaster />
                   <Sonner />
 
                   {/* LOCATION */}
@@ -144,11 +147,12 @@ function App() {
                         <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
                         <Route path="/home" element={<PageTransition><MobileHome /></PageTransition>} />
 
-                        <Route path="/signin" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignInPage /></Suspense></PageTransition>} />
-                        <Route path="/signup" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignUpPage /></Suspense></PageTransition>} />
                         <Route path="/auth/login" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><LoginPage /></Suspense></PageTransition>} />
                         <Route path="/auth/otp" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OtpVerificationPage /></Suspense></PageTransition>} />
                         <Route path="/auth/create-account" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CreateAccountPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/callback" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><AuthCallback /></Suspense></PageTransition>} />
+                        <Route path="/auth/google-onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><GoogleOnboardingPage /></Suspense></PageTransition>} />
+                        <Route path="/auth/verify-email-callback" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><EmailVerifyCallbackPage /></Suspense></PageTransition>} />
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
 
                         <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
@@ -169,7 +173,6 @@ function App() {
                         <Route path="/map" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><MapLocationPage /></Suspense></PageTransition>} />
                         <Route path="/tracking/:orderId" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><DeliveryTrackingPage /></Suspense></PageTransition>} />
 
-                        {/* Additional explicit routes for all pages to avoid accidental 404s */}
                         <Route path="/collections" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><CollectionsPage /></Suspense></PageTransition>} />
                         <Route path="/shop/:gender" element={<PageTransition><CategoryProductsPage /></PageTransition>} />
                         <Route path="/category" element={<PageTransition><CategoryProductsPage /></PageTransition>} />

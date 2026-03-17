@@ -2,6 +2,29 @@
 
 Production-grade customer PWA for PopClozet rental fashion platform with Zepto-style delivery experience.
 
+## Authentication Flow
+
+The app features a unified login/signup experience with dynamic routing based on profile completeness.
+
+### Routes
+- `/auth/login`: Combined landing (Phone +91, Google, Email).
+- `/auth/otp`: MSG91 OTP verification for phone login.
+- `/auth/verify-email`: Verification for email magic links.
+- `/auth/create-account`: Profile creation for new users.
+- `/auth/collect-phone/email`: Supplemental info collection for social signups.
+
+### Technical Implementation
+- **Routing**: Managed by `checkAndRoute` in `src/lib/authRouting.ts`.
+- **Helpers**: Database lookups and profile updates in `src/lib/authHelpers.ts`.
+- **OTP**: Integrated with MSG91 browser SDK and Supabase Edge Functions.
+
+### Testing
+Unit tests are located in:
+- `src/lib/__tests__/authRouting.test.ts`
+- `src/pages/auth/__tests__/LoginPage.test.ts`
+Run them using:
+`pnpm --filter @popclozet/customer-app exec vitest run`
+
 ## 🚀 Features
 
 ### Core Features

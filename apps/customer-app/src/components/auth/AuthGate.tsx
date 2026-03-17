@@ -29,8 +29,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       "/signup",
       "/auth/login",
       "/auth/callback",
-      "/auth/create-account",
-      "/auth/otp",
       "/auth/signout"
     ];
 
@@ -41,21 +39,26 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     // not logged in — send to login
     if (!user) {
-      navigate("/signin", { replace: true });
+      if (location.pathname.startsWith('/home') || location.pathname === '/auth/create-account') {
+        navigate("/auth/login", { replace: true });
+      }
       return;
     }
 
     // logged in but new user needs onboarding
     if (user && needsOnboarding) {
-      if (location.pathname !== "/auth/create-account") {
-        navigate("/auth/create-account", { replace: true });
+      const provider = user.app_metadata?.provider;
+      const targetPath = provider === 'google' ? "/auth/google-onboarding" : "/auth/create-account";
+      
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
       }
       return;
     }
 
     // logged in + profile done — redirect away from auth pages
     if (user && !needsOnboarding) {
-      if ((location.pathname.startsWith("/auth") && location.pathname !== "/auth/signout") || location.pathname === "/signin") {
+      if ((location.pathname.startsWith("/auth") && location.pathname !== "/auth/signout") || location.pathname === "signin") {
         navigate("/home", { replace: true });
       }
     }

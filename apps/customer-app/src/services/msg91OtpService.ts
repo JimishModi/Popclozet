@@ -23,8 +23,8 @@ function loadAndInit(identifier: string): Promise<void> {
             tokenAuth: TOKEN_AUTH,
             identifier,
             exposeMethods: true,
-            success: (data: any) => console.info('[MSG91] success callback', data),
-            failure: (error: any) => console.error('[MSG91] failure callback', error),
+            success: (data: any) => console.info('[MSG91] init success callback (OTP may have been sent)', data),
+            failure: (error: any) => console.error('[MSG91] init failure callback', error),
         };
 
         // Remove any existing script to avoid duplicates
@@ -134,7 +134,7 @@ export function resendOtp(): Promise<any> {
             return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
         }
         (window as any).retryOtp(
-            null,
+            '11',
             (data: any) => { console.info('[MSG91] OTP resent', data); resolve(data); },
             (error: any) => {
                 const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to resend OTP';

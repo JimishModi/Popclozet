@@ -197,6 +197,43 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
               </motion.div>
+
+              {/* Email Verification Nudge */}
+              {user && profile && !profile.email_verified && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-4 bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-2xl p-4 flex items-center gap-4"
+                >
+                  <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
+                    <Mail className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-white">Verify your email</p>
+                    <p className="text-xs text-zinc-400">Get order updates and exclusive offers</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase.auth.signInWithOtp({
+                          email: user.email!,
+                          options: {
+                            emailRedirectTo: `${window.location.origin}/auth/verify-email-callback`,
+                          },
+                        });
+                        if (error) throw error;
+                        // use browser toast if available, or just log for now
+                        alert("Verification link sent to your email!");
+                      } catch (err: any) {
+                        alert(err.message || "Failed to send link");
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-orange-500 text-white text-xs font-bold shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
+                  >
+                    Verify
+                  </button>
+                </motion.div>
+              )}
             </div>
 
             {/* Quick Stats Row — live data */}
