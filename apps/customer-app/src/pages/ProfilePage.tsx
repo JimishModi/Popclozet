@@ -10,15 +10,17 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import logo from "@/logo/logo.png";
 import { useAuth } from "@/hooks/useAuth";
 import { useWishlist } from "@/context/WishlistContext";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
+import { toast } from "sonner";
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, loading, signOut, updateProfile } = useAuth();
   const { wishlistItems } = useWishlist();
   const { orders, loading: ordersLoading } = useOrders();
@@ -79,29 +81,122 @@ const ProfilePage: React.FC = () => {
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCoords, setEditCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [primaryAddress, setPrimaryAddress] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  const fetchPrimaryAddress = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .maybeSingle();
+      
+      if (data) {
+        setPrimaryAddress(data);
+        setEditAddress(data.full_address);
+        setEditCoords({ lat: data.latitude, lng: data.longitude });
+      }
+    } catch (e) {
+      console.warn("Error fetching address:", e);
+    }
+  };
+
   useEffect(() => {
     if (showEditSheet) {
+      // 1. Check if we are returning from Map with a new address
+      const returnedAddr = location.state?.selectedAddress;
+      if (returnedAddr) {
+        setEditAddress(returnedAddr.formattedAddress);
+        setEditCoords({ lat: returnedAddr.lat || 0, lng: returnedAddr.lng || 0 });
+        
+        // Restore Name & Phone from session storage if available
+        const savedData = sessionStorage.getItem('profile_edit_draft');
+        if (savedData) {
+          const { name, phone, email } = JSON.parse(savedData);
+          setEditName(name);
+          setEditPhone(phone);
+          setEditEmail(email);
+        }
+        return;
+      }
+
+      // 2. Default initial load
       setEditName(profile?.full_name || user?.user_metadata?.full_name || "");
       setEditPhone(profile?.phone || user?.phone || "");
+      setEditEmail(user?.email || "");
+      fetchPrimaryAddress();
       setSaveError("");
     }
-  }, [showEditSheet, profile, user]);
+  }, [showEditSheet, profile, user, location.state]);
+
+  // Open sheet automatically if we return with state
+  useEffect(() => {
+    if (location.state?.selectedAddress) {
+      setShowEditSheet(true);
+    }
+  }, [location.state]);
 
   const handleSaveProfile = async () => {
-    if (!editName.trim()) {
-      setSaveError("Name is required");
+    if (!editName.trim() || !editPhone.trim() || !editEmail.trim() || !editAddress.trim()) {
+      setSaveError("Please enter complete details (Name, Phone, Email & Address)");
       return;
     }
     setSaving(true);
     setSaveError("");
     try {
+      // 1. Update Profile (Name & Phone)
       await updateProfile({ full_name: editName.trim(), phone: editPhone.trim() });
+
+      // 2. Update Email if changed
+      if (editEmail !== user?.email) {
+        const { error: emailError } = await supabase.auth.updateUser({ email: editEmail });
+        if (emailError) throw emailError;
+        toast.success("Confirmation email sent to " + editEmail);
+      }
+
+      // 3. Upsert Address
+      if (editAddress.trim()) {
+        const addressPayload = {
+          user_id: user?.id,
+          full_address: editAddress.trim(),
+          label: 'Home',
+          is_default: true,
+          latitude: editCoords?.lat || 19.1334,
+          longitude: editCoords?.lng || 72.9133,
+          geohash: 'te7u'
+        };
+
+        if (primaryAddress) {
+          await supabase
+            .from('addresses')
+            .update(addressPayload)
+            .eq('id', primaryAddress.id);
+        } else {
+          await supabase
+            .from('addresses')
+            .insert([addressPayload]);
+        }
+        // Success - clear draft
+        sessionStorage.removeItem('profile_edit_draft');
+      }
+
+      toast.success("Profile updated successfully!");
       setShowEditSheet(false);
     } catch (e: any) {
-      setSaveError(e?.message || "Failed to save. Please try again.");
+      const msg = e?.message || "";
+      if (msg.includes("profiles_phone_not_empty")) {
+        setSaveError("Please enter a valid phone number.");
+      } else {
+        setSaveError("Please enter complete credentials or check your connection.");
+      }
+      toast.error("Update failed");
     } finally {
       setSaving(false);
     }
@@ -297,7 +392,7 @@ const ProfilePage: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowEditSheet(false)}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100]"
             />
             {/* Sheet */}
             <motion.div
@@ -305,7 +400,7 @@ const ProfilePage: React.FC = () => {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-10"
+              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[100] bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-24"
             >
               {/* Handle */}
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
@@ -341,27 +436,63 @@ const ProfilePage: React.FC = () => {
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Phone Number</label>
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
                     <Phone className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                    <span className="text-zinc-500 text-sm font-medium">+91</span>
                     <input
                       type="tel"
-                      value={editPhone}
-                      onChange={e => setEditPhone(e.target.value)}
-                      placeholder="+91 XXXXX XXXXX"
+                      value={editPhone.replace(/^\+91/, '')}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setEditPhone('+91' + val);
+                      }}
+                      placeholder="XXXXX XXXXX"
                       className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
                     />
                   </div>
                 </div>
 
-                {/* Email (read-only) */}
-                {user?.email && (
-                  <div>
-                    <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Email</label>
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5">
-                      <Mail className="w-4 h-4 text-zinc-600 flex-shrink-0" />
-                      <span className="text-zinc-600 text-sm">{user.email}</span>
-                    </div>
-                    <p className="text-[10px] text-zinc-700 mt-1 pl-1">Email cannot be changed here</p>
+                {/* Email */}
+                <div>
+                  <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Email</label>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
+                    <Mail className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={e => setEditEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
+                    />
                   </div>
-                )}
+                  <p className="text-[10px] text-zinc-500 mt-1 pl-1">A confirmation will be sent to your new email</p>
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Primary Address</label>
+                  <button
+                    onClick={() => {
+                      // Save current draft state to session storage
+                      sessionStorage.setItem('profile_edit_draft', JSON.stringify({
+                        name: editName,
+                        phone: editPhone,
+                        email: editEmail
+                      }));
+                      navigate('/map-location?returnTo=/profile');
+                    }}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#ff4d6d]/30 transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <Package className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                      <span className={cn(
+                        "text-sm truncate",
+                        editAddress ? "text-white" : "text-zinc-600"
+                      )}>
+                        {editAddress || "Click to select address from map"}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400" />
+                  </button>
+                </div>
 
                 {saveError && (
                   <p className="text-red-400 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{saveError}</p>
