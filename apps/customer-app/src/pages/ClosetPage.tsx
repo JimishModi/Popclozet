@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MobileShell } from '@/components/layout/MobileShell';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/SupabaseAuthContext';
@@ -64,13 +62,11 @@ const ClosetPage: React.FC = () => {
 
             // Timeout to prevent infinite hang on Supabase cold-start
             const rentalsPromise = getMyActiveRentals();
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Rentals fetch timeout')), 4000)
-            );
+            const timeoutPromise = new Error('Rentals fetch timeout');
 
             let activeOrders: any[];
             try {
-                activeOrders = await Promise.race([rentalsPromise, timeoutPromise]);
+                activeOrders = await rentalsPromise;
             } catch (timeoutErr) {
                 console.warn('[Closet] Supabase timed out — showing empty state');
                 setRentals([]);
@@ -141,10 +137,10 @@ const ClosetPage: React.FC = () => {
     };
 
     const currentRentals = rentals.filter((item) => item.type === 'current');
-    const futureRentals = rentals.filter((item) => item.type === 'future');
+    // const futureRentals = rentals.filter((item) => item.type === 'future'); // Removed as per user edit
 
     return (
-        <MobileShell className="bg-[#111111] text-white">
+        <div className="bg-[#111111] text-white min-h-screen relative overflow-hidden">
             {/* ─── Pink glow (top-left decorative) ─── */}
             <div
                 className="pointer-events-none absolute top-[-59px] left-[-33px] w-[145px] h-[137px]"
@@ -334,9 +330,7 @@ const ClosetPage: React.FC = () => {
 
                 {/* FUTURE BOOKINGS HIDDEN PER USER REQUEST */}
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

@@ -1,8 +1,6 @@
 // src/pages/CartPage.tsx
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useCart } from "@/context/CartContext";
 import { useServiceAvailability } from "@/hooks/useServiceAvailability";
 import { toast } from "sonner";
@@ -237,7 +235,7 @@ const CartPage = () => {
   };
 
   return (
-    <MobileShell className="bg-[#111111] text-white">
+    <div className="bg-[#111111] text-white min-h-screen">
 
       {/* Main scrollable area */}
       <main className="flex-1 overflow-y-auto pb-56">
@@ -565,8 +563,6 @@ const CartPage = () => {
         </div>
       )}
 
-      <BottomNavBar />
-
       {/* Modals */}
       <SignupModal
         isOpen={isSignupOpen}
@@ -582,7 +578,7 @@ const CartPage = () => {
         open={citySelectorOpen}
         onClose={() => setCitySelectorOpen(false)}
       />
-    </MobileShell>
+    </div>
   );
 };
 

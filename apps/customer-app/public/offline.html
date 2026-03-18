@@ -7,7 +7,17 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Offline mode • PopClozet</title>
-
+    <script>
+      // Self-healing for development: If we are on localhost, try to clear SWs and redirect
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            for (let reg of regs) reg.unregister();
+            if (regs.length > 0) location.href = '/?cleared_sw=true';
+          });
+        }
+      }
+    </script>
     <style>
       :root {
         --bg: #0b0b0c;

@@ -14,10 +14,10 @@ import {
   X,
   MapPin,
   Check,
-  Smartphone,
   Banknote,
   CreditCard,
-  Loader2
+  Loader2,
+  Wifi,
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
@@ -31,6 +31,7 @@ import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 import { TERMS_AND_CONDITIONS, COOKIE_POLICY } from "@/constants/legalDocs";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -69,11 +70,10 @@ export default function CheckoutPage() {
   const [agreedToSizing, setAgreedToSizing] = useState(false);
   const [userIp, setUserIp] = useState<string>("");
 
-  // Payment method state
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>(null);
+  // Payment method: 'razorpay' (online) or 'cod'
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod' | null>(null);
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
-  const [upiId, setUpiId] = useState("");
+  const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
   const lookup = new URLSearchParams(window.location.search);
   const buyoutOrderId = lookup.get("buyoutOrderId");
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
@@ -142,11 +142,7 @@ export default function CheckoutPage() {
     };
     checkSub();
 
-    // Pre-fill default UPI from settings
-    const savedDefaultUpi = localStorage.getItem("default_upi");
-    if (savedDefaultUpi) {
-      setUpiId(savedDefaultUpi);
-    }
+    // Pre-fill nothing for razorpay — modal handles it
   }, []);
 
 
@@ -344,33 +340,7 @@ export default function CheckoutPage() {
   const total = subtotal + deliveryFee + insuranceFee;
 
   /* ---------------------------------- */
-  /* Payment Processing                  */
-  /* ---------------------------------- */
-  const processPayment = async () => {
-    if (!agreedToTerms || !agreedToSizing) {
-      toast.error("Please accept the terms and sizing agreement");
-      setShowTermsModal(true);
-      return false;
-    }
-
-    if (!paymentMethod) {
-      toast.error("Please select a payment method");
-      setShowPaymentMethodSelector(true);
-      return false;
-    }
-
-    if (paymentMethod === 'upi' && !selectedUpiApp && !upiId.trim()) {
-      toast.error("Please select a UPI app or enter your UPI ID");
-      return false;
-    }
-
-    setIsPlacingOrder(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return true;
-  };
-
-  /* ---------------------------------- */
-  /* Place Order                        */
+  /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
     if (!buyoutOrderId && validCartEntries.length === 0) return;
@@ -385,40 +355,35 @@ export default function CheckoutPage() {
 
     console.log('[Checkout] Starting order placement...', { paymentMethod });
     setError(null);
-
-    const paymentSuccess = await processPayment();
-    if (!paymentSuccess) {
-      setIsPlacingOrder(false);
-      return;
-    }
-
-    // --- Buyout Flow ---
-    if (buyoutOrderId) {
-      try {
-        // Just update existing order status to 'completed'
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: 'completed' })
-          .eq('id', buyoutOrderId);
-        
-        if (error) throw error;
-
-        // Navigate to payment processing
-        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${buyoutOrderId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
-        return;
-      } catch (err: any) {
-        toast.error(err.message);
-        setIsPlacingOrder(false);
-        return;
-      }
-    }
+    setIsPlacingOrder(true);
 
     try {
       if (!supabase) throw new Error("Service unavailable");
 
       const userId = user?.id;
       if (!userId) throw new Error("Please sign in to place an order");
+
+      // --- Buyout Flow (keep-it) ---
+      if (buyoutOrderId) {
+        const targetId = buyoutOrderId;
+        await supabase.from('orders').update({ status: 'pending_payment' }).eq('id', buyoutOrderId);
+
+        if (paymentMethod === 'cod') {
+          await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
+          navigate(`/order-confirmed/${targetId}`);
+        } else {
+          // Razorpay flow for buyout
+          setIsPlacingOrder(false);
+          initiatePayment({
+            internalOrderId: targetId,
+            amountInRupees: total,
+            userName: profile?.full_name || user?.user_metadata?.full_name,
+            userEmail: user?.email,
+            userPhone: profile?.phone || user?.phone,
+          });
+        }
+        return;
+      }
 
       // 1) Get or create a delivery address
       const addrFull = deliveryAddress?.formattedAddress || "Default Address, Mumbai";
@@ -454,13 +419,13 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Insert order
+      // 2) Insert order (status: pending until payment confirmed)
       const rentalDays = 4;
       const startDate = new Date().toISOString().split("T")[0];
       const endDate = new Date(Date.now() + rentalDays * 86400000).toISOString().split("T")[0];
       const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString(); // fallback 60 mins
 
-      const orderStatus = paymentMethod === 'cod' ? 'pending' : 'pending_payment';
+      const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
 
       const { data: order, error: orderErr } = await supabase
         .from("orders")
@@ -473,7 +438,7 @@ export default function CheckoutPage() {
           deposit_amount: Math.round(subtotal * 0.3),
           delivery_eta: deliveryEta,
           status: orderStatus,
-          payment_method: paymentMethod,
+          payment_method: paymentMethod === 'razorpay' ? 'upi' : paymentMethod,
           delivery_fee: deliveryFee,
         })
         .select("id")
@@ -482,71 +447,60 @@ export default function CheckoutPage() {
       if (orderErr) throw new Error(orderErr.message);
 
       // 3) Insert order_items
-      // If the cart has mock IDs (like "prod1"), it will crash the DB foreign key constraint.
-      // We need to ensure we only send real UUIDs. Let's fetch one real UUID to use as a fallback if needed.
       const { data: realProducts } = await supabase.from('products').select('id').limit(1);
       const fallbackUuid = realProducts?.[0]?.id;
 
       const orderItems = validCartEntries.map(([id, qty]) => {
-        // Handle IDs carefully: they might be UUIDs or mocked IDs like "prod1_S"
         const rawBaseId = id.includes('_') ? id.split('_')[0] : id;
         const size = id.includes('_') ? id.split('_')[1] : 'S';
-        const product = cartProducts[rawBaseId] || cartProducts[id]; // Also check if it's there without split
-
-        // Use the real UUID if it exists in the live DB, OTHERWISE use the fallback UUID so the DB doesn't crash on mock data
-        // We'll trust that if rawBaseId has a hyphen and is somewhat long, it's likely a real UUID.
+        const product = cartProducts[rawBaseId] || cartProducts[id];
         const likelyRealUuid = rawBaseId.includes('-');
         const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
-
-        if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", id);
-          throw new Error("Invalid product ID in cart");
-        }
+        if (!baseId) throw new Error("Invalid product ID in cart");
 
         return {
           order_id: order.id,
           product_id: baseId,
-          size: size,
+          size,
           rental_price: (product?.price || 0) * qty,
           deposit_amount: Math.round((product?.price || 0) * qty * 0.3),
           rental_duration_days: rentalDays,
         };
       });
 
-      console.log("[Checkout] Prepared order items payload:", orderItems);
-
       const { error: itemsErr } = await supabase.from("order_items").insert(orderItems);
-      if (itemsErr) {
-        console.error("[Checkout] Order items insert failed. Details:", itemsErr);
-        throw new Error("Order items saving failed: " + itemsErr.message);
-      }
+      if (itemsErr) throw new Error("Order items saving failed: " + itemsErr.message);
 
-      // 4) Insert Legal Acceptance Log
-      const { error: legalErr } = await supabase.from("legal_acceptances").insert({
-        user_id: userId,
-        order_id: order.id,
-        ip_address: userIp || 'unknown',
-        tc_version: 'v1.0'
-      });
-      if (legalErr) {
-        console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
-      }
+      // 4) Legal Acceptance Log (non-fatal)
+      try {
+        await supabase.from("legal_acceptances").insert({
+          user_id: userId,
+          order_id: order.id,
+          ip_address: userIp || 'unknown',
+          tc_version: 'v1.0'
+        });
+      } catch { /* non-fatal */ }
 
-      // 5) Clear cart (if not buyout)
-      if (!buyoutOrderId) {
-        await clearCartDB().catch(() => { });
-        for (const [id] of validCartEntries) {
-          removeFromCart(id);
-        }
-      }
+      // 5) Clear cart
+      await clearCartDB().catch(() => {});
+      for (const [id] of validCartEntries) removeFromCart(id);
 
       // 6) Navigate based on payment method
-      const targetId = buyoutOrderId || (order as any).id;
+      const targetId = (order as any).id;
+
       if (paymentMethod === 'cod') {
+        // COD: go directly to confirmation
         navigate(`/order-confirmed/${targetId}`);
       } else {
-        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        // Razorpay: open modal AFTER creating the order
+        setIsPlacingOrder(false);
+        initiatePayment({
+          internalOrderId: targetId,
+          amountInRupees: total,
+          userName: profile?.full_name || user?.user_metadata?.full_name,
+          userEmail: user?.email,
+          userPhone: profile?.phone || user?.phone,
+        });
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -636,21 +590,15 @@ export default function CheckoutPage() {
             onClick={() => setShowPaymentMethodSelector(true)}
             className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 flex items-center justify-between group hover:border-[#f2546d]/30 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              {paymentMethod === 'upi' ? (
+          <div className="flex items-center gap-3">
+              {paymentMethod === 'razorpay' ? (
                 <>
                   <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
-                    <Smartphone className="w-5 h-5 text-[#f2546d]" />
+                    <Wifi className="w-5 h-5 text-[#f2546d]" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>
-                      {selectedUpiApp ? `Pay via ${selectedUpiApp}` : "UPI Payment"}
-                    </p>
-                    {(selectedUpiApp || upiId) && (
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {selectedUpiApp || upiId}
-                      </p>
-                    )}
+                    <p className="text-sm font-bold text-white" style={dmSans}>Pay Online</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">UPI, Card, Netbanking & more</p>
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -785,13 +733,13 @@ export default function CheckoutPage() {
                 isPlacingOrder ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
-              {isPlacingOrder
-                ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
-                : paymentMethod === 'upi'
-                  ? "PAY VIA UPI"
+              {(isPlacingOrder || isRazorpayProcessing)
+                ? (paymentMethod === 'cod' ? "PLACING..." : "OPENING...")
+                : paymentMethod === 'razorpay'
+                  ? "PAY ONLINE"
                   : paymentMethod === 'cod'
                     ? "PLACE ORDER"
-                    : "PAY"
+                    : "CONTINUE"
               }
             </button>
           </div>
@@ -831,16 +779,17 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              <Drawer.Title className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <p className="text-zinc-500 text-sm mb-6 font-medium">All payments are 100% secure and encrypted</p>
               <Drawer.Description className="sr-only">Select how you want to pay</Drawer.Description>
 
               <div className="space-y-3">
-                {/* UPI Option */}
+                {/* Razorpay — Online Payments */}
                 <button
-                  onClick={() => setPaymentMethod('upi')}
+                  onClick={() => setPaymentMethod('razorpay')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'upi'
+                    paymentMethod === 'razorpay'
                       ? "bg-[#f2546d]/10 border-[#f2546d]"
                       : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
@@ -848,78 +797,27 @@ export default function CheckoutPage() {
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      paymentMethod === 'upi' ? "bg-[#f2546d]/20" : "bg-zinc-800"
+                      paymentMethod === 'razorpay' ? "bg-[#f2546d]/20" : "bg-zinc-800"
                     )}>
-                      <Smartphone className={cn("w-6 h-6", paymentMethod === 'upi' ? "text-[#f2546d]" : "text-zinc-500")} />
+                      <Wifi className={cn("w-6 h-6", paymentMethod === 'razorpay' ? "text-[#f2546d]" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-white font-bold text-base" style={dmSans}>UPI Payment</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay instantly via UPI apps</p>
+                      <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
+                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
                     </div>
                     <div className={cn(
                       "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700"
+                      paymentMethod === 'razorpay' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700"
                     )}>
-                      {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                      {paymentMethod === 'razorpay' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
+                  {paymentMethod === 'razorpay' && (
+                    <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
+                      ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
+                    </p>
+                  )}
                 </button>
-
-                {/* UPI ID Input (shown when UPI is selected) */}
-                {paymentMethod === 'upi' && (
-                  <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-4 gap-3 px-1">
-                      {[
-                        { id: 'PhonePe', icon: '/images/upi-icons/phonepe.png' },
-                        { id: 'Google Pay', icon: '/images/upi-icons/gpay.png' },
-                        { id: 'Paytm', icon: '/images/upi-icons/paytm.png' },
-                        { id: 'Amazon Pay', icon: '/images/upi-icons/amazonpay.png' }
-                      ].map((app) => (
-                        <button
-                          key={app.id}
-                          onClick={() => {
-                            setSelectedUpiApp(app.id);
-                            setUpiId(""); // Clear custom UPI ID if app is selected
-                          }}
-                          className={cn(
-                            "flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all",
-                            selectedUpiApp === app.id
-                              ? "bg-white/5 border-[#f2546d]"
-                              : "bg-[#141414] border-white/5"
-                          )}
-                        >
-                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center">
-                            <img src={app.icon} alt={app.id} className="w-full h-full object-contain" />
-                          </div>
-                          <span className="text-[10px] font-bold text-zinc-500 text-center leading-tight">{app.id}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-white/5"></span>
-                      </div>
-                      <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                        <span className="bg-[#191919] px-4 text-zinc-600">OR Enter UPI ID</span>
-                      </div>
-                    </div>
-
-                    <div className="px-1">
-                      <input
-                        type="text"
-                        value={upiId}
-                        onChange={(e) => {
-                          setUpiId(e.target.value);
-                          setSelectedUpiApp(null); // Clear app selection if custom ID is typed
-                        }}
-                        placeholder="yourname@upi"
-                        className="w-full bg-[#232323] border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors placeholder:text-zinc-600"
-                        style={dmSans}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* COD Option */}
                 <button

@@ -103,7 +103,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
     const riderName = useMemo(
-        () => (profile as Record<string, unknown> | null)?.full_name as string | undefined,
+        () => (profile as any)?.full_name as string | undefined,
         [profile],
     );
 

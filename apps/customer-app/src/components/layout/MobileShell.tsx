@@ -25,7 +25,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
             <div
                 className={cn(
                     "w-full max-w-[430px] min-h-screen relative overflow-hidden",
-                    "bg-background dark:bg-[#0a0a0a]",
+                    "bg-[#0a0a0a]",
                     "shadow-2xl shadow-black/50",
                     className
                 )}

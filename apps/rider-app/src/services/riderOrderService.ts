@@ -40,7 +40,7 @@ export interface RiderLocation {
 }
 
 // Used by OrderRequestsPage
-export interface RiderNotification {
+export interface RiderOrderRequest {
     id: string;
     order_id: string;
     rider_id: string;
@@ -135,7 +135,7 @@ export async function declineOrderNotification(notificationId: string): Promise<
  */
 export function subscribeToOrderRequests(
     riderId: string,
-    onNew: (notification: RiderNotification) => void,
+    onNew: (notification: RiderOrderRequest) => void,
     onDeleted: (notificationId: string) => void,
 ): () => void {
     const channel = supabase
@@ -148,7 +148,7 @@ export function subscribeToOrderRequests(
                 table: 'rider_notifications',
                 filter: `rider_id=eq.${riderId}`,
             },
-            (payload) => onNew(payload.new as RiderNotification),
+            (payload) => onNew(payload.new as RiderOrderRequest),
         )
         .on(
             'postgres_changes',

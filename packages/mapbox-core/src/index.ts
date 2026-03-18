@@ -156,6 +156,9 @@ export const drawRouteFromCoords = (
     map.fitBounds(bounds, { padding: 50 });
 };
 
+// Alias for compatibility
+export const drawRoute = drawRouteFromCoords;
+
 
 // ==========================================
 // IIT BOMBAY GEOFENCING

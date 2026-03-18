@@ -107,7 +107,7 @@ export const DeliveryNavigationPage: React.FC = () => {
     const [otpVerifying, setOtpVerifying] = useState(false);
 
     const riderName = useMemo(
-        () => (profile as Record<string, unknown> | null)?.full_name as string | undefined,
+        () => (profile as any)?.full_name as string | undefined,
         [profile],
     );
 

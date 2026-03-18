@@ -6,8 +6,6 @@ import {
   Bell, CreditCard, HelpCircle, Shield, Sparkles, X,
   Edit3, Check, Loader2, Phone, Mail, Package
 } from "lucide-react";
-import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
@@ -112,7 +110,7 @@ const ProfilePage: React.FC = () => {
   const displaySub = profile?.phone || user?.email || "Signed in";
 
   return (
-    <MobileShell className="bg-black text-white">
+    <div className="bg-black text-white min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
         <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
@@ -384,8 +382,8 @@ const ProfilePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <BottomNavBar />
-    </MobileShell>
+      <div className="h-8" />
+    </div>
   );
 };
 
