@@ -50,7 +50,7 @@ export default function CreateAccountPage() {
       await updateProfile({
         full_name: name,
         email: email.trim(),
-        gender: gender || undefined,
+        gender: undefined,
         onboarding_completed: true,
         email_verified: false,
       });

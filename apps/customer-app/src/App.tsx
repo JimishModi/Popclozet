@@ -45,6 +45,17 @@ const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage")
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 const SubscriptionProfilePage = lazy(() => import("./pages/SubscriptionProfilePage"));
 
+const SignInPage = lazy(() => import("./pages/SignInPage"));
+const SignUpPage = lazy(() => import("./pages/SignUpPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
+const EmailVerifyCallbackPage = lazy(() => import("./pages/EmailVerifyCallbackPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
+const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
+const ClosetPage = lazy(() => import("./pages/ClosetPage"));
+const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
+const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
 import QRScannerPage from "./pages/QRScannerPage";
@@ -207,8 +218,9 @@ function App() {
                         <Route path="/payment-success" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><PaymentSuccessPage /></Suspense></PageTransition>} />
                         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
                       </Routes>
-                    </div>
+                    </motion.div>
                   </AnimatePresence>
+                </GlobalLayout>
                 </TooltipProvider>
               </FlyToCartProvider>
             </WishlistProvider>

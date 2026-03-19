@@ -89,8 +89,8 @@ export default function CheckoutPage() {
   // FIX 2: Declare missing showTermsModal state
   const [showTermsModal, setShowTermsModal] = useState(false);
 
-  // Payment method: 'razorpay' (online) or 'cod'
-  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod' | null>(null);
+  // Payment method: 'upi' (online) or 'cod'
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
 
@@ -130,8 +130,6 @@ export default function CheckoutPage() {
     });
   }, [cartEntries, cartProducts]);
 
-  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
-  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
   const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
@@ -527,7 +525,7 @@ export default function CheckoutPage() {
       const orderResult = await createEntitledOrder({
         deliveryAddressId: addressId,
         items: rpcItems,
-        paymentMethod,
+        paymentMethod: paymentMethod === 'upi' ? 'upi' : 'cod',
         orderType: selectedOrderType,
         scheduledSlot: selectedScheduledSlot,
         deliveryDistanceKm: actualDistance,
@@ -561,8 +559,7 @@ export default function CheckoutPage() {
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${targetId}`);
       } else {
-        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -748,7 +745,7 @@ export default function CheckoutPage() {
             className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 flex items-center justify-between group hover:border-[#f2546d]/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              {paymentMethod === 'razorpay' ? (
+              {paymentMethod === 'upi' ? (
                 <>
                   <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
                     <Wifi className="w-5 h-5 text-[#f2546d]" />
@@ -945,25 +942,25 @@ export default function CheckoutPage() {
 
               <div className="space-y-3">
                 <button
-                  onClick={() => setPaymentMethod('razorpay')}
+                  onClick={() => setPaymentMethod('upi')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'razorpay' ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5 hover:border-white/10"
+                    paymentMethod === 'upi' ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'razorpay' ? "bg-[#f2546d]/20" : "bg-zinc-800")}>
-                      <Wifi className={cn("w-6 h-6", paymentMethod === 'razorpay' ? "text-[#f2546d]" : "text-zinc-500")} />
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'upi' ? "bg-[#f2546d]/20" : "bg-zinc-800")}>
+                      <Wifi className={cn("w-6 h-6", paymentMethod === 'upi' ? "text-[#f2546d]" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
                       <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
                     </div>
-                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'razorpay' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
-                      {paymentMethod === 'razorpay' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
+                      {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
-                  {paymentMethod === 'razorpay' && (
+                  {paymentMethod === 'upi' && (
                     <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
                       ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
                     </p>

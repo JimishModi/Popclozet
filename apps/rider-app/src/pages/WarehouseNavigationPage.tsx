@@ -218,7 +218,7 @@ export const WarehouseNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-            await drawRoute(map, [riderLocation, WAREHOUSE_LOCATION]);
+            await drawRoute(map, riderLocation, WAREHOUSE_LOCATION);
 
             const geolocate = new mapboxgl.GeolocateControl({
                 positionOptions: { enableHighAccuracy: true },

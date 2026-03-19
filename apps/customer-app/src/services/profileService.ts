@@ -287,7 +287,7 @@ export async function createProfile(fields: {
         full_name: fields.full_name.trim(),
         phone: normalizePhone(user.id, fields.phone || user.phone || ''),
         email: hasText(fields.email) ? fields.email.trim() : (user.email ?? undefined),
-        role: fields.role || 'customer',
+        role: 'customer',
         gender: fields.gender || undefined,
         onboarding_completed: true,
     });
@@ -307,7 +307,6 @@ export async function createProfile(fields: {
         full_name: payload.full_name as string,
         phone: payload.phone as string,
         email: payload.email as string | undefined,
-        role: String(payload.role ?? 'customer'),
         gender: payload.gender as string | undefined,
         onboarding_completed: true,
         created_at: new Date().toISOString(),
@@ -342,7 +341,6 @@ export async function updateProfile(updates: Partial<{
         ...(typeof updates.email === 'string' ? { email: updates.email.trim() } : {}),
         ...(typeof updates.avatar_url === 'string' ? { avatar_url: updates.avatar_url } : {}),
         ...(typeof updates.gender === 'string' ? { gender: updates.gender } : {}),
-        ...(typeof updates.role === 'string' ? { role: updates.role } : {}),
         ...(typeof updates.onboarding_completed === 'boolean' ? { onboarding_completed: updates.onboarding_completed } : {}),
         ...(updates.measurements ? { measurements: updates.measurements } : {}),
     });
