@@ -322,7 +322,7 @@ export async function getRiderStats(
   riderId: string
 ): Promise<RiderStats> {
   const { data: payments } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('amount')
     .eq('rider_id', riderId)
     .in('type', ['earning', 'bonus']);

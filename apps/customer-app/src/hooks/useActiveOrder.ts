@@ -83,7 +83,7 @@ export function useActiveOrder() {
             let riderName: string | undefined;
             if (data.rider_id) {
                 const { data: riderProfile } = await supabase
-                    .from('profiles')
+                    .from('rider_profiles')
                     .select('full_name')
                     .eq('user_id', data.rider_id)
                     .single();

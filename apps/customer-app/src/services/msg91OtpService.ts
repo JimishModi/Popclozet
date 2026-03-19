@@ -11,20 +11,26 @@ const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
 let sdkReady = false;
 let sdkInitPromise: Promise<void> | null = null;
 
-function loadAndInit(identifier: string): Promise<void> {
+function loadAndInit(identifier: string, autoSend = true): Promise<void> {
     // If already ready, resolve immediately
     if (sdkReady) return Promise.resolve();
     // If already initializing, return the same promise
     if (sdkInitPromise) return sdkInitPromise;
 
     sdkInitPromise = new Promise<void>((resolve, reject) => {
+        if (!WIDGET_ID || !TOKEN_AUTH) {
+            reject(new Error('MSG91 Configuration Missing: Please set VITE_MSG91_WIDGET_ID and VITE_MSG91_TOKEN_AUTH in your .env file.'));
+            return;
+        }
+
         const configuration: Record<string, any> = {
             widgetId: WIDGET_ID,
             tokenAuth: TOKEN_AUTH,
             identifier,
             exposeMethods: true,
-            success: (data: any) => console.info('[MSG91] success callback', data),
-            failure: (error: any) => console.error('[MSG91] failure callback', error),
+            autoSend: autoSend,
+            success: (data: any) => console.info('[MSG91] init success callback (OTP may have been sent)', data),
+            failure: (error: any) => console.error('[MSG91] init failure callback', error),
         };
 
         // Remove any existing script to avoid duplicates
@@ -81,18 +87,25 @@ function loadAndInit(identifier: string): Promise<void> {
 /**
  * Load & initialise the MSG91 SDK with the given phone identifier.
  * Identifier format: 91XXXXXXXXXX (country code without +)
+ * @param autoSend If true (default), initSendOTP will trigger an SMS immediately.
  */
-export async function loadAndInitMsg91(identifier: string): Promise<void> {
-    await loadAndInit(identifier);
+export async function loadAndInitMsg91(identifier: string, autoSend = true): Promise<void> {
+    await loadAndInit(identifier, autoSend);
 }
 /**
  * Send OTP to the given identifier.
  * Must call loadAndInitMsg91() first.
  */
-export function sendOtp(identifier: string): Promise<any> {
+export async function sendOtp(identifier: string): Promise<any> {
+    if (!sdkReady) {
+        console.info('[MSG91] Initializing SDK (this sends the first OTP via initSendOTP)...');
+        await loadAndInitMsg91(identifier);
+        return { message: 'OTP sent via initialization' };
+    }
+
     return new Promise((resolve, reject) => {
         if (typeof (window as any).sendOtp !== 'function') {
-            return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
+            return reject(new Error('MSG91 SDK not ready after initialization.'));
         }
         (window as any).sendOtp(
             identifier,
@@ -109,10 +122,14 @@ export function sendOtp(identifier: string): Promise<any> {
  * Verify the OTP entered by the user.
  * Returns response data including the access token on success.
  */
-export function verifyOtp(otpValue: string): Promise<{ message: string; type: string }> {
+export async function verifyOtp(otpValue: string): Promise<{ message: string; type: string }> {
+    if (!sdkReady) {
+        return Promise.reject(new Error('MSG91 SDK not ready. Please wait for OTP to be sent first.'));
+    }
+
     return new Promise((resolve, reject) => {
         if (typeof (window as any).verifyOtp !== 'function') {
-            return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
+            return reject(new Error('MSG91 SDK verify method not found.'));
         }
         (window as any).verifyOtp(
             otpValue,
@@ -134,7 +151,7 @@ export function resendOtp(): Promise<any> {
             return reject(new Error('MSG91 SDK not ready. Call loadAndInitMsg91 first.'));
         }
         (window as any).retryOtp(
-            null,
+            1, // 1 = SMS channel
             (data: any) => { console.info('[MSG91] OTP resent', data); resolve(data); },
             (error: any) => {
                 const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to resend OTP';

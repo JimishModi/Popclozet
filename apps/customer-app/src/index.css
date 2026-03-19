@@ -166,15 +166,8 @@
     background-size: 100% 100%, 100% 100%;
   }
 
-  * {
-    transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease, fill 200ms ease, stroke 200ms ease;
-  }
+  /* Removed global wildcard transitions to prevent layout thrashing and lag */
 
-  .no-theme-transitions *,
-  .no-theme-transitions *::before,
-  .no-theme-transitions *::after {
-    transition: none !important;
-  }
 
   :focus-visible {
     outline: 2px solid hsl(var(--primary));

@@ -22,7 +22,11 @@ if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
  * Proxies to MapmyIndia Auto-Suggest API
  */
 app.get("/api/location/search", async (req, res) => {
-    const { query } = req.query;
+    let { query } = req.query;
+    if (typeof query === 'string' && query.length > 40) {
+        query = query.substring(0, 40);
+        console.log(`[API] Truncated long query to: ${query}`);
+    }
 
     if (!query) {
         return res.status(400).json({ error: "Query is required" });
@@ -30,17 +34,22 @@ app.get("/api/location/search", async (req, res) => {
 
     try {
         const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query as string)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
-        console.log(`Searching Mappls: ${query}`);
+        console.log(`[API] Searching Mappls: ${query}`);
+        console.log(`[API] URL: ${url.replace(REST_KEY || '', 'REDACTED')}`);
         
         const response = await axios.get(url, {
             headers: { 'Referer': 'http://localhost:5500/' }
         });
         
+        console.log(`[API] Mappls Response Status: ${response.status}`);
+        
         // Handle both root array and 'suggestedLocations' wrapper
         const results = response.data.suggestedLocations || (Array.isArray(response.data) ? response.data : []);
+        console.log(`[API] Found ${results.length} results`);
         res.json(results);
     } catch (error: any) {
         console.error("Mappls Search Error:", error.response?.data || error.message);
+        console.error("Full Error Stack:", error.stack);
         res.status(500).json({ 
             error: "Failed to fetch locations", 
             detail: error.response?.data || error.message 

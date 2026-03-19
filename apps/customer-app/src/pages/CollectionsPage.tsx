@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ShoppingBag } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
@@ -92,7 +90,7 @@ const CollectionsPage = () => {
   const [activeGender, setActiveGender] = usePersistentGender("womens");
 
   return (
-    <MobileShell className="bg-[#0A0A0A] text-white">
+    <div className="bg-[#0A0A0A] text-white min-h-screen">
       {/* ── Header ── */}
       <div className="px-4 py-3 sticky top-0 z-50 bg-[#0A0A0A]/90 backdrop-blur-xl">
         <div className="flex items-center justify-between mb-3">
@@ -185,8 +183,7 @@ const CollectionsPage = () => {
         </AnimatePresence>
       </div>
 
-      <BottomNavBar />
-    </MobileShell>
+    </div>
   );
 };
 

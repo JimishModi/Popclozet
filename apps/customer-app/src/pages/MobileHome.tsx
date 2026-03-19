@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Search, Heart } from "lucide-react";
 import { useWishlist } from "@/context/WishlistContext";
@@ -204,15 +202,16 @@ const MobileHome: React.FC = () => {
     }, []);
 
     return (
-        <MobileShell className="bg-[#111111] text-white">
-
-            {/* Main Scrollable Content */}
-            <main className="flex-1 overflow-y-auto pb-24">
-
+        <div className="bg-black text-white min-h-screen">
+            <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-3 pb-8 flex items-center justify-between">
                 {/* ─── LOGO ─── */}
                 <div className="px-5 pt-5 pb-1 flex items-center">
                     <img src={popclozetLogo} alt="PopClozet" className="h-7 object-contain" />
                 </div>
+            </header>
+
+            {/* Main Scrollable Content */}
+            <main className="flex-1 overflow-y-auto pb-24">
 
                 {/* ─── HEADER: Delivery Time + Location + Actions ─── */}
                 <section className="relative px-5 pt-4 pb-4">
@@ -703,9 +702,7 @@ const MobileHome: React.FC = () => {
                 {/* Spacer for bottom nav */}
                 <div className="h-8" />
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

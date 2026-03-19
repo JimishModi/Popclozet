@@ -10,15 +10,29 @@ initTheme();
 // Restore Supabase session BEFORE React mounts
 // (Now handled natively by Supabase persistSession: true)
 
-// Register PWA Service Worker (handled by Vite PWA plugin)
-registerSW({
-  onNeedRefresh() {
-    console.log("🔄 New version available — refresh recommended");
-  },
-  onOfflineReady() {
-    console.log("📦 App ready for offline usage");
-  },
-});
+// Forcefully unregister service workers in development to prevent "Offline Mode" bugs
+if (import.meta.env.DEV) {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+        console.log("🧹 Unregistered stale service worker in DEV mode");
+      }
+    });
+  }
+}
+
+// Register PWA Service Worker (only in production)
+if (import.meta.env.PROD) {
+  registerSW({
+    onNeedRefresh() {
+      console.log("🔄 New version available — refresh recommended");
+    },
+    onOfflineReady() {
+      console.log("📦 App ready for offline usage");
+    },
+  });
+}
 
 const container = document.getElementById("root");
 

@@ -24,8 +24,8 @@ export interface ProfileRow {
     full_name: string;
     phone: string;
     email?: string;
+    email_verified?: boolean;
     avatar_url?: string;
-    role: string;
     gender?: string;
     onboarding_completed?: boolean;
     measurements?: Record<string, number>;
@@ -269,15 +269,16 @@ export async function getCurrentProfile(userId?: string): Promise<ProfileRow | n
 // ==========================================
 
 /**
- * Create a new profile for the current user.
+ * Create a new customer profile.
  * Called during onboarding when no profile exists yet.
  */
 export async function createProfile(fields: {
     full_name: string;
     phone: string;
-    role?: string;
     email?: string;
     gender?: string;
+    email_verified?: boolean;
+    onboarding_completed?: boolean;
 }): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -319,16 +320,16 @@ export async function createProfile(fields: {
 // ==========================================
 
 /**
- * Update the current user's profile.
+ * Update the current user's customer profile.
  * Accepts partial fields — only the provided keys are written.
  */
 export async function updateProfile(updates: Partial<{
     full_name: string;
     phone: string;
     email: string;
+    email_verified: boolean;
     avatar_url: string;
     gender: string;
-    role: string;
     onboarding_completed: boolean;
     measurements: Record<string, number>;
 }>): Promise<ProfileRow> {

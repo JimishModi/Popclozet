@@ -507,3 +507,14 @@ export async function createEntitledOrder(input: CreateEntitledOrderInput): Prom
 
     return data as CreateEntitledOrderResult;
 }
+
+/**
+ * Check if the user has insurance benefit included
+ */
+export async function hasInsuranceIncluded(): Promise<boolean> {
+    const sub = await getActiveSubscription();
+    if (!sub) return false;
+
+    const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
+    return plan?.insurance_included || false;
+}
