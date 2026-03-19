@@ -51,8 +51,8 @@ export default function CreateAccountPage() {
       // ONLY THIS. NO DIRECT SUPABASE CALL.
       await updateProfile({
         full_name: name,
-        email: email,
-        gender: gender,
+        email: email.trim(),
+        gender: gender || undefined,
         onboarding_completed: true,
       });
 
@@ -60,7 +60,7 @@ export default function CreateAccountPage() {
 
     } catch (err) {
       console.error(err);
-      alert("Could not create account.");
+      alert((err as any)?.message || "Could not create account.");
       setIsLoading(false);
     }
   };

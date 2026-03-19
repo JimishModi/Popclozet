@@ -53,14 +53,18 @@ export function SavedAddresses({
         // Remove from local storage
         const saved = getLocalAddresses();
         const updated = saved.filter(a =>
-            !(a.lat === address.lat && a.lng === address.lng && a.label === address.label)
+            !(
+                a.lat === address.lat &&
+                a.lng === address.lng &&
+                (a.formattedAddress || a.full_address) === (address.formattedAddress || address.full_address)
+            )
         );
-        localStorage.setItem('saved_addresses', JSON.stringify(updated));
+        localStorage.setItem('popclozet_recent_addresses', JSON.stringify(updated));
         setAddresses(updated);
     };
 
-    const getIcon = (label: string) => {
-        return LABEL_ICONS[label] || LABEL_ICONS['Other'];
+    const getIcon = (label?: string) => {
+        return LABEL_ICONS[label || 'Other'] || LABEL_ICONS['Other'];
     };
 
     if (isLoading) {
@@ -151,13 +155,13 @@ export function SavedAddresses({
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <p className="text-sm font-medium text-white">{address.label}</p>
+                                        <p className="text-sm font-medium text-white">{address.label || 'Saved Address'}</p>
                                         {selectedAddressId === `${address.lat}-${address.lng}` && (
                                             <Check className="w-3 h-3 text-[#ff4d6d]" />
                                         )}
                                     </div>
                                     <p className="text-xs text-zinc-400 line-clamp-2 mt-0.5">
-                                        {address.full_address}
+                                        {address.formattedAddress || address.full_address}
                                     </p>
                                 </div>
 

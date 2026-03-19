@@ -31,7 +31,9 @@ interface DeliveryOrder {
     id: string;
     status: string;
     user_id: string;
+    order_type?: string | null;
     otp_delivery?: string;
+    otp_return?: string;
     addresses: DeliveryAddress | null;
 }
 
@@ -107,8 +109,12 @@ export const DeliveryNavigationPage: React.FC = () => {
     const [otpVerifying, setOtpVerifying] = useState(false);
 
     const riderName = useMemo(
-        () => (profile as Record<string, unknown> | null)?.full_name as string | undefined,
+        () => (profile as unknown as { full_name?: string } | null)?.full_name,
         [profile],
+    );
+    const isReturnFlow = useMemo(
+        () => ['return_scheduled', 'return_dispatched', 'return_picked_up', 'returned'].includes(order?.status ?? ''),
+        [order?.status],
     );
 
     // ── Fetch order ────────────────────────────────────────────────────────────
@@ -121,7 +127,7 @@ export const DeliveryNavigationPage: React.FC = () => {
             try {
                 const { data, error } = await supabase
                     .from('orders')
-                    .select('id, status, user_id, otp_delivery, addresses:delivery_address_id(full_address, latitude, longitude)')
+                    .select('id, status, user_id, order_type, otp_delivery, otp_return, addresses:delivery_address_id(full_address, latitude, longitude)')
                     .eq('id', id)
                     .single();
 
@@ -244,29 +250,38 @@ export const DeliveryNavigationPage: React.FC = () => {
             await insertNotification({
                 user_id:  order.user_id,
                 type:     'rider_arrived',
-                title:    '🛵 Your rider has arrived!',
-                body:     `${riderName ?? 'Your rider'} is at your location. Please share your delivery code.`,
+                title:    isReturnFlow ? '🛵 Your pickup rider has arrived!' : '🛵 Your rider has arrived!',
+                body:     isReturnFlow
+                    ? `${riderName ?? 'Your rider'} is at your location. Please share your return pickup code.`
+                    : `${riderName ?? 'Your rider'} is at your location. Please share your delivery code.`,
                 order_id: id,
             });
 
             // Notify warehouse
             await notifyWarehouse(
                 id,
-                'rider_at_customer',
-                '📍 Rider at customer location',
-                `Rider is at the delivery address for order #${id.slice(0, 8).toUpperCase()}`,
+                isReturnFlow ? 'rider_at_return_pickup' : 'rider_at_customer',
+                isReturnFlow ? '📍 Rider at return pickup location' : '📍 Rider at customer location',
+                isReturnFlow
+                    ? `Rider is at the customer pickup address for return order #${id.slice(0, 8).toUpperCase()}`
+                    : `Rider is at the delivery address for order #${id.slice(0, 8).toUpperCase()}`,
             );
 
             setStep('arrived');
             setOtpValue('');
-            showToastRef.current('Customer notified! Ask for their 4-digit delivery code.', 'success');
+            showToastRef.current(
+                isReturnFlow
+                    ? 'Customer notified. Ask for their return pickup code.'
+                    : 'Customer notified! Ask for their 4-digit delivery code.',
+                'success',
+            );
         } catch (err) {
             console.error('[DeliveryNav] locationReached:', err);
             showToastRef.current('Failed to notify customer', 'error');
         } finally {
             setActionLoading(false);
         }
-    }, [id, user?.id, order, riderName]);
+    }, [id, user?.id, order, riderName, isReturnFlow]);
 
     // ── Step 2: Verify delivery OTP ───────────────────────────────────────────
 
@@ -283,7 +298,8 @@ export const DeliveryNavigationPage: React.FC = () => {
             const { data, error } = await supabase.rpc('verify_order_otp', {
                 p_order_id: id,
                 p_otp_code: otpValue,
-                p_otp_type: 'delivery',
+                p_otp_type: isReturnFlow ? 'return' : 'delivery',
+                p_actor_id: user.id,
             });
 
             if (error) throw new Error(error.message);
@@ -292,25 +308,33 @@ export const DeliveryNavigationPage: React.FC = () => {
             // Notify customer of successful delivery
             await insertNotification({
                 user_id:  order.user_id,
-                type:     'order_delivered',
-                title:    '✅ Order delivered!',
-                body:     `Your order has been delivered by ${riderName ?? 'your rider'}. Enjoy your rental!`,
+                type:     isReturnFlow ? 'return_collected' : 'order_delivered',
+                title:    isReturnFlow ? '✅ Return collected!' : '✅ Order delivered!',
+                body:     isReturnFlow
+                    ? `${riderName ?? 'Your rider'} has collected your return and is heading back to the warehouse.`
+                    : `Your order has been delivered by ${riderName ?? 'your rider'}. Enjoy your rental!`,
                 order_id: id,
             });
 
             // Notify warehouse
             await notifyWarehouse(
                 id,
-                'order_delivered',
-                '✅ Order delivered successfully',
-                `Order #${id.slice(0, 8).toUpperCase()} has been delivered to the customer.`,
+                isReturnFlow ? 'return_collected' : 'order_delivered',
+                isReturnFlow ? '✅ Return collected from customer' : '✅ Order delivered successfully',
+                isReturnFlow
+                    ? `Return order #${id.slice(0, 8).toUpperCase()} has been collected and is heading back to the warehouse.`
+                    : `Order #${id.slice(0, 8).toUpperCase()} has been delivered to the customer.`,
             );
 
-            showToastRef.current('Delivery confirmed! Great job. 🎉', 'success');
+            showToastRef.current(
+                isReturnFlow ? 'Return collected. Head back to the warehouse.' : 'Delivery confirmed! Great job.', 
+                'success',
+            );
             setStep('done');
 
-            // Short pause so rider sees success screen, then go home
-            setTimeout(() => navigateRef.current('/'), 2_500);
+            setTimeout(() => {
+                navigateRef.current(isReturnFlow ? `/warehouse/${id}` : '/');
+            }, 1_500);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Failed to verify code';
             console.error('[DeliveryNav] verifyDeliveryOtp:', err);
@@ -318,7 +342,7 @@ export const DeliveryNavigationPage: React.FC = () => {
         } finally {
             setOtpVerifying(false);
         }
-    }, [id, user?.id, order, otpValue, riderName]);
+    }, [id, user?.id, order, otpValue, riderName, isReturnFlow]);
 
     // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -372,7 +396,7 @@ export const DeliveryNavigationPage: React.FC = () => {
             >
                 {/* Header */}
                 <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                         Order #{order.id.slice(0, 8).toUpperCase()}
                     </span>
                 </div>
@@ -400,7 +424,7 @@ export const DeliveryNavigationPage: React.FC = () => {
                             >
                                 {actionLoading
                                     ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    : <><MapPin size={18} /> Arrived at Location</>
+                                    : <><MapPin size={18} /> {isReturnFlow ? 'Arrived for Return Pickup' : 'Arrived at Location'}</>
                                 }
                             </button>
                             {!riderLocation && (
@@ -420,13 +444,17 @@ export const DeliveryNavigationPage: React.FC = () => {
                             exit={{ opacity: 0, y: -10 }}
                             className="space-y-4"
                         >
-                            <div className="flex items-center gap-2">
-                                <KeyRound size={16} className="text-indigo-400" />
-                                <p className="text-sm font-semibold text-white">Enter Customer's Delivery Code</p>
-                            </div>
-                            <p className="text-xs text-zinc-400">
-                                Ask the customer for the 4-digit code shown on their tracking page.
-                            </p>
+                                <div className="flex items-center gap-2">
+                                    <KeyRound size={16} className="text-indigo-400" />
+                                    <p className="text-sm font-semibold text-white">
+                                        {isReturnFlow ? "Enter Customer's Return Code" : "Enter Customer's Delivery Code"}
+                                    </p>
+                                </div>
+                                <p className="text-xs text-zinc-400">
+                                {isReturnFlow
+                                    ? 'Ask the customer for the 4-digit return code shown on their tracking page.'
+                                    : 'Ask the customer for the 4-digit code shown on their tracking page.'}
+                                </p>
                             <input
                                 type="text"
                                 inputMode="numeric"
@@ -438,17 +466,17 @@ export const DeliveryNavigationPage: React.FC = () => {
                                 placeholder="0000"
                                 className="w-full text-center text-5xl font-mono font-bold tracking-[0.3em] bg-black border border-zinc-800 rounded-xl py-5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-800"
                             />
-                            <button
-                                onClick={handleVerifyDeliveryOtp}
-                                disabled={otpValue.length !== 4 || otpVerifying}
-                                className={primaryBtn('from-indigo-600 to-indigo-500')}
-                            >
-                                {otpVerifying
-                                    ? <><Loader2 size={18} className="animate-spin" /> Verifying...</>
-                                    : 'Verify & Mark Delivered'
-                                }
-                            </button>
-                        </motion.div>
+                                <button
+                                    onClick={handleVerifyDeliveryOtp}
+                                    disabled={otpValue.length !== 4 || otpVerifying}
+                                    className={primaryBtn('from-indigo-600 to-indigo-500')}
+                                >
+                                    {otpVerifying
+                                        ? <><Loader2 size={18} className="animate-spin" /> Verifying...</>
+                                        : (isReturnFlow ? 'Verify & Collect Return' : 'Verify & Mark Delivered')
+                                    }
+                                </button>
+                            </motion.div>
                     )}
 
                     {/* Step 3: done */}
@@ -462,8 +490,12 @@ export const DeliveryNavigationPage: React.FC = () => {
                             <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
                                 <CheckCircle size={28} className="text-emerald-400" />
                             </div>
-                            <p className="text-white font-semibold">Delivery Complete!</p>
-                            <p className="text-zinc-400 text-sm">Returning to dashboard...</p>
+                            <p className="text-white font-semibold">
+                                {isReturnFlow ? 'Return Collected!' : 'Delivery Complete!'}
+                            </p>
+                            <p className="text-zinc-400 text-sm">
+                                {isReturnFlow ? 'Navigating back to the warehouse...' : 'Returning to dashboard...'}
+                            </p>
                         </motion.div>
                     )}
 

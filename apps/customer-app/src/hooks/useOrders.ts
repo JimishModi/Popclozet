@@ -6,7 +6,7 @@ import { getUserOrders, DeliveryOrder as DeliveryOrderType } from "@/services/de
 export interface Order {
     id: string;
     status: string;
-    orderType: "delivery" | "pickup" | "return";
+    orderType: "delivery" | "pickup" | "return" | "rental" | "home_try_on";
     createdAt: string;
     itemCount: number;
     totalAmount: number;
@@ -35,7 +35,7 @@ function mapToOrder(raw: any): Order {
     return {
         id: raw.id,
         status: raw.status,
-        orderType: raw.order_type || 'delivery',
+        orderType: raw.order_type || 'rental',
         createdAt: raw.created_at,
         itemCount: Array.isArray(raw.order_items) ? raw.order_items.length : 0,
         totalAmount: raw.total_amount || 0,
@@ -113,11 +113,31 @@ export function useOrders() {
     }, [user, fetchOrders]);
 
     const activeOrders = orders.filter((o) =>
-        ["pending", "confirmed", "packed", "ready_for_pickup", "preparing", "driver_arrived_warehouse", "order_picked_up", "dispatched", "out_for_delivery", "pickup_scheduled"].includes(o.status)
+        [
+            "pending",
+            "confirmed",
+            "packed",
+            "ready_for_pickup",
+            "rider_assigned",
+            "preparing",
+            "driver_arrived_warehouse",
+            "order_picked_up",
+            "dispatched",
+            "out_for_delivery",
+            "pickup_scheduled",
+            "delivered",
+            "in_use",
+            "return_requested",
+            "return_scheduled",
+            "return_dispatched",
+            "return_picked_up",
+            "return_at_warehouse",
+            "returned",
+        ].includes(o.status)
     );
 
     const pastOrders = orders.filter((o) =>
-        ["delivered", "picked_up", "return_completed", "cancelled", "completed", "returned", "return_picked_up"].includes(o.status)
+        ["picked_up", "return_completed", "cancelled", "completed"].includes(o.status)
     );
 
     return {

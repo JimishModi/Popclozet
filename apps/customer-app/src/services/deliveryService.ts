@@ -10,14 +10,14 @@ import { notifyOrderStatusChange } from './notificationService';
 export interface DeliveryOrder {
     id: string;
     user_id: string;
-    hub_id: string;
+    hub_id?: string | null;
     delivery_address_id: string;
-    delivery_address_snapshot: {
+    delivery_address_snapshot?: {
         full_address: string;
         lat: number;
         lng: number;
-    };
-    order_type: 'delivery' | 'pickup' | 'return';
+    } | null;
+    order_type: 'delivery' | 'pickup' | 'return' | 'rental' | 'home_try_on';
     status: OrderStatus;
     route_distance_km: number;
     route_polyline: string;
@@ -26,7 +26,13 @@ export interface DeliveryOrder {
     scheduled_slot: TimeSlot | null;
     delivery_fee: number;
     is_free_delivery: boolean;
+    support_tier?: 'standard' | 'premium' | null;
     total_amount?: number;
+    rider_id?: string | null;
+    otp_delivery?: string | null;
+    otp_return?: string | null;
+    return_pickup_date?: string | null;
+    return_time_slot?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -36,6 +42,7 @@ export type OrderStatus =
     | 'confirmed'
     | 'packed'
     | 'ready_for_pickup'
+    | 'rider_assigned'
     | 'preparing'
     | 'driver_arrived_warehouse'
     | 'order_picked_up'
@@ -44,8 +51,14 @@ export type OrderStatus =
     | 'delivered'
     | 'pickup_scheduled'
     | 'picked_up'
+    | 'in_use'
+    | 'return_requested'
     | 'return_scheduled'
+    | 'return_dispatched'
+    | 'return_picked_up'
+    | 'returned'
     | 'return_completed'
+    | 'completed'
     | 'cancelled';
 
 export interface TimeSlot {
@@ -251,7 +264,7 @@ export async function updateOrderStatus(
 
     const updates: Record<string, any> = { status, updated_at: new Date().toISOString() };
 
-    if (status === 'delivered' || status === 'picked_up' || status === 'return_completed') {
+    if (status === 'delivered' || status === 'picked_up' || status === 'return_completed' || status === 'completed') {
         updates.actual_delivery_at = new Date().toISOString();
         // Deactivate tracking when order is completed
         await deactivateTracking(orderId);
@@ -298,13 +311,16 @@ export async function getUserOrders(userId: string): Promise<DeliveryOrder[]> {
         .select(`
             *,
             order_items (id),
-            delivery_address:delivery_address_id (full_address, latitude, longitude)
+            delivery_address:delivery_address_id!left (full_address, latitude, longitude)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Failed to fetch orders:', error);
+        // Only log real errors, not "no rows" (PGRST116)
+        if (error.code !== 'PGRST116') {
+            console.error('Failed to fetch orders:', error);
+        }
         return [];
     }
 
@@ -320,7 +336,7 @@ export async function getOrderById(orderId: string): Promise<DeliveryOrder | nul
         .select(`
             *,
             order_items (id, product_id, size, rental_price),
-            delivery_address:delivery_address_id (full_address, latitude, longitude)
+            delivery_address:delivery_address_id!left (full_address, latitude, longitude)
         `)
         .eq('id', orderId)
         .single();

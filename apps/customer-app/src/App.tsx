@@ -51,6 +51,7 @@ const OrderConfirmedPage = lazy(() => import("./pages/OrderConfirmedPage"));
 const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage"));
 const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage"));
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
+const SubscriptionProfilePage = lazy(() => import("./pages/SubscriptionProfilePage"));
 
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
@@ -202,6 +203,7 @@ function App() {
 
                         <Route path="/offline" element={<PageTransition><OfflinePage /></PageTransition>} />
                         <Route path="/subscription-plans" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SubscriptionPlansPage /></Suspense></PageTransition>} />
+                        <Route path="/subscription-profile" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SubscriptionProfilePage /></Suspense></PageTransition>} />
                         <Route path="/payment-processing" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><PaymentProcessingPage /></Suspense></PageTransition>} />
                         <Route path="/payment-success" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><PaymentSuccessPage /></Suspense></PageTransition>} />
                         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

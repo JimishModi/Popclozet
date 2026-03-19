@@ -79,20 +79,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // we create a stub row rather than returning null, which leaves every
   // component that calls `profile?.role` in an undefined state.
 
+  const getRiderProfileFallback = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('riders')
+      .select('id, user_id, name, phone, email, avatar_url, joined_at, updated_at')
+      .or(`id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id ?? data.user_id ?? userId,
+      user_id: data.user_id ?? data.id ?? userId,
+      full_name: data.name ?? '',
+      phone: data.phone ?? '',
+      avatar_url: data.avatar_url ?? undefined,
+      role: 'rider' as UserRole,
+      onboarding_completed: true,
+      created_at: data.joined_at ?? new Date().toISOString(),
+      updated_at: data.updated_at ?? data.joined_at ?? new Date().toISOString(),
+    } as UserProfile;
+  };
+
   const fetchProfile = async (userId: string, userMeta?: Record<string, unknown>) => {
     console.log('[Auth] Starting profile fetch for:', userId);
     try {
-      const { data, error } = await supabase
+      // Use .limit(1) instead of .maybeSingle() because users may exist
+      // in multiple profile tables (e.g., customer_profiles AND rider_profiles).
+      // Order by role to prioritize rider/warehouse over customer.
+      const { data: rows, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .order('role', { ascending: false })  // descending: 'warehouse' > 'rider' > 'customer'
+        .limit(1);
 
       if (error) throw error;
 
-      if (data) {
-        console.log('[Auth] Profile found:', data.role);
-        if (mountedRef.current) setProfile(data as UserProfile);
+      const data = rows?.[0] ?? null;
+      const riderFallback = await getRiderProfileFallback(userId);
+
+      if (data || riderFallback) {
+        const resolvedProfile = riderFallback && (!data || data.role !== 'rider')
+          ? {
+              ...(data ?? {}),
+              ...riderFallback,
+              full_name: riderFallback.full_name || data?.full_name || '',
+              phone: riderFallback.phone || data?.phone || '',
+            }
+          : (data as UserProfile);
+
+        console.log('[Auth] Profile found:', resolvedProfile.role);
+        if (mountedRef.current) setProfile(resolvedProfile);
         return;
       }
 

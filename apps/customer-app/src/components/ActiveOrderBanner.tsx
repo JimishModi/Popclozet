@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, MapPin, Clock, X, ChevronRight } from "lucide-react";
+import { Package, MapPin, Clock, X, ChevronRight, Truck } from "lucide-react";
 import { useActiveOrder } from "@/hooks/useActiveOrder";
 
 import { ActiveOrder } from "@/hooks/useActiveOrder";
@@ -30,6 +30,12 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; colo
         icon: <Package className="w-4 h-4" />,
         color: "text-indigo-400",
         bgColor: "bg-indigo-500/20",
+    },
+    rider_assigned: {
+        label: "Rider Assigned",
+        icon: <Truck className="w-4 h-4" />,
+        color: "text-cyan-400",
+        bgColor: "bg-cyan-500/20",
     },
     driver_arrived_warehouse: {
         label: "Rider at Warehouse",

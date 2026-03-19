@@ -28,6 +28,9 @@ export interface TrackingUpdate {
     speed?: number;
 }
 
+const isDeliveryLikeOrder = (orderType?: DeliveryOrder['order_type'] | null) =>
+    !orderType || ['delivery', 'rental', 'home_try_on'].includes(orderType);
+
 /**
  * Create a new tracking record for an order
  * This should be called when an order status changes to 'out_for_delivery' or 'pickup_scheduled'
@@ -59,7 +62,7 @@ export async function createTrackingRecord(
     // Determine starting position based on order type
     // For delivery: start at hub
     // For pickup/return: start at user location
-    const startPosition = order.order_type === 'delivery'
+    const startPosition = isDeliveryLikeOrder(order.order_type)
         ? { lat: hub.lat, lng: hub.lng }
         : order.delivery_address_snapshot
             ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
@@ -71,7 +74,7 @@ export async function createTrackingRecord(
     }
 
     // Calculate initial ETA
-    const destination = order.order_type === 'delivery'
+    const destination = isDeliveryLikeOrder(order.order_type)
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 
@@ -162,7 +165,7 @@ export async function updateTrackingPosition(
         return false;
     }
 
-    const destination = order.order_type === 'delivery'
+    const destination = isDeliveryLikeOrder(order.order_type)
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 
@@ -307,13 +310,13 @@ export async function simulateVehicleMovement(
     }
 
     // Calculate route
-    const origin = order.order_type === 'delivery'
+    const origin = isDeliveryLikeOrder(order.order_type)
         ? { lat: hub.lat, lng: hub.lng }
         : order.delivery_address_snapshot
             ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
             : null;
 
-    const destination = order.order_type === 'delivery'
+    const destination = isDeliveryLikeOrder(order.order_type)
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 

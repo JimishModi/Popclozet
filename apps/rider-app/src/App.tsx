@@ -61,7 +61,7 @@ function App() {
 
     // ROLE CHECK: Block wrong roles with blocking screen
     // Skip if profile hasn't loaded yet (let them use the app)
-    if (profile && profile.role && profile.role !== 'rider' && profile.role !== 'customer') {
+    if (profile && profile.role && profile.role !== 'rider') {
         return <WrongRoleScreen expectedRole="rider" currentRole={profile.role} />;
     }
 

@@ -16,7 +16,13 @@ export interface Order {
   status?: string;
   lifecycle_state?: string;
   delivery_eta?: string;
+  rider_id?: string | null;
+  otp_delivery?: string | null;
+  otp_return?: string | null;
+  return_pickup_date?: string | null;
+  return_time_slot?: string | null;
   created_at: string;
+  delivery_address?: SavedAddressRecord | null;
 }
 
 export interface OrderItem {
@@ -24,10 +30,27 @@ export interface OrderItem {
   order_id: string;
   product_id: string;
   size?: string;
+  individual_id?: string | null;
   rental_price: number;
   deposit_amount?: number;
   rental_duration_days?: number;
   created_at?: string;
+  product?: {
+    id: string;
+    name: string;
+    images?: string[] | null;
+    rental_price?: number | null;
+    deposit_amount?: number | null;
+  } | null;
+}
+
+export interface SavedAddressRecord {
+  id: string;
+  label?: string | null;
+  full_address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_default?: boolean | null;
 }
 
 /**
@@ -60,14 +83,30 @@ export async function getOrderById(orderId: string): Promise<(Order & { items?: 
     .select(
       `
       *,
+      delivery_address:delivery_address_id (
+        id,
+        label,
+        full_address,
+        latitude,
+        longitude,
+        is_default
+      ),
       order_items (
         id,
         order_id,
         product_id,
         size,
+        individual_id,
         rental_price,
         deposit_amount,
-        rental_duration_days
+        rental_duration_days,
+        product:products (
+          id,
+          name,
+          images,
+          rental_price,
+          deposit_amount
+        )
       )
     `
     )
@@ -232,6 +271,7 @@ export async function getMyActiveRentals() {
         id,
         product_id,
         size,
+        individual_id,
         rental_price,
         rental_duration_days,
         item:products (
@@ -245,9 +285,11 @@ export async function getMyActiveRentals() {
     `)
     .eq("user_id", user.id)
     .in("status", [
-      "pending", "confirmed", "packed", "ready_for_pickup",
+      "pending", "confirmed", "packed", "ready_for_pickup", "rider_assigned",
       "driver_arrived_warehouse", "order_picked_up",
-      "dispatched", "out_for_delivery", "delivered", "in_use"
+      "dispatched", "out_for_delivery", "delivered", "in_use",
+      "return_requested", "return_scheduled", "return_dispatched",
+      "return_picked_up", "returned"
     ])
     .order("created_at", { ascending: false });
 
@@ -260,22 +302,49 @@ export async function getMyActiveRentals() {
 }
 
 /**
- * Schedule a return for an order.
+ * Load saved addresses for the current user.
  */
-export async function scheduleReturn(orderId: string, pickupDate: string, timeSlot: string) {
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      status: "return_requested",
-      return_pickup_date: pickupDate,
-      return_time_slot: timeSlot,
-    })
-    .eq("id", orderId);
+export async function getMySavedAddresses(): Promise<SavedAddressRecord[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("addresses")
+    .select("id, label, full_address, latitude, longitude, is_default")
+    .eq("user_id", user.id)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getMySavedAddresses error:", error);
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Schedule a return for an order through the server-side RPC.
+ */
+export async function scheduleReturn(
+  orderId: string,
+  pickupAddressId: string,
+  pickupSlotIso: string,
+  reason: string = "scheduled_return"
+) {
+  const { data, error } = await supabase.rpc("schedule_order_return", {
+    p_order_id: orderId,
+    p_pickup_address_id: pickupAddressId,
+    p_pickup_slot: pickupSlotIso,
+    p_reason: reason,
+  });
 
   if (error) {
     console.error("scheduleReturn error:", error);
     throw error;
   }
+
+  return data;
 }
 
 /**

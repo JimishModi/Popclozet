@@ -26,6 +26,7 @@ interface RentalItem {
     itemCount?: number;
     isInTransit?: boolean;
     isDelivered?: boolean;
+    isReturnInProgress?: boolean;
     hoursLeft?: number;
     minutesLeft?: number;
 }
@@ -89,12 +90,19 @@ const ClosetPage: React.FC = () => {
                 const timeInfo = rentalEndTime ? getRemainingRentalTime(order.rental_end_date) : { expired: false, days: 3, hours: 0, minutes: 0 };
 
                 // Status Logic:
-                // If status is 'delivered' or 'in_use' -> 'current'
-                // Else -> 'future' (ignore for now per user request)
+                // Keep active rentals visible through the scheduled return lifecycle.
                 const isDelivered = ['delivered', 'in_use'].includes(order.status);
                 const isInTransit = ['out_for_delivery', 'dispatched'].includes(order.status);
-                
-                const type = (isDelivered || isInTransit) ? 'current' : 'future';
+                const isReturnInProgress = [
+                    'return_requested',
+                    'return_scheduled',
+                    'return_dispatched',
+                    'return_picked_up',
+                    'return_at_warehouse',
+                    'returned',
+                ].includes(order.status);
+
+                const type = (isDelivered || isInTransit || isReturnInProgress) ? 'current' : 'future';
 
                 // Date label
                 let dateRange = 'Dates TBD';
@@ -123,6 +131,7 @@ const ClosetPage: React.FC = () => {
                     arrivalDays,
                     isInTransit,
                     isDelivered,
+                    isReturnInProgress,
                     itemCount: order.order_items?.length || 0
                 };
             });

@@ -1,82 +1,64 @@
 /**
  * SubscriptionPlansPage — Choose your plan with a premium glassmorphic UI
+ * Fetches real plans from the database via subscriptionService
  */
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { ArrowLeft, Check, Sparkles, Zap, Trophy, ChevronRight } from "lucide-react";
+import { Check, CheckCircle2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { getSubscriptionPlans, SubscriptionPlan, getActiveSubscription, UserSubscription } from "@/services/subscriptionService";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
-type PlanId = "essential" | "standard" | "future";
-
-interface Plan {
-    id: PlanId;
-    name: string;
-    price: number;
-    tagline: string;
-    features: { label: string; spec: string }[];
-    icon: any;
-    color: string;
-}
-
-const PLANS: Plan[] = [
-    {
-        id: "essential" as PlanId,
-        name: "Basic",
-        price: 4250,
-        tagline: "Start your fashion journey",
-        icon: Zap,
-        color: "#831a28",
-        features: [
-            { label: "Feature 1", spec: "Feature 1" },
-            { label: "Feature 2", spec: "Feature 2" },
-            { label: "Feature 3", spec: "Feature 3" },
-        ],
-    },
-    {
-        id: "standard" as PlanId,
-        name: "Standard",
-        price: 4250,
-        tagline: "The perfect balance",
-        icon: Sparkles,
-        color: "#831a28",
-        features: [
-            { label: "Feature 1", spec: "Feature 1" },
-            { label: "Feature 2", spec: "Feature 2" },
-            { label: "Feature 3", spec: "Feature 3" },
-        ],
-    },
-    {
-        id: "future" as PlanId,
-        name: "Pro",
-        price: 4250,
-        tagline: "Ultimate fashion access",
-        icon: Trophy,
-        color: "#831a28",
-        features: [
-            { label: "Feature 1", spec: "Feature 1" },
-            { label: "Feature 2", spec: "Feature 2" },
-            { label: "Feature 3", spec: "Feature 3" },
-        ],
-    },
-];
-
 export default function SubscriptionPlansPage() {
     const navigate = useNavigate();
-    const [selectedPlanId, setSelectedPlanId] = useState<PlanId>("essential");
+    const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+    const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+    const [currentSub, setCurrentSub] = useState<UserSubscription | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const selectedPlan = PLANS.find((p) => p.id === selectedPlanId)!;
+    useEffect(() => {
+        const init = async () => {
+            const fetchedPlans = await getSubscriptionPlans();
+            setPlans(fetchedPlans);
+            
+            const activeSub = await getActiveSubscription();
+            setCurrentSub(activeSub);
+
+            if (activeSub) {
+                setSelectedPlanId(activeSub.plan_id);
+            } else if (fetchedPlans.length > 0) {
+                setSelectedPlanId(fetchedPlans[0].id);
+            }
+            setIsLoading(false);
+        };
+        init();
+    }, []);
+
+    if (isLoading) {
+        return (
+            <MobileShell className="bg-black text-white">
+                <div className="flex flex-col items-center justify-center h-full">
+                    <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                    <p className="mt-4 text-white/60">Loading available plans...</p>
+                </div>
+            </MobileShell>
+        );
+    }
 
     return (
         <MobileShell className="bg-black text-white">
             <div className="flex flex-col h-full px-6 py-8">
-                {/* User Profile / Icon at top right */}
-                <div className="flex justify-end mb-4">
+                {/* Header with Back Button and User Icon */}
+                <div className="flex justify-between items-center mb-6">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
+                    >
+                        <ArrowLeft className="w-6 h-6 text-white" />
+                    </button>
                     <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
                         <span className="text-emerald-500 font-bold text-sm">A</span>
                     </div>
@@ -85,8 +67,11 @@ export default function SubscriptionPlansPage() {
                 <h1 className="text-3xl font-bold mb-10 text-white" style={dmSans}>Choose your plan</h1>
 
                 <div className="space-y-4 flex-1 overflow-y-auto">
-                    {PLANS.map((plan) => {
+                    {plans.map((plan) => {
                         const isSelected = selectedPlanId === plan.id;
+                        const isCurrent = currentSub?.plan_id === plan.id;
+                        const includedFeatures = (plan.features as any[]).filter(f => f.included);
+
                         return (
                             <button
                                 key={plan.id}
@@ -98,6 +83,11 @@ export default function SubscriptionPlansPage() {
                                         : "bg-[#280a0e] border-transparent"
                                 )}
                             >
+                                {isCurrent && (
+                                    <div className="absolute top-4 right-4 bg-emerald-500/20 text-emerald-500 text-[10px] font-black tracking-widest px-2 py-1 rounded-md border border-emerald-500/30 uppercase">
+                                        Current Plan
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-4">
@@ -106,18 +96,26 @@ export default function SubscriptionPlansPage() {
                                                     <Check className="w-5 h-5 text-[#831a28] stroke-[3]" />
                                                 </div>
                                             )}
-                                            {/* Dummy features as per image */}
+                                            {/* Real features from plan */}
                                             <div className="flex-1 flex justify-around text-[11px] font-medium text-white/60">
                                                 <div className="space-y-1">
-                                                    <p>Feature 1</p>
-                                                    <p>Feature 2</p>
-                                                    <p>Feature 3</p>
+                                                    {includedFeatures.slice(0, 3).map(f => (
+                                                        <p key={f.id} className="flex items-center gap-1">
+                                                            <CheckCircle2 className="w-3 h-3 text-emerald-400 inline" />
+                                                            {f.name}
+                                                        </p>
+                                                    ))}
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <p>Feature 1</p>
-                                                    <p>Feature 2</p>
-                                                    <p>Feature 3</p>
-                                                </div>
+                                                {includedFeatures.length > 3 && (
+                                                    <div className="space-y-1">
+                                                        {includedFeatures.slice(3, 6).map(f => (
+                                                            <p key={f.id} className="flex items-center gap-1">
+                                                                <CheckCircle2 className="w-3 h-3 text-emerald-400 inline" />
+                                                                {f.name}
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -137,12 +135,19 @@ export default function SubscriptionPlansPage() {
                 <div className="mt-8">
                     <button
                         onClick={() => {
-                            navigate(`/payment-processing?planId=${selectedPlanId}`);
+                            if (currentSub?.plan_id === selectedPlanId) return;
+                            navigate(`/payment-processing?type=plan&planId=${selectedPlanId}`);
                         }}
-                        className="w-full py-5 rounded-[24px] bg-[#f2546d] text-white font-bold text-lg tracking-tight shadow-xl shadow-[#f2546d]/30 active:scale-[0.98] transition-all"
+                        disabled={currentSub?.plan_id === selectedPlanId}
+                        className={cn(
+                            "w-full py-5 rounded-[24px] font-bold text-lg tracking-tight shadow-xl transition-all active:scale-[0.98]",
+                            currentSub?.plan_id === selectedPlanId
+                                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none"
+                                : "bg-[#f2546d] text-white shadow-[#f2546d]/30"
+                        )}
                         style={dmSans}
                     >
-                        Next
+                        {currentSub?.plan_id === selectedPlanId ? "CURRENT MEMBERSHIP" : "Next"}
                     </button>
                 </div>
             </div>

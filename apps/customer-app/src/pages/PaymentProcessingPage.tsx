@@ -15,7 +15,9 @@ export default function PaymentProcessingPage() {
     const method = searchParams.get("method") || "upi";
     const upiApp = searchParams.get("upiApp");
     const upiId = searchParams.get("upiId");
-
+    
+    // Add isUpi logic to avoid next IDE errors
+    const isUpi = method === "upi";
     useEffect(() => {
         // Simulate payment processing time
         const timer = setTimeout(() => {
@@ -23,14 +25,13 @@ export default function PaymentProcessingPage() {
                 // Navigate to order confirmed page directly
                 navigate(`/order-confirmed/${orderId}`, { replace: true });
             } else {
-                navigate(`/payment-success?planId=${planId}`, { replace: true });
+                navigate(`/payment-success?type=${type}&planId=${planId}`, { replace: true });
             }
         }, 3500);
 
         return () => clearTimeout(timer);
     }, [navigate, planId, type, orderId, amount, method]);
 
-    const isUpi = method === "upi";
 
     return (
         <MobileShell className="bg-black text-white" hideBottomNav>

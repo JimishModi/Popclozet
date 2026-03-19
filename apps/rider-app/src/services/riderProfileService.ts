@@ -91,34 +91,63 @@ export async function getRiderProfile(
     };
   }
 
-  // Real DB Query - Fallback to profiles table since 'riders' might not exist
-  const { data, error } = await supabase
-    .from('profiles')
+  const { data: riderData, error: riderError } = await supabase
+    .from('riders')
     .select('*')
-    .eq('user_id', riderId) // corrected column
+    .or(`id.eq.${riderId},user_id.eq.${riderId}`)
     .maybeSingle();
 
-  if (error || !data) {
-    console.warn('Real rider profile not found, returning null');
+  if (!riderError && riderData) {
+    return {
+      id: riderData.id,
+      userId: riderData.user_id ?? riderData.id,
+      name: riderData.name ?? null,
+      phone: riderData.phone ?? null,
+      email: riderData.email ?? null,
+      avatarUrl: riderData.avatar_url ?? null,
+      vehicleType: riderData.vehicle_type ?? null,
+      vehicleNumber: riderData.vehicle_number ?? null,
+      licenseNumber: riderData.license_number ?? null,
+      status: riderData.status ?? 'offline',
+      rating: Number(riderData.rating ?? 5),
+      totalDeliveries: riderData.total_deliveries ?? 0,
+      joinedAt: riderData.joined_at ?? new Date().toISOString(),
+      isVerified: Boolean(riderData.is_verified ?? false),
+      documentsStatus: {
+        drivingLicense: 'pending',
+        vehicleRC: 'pending',
+        insurance: 'pending',
+        idProof: 'pending',
+      },
+    };
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', riderId)
+    .maybeSingle();
+
+  if (profileError || !profileData) {
+    console.warn('Real rider profile not found in riders or profiles, returning null');
     return null;
   }
 
   return {
-    id: data.id,
-    userId: data.user_id,
-    name: data.full_name ?? null,
-    phone: data.phone ?? null,
-    email: data.email ?? null,
-    avatarUrl: data.avatar_url ?? null,
-    // Default valid values for missing columns
+    id: profileData.id,
+    userId: profileData.user_id,
+    name: profileData.full_name ?? null,
+    phone: profileData.phone ?? null,
+    email: profileData.email ?? null,
+    avatarUrl: profileData.avatar_url ?? null,
     vehicleType: 'bike',
     vehicleNumber: null,
     licenseNumber: null,
-    status: (data.role === 'rider') ? 'offline' : 'offline',
+    status: 'offline',
     rating: 5.0,
     totalDeliveries: 0,
-    joinedAt: data.created_at,
-    isVerified: true, // assume verified if profile exists for now
+    joinedAt: profileData.created_at,
+    isVerified: true,
     documentsStatus: {
       drivingLicense: 'pending',
       vehicleRC: 'pending',
@@ -171,21 +200,28 @@ export async function updateRiderStatus(
   riderId: string,
   status: 'online' | 'offline' | 'busy'
 ): Promise<{ success: boolean; error?: string }> {
-  // Store status in profile metadata or handle locally.
-  // Currently the 'profiles' table might not have a 'status' column.
-  // For the rider app, getting orders happens via 'isOnline' local state in UI.
-  // We'll log the update and return success to unblock the toggle switch UI.
-  
   try {
-    // Optional: try to update a jsonb metadata field if it exists, otherwise just soft-fail
-    // This allows the UI state to change and trigger realtime subscriptions
     const { error } = await supabase
+      .from('riders')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .or(`id.eq.${riderId},user_id.eq.${riderId}`);
+
+    if (!error) {
+      return { success: true };
+    }
+
+    console.warn('Update riders.status failed, falling back to profiles metadata:', error.message);
+
+    const { error: profileError } = await supabase
       .from('profiles')
       .update({ updated_at: new Date().toISOString() })
       .eq('user_id', riderId);
-      
-    if (error) {
-       console.warn('Update rider status metadata failed (non-critical):', error.message);
+
+    if (profileError) {
+      console.warn('Update rider status metadata failed (non-critical):', profileError.message);
     }
   } catch (err) {
     console.warn('Silent fail for rider status DB update');

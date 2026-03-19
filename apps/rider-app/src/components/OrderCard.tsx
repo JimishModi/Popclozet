@@ -10,7 +10,7 @@ import { clsx } from 'clsx';
 
 export interface OrderCardProps {
     id: string;
-    orderType?: 'delivery' | 'pickup'; // NEW: Order type for badge
+    orderType?: 'delivery' | 'pickup' | 'return';
     pickup: {
         name: string;
         address: string;
@@ -86,9 +86,11 @@ export function OrderCard({
                         "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide",
                         orderType === 'delivery'
                             ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                            : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                            : orderType === 'return'
+                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                     )}>
-                        {orderType === 'delivery' ? '📦 Delivery' : '🔄 Pickup'}
+                        {orderType === 'delivery' ? '📦 Delivery' : orderType === 'return' ? '↩ Return' : '🔄 Pickup'}
                     </span>
                 )}
                 <span className="px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold bg-zinc-800/80 text-zinc-400 border border-zinc-700/50 backdrop-blur-sm self-start">

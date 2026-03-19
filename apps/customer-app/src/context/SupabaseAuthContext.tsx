@@ -2,28 +2,11 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@popclozet/api-client";
 import { clearUserDataDB } from "@/lib/db";
-// Inline profile service methods since the separate file is missing
-const getCurrentProfile = async (userId: string) => {
-  const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
-  if (error && error.code !== 'PGRST116') throw error;
-  return data;
-};
-
-const serviceUpdateProfile = async (updates: any) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not logged in");
-  const { data, error } = await supabase.from('profiles').update(updates).eq('user_id', user.id).select().single();
-  if (error) throw error;
-  return data;
-};
-
-const createProfile = async (profileInput: any) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not logged in");
-  const { data, error } = await supabase.from('profiles').insert([{ ...profileInput, id: user.id, user_id: user.id }]).select().single();
-  if (error) throw error;
-  return data;
-};
+import {
+  createProfile,
+  getCurrentProfile,
+  updateProfile as saveProfileUpdates,
+} from "@/services/profileService";
 import type { UserProfile } from "@popclozet/domain-contracts";
 
 // ── Local profile cache (avoids Supabase cold-start delay) ──
@@ -292,14 +275,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const current = await getCurrentProfile(user.id);
 
       if (current) {
-        // use server helper that updates by user_id
-        const updated = await serviceUpdateProfile(updates);
+        const updated = await saveProfileUpdates(updates);
         setProfile(updated as any);
       } else {
-        // ensure phone is present for DB NOT NULL constraints
         const created = await createProfile({
           full_name: updates.full_name || "",
           phone: updates.phone || (user.phone || ""),
+          email: updates.email || user.email || "",
+          gender: updates.gender,
+          role: "customer",
         });
 
         setProfile(created as any);

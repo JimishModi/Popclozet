@@ -33,40 +33,79 @@ interface DeliveryTrackerProps {
     onTrackingUpdate?: (tracking: TrackingData) => void;
 }
 
-// Extend DeliveryOrder locally to include otp_delivery + rider_id
 interface DeliveryOrderWithOtp extends DeliveryOrder {
     otp_delivery?: string | null;
+    otp_return?: string | null;
     rider_id?: string | null;
 }
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ReactNode }[] = [
+const DELIVERY_STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ReactNode }[] = [
     { status: 'confirmed', label: 'Order Confirmed', icon: <CheckCircle className="w-4 h-4" /> },
     { status: 'packed', label: 'Preparing', icon: <Package className="w-4 h-4" /> },
     { status: 'ready_for_pickup', label: 'Ready for Pickup', icon: <Package className="w-4 h-4" /> },
+    { status: 'rider_assigned' as OrderStatus, label: 'Rider Assigned', icon: <Truck className="w-4 h-4" /> },
     { status: 'driver_arrived_warehouse', label: 'Rider at Warehouse', icon: <Truck className="w-4 h-4" /> },
     { status: 'order_picked_up', label: 'Package Collected', icon: <Package className="w-4 h-4" /> },
     { status: 'out_for_delivery', label: 'On the Way', icon: <MapPin className="w-4 h-4" /> },
     { status: 'delivered', label: 'Delivered', icon: <CheckCircle className="w-4 h-4" /> },
 ];
 
-function getLogicalStepIndex(status?: string): number {
+const RETURN_STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ReactNode }[] = [
+    { status: 'return_requested', label: 'Request Received', icon: <CheckCircle className="w-4 h-4" /> },
+    { status: 'return_scheduled', label: 'Pickup Scheduled', icon: <Clock className="w-4 h-4" /> },
+    { status: 'return_dispatched', label: 'Rider On The Way', icon: <Truck className="w-4 h-4" /> },
+    { status: 'return_picked_up', label: 'Return Collected', icon: <Package className="w-4 h-4" /> },
+    { status: 'return_at_warehouse' as OrderStatus, label: 'At Warehouse', icon: <MapPin className="w-4 h-4" /> },
+    { status: 'returned', label: 'Received & Processing', icon: <Package className="w-4 h-4" /> },
+    { status: 'return_completed', label: 'Available Again', icon: <CheckCircle className="w-4 h-4" /> },
+];
+
+function isReturnFlowStatus(status?: string): boolean {
+    return [
+        'return_requested',
+        'return_scheduled',
+        'return_dispatched',
+        'return_picked_up',
+        'return_at_warehouse',
+        'returned',
+        'return_completed',
+    ].includes(status ?? '');
+}
+
+function getLogicalStepIndex(status?: string, isReturnFlow?: boolean): number {
     if (!status) return -1;
+
+    if (isReturnFlow) {
+        switch (status.toLowerCase()) {
+            case 'return_requested': return 0;
+            case 'return_scheduled': return 1;
+            case 'return_dispatched': return 2;
+            case 'return_picked_up': return 3;
+            case 'return_at_warehouse': return 4;
+            case 'returned': return 5;
+            case 'return_completed': return 6;
+            default: return -1;
+        }
+    }
+
     switch (status.toLowerCase()) {
         case 'pending': case 'confirmed': case 'pending_payment': case 'placed': return 0;
         case 'preparing': case 'packed': return 1;
         case 'ready_for_pickup': return 2;
-        case 'driver_arrived_warehouse': return 3;
-        case 'order_picked_up': case 'dispatched': return 4;
-        case 'out_for_delivery': return 5;
-        case 'delivered': case 'completed': return 6;
+        case 'rider_assigned': return 3;
+        case 'driver_arrived_warehouse': return 4;
+        case 'order_picked_up': case 'dispatched': return 5;
+        case 'out_for_delivery': return 6;
+        case 'delivered': case 'completed': return 7;
         default: return -1;
     }
 }
 
-const TRANSIT_STATUSES = new Set(['dispatched', 'out_for_delivery', 'order_picked_up']);
+const DELIVERY_TRANSIT_STATUSES = new Set(['dispatched', 'out_for_delivery', 'order_picked_up']);
+const RETURN_TRANSIT_STATUSES = new Set(['return_dispatched', 'return_picked_up']);
 
 const SIMULATED_DRIVER: Pick<TrackingData, 'driver_name' | 'vehicle_number' | 'eta_minutes'> = {
     driver_name: 'Ravi Kumar (Simulated)',
@@ -102,7 +141,7 @@ export function DeliveryTracker({
             // Fetch order including otp_delivery field
             const { data: raw, error: fetchErr } = await supabase
                 .from('orders')
-                .select('*, otp_delivery')
+                .select('*, otp_delivery, delivery_address:delivery_address_id (full_address, latitude, longitude)')
                 .eq('id', orderId)
                 .single();
 
@@ -114,6 +153,14 @@ export function DeliveryTracker({
                 const otp = String(Math.floor(1000 + Math.random() * 9000));
                 await supabase.from('orders').update({ otp_delivery: otp }).eq('id', raw.id);
                 raw.otp_delivery = otp;
+            }
+
+            if (raw && !raw.delivery_address_snapshot && raw.delivery_address) {
+                raw.delivery_address_snapshot = {
+                    full_address: raw.delivery_address.full_address,
+                    lat: raw.delivery_address.latitude,
+                    lng: raw.delivery_address.longitude,
+                };
             }
 
             const orderData = raw as unknown as DeliveryOrderWithOtp;
@@ -210,7 +257,15 @@ export function DeliveryTracker({
 
     // ── Derived values ────────────────────────────────────────────────────────
 
-    const currentStepIndex = useMemo(() => getLogicalStepIndex(order?.status), [order?.status]);
+    const isReturnFlow = useMemo(() => isReturnFlowStatus(order?.status), [order?.status]);
+    const statusSteps = useMemo(
+        () => (isReturnFlow ? RETURN_STATUS_STEPS : DELIVERY_STATUS_STEPS),
+        [isReturnFlow],
+    );
+    const currentStepIndex = useMemo(
+        () => getLogicalStepIndex(order?.status, isReturnFlow),
+        [order?.status, isReturnFlow],
+    );
 
     const userLocation = useMemo(() => {
         const snap = order?.delivery_address_snapshot;
@@ -222,15 +277,15 @@ export function DeliveryTracker({
     );
 
     const { routeOrigin, routeDestination } = useMemo(() => {
-        const isDelivery = order?.order_type === 'delivery';
         return {
-            routeOrigin: isDelivery ? hubLocation : userLocation,
-            routeDestination: isDelivery ? userLocation : hubLocation,
+            routeOrigin: isReturnFlow ? userLocation : hubLocation,
+            routeDestination: isReturnFlow ? hubLocation : userLocation,
         };
-    }, [order?.order_type, hubLocation, userLocation]);
+    }, [hubLocation, isReturnFlow, userLocation]);
 
     const isTransitStatus = useMemo(
-        () => TRANSIT_STATUSES.has(order?.status ?? ''), [order?.status],
+        () => (isReturnFlow ? RETURN_TRANSIT_STATUSES : DELIVERY_TRANSIT_STATUSES).has(order?.status ?? ''),
+        [isReturnFlow, order?.status],
     );
 
     const shouldSimulate = useMemo(
@@ -261,16 +316,18 @@ export function DeliveryTracker({
 
     // ── Copy OTP ──────────────────────────────────────────────────────────────
 
+    const activeOtp = isReturnFlow ? order?.otp_return : order?.otp_delivery;
+
     const handleCopyOtp = useCallback(async () => {
-        if (!order?.otp_delivery) return;
+        if (!activeOtp) return;
         try {
-            await navigator.clipboard.writeText(order.otp_delivery);
+            await navigator.clipboard.writeText(activeOtp);
             setOtpCopied(true);
             setTimeout(() => setOtpCopied(false), 2_000);
         } catch {
             // clipboard unavailable — OTP is already visible on screen
         }
-    }, [order?.otp_delivery]);
+    }, [activeOtp]);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
@@ -306,17 +363,18 @@ export function DeliveryTracker({
 
     const progressPct = currentStepIndex < 0
         ? 0
-        : (currentStepIndex / (STATUS_STEPS.length - 1)) * 100;
+        : (currentStepIndex / (statusSteps.length - 1)) * 100;
 
-    // Show OTP card when rider is out for delivery or has arrived at customer
-    const showOtpCard = !!(order?.otp_delivery) && [
-        'out_for_delivery', 'dispatched', 'order_picked_up',
-    ].includes(order?.status ?? '');
+    const showOtpCard = !!activeOtp && (
+        isReturnFlow
+            ? ['return_dispatched', 'return_picked_up'].includes(order?.status ?? '')
+            : ['out_for_delivery', 'dispatched', 'order_picked_up'].includes(order?.status ?? '')
+    );
 
     return (
         <div className={className}>
             {/* ── Finding Rider State ── */}
-            {order.status === 'ready_for_pickup' && !order.rider_id && (
+            {(((order.status === 'ready_for_pickup' || order.status === 'rider_assigned') && !isReturnFlow) || order.status === 'return_scheduled') && (
                 <div className="mb-5 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 overflow-hidden relative">
                     <motion.div
                         className="absolute inset-0 bg-blue-500/10 pointer-events-none"
@@ -337,29 +395,37 @@ export function DeliveryTracker({
                                         <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}>.</motion.span>
                                     </span>
                                 </h4>
-                                <p className="text-xs text-blue-200/80 mt-0.5">Broadcasting your order to nearby riders...</p>
+                                <p className="text-xs text-blue-200/80 mt-0.5">
+                                    {isReturnFlow
+                                        ? 'Broadcasting your scheduled return to nearby riders...'
+                                        : 'Broadcasting your order to nearby riders...'}
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Delivery OTP card ── */}
+            {/* ── Delivery / Return OTP card ── */}
             {showOtpCard && (
                 <div className="mb-5 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <KeyRound size={16} className="text-indigo-400" />
                             <div>
-                                <p className="text-xs font-semibold text-indigo-300">Your Delivery Code</p>
+                                <p className="text-xs font-semibold text-indigo-300">
+                                    {isReturnFlow ? 'Your Return Pickup Code' : 'Your Delivery Code'}
+                                </p>
                                 <p className="text-xs text-zinc-400 mt-0.5">
-                                    Show this to the rider when they arrive
+                                    {isReturnFlow
+                                        ? 'Show this to the rider when they arrive for pickup'
+                                        : 'Show this to the rider when they arrive'}
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-3xl font-mono font-bold tracking-[0.2em] text-white">
-                                {order.otp_delivery}
+                                {activeOtp}
                             </span>
                             <button
                                 onClick={handleCopyOtp}
@@ -379,7 +445,9 @@ export function DeliveryTracker({
             {/* ── Status timeline ── */}
             <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-zinc-400">Order Status</h3>
+                    <h3 className="text-sm font-semibold text-zinc-400">
+                        {isReturnFlow ? 'Return Status' : 'Order Status'}
+                    </h3>
                     <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800/50 px-2 py-0.5 rounded border border-zinc-700/30">
                         #{order.id.slice(0, 8).toUpperCase()}
                     </span>
@@ -396,11 +464,11 @@ export function DeliveryTracker({
                     />
 
                     <div className="space-y-6">
-                        {STATUS_STEPS.map((step, index) => {
+                        {statusSteps.map((step, index) => {
                             const isActive = index <= currentStepIndex;
                             const isCurrent = index === currentStepIndex;
                             return (
-                                <div key={step.status} className="flex items-center gap-4">
+                                <div key={`${step.status}-${index}`} className="flex items-center gap-4">
                                     <div className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-[#ff4d6d] text-white' : 'bg-zinc-800 text-zinc-500'
                                         }`}>
                                         {step.icon}
@@ -434,7 +502,9 @@ export function DeliveryTracker({
                     <div className="flex items-start gap-3">
                         <MapPin className="w-5 h-5 text-[#ff4d6d] flex-shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-sm font-medium text-white">Delivery Address</p>
+                            <p className="text-sm font-medium text-white">
+                                {isReturnFlow ? 'Pickup Address' : 'Delivery Address'}
+                            </p>
                             <p className="text-xs text-zinc-400 mt-0.5">
                                 {order.delivery_address_snapshot.full_address}
                             </p>

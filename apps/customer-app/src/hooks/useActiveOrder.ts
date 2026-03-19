@@ -24,10 +24,17 @@ const ACTIVE_STATUSES = [
     'confirmed',
     'packed',
     'ready_for_pickup',
+    'rider_assigned',
     'driver_arrived_warehouse',
     'order_picked_up',
     'dispatched',
     'out_for_delivery',
+    'return_requested',
+    'return_scheduled',
+    'return_dispatched',
+    'return_picked_up',
+    'return_at_warehouse',
+    'returned',
 ];
 
 export function useActiveOrder() {

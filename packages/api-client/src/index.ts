@@ -131,15 +131,22 @@ export const getAllowedTransitions = (
             order_picked_up: ['dispatched'],
             dispatched: ['out_for_delivery'],
             out_for_delivery: ['delivered'],
+            return_scheduled: ['return_dispatched'],
+            return_dispatched: ['return_picked_up'],
+            return_picked_up: ['return_at_warehouse'],
         },
         customer: {
             pending: ['cancelled'],
             delivered: ['return_requested'],
+            in_use: ['return_requested'],
         },
         warehouse: {
             pending: ['confirmed'],
             confirmed: ['packed'],
             packed: ['ready_for_pickup'],
+            return_requested: ['return_scheduled'],
+            return_at_warehouse: ['returned'],
+            returned: ['return_completed'],
         },
     };
 

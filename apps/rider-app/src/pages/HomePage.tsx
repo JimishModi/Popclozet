@@ -44,7 +44,9 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 interface IncomingOrder {
     id: string;
     notificationId: string;   // needed for decline
-    orderType: 'delivery' | 'pickup';
+    source: 'assigned' | 'notification' | 'direct';
+    workflowStatus: string;
+    orderType: 'delivery' | 'pickup' | 'return';
     pickup: { name: string; address: string };
     dropoff: { name: string; address: string };
     customerName: string;
@@ -57,11 +59,51 @@ interface IncomingOrder {
 
 // ─── Mapper ───────────────────────────────────────────────────────────────────
 
-const ORDER_SELECT = '*, addresses:delivery_address_id(full_address, latitude, longitude)';
+const ORDER_SELECT = '*, addresses:delivery_address_id(full_address, latitude, longitude), order_items(id)';
+const ASSIGNED_ORDER_STATUSES = [
+    'rider_assigned',
+    'ready_for_pickup',
+    'driver_arrived_warehouse',
+    'order_picked_up',
+    'dispatched',
+    'out_for_delivery',
+    'return_scheduled',
+    'return_dispatched',
+    'return_picked_up',
+] as const;
+
+function getIncomingOrderCardStatus(order: IncomingOrder): 'pending' | 'accepted' | 'picked_up' | 'delivering' {
+    if (order.source !== 'assigned') return 'pending';
+
+    if (['order_picked_up', 'dispatched'].includes(order.workflowStatus)) {
+        return 'picked_up';
+    }
+
+    if (['out_for_delivery', 'return_scheduled', 'return_dispatched', 'return_picked_up'].includes(order.workflowStatus)) {
+        return 'delivering';
+    }
+
+    return 'accepted';
+}
+
+function getAssignedOrderRoute(order: IncomingOrder): string {
+    if (order.orderType === 'return' || ['out_for_delivery', 'return_scheduled', 'return_dispatched', 'return_picked_up'].includes(order.workflowStatus)) {
+        return `/delivery/${order.id}`;
+    }
+
+    return `/warehouse/${order.id}`;
+}
+
+function getAssignedActionLabel(order: IncomingOrder): string {
+    if (order.orderType === 'return') return 'Open Return Pickup';
+    if (order.workflowStatus === 'out_for_delivery') return 'Open Delivery';
+    return 'Open Warehouse Pickup';
+}
 
 function mapDbOrderToIncoming(
     dbOrder: any,
     notificationId: string,
+    source: IncomingOrder['source'],
 ): IncomingOrder {
     const addr = dbOrder.addresses;
     const fullAddr = addr?.full_address ?? 'Customer Address';
@@ -70,15 +112,24 @@ function mapDbOrderToIncoming(
         : 1;
     const estimatedKm = dbOrder.route_distance_km ?? 3;
     const etaMinutes = dbOrder.delivery_eta
-        ? Math.round(dbOrder.delivery_eta)
+        ? Math.max(1, Math.round((new Date(dbOrder.delivery_eta).getTime() - Date.now()) / 60000))
         : Math.round(estimatedKm * 3);
+    const isReturn = ['return_scheduled', 'return_dispatched', 'return_picked_up'].includes(dbOrder.status);
 
     return {
         id: dbOrder.id,
         notificationId,
-        orderType: dbOrder.order_type === 'pickup' || dbOrder.order_type === 'return' ? 'pickup' : 'delivery',
-        pickup: { name: 'PopClozet Warehouse', address: 'Near IIT Main Gate, Powai' },
-        dropoff: { name: 'Customer', address: fullAddr },
+        source,
+        workflowStatus: dbOrder.status ?? 'ready_for_pickup',
+        orderType: isReturn
+            ? 'return'
+            : (dbOrder.order_type === 'pickup' || dbOrder.order_type === 'return' ? 'pickup' : 'delivery'),
+        pickup: isReturn
+            ? { name: 'Customer Pickup', address: fullAddr }
+            : { name: 'PopClozet Warehouse', address: 'Near IIT Main Gate, Powai' },
+        dropoff: isReturn
+            ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
+            : { name: 'Customer', address: fullAddr },
         customerName: 'Customer',
         itemCount,
         earnings: dbOrder.delivery_fee > 0
@@ -108,6 +159,7 @@ export function HomePage() {
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const dismissedDirectOrderIdsRef = useRef<Set<string>>(new Set());
 
     // ── Stable fetch: single source of truth for "what order am I showing?" ──
     //
@@ -117,6 +169,25 @@ export function HomePage() {
     const fetchPendingOrder = useCallback(async () => {
         if (!user?.id) return;
         try {
+            const { data: assignedOrders, error: assignedError } = await supabase
+                .from('orders')
+                .select(ORDER_SELECT)
+                .eq('rider_id', user.id)
+                .in('status', [...ASSIGNED_ORDER_STATUSES])
+                .order('updated_at', { ascending: false })
+                .limit(1);
+
+            if (assignedError) {
+                console.error('[HomePage] fetchAssignedOrders:', assignedError);
+            }
+
+            if (assignedOrders?.length) {
+                setPendingOrder(
+                    mapDbOrderToIncoming(assignedOrders[0], `assigned:${assignedOrders[0].id}`, 'assigned'),
+                );
+                return;
+            }
+
             const { data: notifs } = await supabase
                 .from('rider_notifications')
                 .select('id, order_id')
@@ -126,7 +197,31 @@ export function HomePage() {
                 .limit(1);
 
             if (!notifs?.length) {
-                setPendingOrder(null);
+                const { data: availableOrders, error: availableError } = await supabase
+                    .from('orders')
+                    .select(ORDER_SELECT)
+                    .is('rider_id', null)
+                    .in('status', ['ready_for_pickup', 'return_scheduled'])
+                    .order('updated_at', { ascending: false })
+                    .limit(10);
+
+                if (availableError) {
+                    console.error('[HomePage] fetchAvailableOrders:', availableError);
+                    setPendingOrder(null);
+                    return;
+                }
+
+                const nextDirectOrder = (availableOrders ?? []).find(
+                    (order: any) => !dismissedDirectOrderIdsRef.current.has(order.id),
+                );
+
+                if (nextDirectOrder) {
+                    setPendingOrder(
+                        mapDbOrderToIncoming(nextDirectOrder, `direct:${nextDirectOrder.id}`, 'direct'),
+                    );
+                } else {
+                    setPendingOrder(null);
+                }
                 return;
             }
 
@@ -138,7 +233,7 @@ export function HomePage() {
                 .single();
 
             if (orderData) {
-                setPendingOrder(mapDbOrderToIncoming(orderData, notif.id));
+                setPendingOrder(mapDbOrderToIncoming(orderData, notif.id, 'notification'));
             } else {
                 setPendingOrder(null);
             }
@@ -215,9 +310,25 @@ export function HomePage() {
                         .single();
 
                     if (orderData) {
-                        setPendingOrder(mapDbOrderToIncoming(orderData, n.id));
+                        setPendingOrder(mapDbOrderToIncoming(orderData, n.id, 'notification'));
                         setIsSearching(false);
                     }
+                },
+            )
+            .subscribe();
+
+        const assignedOrdersChannel = supabase
+            .channel(`rider-orders-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `rider_id=eq.${user.id}`,
+                },
+                () => {
+                    void fetchPendingOrder();
                 },
             )
             .subscribe();
@@ -236,6 +347,7 @@ export function HomePage() {
                 supabase.removeChannel(channelRef.current);
                 channelRef.current = null;
             }
+            supabase.removeChannel(assignedOrdersChannel);
             if (pollingRef.current) {
                 clearInterval(pollingRef.current);
                 pollingRef.current = null;
@@ -273,14 +385,25 @@ export function HomePage() {
     const handleAcceptOrder = useCallback(async () => {
         if (!pendingOrder || !user?.id) return;
 
+        if (pendingOrder.source === 'assigned') {
+            navigate(getAssignedOrderRoute(pendingOrder));
+            return;
+        }
+
         const result = await claimOrder(pendingOrder.id, user.id);
 
         // Remove the card regardless of outcome — never leave a stale card showing
+        dismissedDirectOrderIdsRef.current.delete(pendingOrder.id);
         setPendingOrder(null);
 
         if (result.success) {
-            showToast('Order accepted! Head to the warehouse.', 'success');
-            navigate(`/warehouse/${pendingOrder.id}`);
+            if (pendingOrder.orderType === 'return') {
+                showToast('Return accepted! Head to the customer for pickup.', 'success');
+                navigate(`/delivery/${pendingOrder.id}`);
+            } else {
+                showToast('Order accepted! Head to the warehouse.', 'success');
+                navigate(`/warehouse/${pendingOrder.id}`);
+            }
             return;
         }
 
@@ -306,7 +429,12 @@ export function HomePage() {
         setIsSearching(true);
 
         try {
-            await declineOrderNotification(notifId);
+            if (notifId.startsWith('direct:')) {
+                dismissedDirectOrderIdsRef.current.add(pendingOrder.id);
+                showToast('Order hidden for this session.', 'info');
+            } else {
+                await declineOrderNotification(notifId);
+            }
             // After declining, check if there's another order waiting
             await fetchPendingOrder();
         } catch (err) {
@@ -314,7 +442,7 @@ export function HomePage() {
         } finally {
             setIsSearching(false);
         }
-    }, [pendingOrder, user?.id, fetchPendingOrder]);
+    }, [pendingOrder, user?.id, fetchPendingOrder, showToast]);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
@@ -374,21 +502,30 @@ export function HomePage() {
                         >
                             <OrderCard
                                 {...pendingOrder}
-                                status="pending"
+                                status={getIncomingOrderCardStatus(pendingOrder)}
                             />
 
-                            <div className="flex gap-3">
+                            {pendingOrder.source === 'assigned' ? (
                                 <button
-                                    onClick={handleDeclineOrder}
-                                    className="w-14 h-14 flex items-center justify-center rounded-full bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-colors"
-                                    aria-label="Decline order"
+                                    onClick={handleAcceptOrder}
+                                    className="w-full h-14 rounded-2xl bg-blue-500 text-white font-semibold hover:bg-blue-400 transition-colors"
                                 >
-                                    ✕
+                                    {getAssignedActionLabel(pendingOrder)}
                                 </button>
-                                <div className="flex-1">
-                                    <SwipeToAccept onAccept={handleAcceptOrder} />
+                            ) : (
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleDeclineOrder}
+                                        className="w-14 h-14 flex items-center justify-center rounded-full bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-colors"
+                                        aria-label="Decline order"
+                                    >
+                                        ✕
+                                    </button>
+                                    <div className="flex-1">
+                                        <SwipeToAccept onAccept={handleAcceptOrder} />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

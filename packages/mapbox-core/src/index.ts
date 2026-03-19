@@ -106,6 +106,14 @@ export const getMapInstance = (): mapboxgl.Map | null => mapInstance;
  * Draw a route on the map from provided coordinates.
  * This function only handles RENDERING, not calculation.
  */
+export const drawRoute = async (
+    map: mapboxgl.Map,
+    start: [number, number],
+    end: [number, number],
+): Promise<void> => {
+    drawRouteFromCoords(map, [start, end]);
+};
+
 export const drawRouteFromCoords = (
     map: mapboxgl.Map,
     coordinates: number[][] // [lng, lat] expected by Mapbox

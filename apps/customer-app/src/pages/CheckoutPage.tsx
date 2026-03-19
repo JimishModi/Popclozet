@@ -22,10 +22,13 @@ import {
 import { Drawer } from "vaul";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { TimeSlotPicker } from "@/components/map/TimeSlotPicker";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
+import type { TimeSlot } from "@/services/deliveryService";
+import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -41,6 +44,7 @@ const WAREHOUSE_LOCATION = {
   lng: 72.9155
 };
 const MAX_DELIVERY_DISTANCE_KM = 6;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -112,6 +116,9 @@ export default function CheckoutPage() {
 
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
+  const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
+  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
+  const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
@@ -131,13 +138,16 @@ export default function CheckoutPage() {
     if (hub) setSelectedHub(hub);
 
     const checkSub = async () => {
-      const { getActiveSubscription, MOCK_PLANS } = await import("@/services/subscriptionService");
-      const sub = await getActiveSubscription();
-      if (sub) {
-        const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
-        setHasFreeDeliveryBenefit(plan?.free_delivery || false);
-        setHasInsuranceBenefit(plan?.insurance_included || false);
-        if (plan?.insurance_included) setPopInsurance(true);
+      const benefits = await getSubscriptionBenefits();
+      if (benefits) {
+        setSubBenefits(benefits);
+        setHasFreeDeliveryBenefit(benefits.freeDelivery);
+        setHasInsuranceBenefit(benefits.insuranceIncluded);
+        if (benefits.insuranceIncluded) setPopInsurance(true);
+      } else {
+        setSubBenefits(null);
+        setHasFreeDeliveryBenefit(false);
+        setHasInsuranceBenefit(false);
       }
     };
     checkSub();
@@ -148,6 +158,16 @@ export default function CheckoutPage() {
       setUpiId(savedDefaultUpi);
     }
   }, []);
+
+  useEffect(() => {
+    if (!subBenefits?.hasFreeHomeTryOn && selectedOrderType === 'home_try_on') {
+      setSelectedOrderType('rental');
+    }
+
+    if (!subBenefits?.hasAdvanceBooking && selectedOrderType === 'rental' && selectedScheduledSlot) {
+      setSelectedScheduledSlot(null);
+    }
+  }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
 
 
   // Distance Check Effect (Strictly MapmyIndia API)
@@ -257,6 +277,7 @@ export default function CheckoutPage() {
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
             originalPrice: parseFloat(p.price ?? '0'),
             imageUrl: p.images?.[0] || '',
+            isLiveProduct: true,
           };
         });
       }
@@ -271,6 +292,7 @@ export default function CheckoutPage() {
               price: mockup.rentalPrice || mockup.price || 0,
               originalPrice: mockup.price || 0,
               imageUrl: mockup.imageUrl || mockup.images?.[0] || '',
+              isLiveProduct: false,
             };
           }
         }
@@ -308,18 +330,63 @@ export default function CheckoutPage() {
     fetchBuyout();
   }, [buyoutOrderId]);
 
+  // Check subscription limits
+  const totalQty = useMemo(() => {
+    return validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+  }, [validCartEntries]);
+
+  const invalidCatalogItem = validCartEntries.find(([id]) => {
+    const baseId = id.split('_')[0];
+    const product = cartProducts[baseId];
+    return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
+  });
+  const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
+  const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
+  const requiresScheduledSlot = selectedOrderType === 'home_try_on';
+  const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
+    const p = cartProducts[id.split('_')[0]];
+    const value = p?.mrp || p?.originalPrice || p?.price || 0;
+    return value > subBenefits.maxItemValue;
+  }) : undefined;
+  const hasExpensiveItem = !!expensiveItem;
+
+  const subscriptionError = (() => {
+    if (buyoutOrderId) return null;
+    if (invalidCatalogItem) {
+      return "One or more items in this checkout are not linked to a live catalog product. Remove them before placing the order.";
+    }
+    if (selectedOrderType === 'home_try_on' && !subBenefits?.hasFreeHomeTryOn) {
+      return "Home try-on is available only on plans that include that feature.";
+    }
+    if (requiresScheduledSlot && !selectedScheduledSlot) {
+      return "Select a time slot for the home try-on booking.";
+    }
+    if (!subBenefits) return null;
+    if (exceedsMonthlyLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
+    }
+    if (exceedsConcurrentLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
+    }
+    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your order exceeds this limit.`;
+    return null;
+  })();
+
   // Calculate totals
   const subtotal = useMemo(() => {
     if (buyoutOrderData) {
       // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
       return Math.round(buyoutOrderData.total_amount * 0.7);
     }
+    if (subBenefits && !subscriptionError) {
+      return 0; // Rentals covered by subscription
+    }
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData]);
+  }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
 
   const originalTotal = useMemo(() => {
     if (buyoutOrderData) return buyoutOrderData?.total_amount ?? 0;
@@ -339,7 +406,12 @@ export default function CheckoutPage() {
     return Math.round(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
   }, [actualDistance]);
 
-  const deliveryFee = hasFreeDeliveryBenefit ? 0 : (deliveryFeeBase + distanceSurcharge);
+  const deliveryFee = selectedOrderType === 'home_try_on'
+    ? 0
+    : hasFreeDeliveryBenefit
+      ? 0
+      : (deliveryFeeBase + distanceSurcharge);
+  const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
   const insuranceFee = hasInsuranceBenefit ? 0 : (popInsurance ? 200 : 0);
   const total = subtotal + deliveryFee + insuranceFee;
 
@@ -454,77 +526,41 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Insert order
+      // 2) Create the entitled order via RPC
       const rentalDays = 4;
-      const startDate = new Date().toISOString().split("T")[0];
-      const endDate = new Date(Date.now() + rentalDays * 86400000).toISOString().split("T")[0];
-      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString(); // fallback 60 mins
+      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString();
 
-      const orderStatus = paymentMethod === 'cod' ? 'pending' : 'pending_payment';
-
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          delivery_address_id: addressId,
-          rental_start_date: startDate,
-          rental_end_date: endDate,
-          total_amount: total,
-          deposit_amount: Math.round(subtotal * 0.3),
-          delivery_eta: deliveryEta,
-          status: orderStatus,
-          payment_method: paymentMethod,
-          delivery_fee: deliveryFee,
-        })
-        .select("id")
-        .single();
-
-      if (orderErr) throw new Error(orderErr.message);
-
-      // 3) Insert order_items
-      // If the cart has mock IDs (like "prod1"), it will crash the DB foreign key constraint.
-      // We need to ensure we only send real UUIDs. Let's fetch one real UUID to use as a fallback if needed.
-      const { data: realProducts } = await supabase.from('products').select('id').limit(1);
-      const fallbackUuid = realProducts?.[0]?.id;
-
-      const orderItems = validCartEntries.map(([id, qty]) => {
-        // Handle IDs carefully: they might be UUIDs or mocked IDs like "prod1_S"
+      const rpcItems = validCartEntries.map(([id, qty]) => {
         const rawBaseId = id.includes('_') ? id.split('_')[0] : id;
         const size = id.includes('_') ? id.split('_')[1] : 'S';
-        const product = cartProducts[rawBaseId] || cartProducts[id]; // Also check if it's there without split
 
-        // Use the real UUID if it exists in the live DB, OTHERWISE use the fallback UUID so the DB doesn't crash on mock data
-        // We'll trust that if rawBaseId has a hyphen and is somewhat long, it's likely a real UUID.
-        const likelyRealUuid = rawBaseId.includes('-');
-        const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
-
-        if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", id);
-          throw new Error("Invalid product ID in cart");
+        if (!UUID_PATTERN.test(rawBaseId)) {
+          throw new Error("One or more cart items are not linked to a live product in the database.");
         }
 
         return {
-          order_id: order.id,
-          product_id: baseId,
-          size: size,
-          rental_price: (product?.price || 0) * qty,
-          deposit_amount: Math.round((product?.price || 0) * qty * 0.3),
-          rental_duration_days: rentalDays,
+          product_id: rawBaseId,
+          size,
+          quantity: qty,
         };
       });
 
-      console.log("[Checkout] Prepared order items payload:", orderItems);
+      const orderResult = await createEntitledOrder({
+        deliveryAddressId: addressId,
+        items: rpcItems,
+        paymentMethod,
+        orderType: selectedOrderType,
+        scheduledSlot: selectedScheduledSlot,
+        deliveryDistanceKm: actualDistance,
+        popInsurance,
+        rentalDurationDays: rentalDays,
+        deliveryEta,
+      });
 
-      const { error: itemsErr } = await supabase.from("order_items").insert(orderItems);
-      if (itemsErr) {
-        console.error("[Checkout] Order items insert failed. Details:", itemsErr);
-        throw new Error("Order items saving failed: " + itemsErr.message);
-      }
-
-      // 4) Insert Legal Acceptance Log
+      // 3) Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
         user_id: userId,
-        order_id: order.id,
+        order_id: orderResult.orderId,
         ip_address: userIp || 'unknown',
         tc_version: 'v1.0'
       });
@@ -532,7 +568,7 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 5) Clear cart (if not buyout)
+      // 4) Clear cart (if not buyout)
       if (!buyoutOrderId) {
         await clearCartDB().catch(() => { });
         for (const [id] of validCartEntries) {
@@ -540,13 +576,14 @@ export default function CheckoutPage() {
         }
       }
 
-      // 6) Navigate based on payment method
-      const targetId = buyoutOrderId || (order as any).id;
+      // 5) Navigate based on payment method
+      const targetId = orderResult.orderId;
+      const finalAmount = orderResult.totalAmount;
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${targetId}`);
       } else {
         const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -574,6 +611,15 @@ export default function CheckoutPage() {
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
         </section>
+
+        {subscriptionError && (
+          <section className="px-5 mt-4">
+            <div className="bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <p className="leading-tight">{subscriptionError}</p>
+            </div>
+          </section>
+        )}
 
         {/* User Info */}
         <section className="px-5 mt-4">
@@ -629,6 +675,99 @@ export default function CheckoutPage() {
             <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
               + Select Address
             </button>
+          )}
+
+          {!buyoutOrderId && subBenefits && (
+            <>
+              <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Plan Access</h3>
+              <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>{subBenefits.planName} plan</p>
+                    <p className="text-[11px] text-zinc-500 mt-1 font-bold uppercase tracking-widest">
+                      Monthly quota and concurrent active-item limit
+                    </p>
+                  </div>
+                  <div className="px-2 py-1 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
+                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
+                      ₹{subBenefits.maxItemValue} cap
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-[#171717] px-3 py-3">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Monthly left</p>
+                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
+                  </div>
+                  <div className="rounded-xl bg-[#171717] px-3 py-3">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Concurrent left</p>
+                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
+                  </div>
+                </div>
+              </div>
+
+              {subBenefits.hasFreeHomeTryOn && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderType('rental')}
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-left transition-colors",
+                      selectedOrderType === 'rental'
+                        ? "border-[#f2546d] bg-[#f2546d]/10"
+                        : "border-white/5 bg-[#232323]"
+                    )}
+                  >
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Rental</p>
+                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Standard subscription checkout</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderType('home_try_on')}
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-left transition-colors",
+                      selectedOrderType === 'home_try_on'
+                        ? "border-[#f2546d] bg-[#f2546d]/10"
+                        : "border-white/5 bg-[#232323]"
+                    )}
+                  >
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Home Try-On</p>
+                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Pro-only scheduled booking</p>
+                  </button>
+                </div>
+              )}
+
+              {(subBenefits.hasAdvanceBooking || selectedOrderType === 'home_try_on') && (
+                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>
+                        {selectedOrderType === 'home_try_on' ? 'Schedule Home Try-On' : 'Schedule Delivery Slot'}
+                      </p>
+                      <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">
+                        {selectedOrderType === 'home_try_on' ? 'Required for try-on bookings' : 'Optional if you want a fixed delivery window'}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-widest",
+                      selectedOrderType === 'home_try_on' ? "text-[#f2546d]" : "text-zinc-500"
+                    )}>
+                      {selectedOrderType === 'home_try_on' ? 'Required' : 'Optional'}
+                    </span>
+                  </div>
+                  <TimeSlotPicker
+                    selectedSlot={selectedScheduledSlot}
+                    onSelect={setSelectedScheduledSlot}
+                    className="mt-4"
+                  />
+                  {selectedScheduledSlot && (
+                    <p className="mt-3 text-[11px] text-[#f2546d] font-bold uppercase tracking-widest">
+                      Selected: {selectedScheduledSlot.date} • {selectedScheduledSlot.start} - {selectedScheduledSlot.end}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
@@ -712,7 +851,7 @@ export default function CheckoutPage() {
             </div>
             <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
               <div className="flex flex-col">
-                <span>Delivery fee</span>
+                <span>{selectedOrderType === 'home_try_on' ? 'Home try-on delivery' : 'Delivery fee'}</span>
                 {isResolvingAddress ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Resolving address...</span>
                 ) : distanceLoading ? (
@@ -733,8 +872,8 @@ export default function CheckoutPage() {
                 )}
               </div>
               <div className="text-right">
-                <span className={cn(hasFreeDeliveryBenefit && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
-                {hasFreeDeliveryBenefit && <span className="ml-2">₹ 0</span>}
+                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
+                {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
             <div className="flex justify-between items-center text-lg text-[#b4b4b4]" style={dmSans}>
@@ -778,20 +917,24 @@ export default function CheckoutPage() {
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
-              onClick={handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId)}
+              onClick={subscriptionError ? undefined : handlePlaceOrder}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                isPlacingOrder ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
-              {isPlacingOrder
-                ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
-                : paymentMethod === 'upi'
-                  ? "PAY VIA UPI"
-                  : paymentMethod === 'cod'
-                    ? "PLACE ORDER"
-                    : "PAY"
+              {subscriptionError
+                ? "LIMIT EXCEEDED"
+                : isPlacingOrder
+                  ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
+                  : selectedOrderType === 'home_try_on'
+                    ? "BOOK TRY-ON"
+                  : paymentMethod === 'upi'
+                    ? "PAY VIA UPI"
+                    : paymentMethod === 'cod'
+                      ? "PLACE ORDER"
+                      : "PAY"
               }
             </button>
           </div>

@@ -20,6 +20,8 @@ import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
+import { getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
+import { cn } from "@/lib/utils";
 
 /* ---------------------------------- */
 /* Mock Add-ons                       */
@@ -53,6 +55,8 @@ const getSavedHub = () => {
     return null;
   }
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CartPage = () => {
   const { cartItems, removeFromCart, updateQuantity, updateSize } = useCart();
@@ -120,6 +124,7 @@ const CartPage = () => {
             price: finalPrice,
             originalPrice: originalPriceValue,
             imageUrl: p.images?.[0] || '',
+            isLiveProduct: true,
           };
         });
         setCartProducts(productMap);
@@ -139,7 +144,13 @@ const CartPage = () => {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
 
-  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
+
+  // Calculate cart metrics
+  const totalQty = useMemo(() => {
+    return validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+  }, [validCartEntries]);
 
   // Load saved address, hub, and subscription benefit on mount
   useEffect(() => {
@@ -153,21 +164,62 @@ const CartPage = () => {
     }
 
     const checkSub = async () => {
-      const { hasFreeDelivery } = await import("@/services/subscriptionService");
-      const isFree = await hasFreeDelivery();
-      setHasFreeDeliveryBenefit(isFree);
+      const benefits = await getSubscriptionBenefits();
+      if (benefits) {
+        setHasActiveSubscription(benefits.hasActiveSubscription);
+        setSubBenefits(benefits);
+      } else {
+        setHasActiveSubscription(false);
+        setSubBenefits(null);
+      }
     };
     checkSub();
   }, []);
 
+  // Check subscription limits
+  const invalidCatalogItem = validCartEntries.find(([id]) => {
+    const baseId = id.split('_')[0];
+    const product = cartProducts[baseId];
+    return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
+  });
+  const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
+  const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
+  const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
+    const p = cartProducts[id.split('_')[0]];
+    const value = p?.mrp || p?.originalPrice || p?.price || 0;
+    return value > subBenefits.maxItemValue;
+  }) : undefined;
+  const hasExpensiveItem = !!expensiveItem;
+
+  const subscriptionError = (() => {
+    if (invalidCatalogItem) {
+      return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
+    }
+    if (!subBenefits) return null;
+    if (exceedsMonthlyLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
+    }
+    if (exceedsConcurrentLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
+    }
+    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
+    return null;
+  })();
+
+  const canCheckout = validCartEntries.length > 0 && !subscriptionError;
+
   // Calculate subtotal
   const subtotal = useMemo(() => {
+    // If they have a valid active subscription and aren't exceeding limits, their rentals are covered by the plan
+    if (hasActiveSubscription && !subscriptionError) {
+        return 0;
+    }
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [validCartEntries, cartProducts]);
+  }, [validCartEntries, cartProducts, hasActiveSubscription, subscriptionError]);
 
   // Original total (before discount)
   const originalTotal = useMemo(() => {
@@ -186,12 +238,13 @@ const CartPage = () => {
     if (!selectedHub) {
       return { pricing: null, eta: null };
     }
-    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', hasFreeDeliveryBenefit);
+    const isFree = subBenefits?.freeDelivery || false;
+    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', isFree);
     const eta = calculateETA(selectedHub.distance_km, selectedHub.estimated_minutes);
     return { pricing, eta };
-  }, [selectedHub, subtotal, hasFreeDeliveryBenefit]);
+  }, [selectedHub, subtotal, subBenefits]);
 
-  const deliveryFee = deliveryInfo.pricing?.totalFee ?? (hasFreeDeliveryBenefit ? 0 : 40);
+  const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
 
   // Final math with coupons
   const couponDiscount = useMemo(() => {
@@ -217,18 +270,6 @@ const CartPage = () => {
     }
   };
 
-  // Load saved address and hub on mount
-  useEffect(() => {
-    const addresses = getLocalAddresses();
-    if (addresses.length > 0) {
-      setDeliveryAddress(addresses[0]);
-    }
-    const hub = getSavedHub();
-    if (hub) {
-      setSelectedHub(hub);
-    }
-  }, []);
-
   /* ---------------------------------- */
   /* Checkout handler                   */
   /* ---------------------------------- */
@@ -244,6 +285,14 @@ const CartPage = () => {
 
         {/* ─── HEADER: Gradient Glow + Title ─── */}
         <section className="relative px-5 pt-6 pb-4">
+          {/* Error Banner */}
+          {subscriptionError && (
+            <div className="absolute top-20 left-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <p className="leading-tight">{subscriptionError}</p>
+            </div>
+          )}
+
           {/* Gradient Glow Orb */}
           <div
             className="absolute -top-20 -left-12 w-36 h-36 rounded-full rotate-[23deg] blur-[100px] pointer-events-none"
@@ -530,22 +579,24 @@ const CartPage = () => {
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
 
           {/* Subscribe Banner */}
-          <button
-            onClick={() => navigate('/subscription-plans')}
-            className="w-full text-left"
-          >
-            <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-2xl relative group overflow-hidden">
-              <div className="flex-1 min-w-0 relative z-10">
-                <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  Subscribe to the Future
-                </p>
-                <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  Pick any 4 items you like each month for just 1799
-                </p>
+          {!hasActiveSubscription && (
+            <button
+              onClick={() => navigate('/subscription-plans')}
+              className="w-full text-left"
+            >
+              <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-2xl relative group overflow-hidden">
+                <div className="flex-1 min-w-0 relative z-10">
+                  <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Subscribe to the Future
+                  </p>
+                  <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Pick any 4 items you like each month for just 1799
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white flex-shrink-0 relative z-10" />
               </div>
-              <ChevronRight className="w-5 h-5 text-white flex-shrink-0 relative z-10" />
-            </div>
-          </button>
+            </button>
+          )}
 
           {/* Progress Steps */}
           <div className="flex items-center gap-[11px]">
@@ -554,13 +605,45 @@ const CartPage = () => {
             <div className="flex-1 h-1 bg-[#484848] rounded-sm" />
           </div>
 
+          {subBenefits && (
+            <div className="rounded-2xl border border-white/5 bg-[#171717] px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    {subBenefits.planName} plan active
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-500 uppercase tracking-widest font-bold">
+                    Monthly quota and concurrent hold limit
+                  </p>
+                </div>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#f2546d]">
+                  ₹{subBenefits.maxItemValue} cap
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-[#232323] px-3 py-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Monthly left</p>
+                  <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
+                </div>
+                <div className="rounded-xl bg-[#232323] px-3 py-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Concurrent left</p>
+                  <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Checkout Button */}
           <button
-            onClick={handleCheckout}
-            className="w-full h-12 flex items-center justify-center bg-[#f2546d] rounded-2xl font-semibold text-lg text-white tracking-tight transition-colors hover:bg-[#e04860]"
+            onClick={canCheckout ? handleCheckout : undefined}
+            disabled={!canCheckout}
+            className={cn(
+              "w-full h-12 flex items-center justify-center rounded-2xl font-semibold text-lg text-white tracking-tight transition-colors",
+              canCheckout ? "bg-[#f2546d] hover:bg-[#e04860]" : "bg-white/10 text-white/40 cursor-not-allowed"
+            )}
             style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
-            {!deliveryAddress ? "Select Address" : "Check Out"}
+            {subscriptionError ? "Limit Exceeded" : !deliveryAddress ? "Select Address" : "Check Out"}
           </button>
         </div>
       )}

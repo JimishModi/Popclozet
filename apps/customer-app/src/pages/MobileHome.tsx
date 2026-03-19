@@ -23,7 +23,7 @@ const COLLECTIONS = [
 
 const FEATURED_SLIDES = [
     { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&q=80", gender: "womens" },
+    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=800&q=80", gender: "womens" },
     { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80", gender: "womens" },
     { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1516259762381-22954d7d3ad2?w=800&q=80", gender: "mens" },
     { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&q=80", gender: "mens" },
