@@ -148,7 +148,7 @@ const SettingsPage: React.FC = () => {
     const { user, profile, signOut } = useAuth();
 
     const displayName = (() => {
-        const raw = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+        const raw = profile?.full_name || user?.user_metadata?.full_name || profile?.email?.split('@')[0] || user?.email?.split('@')[0] || 'User';
         const first = raw.trim().split(/\s+/)[0];
         return first.charAt(0).toUpperCase() + first.slice(1);
     })();
@@ -206,7 +206,7 @@ const SettingsPage: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-white font-bold text-base truncate">{displayName}</p>
-                            <p className="text-zinc-500 text-xs truncate">{profile?.phone || user?.email || ''}</p>
+                            <p className="text-zinc-500 text-xs truncate">{profile?.phone || profile?.email || user?.email || ''}</p>
                         </div>
                         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10">
                             <span className="text-xs text-white font-semibold">Edit</span>

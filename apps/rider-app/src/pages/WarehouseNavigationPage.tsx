@@ -184,7 +184,7 @@ export const WarehouseNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-            await drawRoute(map, riderLocation, WAREHOUSE_LOCATION);
+            await drawRoute(map, [riderLocation, WAREHOUSE_LOCATION]);
 
             // Add native geolocation control for live tracking
             const geolocate = new mapboxgl.GeolocateControl({

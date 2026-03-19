@@ -123,13 +123,21 @@ export async function getActiveSubscription(): Promise<UserSubscription | null> 
     return null;
 }
 
-/**
- * Check if the user has free delivery benefit
- */
 export async function hasFreeDelivery(): Promise<boolean> {
     const sub = await getActiveSubscription();
     if (!sub) return false;
 
     const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
     return plan?.free_delivery || false;
+}
+
+/**
+ * Check if the user has insurance benefit included
+ */
+export async function hasInsuranceIncluded(): Promise<boolean> {
+    const sub = await getActiveSubscription();
+    if (!sub) return false;
+
+    const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
+    return plan?.insurance_included || false;
 }

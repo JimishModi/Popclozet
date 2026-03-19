@@ -4,7 +4,7 @@ import { useAuth } from "@/context/SupabaseAuthContext";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
 
-  const { user, loading, needsOnboarding } = useAuth();
+  const { user, loading, needsOnboarding, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showEscapeHatch, setShowEscapeHatch] = useState(false);
@@ -23,39 +23,52 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (loading) return;
 
-    const publicRoutes = [
+    const publicPaths = [
       "/",
       "/signin",
       "/signup",
       "/auth/login",
-      "/auth/callback",
-      "/auth/create-account",
       "/auth/otp",
-      "/auth/signout"
+      "/auth/callback",
+      "/auth/signout",
+      "/auth/create-account",
+      "/auth/verify-email-callback",
     ];
+    const isPublicPath = publicPaths.some(
+      (p) => location.pathname === p || location.pathname.startsWith(p + "/")
+    );
 
-    // allow public pages
-    if (!user && publicRoutes.includes(location.pathname)) {
-      return;
-    }
-
-    // not logged in — send to login
+    // Not logged in — allow public paths, redirect from protected ones
     if (!user) {
-      navigate("/signin", { replace: true });
-      return;
-    }
-
-    // logged in but new user needs onboarding
-    if (user && needsOnboarding) {
-      if (location.pathname !== "/auth/create-account") {
-        navigate("/auth/create-account", { replace: true });
+      if (!isPublicPath) {
+        navigate("/auth/login", { replace: true });
       }
       return;
     }
 
-    // logged in + profile done — redirect away from auth pages
+    // Logged in but onboarding not complete
+    if (user && needsOnboarding) {
+      const targetPath = "/auth/create-account";
+
+      // Already on the onboarding page — stay
+      if (location.pathname === targetPath) return;
+
+      // Came from an active auth flow (OTP verified, callback, etc.) — send to onboarding
+      if (location.pathname.startsWith("/auth/")) {
+        navigate(targetPath, { replace: true });
+        return;
+      }
+
+      // Fresh app open (e.g. '/' or '/home') with a stale incomplete session
+      // Sign out cleanly and send to login
+      signOut().then(() => navigate("/auth/login", { replace: true }));
+      return;
+    }
+
+    // Logged in + profile complete — redirect away from pure auth/landing pages
     if (user && !needsOnboarding) {
-      if ((location.pathname.startsWith("/auth") && location.pathname !== "/auth/signout") || location.pathname === "/signin") {
+      const loginOnlyPaths = ["/auth/login", "/auth/otp", "/auth/callback", "/signin", "/signup", "/"];
+      if (loginOnlyPaths.includes(location.pathname)) {
         navigate("/home", { replace: true });
       }
     }

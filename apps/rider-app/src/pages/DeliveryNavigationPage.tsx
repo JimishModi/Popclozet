@@ -52,9 +52,8 @@ async function insertNotification(payload: {
 
 async function notifyWarehouse(orderId: string, type: string, title: string, body: string) {
     const { data: staff } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('role', 'warehouse');
+        .from('warehouse_profiles')
+        .select('user_id');
 
     if (!staff?.length) return;
 
@@ -200,7 +199,7 @@ export const DeliveryNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-            await drawRoute(map, riderLocation, destination);
+            await drawRoute(map, [riderLocation, destination]);
             
             // Add native geolocation control for live tracking
             const geolocate = new mapboxgl.GeolocateControl({

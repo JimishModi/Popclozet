@@ -55,10 +55,12 @@ export interface UserProfile {
     id: string;
     user_id: string;
     full_name: string;
+    email: string;
     phone: string;
     avatar_url?: string;
     role: UserRole;
     onboarding_completed: boolean;
+    email_verified: boolean;
     measurements?: BodyMeasurements;
     created_at: string;
     updated_at: string;

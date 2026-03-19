@@ -194,7 +194,7 @@ const ClosetPage: React.FC = () => {
                         <p className="text-lg font-semibold text-white mb-2" style={dmSans}>Your Closet is Empty</p>
                         <p className="text-sm text-gray-400 mb-6" style={dmSans}>Start renting outfits to see them here</p>
                         <button
-                            onClick={() => navigate('/home')}
+                            onClick={() => navigate('/collections')}
                             className="px-6 py-3 rounded-2xl bg-[#f2546d] text-white text-sm font-bold"
                             style={dmSans}
                         >

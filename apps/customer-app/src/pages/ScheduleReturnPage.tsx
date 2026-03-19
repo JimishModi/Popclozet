@@ -36,7 +36,7 @@ const ScheduleReturnPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
 
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -234,7 +234,7 @@ const ScheduleReturnPage: React.FC = () => {
                             <h3 className="text-sm font-black text-white uppercase tracking-wider">My Information</h3>
                             <Pencil className="w-4 h-4 text-zinc-500" />
                         </div>
-                        <p className="text-base font-medium text-zinc-300">{user?.user_metadata?.full_name || 'Amogh Shete'}</p>
+                        <p className="text-base font-medium text-zinc-300">{profile?.full_name || user?.user_metadata?.full_name || 'Amogh Shete'}</p>
                     </div>
 
                     <div>
@@ -242,7 +242,7 @@ const ScheduleReturnPage: React.FC = () => {
                             <h3 className="text-sm font-black text-white uppercase tracking-wider">Contact Details</h3>
                             <Pencil className="w-4 h-4 text-zinc-500" />
                         </div>
-                        <p className="text-base font-medium text-zinc-300">{user?.email || 'sheteamogh@gmail.com'}</p>
+                        <p className="text-base font-medium text-zinc-300">{profile?.email || user?.email || 'sheteamogh@gmail.com'}</p>
                     </div>
 
                     <div>

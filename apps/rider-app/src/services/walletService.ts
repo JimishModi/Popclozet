@@ -106,7 +106,7 @@ export async function getTransactions(
   }
 
   const { data, error } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('*')
     .eq('rider_id', riderId)
     .order('created_at', { ascending: false })
@@ -134,7 +134,7 @@ export async function getTransactionsByType(
   limit = 20
 ): Promise<Transaction[]> {
   const { data, error } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('*')
     .eq('rider_id', riderId)
     .eq('type', type)
@@ -246,19 +246,19 @@ export async function getEarningsSummary(
   const month = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
   const { data: todayData } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('amount, type')
     .eq('rider_id', riderId)
     .gte('created_at', today);
 
   const { data: weekData } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('amount')
     .eq('rider_id', riderId)
     .gte('created_at', week);
 
   const { data: monthData } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('amount')
     .eq('rider_id', riderId)
     .gte('created_at', month);
@@ -300,7 +300,7 @@ export async function creditDeliveryEarning(
     return { success: true, amount };
   }
 
-  const { error } = await supabase.from('payments').insert({
+  const { error } = await supabase.from('rider_transactions').insert({
     rider_id: riderId,
     order_id: orderId,
     type: 'earning',

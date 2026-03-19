@@ -91,11 +91,11 @@ export async function getRiderProfile(
     };
   }
 
-  // Real DB Query - Fallback to profiles table since 'riders' might not exist
+  // Real DB Query — use rider_profiles table
   const { data, error } = await supabase
-    .from('profiles')
+    .from('rider_profiles')
     .select('*')
-    .eq('user_id', riderId) // corrected column
+    .eq('user_id', riderId)
     .maybeSingle();
 
   if (error || !data) {
@@ -180,7 +180,7 @@ export async function updateRiderStatus(
     // Optional: try to update a jsonb metadata field if it exists, otherwise just soft-fail
     // This allows the UI state to change and trigger realtime subscriptions
     const { error } = await supabase
-      .from('profiles')
+      .from('rider_profiles')
       .update({ updated_at: new Date().toISOString() })
       .eq('user_id', riderId);
       
@@ -286,7 +286,7 @@ export async function getRiderStats(
   riderId: string
 ): Promise<RiderStats> {
   const { data: payments } = await supabase
-    .from('payments')
+    .from('rider_transactions')
     .select('amount')
     .eq('rider_id', riderId)
     .in('type', ['earning', 'bonus']);

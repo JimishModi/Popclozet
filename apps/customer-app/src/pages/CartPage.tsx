@@ -200,7 +200,7 @@ const CartPage = () => {
     return appliedCoupon.discount;
   }, [appliedCoupon, subtotal]);
 
-  const grandTotal = subtotal + deliveryFee - couponDiscount;
+  const grandTotal = subtotal - couponDiscount;
 
   const handleApplyCoupon = () => {
     // Mock simple coupon logic

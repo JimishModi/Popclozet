@@ -109,13 +109,6 @@ export function DeliveryTracker({
             if (fetchErr) throw fetchErr;
             if (signal.aborted) return;
 
-            // If status is out_for_delivery but no OTP exists, generate one
-            if (raw && ['out_for_delivery', 'dispatched'].includes(raw.status) && !raw.otp_delivery) {
-                const otp = String(Math.floor(1000 + Math.random() * 9000));
-                await supabase.from('orders').update({ otp_delivery: otp }).eq('id', raw.id);
-                raw.otp_delivery = otp;
-            }
-
             const orderData = raw as unknown as DeliveryOrderWithOtp;
             if (signal.aborted) return;
 

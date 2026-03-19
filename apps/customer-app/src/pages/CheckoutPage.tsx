@@ -2,22 +2,20 @@
 // Checkout flow — creates order and notifies rider app via Supabase
 
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  CheckCircle,
-  ShoppingBag,
   Info,
   X,
   MapPin,
   Check,
-  Banknote,
-  CreditCard,
-  Loader2,
   Wifi,
+  Mail,
+  Banknote,
+  CreditCard
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
@@ -30,8 +28,16 @@ import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
-import { TERMS_AND_CONDITIONS, COOKIE_POLICY } from "@/constants/legalDocs";
+
+/** Returns true only if the email looks like a real user-provided address */
+const isRealEmail = (email?: string | null): email is string => {
+  if (!email) return false;
+  if (email.includes('@phone.') || email.includes('.internal') || email.includes('@sms.')) return false;
+  return email.includes('@') && email.includes('.');
+};
+
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -42,6 +48,9 @@ const WAREHOUSE_LOCATION = {
   lng: 72.9155
 };
 const MAX_DELIVERY_DISTANCE_KM = 6;
+
+// FIX 3: Use env variable instead of hardcoded localhost
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -61,21 +70,26 @@ const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation() as any;
+  // FIX 7: Use useSearchParams instead of window.location.search
+  const [searchParams] = useSearchParams();
+  const buyoutOrderId = searchParams.get("buyoutOrderId");
+
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreedToSizing, setAgreedToSizing] = useState(false);
   const [userIp, setUserIp] = useState<string>("");
+
+  // FIX 2: Declare missing showTermsModal state
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Payment method: 'razorpay' (online) or 'cod'
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod' | null>(null);
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
-  const lookup = new URLSearchParams(window.location.search);
-  const buyoutOrderId = lookup.get("buyoutOrderId");
+
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
@@ -97,11 +111,13 @@ export default function CheckoutPage() {
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
-
-  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
+  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
+  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
 
   const validCartEntries = useMemo(() => {
     return cartEntries.filter(([id]) => {
@@ -110,18 +126,15 @@ export default function CheckoutPage() {
     });
   }, [cartEntries, cartProducts]);
 
-  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
-  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
-
   // Load subscription benefit and handle passed address
   useEffect(() => {
-    // Check if an address was passed from AddressSelectionPage
     const passedAddress = location.state?.selectedAddress;
     if (passedAddress) {
       setDeliveryAddress(passedAddress);
     } else {
-      // Fallback: check if we have any addresses at all
       const addresses = getLocalAddresses();
+      // FIX 4: Populate addressList so the drawer isn't empty
+      setAddressList(addresses);
       if (addresses.length > 0) {
         setDeliveryAddress(addresses[0]);
       }
@@ -131,40 +144,35 @@ export default function CheckoutPage() {
     if (hub) setSelectedHub(hub);
 
     const checkSub = async () => {
-      const { getActiveSubscription, MOCK_PLANS } = await import("@/services/subscriptionService");
-      const sub = await getActiveSubscription();
-      if (sub) {
-        const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
-        setHasFreeDeliveryBenefit(plan?.free_delivery || false);
-        setHasInsuranceBenefit(plan?.insurance_included || false);
-        if (plan?.insurance_included) setPopInsurance(true);
-      }
+      const freeDel = await hasFreeDelivery();
+      const freeIns = await hasInsuranceIncluded();
+      setHasFreeDeliveryBenefit(freeDel);
+      setHasInsuranceBenefit(freeIns);
+      if (freeIns) setPopInsurance(true);
     };
     checkSub();
-
-    // Pre-fill nothing for razorpay — modal handles it
   }, []);
-
 
   // Distance Check Effect (Strictly MapmyIndia API)
   useEffect(() => {
     const fetchDistance = async (destination: string) => {
       setDistanceLoading(true);
       setDistanceError(null);
-      
+
       try {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
         console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
-        
-        const response = await fetch(`http://localhost:3001/api/location/distance?origin=${origin}&destination=${destination}`);
-        
+
+        // FIX 3: Use env-based API_BASE_URL
+        const response = await fetch(`${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`);
+
         if (response.ok) {
           const data = await response.json();
           const distance = data.distance;
-          
+
           console.log("[DistanceCheck] API verified distance:", distance);
           setActualDistance(distance);
-          
+
           if (distance > MAX_DELIVERY_DISTANCE_KM) {
             setShowDistanceWarningPopup(true);
             toast.info(`Delivery address is ${distance.toFixed(1)} km from our warehouse. ₹10/km additional charges apply beyond 6km.`, {
@@ -187,51 +195,42 @@ export default function CheckoutPage() {
     if (deliveryAddress) {
       console.log("[Checkout] Starting distance check for:", deliveryAddress.formattedAddress);
 
-  // Coerce lat/lng to numbers — they may be stored as strings in localStorage
       const lat = typeof deliveryAddress.lat === 'number' ? deliveryAddress.lat : parseFloat(deliveryAddress.lat as any);
       const lng = typeof deliveryAddress.lng === 'number' ? deliveryAddress.lng : parseFloat(deliveryAddress.lng as any);
       const hasCoords = !isNaN(lat) && !isNaN(lng) && Math.abs(lat) > 0.01;
 
       console.log("[Checkout] Address Data:", { eLoc: deliveryAddress.eLoc, lat, lng, hasCoords });
 
-  // Priority 1: eLoc (most reliable for MapmyIndia POIs)
-    if (deliveryAddress.eLoc) {
-      console.log("[Checkout] Using eLoc for distance calculation:", deliveryAddress.eLoc);
-      fetchDistance(deliveryAddress.eLoc);
-    }
-    // Priority 2: Parsed coordinates
-    else if (hasCoords) {
-      console.log("[Checkout] Using coordinates for distance calculation");
-      fetchDistance(`${lng},${lat}`);
-    }
-    // Priority 3: Resolve via searchLocations fallback
-    else if (deliveryAddress.formattedAddress) {
-      console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
-      setIsResolvingAddress(true);
-      setDistanceError(null);
-      searchLocations(deliveryAddress.formattedAddress)
-        .then((results) => {
-          const first = results?.[0];
-          if (first?.eLoc) {
-            fetchDistance(first.eLoc);
-          } else if (first?.lat && first?.lng) {
-            fetchDistance(`${first.lng},${first.lat}`);
-          } else {
+      if (deliveryAddress.eLoc) {
+        fetchDistance(deliveryAddress.eLoc);
+      } else if (hasCoords) {
+        fetchDistance(`${lng},${lat}`);
+      } else if (deliveryAddress.formattedAddress) {
+        console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
+        setIsResolvingAddress(true);
+        setDistanceError(null);
+        searchLocations(deliveryAddress.formattedAddress)
+          .then((results) => {
+            const first = results?.[0];
+            if (first?.eLoc) {
+              fetchDistance(first.eLoc);
+            } else if (first?.lat && first?.lng) {
+              fetchDistance(`${first.lng},${first.lat}`);
+            } else {
+              setDistanceError("Could not resolve address coordinates");
+              setActualDistance(null);
+            }
+          })
+          .catch(() => {
             setDistanceError("Could not resolve address coordinates");
             setActualDistance(null);
-          }
-        })
-        .catch(() => {
-          setDistanceError("Could not resolve address coordinates");
-          setActualDistance(null);
-        })
-        .finally(() => setIsResolvingAddress(false));
+          })
+          .finally(() => setIsResolvingAddress(false));
+      } else {
+        setDistanceError("Location coordinates not found");
+        setActualDistance(null);
+      }
     }
-    else {
-      setDistanceError("Location coordinates not found");
-      setActualDistance(null);
-    }
-  }
   }, [deliveryAddress]);
 
   // Fetch cart products dynamically
@@ -257,7 +256,6 @@ export default function CheckoutPage() {
         });
       }
 
-      // Fallback to local mocks if not in DB
       uniqueIds.forEach(id => {
         if (!productMap[id]) {
           const mockup = ALL_MOCK_PRODUCTS.find((p: any) => p.id === id);
@@ -286,19 +284,11 @@ export default function CheckoutPage() {
       setBuyoutLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            item:products (*)
-          )
-        `)
+        .select(`*, order_items (*, item:products (*))`)
         .eq('id', buyoutOrderId)
         .single();
-      
-      if (data && !error) {
-        setBuyoutOrderData(data);
-      }
+
+      if (data && !error) setBuyoutOrderData(data);
       setBuyoutLoading(false);
     };
     fetchBuyout();
@@ -306,10 +296,7 @@ export default function CheckoutPage() {
 
   // Calculate totals
   const subtotal = useMemo(() => {
-    if (buyoutOrderData) {
-      // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
-      return Math.round(buyoutOrderData.total_amount * 0.7);
-    }
+    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
@@ -330,6 +317,8 @@ export default function CheckoutPage() {
   const discount = originalTotal - subtotal;
 
   const deliveryFeeBase = 40;
+
+  // FIX 5: Single source of truth for distance surcharge — used everywhere including warning popup
   const distanceSurcharge = useMemo(() => {
     if (!actualDistance || actualDistance <= MAX_DELIVERY_DISTANCE_KM) return 0;
     return Math.round(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
@@ -340,14 +329,27 @@ export default function CheckoutPage() {
   const total = subtotal + deliveryFee + insuranceFee;
 
   /* ---------------------------------- */
+  /* Payment Processing                  */
+  /* ---------------------------------- */
+  const [showEmailGate, setShowEmailGate] = useState(false);
+
+  /* ---------------------------------- */
   /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
+    // Only gate on email if they actually have a real email set
+    const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
+    if (realEmail && !profile?.email_verified) {
+      setShowEmailGate(true);
+      return;
+    }
+
     if (!buyoutOrderId && validCartEntries.length === 0) return;
     if (!agreedToTerms || !agreedToSizing) {
       setShowTermsModal(true);
       return;
     }
+
     if (!paymentMethod) {
       setShowPaymentMethodSelector(true);
       return;
@@ -370,15 +372,17 @@ export default function CheckoutPage() {
 
         if (paymentMethod === 'cod') {
           await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
+          // FIX 6: Clear cart on buyout COD path too
+          await clearCartDB().catch(() => { });
+          for (const [id] of validCartEntries) removeFromCart(id);
           navigate(`/order-confirmed/${targetId}`);
         } else {
-          // Razorpay flow for buyout
           setIsPlacingOrder(false);
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
             userName: profile?.full_name || user?.user_metadata?.full_name,
-            userEmail: user?.email,
+            userEmail: profile?.email,
             userPhone: profile?.phone || user?.phone,
           });
         }
@@ -419,11 +423,11 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Insert order (status: pending until payment confirmed)
+      // 2) Insert order
       const rentalDays = 4;
       const startDate = new Date().toISOString().split("T")[0];
       const endDate = new Date(Date.now() + rentalDays * 86400000).toISOString().split("T")[0];
-      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString(); // fallback 60 mins
+      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString();
 
       const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
 
@@ -482,23 +486,21 @@ export default function CheckoutPage() {
       } catch { /* non-fatal */ }
 
       // 5) Clear cart
-      await clearCartDB().catch(() => {});
+      await clearCartDB().catch(() => { });
       for (const [id] of validCartEntries) removeFromCart(id);
 
       // 6) Navigate based on payment method
       const targetId = (order as any).id;
 
       if (paymentMethod === 'cod') {
-        // COD: go directly to confirmation
         navigate(`/order-confirmed/${targetId}`);
       } else {
-        // Razorpay: open modal AFTER creating the order
         setIsPlacingOrder(false);
         initiatePayment({
           internalOrderId: targetId,
           amountInRupees: total,
           userName: profile?.full_name || user?.user_metadata?.full_name,
-          userEmail: user?.email,
+          userEmail: profile?.email,
           userPhone: profile?.phone || user?.phone,
         });
       }
@@ -520,7 +522,7 @@ export default function CheckoutPage() {
             <p className="text-sm text-zinc-500 mt-4">Loading order details...</p>
           </div>
         )}
-        
+
         {/* Header */}
         <section className="relative px-5 pt-6 pb-2">
           <div className="absolute -top-20 -left-14 w-36 h-36 rounded-full blur-[100px] pointer-events-none" style={{ background: "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)" }} />
@@ -536,7 +538,7 @@ export default function CheckoutPage() {
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Contact Details</h3>
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
-          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{user?.email}</p>
+          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
 
           <div className="flex items-center justify-between mt-9">
             <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
@@ -545,7 +547,6 @@ export default function CheckoutPage() {
           {deliveryAddress ? (
             <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
               <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
-              
               <div className="mt-3 flex items-center gap-2 relative z-10">
                 {isResolvingAddress ? (
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
@@ -563,20 +564,14 @@ export default function CheckoutPage() {
                   </div>
                 ) : distanceError ? (
                   <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
-                      {distanceError}
-                    </span>
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">{distanceError}</span>
                   </div>
                 ) : !deliveryAddress.lat || !deliveryAddress.lng ? (
                   <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
-                      Coordinate search failed
-                    </span>
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">Coordinate search failed</span>
                   </div>
                 ) : null}
               </div>
-              
-              {/* Subtle accent blur */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
             </div>
           ) : (
@@ -590,7 +585,7 @@ export default function CheckoutPage() {
             onClick={() => setShowPaymentMethodSelector(true)}
             className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 flex items-center justify-between group hover:border-[#f2546d]/30 transition-colors"
           >
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
               {paymentMethod === 'razorpay' ? (
                 <>
                   <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
@@ -666,9 +661,7 @@ export default function CheckoutPage() {
                 ) : distanceLoading ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Checking distance...</span>
                 ) : actualDistance !== null ? (
-                  <span className="text-[11px] text-[#f2546d] font-bold">
-                    Distance: {actualDistance.toFixed(1)} km
-                  </span>
+                  <span className="text-[11px] text-[#f2546d] font-bold">Distance: {actualDistance.toFixed(1)} km</span>
                 ) : distanceError ? (
                   <span className="text-[10px] text-amber-500 italic">{distanceError}</span>
                 ) : (!deliveryAddress?.lat || !deliveryAddress?.lng) ? (
@@ -746,6 +739,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
+      {/* Address Selector Drawer */}
       <Drawer.Root open={showAddressSelector} onOpenChange={setShowAddressSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
@@ -784,31 +778,22 @@ export default function CheckoutPage() {
               <Drawer.Description className="sr-only">Select how you want to pay</Drawer.Description>
 
               <div className="space-y-3">
-                {/* Razorpay — Online Payments */}
                 <button
                   onClick={() => setPaymentMethod('razorpay')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'razorpay'
-                      ? "bg-[#f2546d]/10 border-[#f2546d]"
-                      : "bg-[#141414] border-white/5 hover:border-white/10"
+                    paymentMethod === 'razorpay' ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      paymentMethod === 'razorpay' ? "bg-[#f2546d]/20" : "bg-zinc-800"
-                    )}>
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'razorpay' ? "bg-[#f2546d]/20" : "bg-zinc-800")}>
                       <Wifi className={cn("w-6 h-6", paymentMethod === 'razorpay' ? "text-[#f2546d]" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
                       <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
                     </div>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      paymentMethod === 'razorpay' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700"
-                    )}>
+                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'razorpay' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
                       {paymentMethod === 'razorpay' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -819,31 +804,22 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                {/* COD Option */}
                 <button
                   onClick={() => setPaymentMethod('cod')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'cod'
-                      ? "bg-emerald-500/10 border-emerald-500"
-                      : "bg-[#141414] border-white/5 hover:border-white/10"
+                    paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800"
-                    )}>
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
                       <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
                       <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
                     </div>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700"
-                    )}>
+                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
                       {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -855,9 +831,7 @@ export default function CheckoutPage() {
                 disabled={!paymentMethod}
                 className={cn(
                   "w-full mt-8 py-4 rounded-2xl font-black text-lg transition-all",
-                  paymentMethod
-                    ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
-                    : "bg-zinc-800 text-zinc-600"
+                  paymentMethod ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20" : "bg-zinc-800 text-zinc-600"
                 )}
                 style={dmSans}
               >
@@ -868,19 +842,76 @@ export default function CheckoutPage() {
         </Drawer.Portal>
       </Drawer.Root>
 
+      {/* Email Verification Gate */}
+      <AnimatePresence>
+        {showEmailGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEmailGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto mb-6">
+                <Mail className="w-10 h-10 text-orange-500" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Verify Email</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                For security and order confirmation, please verify your email address <span className="text-white font-bold">{profile?.email || user?.email}</span> before placing your first order.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    const emailToVerify = profile?.email || user?.email;
+                    if (!emailToVerify) {
+                      toast.error("No email found. Please add an email in your profile first.");
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase.auth.signInWithOtp({
+                        email: emailToVerify,
+                        options: { emailRedirectTo: `${window.location.origin}/auth/verify-email-callback` },
+                      });
+                      if (error) throw error;
+                      toast.success("Verify Email link sent to " + emailToVerify);
+                      setShowEmailGate(false);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to send link");
+                    }
+                  }}
+                  className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold text-lg shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  SEND VERIFY LINK
+                </button>
+                <button onClick={() => setShowEmailGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Terms Modal */}
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
             <div className="p-8 overflow-y-auto scrollbar-hide">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
-
               <div className="mb-10 text-center">
                 <Drawer.Title className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</Drawer.Title>
                 <Drawer.Description className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</Drawer.Description>
               </div>
 
-              {/* Legal Icons Summary */}
               <div className="grid grid-cols-1 gap-6 mb-12">
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-[#f2546d]/10 flex items-center justify-center flex-shrink-0">
@@ -891,7 +922,6 @@ export default function CheckoutPage() {
                     <p className="text-zinc-500 text-xs mt-1 font-bold leading-relaxed">We handle small spills and normal wear. Don't stress too much!</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                     <X className="w-7 h-7 text-blue-500" />
@@ -901,7 +931,6 @@ export default function CheckoutPage() {
                     <p className="text-zinc-500 text-xs mt-1 font-bold leading-relaxed">Professional cleaning is our job. Please avoid self-washing items.</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
                     <Clock className="w-7 h-7 text-amber-500" />
@@ -913,19 +942,11 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-               <div className="space-y-5 mb-10">
+              <div className="space-y-5 mb-10">
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={agreedToTerms}
-                      onChange={() => setAgreedToTerms(!agreedToTerms)}
-                    />
-                    <div className={cn(
-                      "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-                      agreedToTerms ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700"
-                    )}>
+                    <input type="checkbox" className="hidden" checked={agreedToTerms} onChange={() => setAgreedToTerms(!agreedToTerms)} />
+                    <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all", agreedToTerms ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700")}>
                       {agreedToTerms && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -939,16 +960,8 @@ export default function CheckoutPage() {
 
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={agreedToSizing}
-                      onChange={() => setAgreedToSizing(!agreedToSizing)}
-                    />
-                    <div className={cn(
-                      "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-                      agreedToSizing ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700"
-                    )}>
+                    <input type="checkbox" className="hidden" checked={agreedToSizing} onChange={() => setAgreedToSizing(!agreedToSizing)} />
+                    <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all", agreedToSizing ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700")}>
                       {agreedToSizing && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -963,9 +976,7 @@ export default function CheckoutPage() {
                 disabled={!agreedToTerms || !agreedToSizing}
                 className={cn(
                   "w-full py-5 rounded-[24px] font-black text-lg tracking-tight transition-all",
-                  (agreedToTerms && agreedToSizing)
-                    ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/30"
-                    : "bg-zinc-800 text-zinc-600 grayscale pointer-events-none"
+                  (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/30" : "bg-zinc-800 text-zinc-600 grayscale pointer-events-none"
                 )}
                 style={dmSans}
               >
@@ -983,14 +994,11 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              
               <div className="flex flex-col items-center text-center mb-8">
                 <div className="w-16 h-16 rounded-3xl bg-[#f2546d]/10 flex items-center justify-center mb-6">
                   <Clock className="w-8 h-8 text-[#f2546d]" />
                 </div>
-                <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>
-                  Long Distance Delivery
-                </h2>
+                <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>Long Distance Delivery</h2>
                 <div className="mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 w-full">
                   <p className="text-zinc-400 text-sm font-medium leading-relaxed">
                     Your delivery address is <span className="text-white font-bold">{actualDistance?.toFixed(1)} km</span> from our warehouse.
@@ -1001,6 +1009,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* FIX 5: Reuse distanceSurcharge memo instead of duplicating calculation */}
               <div className="bg-[#141414] p-5 rounded-2xl border border-white/5 mb-8">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-zinc-500 text-sm font-bold uppercase tracking-wider">Base Delivery</span>
@@ -1008,15 +1017,15 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between items-center text-[#f2546d]">
                   <span className="text-sm font-bold uppercase tracking-wider">Distance Surcharge</span>
-                  <span className="font-bold">+ ₹ {(actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0}</span>
+                  <span className="font-bold">+ ₹ {distanceSurcharge}</span>
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {40 + ((actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0)}</span>
+                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => setShowDistanceWarningPopup(false)}
                 className="w-full h-14 flex items-center justify-center rounded-[20px] bg-[#f2546d] text-white font-black text-lg shadow-xl shadow-[#f2546d]/20 active:scale-95 transition-all"
                 style={dmSans}

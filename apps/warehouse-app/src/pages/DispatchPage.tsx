@@ -32,7 +32,7 @@ export function DispatchPage() {
         try {
             const [packedOrders, ridersRes] = await Promise.all([
                 getPackedOrders(),
-                supabase.from('profiles').select('user_id, full_name'),
+                supabase.from('rider_profiles').select('user_id, full_name'),
             ]);
             setOrders(packedOrders);
             if (ridersRes.data) {

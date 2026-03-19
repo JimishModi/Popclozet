@@ -48,7 +48,7 @@ export default function DeliveryTrackingPage() {
         
         const fetchRider = async () => {
             const { data } = await supabase
-                .from('profiles')
+                .from('rider_profiles')
                 .select('*')
                 .eq('user_id', orderWithRider.rider_id)
                 .single();
