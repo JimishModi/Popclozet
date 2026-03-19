@@ -91,7 +91,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setProfile(null);
       } else {
         console.info('[Auth] Profile loaded:', profileData.full_name || '(no name)');
-        setNeedsOnboarding(!profileData.onboarding_completed);
+        const hasName = !!(profileData.full_name && profileData.full_name.trim().length > 0);
+        setNeedsOnboarding(!profileData.onboarding_completed && !hasName);
         setProfile(profileData as any);
         cacheProfile(profileData);
       }
@@ -101,7 +102,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (cachedProfile) {
         console.info('[Auth] Using cached profile as fallback');
         setProfile(cachedProfile as any);
-        setNeedsOnboarding(!cachedProfile.onboarding_completed);
+        const hasCachedName = !!(cachedProfile.full_name && cachedProfile.full_name.trim().length > 0);
+        setNeedsOnboarding(!cachedProfile.onboarding_completed && !hasCachedName);
       } else {
         setNeedsOnboarding(true);
         setProfile(null);
@@ -159,7 +161,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const cachedProfile = getCachedProfile();
           if (cachedProfile) {
             setProfile(cachedProfile as any);
-            setNeedsOnboarding(!cachedProfile.onboarding_completed);
+            const hasCachedName = !!(cachedProfile.full_name && cachedProfile.full_name.trim().length > 0);
+            setNeedsOnboarding(!cachedProfile.onboarding_completed && !hasCachedName);
             initialized.current = true;
             setLoading(false);
             getCurrentProfile(cached.session.user.id).then(freshProfile => {
@@ -337,6 +340,29 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within SupabaseAuthProvider");
+  return ctx;
+};
+    }
+
+initialized.current = false;
+setUser(null); setProfile(null); setSession(null);
+setNeedsOnboarding(false); setLoading(false);
+clearCachedProfile();
+  };
+
+return (
+  <AuthContext.Provider value={{
+    user, profile, session, loading, needsOnboarding, hasConfirmationResult,
+    signOut, updateProfile, refreshProfile,
+  }}>
+    {children}
+  </AuthContext.Provider>
+);
 };
 
 export const useAuth = () => {
