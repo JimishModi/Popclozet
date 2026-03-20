@@ -66,6 +66,9 @@ export interface UserProfile {
     onboarding_completed: boolean;
     email_verified: boolean;
     measurements?: BodyMeasurements;
+    vehicle_type?: 'bike' | 'scooter' | 'car';
+    vehicle_number?: string;
+    license_number?: string;
     created_at: string;
     updated_at: string;
 }

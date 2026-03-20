@@ -5,7 +5,7 @@
  */
 export interface OrderCardProps {
     id: string;
-    orderType?: 'delivery' | 'pickup';
+    orderType?: 'delivery' | 'pickup' | 'return';
     pickup: {
         name: string;
         address: string;

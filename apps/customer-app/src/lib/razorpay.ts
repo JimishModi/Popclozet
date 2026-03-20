@@ -45,11 +45,32 @@ declare global {
  * Opens the Razorpay checkout modal.
  * Dynamically loads the SDK if not already present.
  */
-export function openRazorpayCheckout(options: RazorpayOptions): void {
+export async function openRazorpayCheckout(options: RazorpayOptions): Promise<void> {
   if (typeof window.Razorpay === 'undefined') {
-    console.error('[Razorpay] SDK not loaded. Make sure checkout.js is in index.html');
-    throw new Error('Razorpay SDK not loaded');
+    console.log('[Razorpay] SDK not found, loading...');
+    await loadRazorpayScript();
   }
+  
   const rzp = new window.Razorpay(options);
   rzp.open();
+}
+
+/**
+ * Dynamically loads the Razorpay checkout.js script
+ */
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => {
+      console.log('[Razorpay] SDK loaded successfully');
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('[Razorpay] Failed to load SDK');
+      reject(new Error('Razorpay SDK failed to load'));
+    };
+    document.body.appendChild(script);
+  });
 }

@@ -90,7 +90,13 @@ export default function CheckoutPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Payment method: 'upi' (online) or 'cod'
+<<<<<<< Updated upstream
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
+=======
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(() => {
+    return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+  });
+>>>>>>> Stashed changes
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
 
@@ -104,6 +110,13 @@ export default function CheckoutPage() {
       .then(data => setUserIp(data.ip))
       .catch(err => console.error("Failed to fetch IP:", err));
   }, []);
+
+  // Save payment method preference
+  useEffect(() => {
+    if (paymentMethod) {
+      localStorage.setItem("preferred_payment_method", paymentMethod);
+    }
+  }, [paymentMethod]);
 
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
@@ -131,6 +144,8 @@ export default function CheckoutPage() {
   }, [cartEntries, cartProducts]);
 
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
+  const [upiId, setUpiId] = useState<string>("");
   const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
@@ -545,8 +560,9 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 4) Clear cart (if not buyout)
-      if (!buyoutOrderId) {
+      // 4) Clear cart (if not buyout and if COD)
+      // For UPI, the cart is cleared on the PaymentProcessingPage or OrderConfirmedPage fallback
+      if (!buyoutOrderId && paymentMethod === 'cod') {
         await clearCartDB().catch(() => { });
         for (const [id] of validCartEntries) {
           removeFromCart(id);

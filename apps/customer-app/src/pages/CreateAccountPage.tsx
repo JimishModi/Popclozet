@@ -48,9 +48,12 @@ export default function CreateAccountPage() {
 
       // Save profile
       await updateProfile({
-        full_name: name,
+        full_name: fullName,
         email: email.trim(),
+<<<<<<< Updated upstream
         gender: undefined,
+=======
+>>>>>>> Stashed changes
         onboarding_completed: true,
         email_verified: false,
       });

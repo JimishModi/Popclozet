@@ -276,6 +276,40 @@ export async function receiveReturnAtWarehouse(orderId: string, actorId: string,
 }
 
 /**
+ * Get packed orders (ready for rider assignment)
+ */
+export async function getPackedOrders(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    id,
+                    product_id,
+                    size,
+                    rental_price,
+                    individual_id,
+                    products (id, name, images)
+                ),
+                addresses:delivery_address_id (full_address, latitude, longitude)
+            `)
+            .or('status.eq.packed,lifecycle_state.eq.packed')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('getPackedOrders error:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch (err) {
+        console.error('Failed to get packed orders:', err);
+        return [];
+    }
+}
+
+/**
  * Get orders for warehouse fulfillment
  */
 export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
@@ -368,36 +402,3 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
     }
 }
 
-/**
- * Get packed orders for dispatch
- */
-export async function getPackedOrders(): Promise<OrderWithItems[]> {
-    try {
-        const { data, error } = await supabase
-            .from('orders')
-            .select(`
-                *,
-                order_items (
-                    id,
-                    product_id,
-                    size,
-                    rental_price,
-                    individual_id,
-                    products (id, name, images)
-                ),
-                addresses:delivery_address_id (full_address, latitude, longitude)
-            `)
-            .in('status', ['packed'])
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('getPackedOrders error:', error.message);
-            return [];
-        }
-
-        return normalizeOrders(data || []);
-    } catch (err) {
-        console.error('Failed to get packed orders:', err);
-        return [];
-    }
-}

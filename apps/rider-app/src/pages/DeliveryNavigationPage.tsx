@@ -15,7 +15,8 @@ import { Loader } from '@popclozet/ui';
 import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/mapbox-core';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, MapPin, KeyRound, Loader2, CheckCircle } from 'lucide-react';
+import { Navigation, MapPin, KeyRound, Loader2, CheckCircle, X } from 'lucide-react';
+import { releaseOrder } from '@/services/riderOrderService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ export const DeliveryNavigationPage: React.FC = () => {
     const [mapReady, setMapReady]         = useState(false);
     const [step, setStep]                 = useState<DeliveryStep>('navigating');
     const [actionLoading, setActionLoading] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
 
     // OTP
     const [otpValue, setOtpValue]       = useState('');
@@ -343,6 +345,24 @@ export const DeliveryNavigationPage: React.FC = () => {
         }
     }, [id, user?.id, order, otpValue, riderName, isReturnFlow]);
 
+    const handleCancelDelivery = useCallback(async () => {
+        if (!id || !user?.id) return;
+        const confirm = window.confirm('Are you sure you want to cancel this delivery? It will be reassigned to another rider.');
+        if (!confirm) return;
+
+        setIsCancelling(true);
+        try {
+            const result = await releaseOrder(id, user.id);
+            if (!result.success) throw new Error(result.message);
+            showToastRef.current('Delivery cancelled. You can now accept other orders.', 'success');
+            navigateRef.current('/');
+        } catch (err: any) {
+            showToastRef.current(err.message || 'Failed to cancel delivery', 'error');
+        } finally {
+            setIsCancelling(false);
+        }
+    }, [id, user?.id]);
+
     // ── Render ─────────────────────────────────────────────────────────────────
 
     if (loading) {
@@ -425,6 +445,13 @@ export const DeliveryNavigationPage: React.FC = () => {
                                     ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     : <><MapPin size={18} /> {isReturnFlow ? 'Arrived for Return Pickup' : 'Arrived at Location'}</>
                                 }
+                            </button>
+                            <button
+                                onClick={handleCancelDelivery}
+                                disabled={isCancelling || actionLoading}
+                                className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors mt-2"
+                            >
+                                {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
                             </button>
                             {!riderLocation && (
                                 <p className="text-center text-xs text-zinc-500 mt-2">

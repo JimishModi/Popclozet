@@ -27,6 +27,17 @@ import { CitySelectorModal } from "@/components/CitySelectorModal";
 
 
 // Lazy pages
+const SignInPage = lazy(() => import("./pages/SignInPage"));
+const SignUpPage = lazy(() => import("./pages/SignUpPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
+const EmailVerifyCallbackPage = lazy(() => import("./pages/EmailVerifyCallbackPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
+const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
+const ClosetPage = lazy(() => import("./pages/ClosetPage"));
+const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
+const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const CreateAccountPage = lazy(() => import("./pages/CreateAccountPage"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
@@ -44,18 +55,6 @@ const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage")
 const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage"));
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 const SubscriptionProfilePage = lazy(() => import("./pages/SubscriptionProfilePage"));
-
-const SignInPage = lazy(() => import("./pages/SignInPage"));
-const SignUpPage = lazy(() => import("./pages/SignUpPage"));
-const LoginPage = lazy(() => import("./pages/LoginPage"));
-const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
-const EmailVerifyCallbackPage = lazy(() => import("./pages/EmailVerifyCallbackPage"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
-const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
-const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
-const ClosetPage = lazy(() => import("./pages/ClosetPage"));
-const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
-const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
 import QRScannerPage from "./pages/QRScannerPage";

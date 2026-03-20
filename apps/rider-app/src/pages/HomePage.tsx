@@ -17,7 +17,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
-import { Zap, Bell } from 'lucide-react';
+import { Zap, Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -35,6 +35,7 @@ import { getUnreadCount } from '../services/notificationsService';
 import {
     claimOrder,
     declineOrderNotification,
+    releaseOrder,
 } from '../services/riderOrderService';
 import { supabase } from '@popclozet/api-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -156,6 +157,7 @@ export function HomePage() {
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [unreadNotifications, setUnread] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -444,6 +446,30 @@ export function HomePage() {
         }
     }, [pendingOrder, user?.id, fetchPendingOrder, showToast]);
 
+    const handleCancelDelivery = useCallback(async () => {
+        if (!pendingOrder || !user?.id) return;
+
+        const confirm = window.confirm('Are you sure you want to cancel this delivery? You will not be able to accept it again.');
+        if (!confirm) return;
+
+        setIsCancelling(true);
+        try {
+            const result = await releaseOrder(pendingOrder.id, user.id);
+            if (result.success) {
+                showToast('Delivery cancelled successfully', 'success');
+                setPendingOrder(null);
+                void fetchPendingOrder();
+            } else {
+                showToast(result.message ?? 'Failed to cancel delivery', 'error');
+            }
+        } catch (error) {
+            console.error('[HomePage] Cancel delivery error:', error);
+            showToast('An unexpected error occurred', 'error');
+        } finally {
+            setIsCancelling(false);
+        }
+    }, [pendingOrder, user?.id, showToast, fetchPendingOrder]);
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
@@ -506,12 +532,21 @@ export function HomePage() {
                             />
 
                             {pendingOrder.source === 'assigned' ? (
-                                <button
-                                    onClick={handleAcceptOrder}
-                                    className="w-full h-14 rounded-2xl bg-blue-500 text-white font-semibold hover:bg-blue-400 transition-colors"
-                                >
-                                    {getAssignedActionLabel(pendingOrder)}
-                                </button>
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={handleAcceptOrder}
+                                        className="w-full h-14 rounded-2xl bg-blue-500 text-white font-semibold hover:bg-blue-400 transition-colors"
+                                    >
+                                        {getAssignedActionLabel(pendingOrder)}
+                                    </button>
+                                    <button
+                                        onClick={handleCancelDelivery}
+                                        disabled={isCancelling}
+                                        className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors"
+                                    >
+                                        {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="flex gap-3">
                                     <button

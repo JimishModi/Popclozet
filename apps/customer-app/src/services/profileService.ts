@@ -29,6 +29,7 @@ export interface ProfileRow {
     gender?: string;
     onboarding_completed?: boolean;
     measurements?: Record<string, number>;
+    role?: string;
     created_at: string;
     updated_at: string;
 }
@@ -279,6 +280,7 @@ export async function createProfile(fields: {
     gender?: string;
     email_verified?: boolean;
     onboarding_completed?: boolean;
+    role?: string;
 }): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -330,6 +332,7 @@ export async function updateProfile(updates: Partial<{
     avatar_url: string;
     gender: string;
     onboarding_completed: boolean;
+    role: string;
     measurements: Record<string, number>;
 }>): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();

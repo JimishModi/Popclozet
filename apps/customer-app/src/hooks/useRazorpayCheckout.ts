@@ -58,7 +58,7 @@ export function useRazorpayCheckout() {
       });
 
       // Step 2: Open the Razorpay checkout modal
-      openRazorpayCheckout({
+      await openRazorpayCheckout({
         key: rzpOrder.key_id,
         amount: rzpOrder.amount,
         currency: rzpOrder.currency,

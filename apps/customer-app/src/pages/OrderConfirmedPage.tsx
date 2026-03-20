@@ -5,6 +5,8 @@ import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { useState, useEffect } from "react";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
+import { useCart } from "@/context/CartContext";
+import { clearCartDB } from "@/lib/db";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -13,6 +15,20 @@ export default function OrderConfirmedPage() {
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const { cartItems, removeFromCart } = useCart();
+
+    // 0. Safety cart clear fallback on entry
+    useEffect(() => {
+        const performSafetyClear = async () => {
+            const hasItems = Object.keys(cartItems).length > 0;
+            if (hasItems && orderId) {
+                console.log("[OrderConfirmed] Safety clearing cart...");
+                await clearCartDB().catch(() => { });
+                Object.keys(cartItems).forEach(id => removeFromCart(id));
+            }
+        };
+        performSafetyClear();
+    }, [orderId]);
 
     useEffect(() => {
         const fetchOrder = async () => {

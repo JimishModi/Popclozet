@@ -515,7 +515,6 @@ export async function hasInsuranceIncluded(): Promise<boolean> {
     const sub = await getActiveSubscription();
     if (!sub) return false;
 
-    const plans = await getSubscriptionPlans();
-    const plan = plans.find(p => p.id === sub.plan_id);
+    const plan = FALLBACK_PLANS.find(p => p.id === sub.plan_id);
     return plan?.insurance_included || false;
 }

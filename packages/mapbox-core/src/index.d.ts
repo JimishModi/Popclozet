@@ -32,9 +32,13 @@ export declare const destroyMap: () => void;
  */
 export declare const getMapInstance: () => mapboxgl.Map | null;
 /**
- * Draw a route between two points
+ * Draw a route on the map from provided coordinates.
  */
-export declare const drawRoute: (map: mapboxgl.Map, start: [number, number], end: [number, number]) => Promise<void>;
+export declare const drawRoute: (map: mapboxgl.Map, coordinates: number[][]) => Promise<void>;
+/**
+ * Alias for drawRoute
+ */
+export declare const drawRouteFromCoords: (map: mapboxgl.Map, coordinates: number[][]) => Promise<void>;
 /**
  * Service area configuration (IIT Bombay campus center)
  */
