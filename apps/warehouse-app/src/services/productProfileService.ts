@@ -47,12 +47,23 @@ export interface FullProductProfile {
     occasion: string[] | null;
     rental_price: number | null;
     deposit_amount: number | null;
-    mrp: number | null;
     images: string[] | null;
     is_available: boolean;
     created_at: string;
     inventory: InventorySubProfile[];
     discounts: ProductDiscount[];
+}
+
+export interface ProductUpdate {
+    name?: string;
+    brand?: string;
+    description?: string;
+    category?: string;
+    gender?: string;
+    rental_price?: number;
+    deposit_amount?: number;
+    images?: string[];
+    is_available?: boolean;
 }
 
 /**
@@ -101,15 +112,18 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 
     if (discErr) throw discErr;
 
-    // Build inventory subprofiles
-    const inventory: InventorySubProfile[] = (inventoryRows || []).map((row: any) => ({
-        id: row.id,
-        size: row.size,
-        available_stock: row.available_stock ?? 0,
-        went_for_wash: row.went_for_wash ?? 0,
-        total_stock: row.total_stock ?? 0,
-        units: allUnits.filter(u => u.inventory_id === row.id) as any,
-    }));
+    // Build inventory subprofiles using ground-truth from allUnits
+    const inventory: InventorySubProfile[] = (inventoryRows || []).map((row: any) => {
+        const unitsForSize = allUnits.filter(u => u.inventory_id === row.id);
+        return {
+            id: row.id,
+            size: row.size,
+            available_stock: unitsForSize.filter(u => u.status === 'available').length,
+            went_for_wash: unitsForSize.filter(u => u.status === 'washing').length,
+            total_stock: unitsForSize.length,
+            units: unitsForSize as any,
+        };
+    });
 
     return {
         id: product.id,
@@ -121,7 +135,6 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         occasion: product.occasion,
         rental_price: product.rental_price,
         deposit_amount: product.deposit_amount,
-        mrp: product.mrp,
         images: product.images,
         is_available: product.is_available ?? true,
         created_at: product.created_at,
@@ -154,33 +167,37 @@ export async function getAllProductProfiles(): Promise<{
     if (prodErr) throw prodErr;
     if (!products) return [];
 
-    // Fetch all inventory sums grouped by product_id
-    // Note: Supabase doesn't easily support group by/sum in a single REST call without an RPC
-    // So we fetch all inventory rows and aggregate in JS for simplicity in this size-limited app
-    const { data: inventory, error: invErr } = await supabase
-        .from('inventory')
-        .select('product_id, available_stock, went_for_wash');
+    // Fetch all item statuses for all products to ensure ground-truth counts
+    const { data: allItems, error: itemsErr } = await supabase
+        .from('all_products')
+        .select(`
+            status,
+            inventory!inner (
+                product_id
+            )
+        `);
 
-    if (invErr) throw invErr;
+    if (itemsErr) throw itemsErr;
 
-    // Create a map of product_id -> { available, wash }
-    const stockMap = new Map<string, { available: number, wash: number }>();
-    (inventory || []).forEach(row => {
-        const pid = row.product_id;
-        const current = stockMap.get(pid) || { available: 0, wash: 0 };
+    // Create a map of product_id -> { available, wash, total }
+    const stockMap = new Map<string, { available: number, wash: number, total: number }>();
+    (allItems || []).forEach((item: any) => {
+        const pid = item.inventory.product_id;
+        const current = stockMap.get(pid) || { available: 0, wash: 0, total: 0 };
         stockMap.set(pid, {
-            available: current.available + (row.available_stock || 0),
-            wash: current.wash + (row.went_for_wash || 0)
+            available: current.available + (item.status === 'available' ? 1 : 0),
+            wash: current.wash + (item.status === 'washing' ? 1 : 0),
+            total: current.total + 1
         });
     });
 
     return products.map(p => {
-        const stock = stockMap.get(p.id) || { available: 0, wash: 0 };
+        const stock = stockMap.get(p.id) || { available: 0, wash: 0, total: 0 };
         return {
             ...p,
             total_available: stock.available,
             total_wash: stock.wash,
-            total_stock: stock.available + stock.wash
+            total_stock: stock.total
         };
     });
 }
@@ -246,8 +263,6 @@ export async function addNewSizeToProduct(
         .insert({
             product_id: productId,
             size,
-            available_stock: 0,
-            went_for_wash: 0,
         })
         .select('id')
         .single();
@@ -291,4 +306,51 @@ export async function toggleDiscount(discountId: string, isActive: boolean): Pro
         .eq('id', discountId);
 
     if (error) throw error;
+}
+
+/**
+ * Update core product profile
+ */
+export async function updateProductProfile(productId: string, update: ProductUpdate): Promise<void> {
+    const { error } = await supabase
+        .from('products')
+        .update(update)
+        .eq('id', productId);
+
+    if (error) throw error;
+}
+
+/**
+ * Transition a physical unit to a new status (e.g. from available to archived)
+ */
+export async function setUnitStatus(
+    individualId: string, 
+    newStatus: 'available' | 'washing' | 'ready' | 'archived' | 'lost' | 'damaged',
+    actorId: string = 'system'
+): Promise<void> {
+    const { error } = await supabase
+        .from('all_products')
+        .update({ 
+            status: newStatus,
+            available: (newStatus === 'available' || newStatus === 'ready')
+        })
+        .eq('individual_id', individualId);
+
+    if (error) throw error;
+
+    // Log the change
+    await supabase.from('warehouse_activity_log').insert({
+        actor_id: actorId === 'system' ? null : actorId,
+        action: 'set_unit_status',
+        entity_type: 'individual_unit',
+        entity_id: null,
+        details: { individual_id: individualId, new_status: newStatus },
+    });
+}
+
+/**
+ * Archive a physical unit (soft-remove from active stock)
+ */
+export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
+    return setUnitStatus(individualId, 'archived', actorId);
 }
