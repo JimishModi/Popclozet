@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, Heart, ShoppingBag, Loader, Star, StarHalf, Trash2 } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -72,6 +72,12 @@ interface InventoryRow {
 const MobileProductDetailPage: React.FC = () => {
     const { id: productId } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Fake "rented out" product — passed via router state, never fetched from DB
+    const isRented: boolean = location.state?.isRented === true;
+    const fakeProductData = location.state?.fakeProduct ?? null;
+
     const { addToCart, cartItems, totalItems } = useCart();
     const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const { user } = useAuth();
@@ -101,6 +107,19 @@ const MobileProductDetailPage: React.FC = () => {
     useEffect(() => {
         const fetchProduct = async () => {
             if (!productId) {
+                setLoading(false);
+                return;
+            }
+
+            // Fake/rented product — use router state data directly, skip DB fetch
+            if (isRented && fakeProductData) {
+                const imgSrc = fakeProductData.imageUrl || fakeProductData.images?.[0] || '';
+                setProduct({
+                    ...fakeProductData,
+                    imageUrl: imgSrc,
+                    images: imgSrc ? [imgSrc] : [],
+                    isAvailable: false,
+                } as any);
                 setLoading(false);
                 return;
             }
@@ -446,7 +465,10 @@ const MobileProductDetailPage: React.FC = () => {
                                         transition={{ duration: 0.6 }}
                                         src={fullImage(img)}
                                         alt={`${product.name} ${idx + 1}`}
-                                        className="w-full h-full object-cover"
+                                        className={cn(
+                                            "w-full h-full object-cover",
+                                            isRented && "grayscale opacity-30 blur-sm"
+                                        )}
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
@@ -891,20 +913,30 @@ const MobileProductDetailPage: React.FC = () => {
             {/* ─── BOTTOM ACTION BAR ─── */}
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#111111] border-t border-[#232323]">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4">
-                    <button
-                        onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
-                        className={cn(
-                            "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
-                            isAdded ? "bg-zinc-800 border border-[#f2546d]/30" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20"
-                        )}
-                    >
-                        <span
-                            className="text-lg font-bold text-white tracking-tight"
-                            style={dmSans}
+                    {isRented ? (
+                        /* Rented-out state — cannot order */
+                        <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-800 border border-zinc-700 gap-2">
+                            <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                            <span className="text-base font-bold text-zinc-400 tracking-tight" style={dmSans}>
+                                Currently Rented Out
+                            </span>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
+                            className={cn(
+                                "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
+                                isAdded ? "bg-zinc-800 border border-[#f2546d]/30" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20"
+                            )}
                         >
-                            {isAdded ? "Go to Cart →" : "Add to Cart"}
-                        </span>
-                    </button>
+                            <span
+                                className="text-lg font-bold text-white tracking-tight"
+                                style={dmSans}
+                            >
+                                {isAdded ? "Go to Cart →" : "Add to Cart"}
+                            </span>
+                        </button>
+                    )}
                 </div>
             </div>
         </MobileShell>

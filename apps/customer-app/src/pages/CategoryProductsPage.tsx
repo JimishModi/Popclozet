@@ -14,6 +14,7 @@ import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { useCart } from "@/context/CartContext";
+import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 
 type FilterTab = "gender" | "size" | "price" | "brand";
 
@@ -205,10 +206,26 @@ const CategoryProductsPage: React.FC = () => {
                     gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
                 }));
 
-                // Update state with fresh data from DB
+                // Show real products immediately, then mix in fakes
                 setProducts(mapped);
 
-                // Update local cache for next time (non-blocking)
+                // Mix in LRU-rotated fake "rented out" products — always 5 from the 16-jacket pool
+                const fakeLimit = 5;
+                if (category && fakeLimit > 0) {
+                    fetchRotatedFakeProducts(category, filters.brands?.[0], fakeLimit)
+                        .then(fakes => {
+                            if (fakes.length === 0) return;
+                            const merged = [...mapped, ...fakes];
+                            for (let i = merged.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [merged[i], merged[j]] = [merged[j], merged[i]];
+                            }
+                            setProducts(merged as any);
+                        })
+                        .catch(() => {/* non-fatal — real products already set */});
+                }
+
+                // Update local cache for next time (non-blocking, real products only)
                 if (mapped.length > 0) {
                     cacheProductsBatchDB(mapped);
                 }
@@ -433,21 +450,30 @@ const CategoryProductsPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 gap-3">
-                                {filteredProducts.map((product, index) => (
+                                {filteredProducts.map((product, index) => {
+                                    const isFake = (product as any)._isFake === true;
+                                    const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
+                                    return (
                                     <motion.div
                                         key={product.id}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
-                                        onClick={() => handleProductClick(product.id)}
+                                        onClick={() => isFake
+                                            ? navigate(`/product/${product.id}`, { state: { fakeProduct: product, isRented: true } })
+                                            : handleProductClick(product.id)
+                                        }
                                         className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
                                     >
                                         <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
-                                            {product.images && product.images[0] ? (
+                                            {imgSrc ? (
                                                 <img
-                                                    src={thumbImage(product.images[0])}
+                                                    src={thumbImage(imgSrc)}
                                                     alt={product.name}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    className={cn(
+                                                        "w-full h-full object-cover transition-transform duration-300",
+                                                        isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                                    )}
                                                     loading="lazy"
                                                 />
                                             ) : (
@@ -455,25 +481,44 @@ const CategoryProductsPage: React.FC = () => {
                                                     <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
                                                 </div>
                                             )}
-                                            <button
-                                                onClick={(e) => toggleWishlist(product.id, e)}
-                                                className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
-                                            >
-                                                <Heart
-                                                    className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
-                                                        ? "text-[#FF4D6D] fill-[#FF4D6D]"
-                                                        : "text-white"
-                                                        }`}
-                                                />
-                                            </button>
+
+                                            {/* Currently Rented badge */}
+                                            {isFake && (
+                                                <div className="absolute top-2 left-2 z-10">
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                                        Currently Rented
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Wishlist — hidden for fake items */}
+                                            {!isFake && (
+                                                <button
+                                                    onClick={(e) => toggleWishlist(product.id, e)}
+                                                    className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                                                >
+                                                    <Heart
+                                                        className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
+                                                            ? "text-[#FF4D6D] fill-[#FF4D6D]"
+                                                            : "text-white"
+                                                            }`}
+                                                    />
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="p-3">
-                                            <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
+                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isFake ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                            <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
+                                            {isFake ? (
+                                                <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
+                                            ) : (
+                                                <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
+                                            )}
                                         </div>
                                     </motion.div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </>

@@ -1,0 +1,255 @@
+/**
+ * fakeProductMixService.ts
+ *
+ * Blends real available products with a small LRU-rotated set of fake
+ * "currently rented" products to simulate inventory depth during MVP.
+ *
+ * Architecture notes:
+ * ─────────────────────────────────────────────────────────────────────
+ * • Standalone module — not coupled to ProductService — because fake
+ *   products are always online-only and must never be cached in IndexedDB.
+ *
+ * • The atomic select + update is handled by a single Supabase RPC
+ *   (get_and_rotate_fake_products). This avoids a two-step read-then-write
+ *   race condition and keeps network round-trips to 2 total (1 real, 1 fake).
+ *
+ * • Graceful degradation: if the RPC fails for any reason, real products
+ *   are returned untouched — the feature fails silently, not loudly.
+ *
+ * • The _isFake flag lets any component optionally render a
+ *   "Currently Rented" badge without needing to know the source table.
+ *
+ * Extensibility for personalization:
+ *   Pass additional user-preference params into getProductsWithFakeMix
+ *   and forward them to the RPC (after adding p_gender / p_occasions args).
+ */
+
+import { supabase } from '@popclozet/api-client';
+import type { GenderCategory, EventCategory, Product } from './productService';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A product that may originate from either `products` or `fake_products`.
+ * Components should treat _isFake items as read-only (not orderable).
+ */
+export interface ProductWithMixMeta extends Product {
+  /** true  → from fake_products (show "Currently Rented" / greyed-out UI)
+   *  false → from products (normal orderable item) */
+  _isFake: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** fake / (real + fake) must not exceed this ratio. */
+const FAKE_RATIO_CAP = 0.30;
+
+/**
+ * Hard ceiling regardless of how many real products are returned.
+ * Keeps the page from being dominated by fake items even at high real counts.
+ */
+const MAX_FAKE_ABSOLUTE = 5;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Private helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Computes how many fake slots to fill while keeping fakes ≤ 30% of total.
+ *
+ * Derivation:
+ *   fake / (real + fake) ≤ 0.30
+ *   ⟹  fake ≤ real × 0.30 / 0.70  ≈  real × 0.4286
+ *
+ * Examples:
+ *   real=1  → floor(0.43)  = 0  (0 fakes — too few real to dilute)
+ *   real=3  → floor(1.28)  = 1
+ *   real=5  → floor(2.14)  = 2  (capped by MAX_FAKE_ABSOLUTE)
+ *   real=10 → floor(4.28)  = 2  (capped by MAX_FAKE_ABSOLUTE)
+ */
+function computeFakeSlots(realCount: number): number {
+  if (realCount === 0) return 0;
+  const maxByRatio = Math.floor(realCount * (FAKE_RATIO_CAP / (1 - FAKE_RATIO_CAP)));
+  return Math.min(maxByRatio, MAX_FAKE_ABSOLUTE);
+}
+
+/**
+ * Fisher-Yates in-place shuffle.
+ * O(n), unbiased — every permutation equally probable.
+ */
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Maps a raw fake_products DB row to the shared Product type.
+ * isAvailable is always false — fake items are "rented out", never orderable.
+ */
+function mapFakeRow(row: Record<string, unknown>): Product {
+  // Normalise gender: DB uses 'men'/'women', the app uses 'mens'/'womens'.
+  const rawGender = row.gender as string;
+  const gender = (
+    rawGender === 'men'   ? 'mens'   :
+    rawGender === 'women' ? 'womens' :
+    rawGender
+  ) as GenderCategory;
+
+  return {
+    id:            row.id as string,
+    name:          row.name as string,
+    description:   row.description as string | undefined,
+    price:         parseFloat((row.rental_price as string) ?? '0'),
+    rentalPrice:   parseFloat((row.rental_price as string) ?? '0'),
+    mrp:           row.mrp ? parseFloat(row.mrp as string) : undefined,
+    category:      row.category as string,
+    gender,
+    eventCategory: row.category as EventCategory,     // category maps to eventCategory
+    imageUrl:      (row.images as string[])?.[0] ?? '',
+    videoUrl:      row.video_url as string | undefined,
+    color:         (row.color as string) ?? '',
+    sizes:         [],
+    brand:         row.brand as string | undefined,
+    rating:        4.5,
+    isAvailable:   false,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns a shuffled mix of real available products and a small set of
+ * LRU-rotated fake "currently rented" products for the given filters.
+ *
+ * Guarantees:
+ *   • Fake items ≤ 30% of total result count.
+ *   • Fake items ≤ 2 in absolute terms.
+ *   • Fake selection + rotation stamp happen in a single atomic DB call.
+ *   • If the RPC fails, real products are returned without interruption.
+ *
+ * @param category  event_category to filter by (e.g. 'wedding', 'casual')
+ * @param brand     optional brand filter (exact match)
+ * @param gender    optional gender filter
+ */
+/**
+ * Fetches only rotated fake products for a given category.
+ * Use this when you already have real products and just need the fakes to mix in.
+ * Accepts plain string category (e.g. 'jackets') — not limited to EventCategory enum.
+ */
+export async function fetchRotatedFakeProducts(
+  category: string,
+  brand?: string,
+  limit: number = 2,
+): Promise<ProductWithMixMeta[]> {
+  const { data, error } = await supabase.rpc('get_and_rotate_fake_products', {
+    p_category: category,
+    p_brand:    brand ?? null,
+    p_limit:    limit,
+  });
+
+  if (error) {
+    console.warn('[fakeProductMixService] fetchRotatedFakeProducts failed:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    ...mapFakeRow(row),
+    _isFake: true,
+  }));
+}
+
+export async function getProductsWithFakeMix(
+  category: string,
+  brand?: string,
+  gender?: GenderCategory,
+): Promise<ProductWithMixMeta[]> {
+
+  // ── 1. Fetch real available products ──────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let realQuery = (supabase as any)
+    .from('products')
+    .select('*, product_discounts(*)')
+    .eq('is_available', true)
+    .eq('event_category', category);
+
+  if (brand) {
+    realQuery = realQuery.eq('brand', brand);
+  }
+  if (gender) {
+    // DB stores 'men'/'women'; app uses 'mens'/'womens'
+    const dbGender = gender === 'mens' ? 'men' : gender === 'womens' ? 'women' : gender;
+    realQuery = realQuery.eq('gender', dbGender);
+  }
+
+  const { data: realData, error: realError } = await realQuery;
+  if (realError) throw realError;
+
+  const realProducts: ProductWithMixMeta[] = (realData ?? []).map((row: Record<string, unknown>) => {
+    const rawGender = row.gender as string;
+    const discount = (row.product_discounts as Record<string, unknown>[])?.[0];
+
+    return {
+      id:             row.id as string,
+      name:           row.name as string,
+      description:    row.description as string | undefined,
+      price:          parseFloat((row.rental_price as string) ?? (row.price as string) ?? '0'),
+      rentalPrice:    row.rental_price ? parseFloat(row.rental_price as string) : undefined,
+      mrp:            row.mrp ? parseFloat(row.mrp as string) : undefined,
+      category:       (row.category as string) || (row.event_category as string) || '',
+      gender:         (rawGender === 'men' ? 'mens' : rawGender === 'women' ? 'womens' : rawGender) as GenderCategory,
+      eventCategory:  row.event_category as EventCategory,
+      imageUrl:       (row.images as string[])?.[0] || (row.image_url as string) || '',
+      videoUrl:       row.video_url as string | undefined,
+      color:          (row.color as string) ?? '',
+      sizes:          (row.sizes as string[]) ?? [],
+      brand:          row.brand as string | undefined,
+      rating:         parseFloat((row.rating as string) ?? '0'),
+      isAvailable:    row.is_available as boolean,
+      discount_type:  discount?.discount_type as 'percentage' | 'fixed_amount' | undefined,
+      discount_value: discount?.discount_value as number | undefined,
+      _isFake:        false,
+    };
+  });
+
+  // ── 2. Compute how many fake slots to inject ───────────────────────────────
+  const fakeSlots = computeFakeSlots(realProducts.length);
+
+  if (fakeSlots === 0) {
+    // Not enough real products to safely dilute — skip fakes entirely.
+    return realProducts;
+  }
+
+  // ── 3. Atomic LRU select + rotate via RPC ─────────────────────────────────
+  const { data: fakeData, error: fakeError } = await supabase.rpc(
+    'get_and_rotate_fake_products',
+    {
+      p_category: category,
+      p_brand:    brand ?? null,
+      p_limit:    fakeSlots,
+    },
+  );
+
+  if (fakeError) {
+    // Non-fatal: degrade gracefully rather than breaking the product page.
+    console.warn('[fakeProductMixService] RPC failed, skipping fakes:', fakeError.message);
+    return realProducts;
+  }
+
+  const fakeProducts: ProductWithMixMeta[] = (fakeData ?? []).map((row: Record<string, unknown>) => ({
+    ...mapFakeRow(row),
+    _isFake: true,
+  }));
+
+  // ── 4. Merge + shuffle ────────────────────────────────────────────────────
+  // Fisher-Yates ensures fake items don't cluster at a predictable position.
+  return shuffleInPlace([...realProducts, ...fakeProducts]);
+}

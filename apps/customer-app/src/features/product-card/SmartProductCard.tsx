@@ -10,6 +10,8 @@ import InstantAddButton from "@/components/ui/InstantAddButton";
 interface SmartProductCardProps {
   product: Product;
   className?: string;
+  /** When true, renders the card as "Currently Rented" — dull image, no cart button. */
+  isFake?: boolean;
 }
 
 const BASE = import.meta.env.BASE_URL ?? "/";
@@ -21,7 +23,7 @@ const normalizeSrc = (src?: string) => {
   return `${BASE}${src.replace(/^\/+/, "")}`;
 };
 
-const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
+const SmartProductCard = ({ product, className, isFake = false }: SmartProductCardProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { addToCart, removeFromCart, updateQuantity, getItemQuantity } = useCart();
@@ -48,13 +50,14 @@ const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
       >
         {/* Image/Video Container */}
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
-          {/* Static Image */}
+          {/* Static Image — greyscale + dimmed when fake */}
           <img
             src={imgSrc}
             alt={product.name}
             className={cn(
               "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-              isPlaying ? "opacity-0" : "opacity-100"
+              isPlaying ? "opacity-0" : "opacity-100",
+              isFake && "grayscale opacity-50"
             )}
             loading="lazy"
             onError={(e) => {
@@ -71,7 +74,8 @@ const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
               src={videoSrc}
               className={cn(
                 "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-                isPlaying ? "opacity-100" : "opacity-0"
+                isPlaying ? "opacity-100" : "opacity-0",
+                isFake && "grayscale opacity-50"
               )}
               muted
               loop
@@ -84,6 +88,16 @@ const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
             />
           ) : null}
 
+          {/* "Currently Rented" badge — only for fake products */}
+          {isFake && (
+            <div className="absolute top-2 left-2 z-10">
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                Currently Rented
+              </span>
+            </div>
+          )}
+
           {/* Overlay Actions (Desktop Hover / Focus) */}
           <div className="absolute inset-0 flex flex-col items-center justify-end p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-t from-black/60 via-transparent to-transparent">
             <div className="flex flex-col gap-2 w-full items-center translate-y-4 transition-transform duration-300 group-hover:translate-y-0">
@@ -95,14 +109,17 @@ const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
                 <Eye className="mr-2 h-4 w-4" /> Quick View
               </Button>
 
-              <InstantAddButton
-                quantity={quantity}
-                onAdd={() => addToCart(product.id)}
-                onIncrement={() => updateQuantity(product.id, quantity + 1)}
-                onDecrement={() => updateQuantity(product.id, quantity - 1)}
-                className="w-full shadow-button"
-                productImage={imgSrc}
-              />
+              {/* Cart button hidden for fake/rented-out items */}
+              {!isFake && (
+                <InstantAddButton
+                  quantity={quantity}
+                  onAdd={() => addToCart(product.id)}
+                  onIncrement={() => updateQuantity(product.id, quantity + 1)}
+                  onDecrement={() => updateQuantity(product.id, quantity - 1)}
+                  className="w-full shadow-button"
+                  productImage={imgSrc}
+                />
+              )}
             </div>
           </div>
         </div>

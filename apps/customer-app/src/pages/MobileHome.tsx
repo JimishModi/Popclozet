@@ -181,11 +181,25 @@ const MobileHome: React.FC = () => {
         const fetchCatalogue = async () => {
             setLoadingCatalogue(true);
             try {
-                // Fetch products for the active gender
                 const products = await productService.getProductsByGender(activeGender);
-                setCatalogueProducts(products.slice(0, 4)); // Show first 4
+                const real = products.slice(0, 3); // Show 3 real + 1 fake = 4 total (25%)
+
+                // Mix in 1 fake "rented out" jacket
+                const { fetchRotatedFakeProducts } = await import('@/services/fakeProductMixService');
+                const fakes = await fetchRotatedFakeProducts('jackets', undefined, 1);
+
+                const merged = [...real, ...fakes];
+                // Shuffle so fake doesn't always appear last
+                for (let i = merged.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [merged[i], merged[j]] = [merged[j], merged[i]];
+                }
+                setCatalogueProducts(merged as any);
             } catch (error) {
                 console.error("Failed to fetch catalogue products:", error);
+                // Fallback: show real products only
+                const products = await productService.getProductsByGender(activeGender);
+                setCatalogueProducts(products.slice(0, 4));
             } finally {
                 setLoadingCatalogue(false);
             }
@@ -628,7 +642,10 @@ const MobileHome: React.FC = () => {
                             [...Array(4)].map((_, i) => (
                                 <div key={`skel-${i}`} className="relative rounded-2xl bg-[#232323] aspect-[3/4] animate-pulse border border-[#484848]" />
                             ))
-                        ) : catalogueProducts.map((item, index) => (
+                        ) : catalogueProducts.map((item, index) => {
+                            const isFake = (item as any)._isFake === true;
+                            const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
+                            return (
                             <motion.div
                                 key={item.id}
                                 initial={{ opacity: 0, y: 30 }}
@@ -636,29 +653,51 @@ const MobileHome: React.FC = () => {
                                 viewport={{ once: true, margin: "-50px" }}
                                 transition={{ delay: index * 0.05 }}
                                 whileTap={{ scale: 0.97 }}
-                                onClick={() => navigate(`/product/${item.id}`)}
+                                onClick={() => isFake
+                                    ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: true } })
+                                    : navigate(`/product/${item.id}`)
+                                }
                                 className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                             >
-                                {/* Wishlist Toggle */}
-                                <button
-                                    className="absolute top-4 right-4 z-10"
-                                    onClick={(e) => toggleWishlist(item.id, e)}
-                                >
-                                    <Heart
-                                        className={cn(
-                                            "w-4 h-4 transition-colors",
-                                            isWishlisted(item.id) ? "text-[#f2546d] fill-[#f2546d]" : "text-white/60"
-                                        )}
-                                    />
-                                </button>
+                                {/* Wishlist — hidden for fake items */}
+                                {!isFake && (
+                                    <button
+                                        className="absolute top-4 right-4 z-10"
+                                        onClick={(e) => toggleWishlist(item.id, e)}
+                                    >
+                                        <Heart
+                                            className={cn(
+                                                "w-4 h-4 transition-colors",
+                                                isWishlisted(item.id) ? "text-[#f2546d] fill-[#f2546d]" : "text-white/60"
+                                            )}
+                                        />
+                                    </button>
+                                )}
 
                                 {/* Product Image */}
                                 <div className="aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
-                                    {item.imageUrl ? (
-                                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    {imgSrc ? (
+                                        <img
+                                            src={imgSrc}
+                                            alt={item.name}
+                                            className={cn(
+                                                "w-full h-full object-cover transition-transform duration-500",
+                                                isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                            )}
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
                                             No Image
+                                        </div>
+                                    )}
+
+                                    {/* Currently Rented badge */}
+                                    {isFake && (
+                                        <div className="absolute top-2 left-2 z-10">
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                                Currently Rented
+                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -668,33 +707,39 @@ const MobileHome: React.FC = () => {
 
                                 {/* Product Details */}
                                 <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                    <h3 className="text-sm font-bold text-white mb-2 line-clamp-2">
+                                    <h3 className={cn("text-sm font-bold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
                                         {item.name}
                                     </h3>
 
                                     <div className="mt-auto">
-                                        {item.price > (item.rentalPrice || item.price) && (
-                                            <div className="relative inline-block mb-1">
-                                                <span className="text-[11px] text-[#5f606a] font-semibold">
-                                                    ₹{item.price}
-                                                </span>
-                                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                                            </div>
+                                        {isFake ? (
+                                            <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
+                                        ) : (
+                                            <>
+                                                {item.price > (item.rentalPrice || item.price) && (
+                                                    <div className="relative inline-block mb-1">
+                                                        <span className="text-[11px] text-[#5f606a] font-semibold">
+                                                            ₹{item.price}
+                                                        </span>
+                                                        <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-white">
+                                                        ₹{item.rentalPrice ?? item.price}
+                                                    </span>
+                                                    {item.price > (item.rentalPrice || item.price) && (
+                                                        <span className="text-[10px] font-bold text-[#f2546d]">
+                                                            Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-bold text-white">
-                                                ₹{item.rentalPrice ?? item.price}
-                                            </span>
-                                            {item.price > (item.rentalPrice || item.price) && (
-                                                <span className="text-[10px] font-bold text-[#f2546d]">
-                                                    Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
-                                                </span>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                             </motion.div>
-                        ))}
+                        ); })}
                     </div>
                 </section>
 
