@@ -482,7 +482,6 @@ export function ProductProfilePage() {
             category: product.category,
             gender: product.gender,
             rental_price: product.rental_price ?? 0,
-            deposit_amount: product.deposit_amount ?? 0,
             images: [...(product.images || [])],
             is_available: product.is_available,
         });
@@ -783,7 +782,7 @@ export function ProductProfilePage() {
                 {/* Pricing Card */}
                 <div className="bg-surface-card border border-surface-border rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">💰 Pricing</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         <div className="bg-surface rounded-lg p-3">
                             <p className="text-[10px] text-zinc-500">Rental / day</p>
                             {isEditing ? (
@@ -803,22 +802,6 @@ export function ProductProfilePage() {
                                         <p className="text-[10px] text-emerald-400 font-semibold">After discount: ₹{discountedPrice.toFixed(0)}</p>
                                     )}
                                 </>
-                            )}
-                        </div>
-                        <div className="bg-surface rounded-lg p-3">
-                            <p className="text-[10px] text-zinc-500">Deposit</p>
-                            {isEditing ? (
-                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-surface-border">
-                                    <span className="text-zinc-500 text-xs">₹</span>
-                                    <input
-                                        type="number"
-                                        value={editForm?.deposit_amount ?? 0}
-                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, deposit_amount: parseFloat(e.target.value) || 0 }) : null)}
-                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
-                                    />
-                                </div>
-                            ) : (
-                                <p className="text-base font-bold text-white">₹{product.deposit_amount?.toLocaleString() ?? '—'}</p>
                             )}
                         </div>
                     </div>

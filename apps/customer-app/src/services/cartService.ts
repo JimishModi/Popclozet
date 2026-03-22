@@ -80,7 +80,6 @@ export async function getMyCart(): Promise<CartItem[]> {
         id,
         title,
         rental_price_per_day,
-        deposit_amount,
         image_url,
         brand,
         category

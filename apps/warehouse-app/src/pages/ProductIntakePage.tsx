@@ -107,7 +107,6 @@ export function ProductIntakePage() {
     const [category, setCategory] = useState('');
     const [gender, setGender] = useState('women');
     const [rentalPrice, setRentalPrice] = useState('');
-    const [deposit, setDeposit] = useState('');
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [previews, setPreviews] = useState<{ id: string; url: string; uploading: boolean }[]>([]);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
@@ -239,7 +238,6 @@ export function ProductIntakePage() {
                 category: finalCategory || 'tops',
                 gender,
                 rental_price: parseFloat(rentalPrice) || 299,
-                deposit_amount: parseFloat(deposit) || 500,
                 images: imageUrls,
                 is_available: true,
             };
@@ -373,7 +371,6 @@ export function ProductIntakePage() {
                     ['Category', category.charAt(0).toUpperCase() + category.slice(1)],
                     ['Target Gender', gender.charAt(0).toUpperCase() + gender.slice(1)],
                     ['Rental Price', `Rs. ${rentalPrice}/day`],
-                    ['Refundable Deposit', `Rs. ${deposit}`],
                     ['Registration Date', new Date().toLocaleDateString()],
                 ];
 
@@ -411,16 +408,15 @@ export function ProductIntakePage() {
         setName('');
         setBrand('');
         setCategory('');
+        setRentalPrice('');
+        setImageUrls([]);
+        setPreviews([]);
         setCustomCategory('');
         setCustomSizes('');
         setIsCustomCat(false);
-        setRentalPrice('');
-        setDeposit('');
-        setImageUrls([]);
-        setPreviews([]);
+        setSuccessUnits([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
         setSizes(SIZES.map(s => ({ size: s, qty: 0, selected: false })));
-        setSuccessUnits([]);
         
         // Refresh categories list immediately
         fetchCategoryConfigs();
@@ -651,14 +647,10 @@ export function ProductIntakePage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         <div>
                             <label className="text-xs text-zinc-400 mb-1 block">Rental ₹/day</label>
                             <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} placeholder="299" className="input-field h-10 text-sm" />
-                        </div>
-                        <div>
-                            <label className="text-xs text-zinc-400 mb-1 block">Deposit ₹</label>
-                            <input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="500" className="input-field h-10 text-sm" />
                         </div>
                     </div>
 

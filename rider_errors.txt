@@ -1,0 +1,8 @@
+src/pages/DeliveryNavigationPage.tsx(110,16): error TS2352: Conversion of type 'UserProfile' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'UserProfile'.
+src/pages/WarehouseNavigationPage.tsx(106,16): error TS2352: Conversion of type 'UserProfile' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'UserProfile'.
+src/services/index.ts(11,1): error TS2308: Module './notificationsService' has already exported a member named 'RiderNotification'. Consider explicitly re-exporting to resolve the ambiguity.
+undefined
+D:\PopClozet\PopCLozet-Apps\apps\rider-app:
+ΓÇëERR_PNPM_RECURSIVE_EXEC_FIRST_FAILΓÇë Command failed with exit code 2: tsc --noEmit

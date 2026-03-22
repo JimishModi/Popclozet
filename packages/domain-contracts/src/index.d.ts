@@ -23,6 +23,7 @@ export interface UserProfile {
     full_name: string;
     phone: string;
     avatar_url?: string;
+    email_verified: boolean;
     role: UserRole;
     measurements?: BodyMeasurements;
     created_at: string;

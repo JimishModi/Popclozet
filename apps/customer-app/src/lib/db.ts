@@ -65,7 +65,6 @@ export interface ReceiptData {
     placedAt: string;
     subtotal: number;
     deliveryFee: number;
-    deposit: number;
     total: number;
     deliveryAddress: string;
     rentalStartDate: string;

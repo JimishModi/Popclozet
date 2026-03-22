@@ -14,8 +14,6 @@ import { supabase } from '@popclozet/api-client';
 export type TransactionType =
     | 'payment'
     | 'refund'
-    | 'deposit_hold'
-    | 'deposit_release'
     | 'rider_earning'
     | 'rider_bonus'
     | 'settlement';

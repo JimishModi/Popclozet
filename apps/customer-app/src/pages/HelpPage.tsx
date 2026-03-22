@@ -21,7 +21,7 @@ const FAQS = [
     },
     {
         q: "Is there a security deposit?",
-        a: "We collect a refundable security deposit at the time of rental which is fully returned when the item is picked up in good condition."
+        a: "No! PopClozet operates on a zero-deposit model. You only pay the rental fee and delivery charges — no upfront security amount required."
     },
     {
         q: "What if something gets damaged?",

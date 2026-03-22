@@ -32,7 +32,6 @@ export interface Reservation {
     };
     status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled' | 'returned';
     rentalPrice: number;
-    depositAmount?: number;
     discountApplied?: number;
     deliveryAddress?: string;
     deliveryNotes?: string;
@@ -353,7 +352,6 @@ class ReservationService {
             },
             status: data.status,
             rentalPrice: parseFloat(data.rental_price) || 0,
-            depositAmount: data.deposit_amount ? parseFloat(data.deposit_amount) : undefined,
             discountApplied: data.discount_applied ? parseFloat(data.discount_applied) : undefined,
             deliveryAddress: data.delivery_address,
             deliveryNotes: data.delivery_notes,

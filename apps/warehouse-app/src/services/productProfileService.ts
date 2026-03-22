@@ -46,7 +46,6 @@ export interface FullProductProfile {
     gender: string | null;
     occasion: string[] | null;
     rental_price: number | null;
-    deposit_amount: number | null;
     images: string[] | null;
     is_available: boolean;
     created_at: string;
@@ -61,7 +60,6 @@ export interface ProductUpdate {
     category?: string;
     gender?: string;
     rental_price?: number;
-    deposit_amount?: number;
     images?: string[];
     is_available?: boolean;
 }
@@ -134,7 +132,6 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         gender: product.gender,
         occasion: product.occasion,
         rental_price: product.rental_price,
-        deposit_amount: product.deposit_amount,
         images: product.images,
         is_available: product.is_available ?? true,
         created_at: product.created_at,

@@ -20,7 +20,6 @@ export interface Product {
     sizes?: string[];
     brand?: string;
     rental_price?: number;
-    deposit_amount?: string;
     images?: string[];
     leadTimeMinutes?: number;
     rating: number;
@@ -179,7 +178,6 @@ class ProductService {
             price: parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
             rentalPrice: dbProduct.rental_price ? parseFloat(dbProduct.rental_price) : undefined,
             mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
-            deposit_amount: dbProduct.deposit_amount ? String(dbProduct.deposit_amount) : undefined,
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
             eventCategory: dbProduct.category as EventCategory, // DB uses 'category'
             imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',

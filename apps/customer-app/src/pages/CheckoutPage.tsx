@@ -366,7 +366,6 @@ export default function CheckoutPage() {
           rental_start_date: startDate,
           rental_end_date: endDate,
           total_amount: total,
-          deposit_amount: Math.round(subtotal * 0.3),
           delivery_eta: deliveryEta,
           status: orderStatus,
           payment_method: paymentMethod,
@@ -404,7 +403,6 @@ export default function CheckoutPage() {
           product_id: baseId,
           size: size,
           rental_price: (product?.price || 0) * qty,
-          deposit_amount: Math.round((product?.price || 0) * qty * 0.3),
           rental_duration_days: rentalDays,
         };
       });
