@@ -81,7 +81,7 @@ const AboutUsProcessPage: React.FC = () => {
         <MobileShell className="bg-[#0A0A0A] text-white">
             {/* Header */}
             <div className="sticky top-0 z-50 px-5 py-6 flex items-center gap-4 bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5">
-                <button onClick={() => navigate(-1)} className="shrink-0 p-2 -ml-2 rounded-full hover:bg-white/5 transition-colors">
+                <button onClick={() => navigate(-1)} className="shrink-0 p-2 -ml-2 rounded-full hover:bg-white/5 transition-all active:scale-95">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 18l-6-6 6-6" />
                     </svg>

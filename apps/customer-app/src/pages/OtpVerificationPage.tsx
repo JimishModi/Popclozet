@@ -128,13 +128,17 @@ export default function OtpVerificationPage() {
 
   return (
     <MobileShell className="bg-black text-white" hideBottomNav hideGlow>
-      <div className="flex flex-col min-h-screen px-6 pt-12">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
         <button
           onClick={() => navigate('/auth/login')}
-          className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center mb-8 border border-zinc-800"
+          className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-800 transition-all active:scale-95"
         >
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
+      </header>
+
+      <div className="flex flex-col min-h-screen px-6 pt-12">
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Verify Phone</h1>

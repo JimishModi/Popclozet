@@ -282,7 +282,7 @@ const CartPage = () => {
       <main className="flex-1 overflow-y-auto pb-56">
 
         {/* ─── HEADER: Gradient Glow + Title ─── */}
-        <section className="relative px-5 pt-6 pb-4">
+        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 pt-6 pb-4">
           {/* Error Banner */}
           {subscriptionError && (
             <div className="absolute top-20 left-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
@@ -304,7 +304,7 @@ const CartPage = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
-                className="flex items-center justify-center"
+                className="w-10 h-10 flex items-center justify-center rounded-full border border-white/5 bg-white/5 transition-all active:scale-95"
               >
                 <ChevronLeft className="w-5 h-5 text-white" />
               </button>
@@ -316,7 +316,7 @@ const CartPage = () => {
             {/* Right: Wishlist button */}
             <button
               onClick={() => navigate('/closet?tab=wishlist')}
-              className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full"
+              className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full active:scale-95 transition-all"
             >
               <ClosetIcon className="w-4 h-4 text-white/80" />
             </button>
@@ -328,7 +328,7 @@ const CartPage = () => {
               Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
           )}
-        </section>
+        </header>
 
 
         {/* ─── LOADING & EMPTY STATES ─── */}

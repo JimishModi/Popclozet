@@ -81,7 +81,7 @@ export default function SubscriptionProfilePage() {
             <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-4 flex items-center justify-between">
                 <button
                     onClick={() => navigate("/profile")}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all active:scale-95"
                 >
                     <ArrowLeft className="w-5 h-5 text-zinc-300" />
                 </button>

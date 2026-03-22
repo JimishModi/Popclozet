@@ -50,19 +50,20 @@ export default function SubscriptionPlansPage() {
 
     return (
         <MobileShell className="bg-black text-white">
-            <div className="flex flex-col h-full px-6 py-8">
                 {/* Header with Back Button and User Icon */}
-                <div className="flex justify-between items-center mb-6">
+                <header className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/5 px-6 py-4 flex justify-between items-center">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ArrowLeft className="w-6 h-6 text-white" />
                     </button>
                     <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
                         <span className="text-emerald-500 font-bold text-sm">A</span>
                     </div>
-                </div>
+                </header>
+
+                <div className="flex flex-col h-full px-6 py-8">
 
                 <h1 className="text-3xl font-bold mb-10 text-white" style={dmSans}>Choose your plan</h1>
 

@@ -79,7 +79,7 @@ export default function PaymentSuccessPage() {
                         <div className="flex gap-4">
                             <button
                                 onClick={() => navigate(-1)}
-                                className="h-14 px-8 rounded-full bg-zinc-800 text-white font-bold active:scale-95 transition-all border border-white/10"
+                                className="h-14 px-8 rounded-full bg-zinc-800 text-white font-bold active:scale-95 transition-all border border-white/10 active:scale-95"
                             >
                                 Go Back
                             </button>

@@ -152,10 +152,10 @@ const ScheduleReturnPage: React.FC = () => {
         <MobileShell className="bg-[#111111] text-white">
             <div className="pointer-events-none absolute top-[-60px] left-[-32px] w-[145px] h-[137px] rounded-full blur-[180px] bg-[#f2546d]/60" />
 
-            <header className="flex items-center gap-4 px-5 pt-16 pb-4">
+            <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg flex items-center gap-4 px-5 pt-16 pb-4">
                 <button
                     onClick={() => navigate(-1)}
-                    className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center"
+                    className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center transition-all active:scale-95"
                 >
                     <ChevronLeft className="w-5 h-5 text-white" />
                 </button>

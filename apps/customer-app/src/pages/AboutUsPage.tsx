@@ -19,15 +19,15 @@ export default function AboutUsPage() {
             <MobileHeader />
 
             <main className="flex-1 overflow-y-auto">
-                {/* Back arrow */}
-                <div className="px-4 py-4">
+                {/* Header */}
+                <header className="sticky top-0 z-50 bg-[#111111]/90 backdrop-blur-xl px-4 py-4 border-b border-white/5">
                     <Link
                         to="/home"
-                        className="inline-flex items-center gap-2 p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
+                        className="inline-flex items-center gap-2 p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ArrowLeft className="w-5 h-5 text-white" />
                     </Link>
-                </div>
+                </header>
 
                 {/* Full AboutUsProcess component */}
                 <AboutUsProcess />

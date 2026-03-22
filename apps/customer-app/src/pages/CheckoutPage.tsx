@@ -90,13 +90,9 @@ export default function CheckoutPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Payment method: 'upi' (online) or 'cod'
-<<<<<<< Updated upstream
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
-=======
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(() => {
     return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
   });
->>>>>>> Stashed changes
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
 
@@ -215,10 +211,10 @@ export default function CheckoutPage() {
 
           if (distance > MAX_DELIVERY_DISTANCE_KM) {
             setShowDistanceWarningPopup(true);
-            toast.info(`Delivery address is ${distance.toFixed(1)} km from our warehouse. ₹10/km additional charges apply beyond 6km.`, {
-              duration: 8000,
-              position: "top-center"
-            });
+            toast.info(`Long-distance delivery charges apply. ₹10/km additional fee applies for addresses outside our 6km standard zone.`, {
+            duration: 8000,
+            position: "top-center"
+          });
           }
         } else {
           throw new Error("MapmyIndia API service error");
@@ -597,12 +593,12 @@ export default function CheckoutPage() {
         )}
 
         {/* Header */}
-        <section className="relative px-5 pt-6 pb-2">
+        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 pt-6 pb-2">
           <div className="absolute -top-20 -left-14 w-36 h-36 rounded-full blur-[100px] pointer-events-none" style={{ background: "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)" }} />
-          <button onClick={() => navigate(-1)} className="relative flex items-center justify-center">
+          <button onClick={() => navigate(-1)} className="relative flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/5 transition-all active:scale-95">
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
-        </section>
+        </header>
 
         {subscriptionError && (
           <section className="px-5 mt-4">
@@ -637,20 +633,6 @@ export default function CheckoutPage() {
                 ) : distanceLoading ? (
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
-                  </div>
-                ) : actualDistance !== null ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
-                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
-                      {actualDistance.toFixed(1)} km from warehouse
-                    </span>
-                  </div>
-                ) : distanceError ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">{distanceError}</span>
-                  </div>
-                ) : !deliveryAddress.lat || !deliveryAddress.lng ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">Coordinate search failed</span>
                   </div>
                 ) : null}
               </div>
@@ -835,12 +817,6 @@ export default function CheckoutPage() {
                   <span className="text-[11px] text-zinc-500 animate-pulse">Resolving address...</span>
                 ) : distanceLoading ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Checking distance...</span>
-                ) : actualDistance !== null ? (
-                  <span className="text-[11px] text-[#f2546d] font-bold">Distance: {actualDistance.toFixed(1)} km</span>
-                ) : distanceError ? (
-                  <span className="text-[10px] text-amber-500 italic">{distanceError}</span>
-                ) : (!deliveryAddress?.lat || !deliveryAddress?.lng) ? (
-                  <span className="text-[10px] text-amber-500 italic">Coordinate search failed</span>
                 ) : null}
                 {distanceSurcharge > 0 && (
                   <span className="text-[10px] text-zinc-500 font-medium">
@@ -1180,7 +1156,7 @@ export default function CheckoutPage() {
                 <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>Long Distance Delivery</h2>
                 <div className="mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 w-full">
                   <p className="text-zinc-400 text-sm font-medium leading-relaxed">
-                    Your delivery address is <span className="text-white font-bold">{actualDistance?.toFixed(1)} km</span> from our warehouse.
+                    Your delivery address is outside our standard free-delivery zone.
                   </p>
                   <p className="text-[#f2546d] text-[13px] font-bold mt-2">
                     A surcharge of ₹10 per km applies for distances beyond 6 km.

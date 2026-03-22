@@ -162,14 +162,18 @@ Thank you for renting with PopClozet!
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
             <main className="flex-1 overflow-y-auto flex flex-col no-scrollbar">
-                {/* ─── MAP SECTION ─── */}
-                <section className="relative h-[250px] flex-shrink-0 bg-zinc-900/50">
+                {/* ─── STICKY HEADER ─── */}
+                <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4">
                     <button
                         onClick={() => navigate("/home")}
-                        className="absolute top-6 left-5 z-30 flex items-center justify-center p-2 rounded-xl bg-black/20 backdrop-blur-md"
+                        className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center transition-all active:scale-95"
                     >
                         <ChevronLeft className="w-6 h-6 text-white" strokeWidth={3} />
                     </button>
+                </header>
+
+                {/* ─── MAP SECTION ─── */}
+                <section className="relative h-[250px] flex-shrink-0 bg-zinc-900/50">
 
                     <div className="w-full h-full opacity-60">
                         <InteractiveMap

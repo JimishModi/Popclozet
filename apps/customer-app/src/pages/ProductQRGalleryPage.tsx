@@ -192,7 +192,7 @@ const ProductQRGalleryPage: React.FC = () => {
                 <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
                     <div className="container mx-auto px-4 py-4 flex items-center justify-between max-w-7xl">
                         <Link to="/qr-hygiene">
-                            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all">
                                 <ArrowLeft className="h-4 w-4" />
                                 Back to Hub
                             </Button>

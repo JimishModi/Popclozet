@@ -83,17 +83,18 @@ export default function VerifyEmailPage() {
 
     return (
         <MobileShell className="bg-[#1a1a1a] text-white" hideBottomNav hideGlow>
-            <div className="flex flex-col min-h-screen px-6 pt-8 pb-8">
                 {/* Header */}
-                <div className="flex items-center gap-4 mb-12">
+                <header className="sticky top-0 z-50 bg-[#1a1a1a]/90 backdrop-blur-md border-b border-white/5 px-6 py-4 flex items-center gap-4">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ArrowLeft className="w-6 h-6 text-white" />
                     </button>
                     <h1 className="text-xl font-bold">Verify Email</h1>
-                </div>
+                </header>
+
+                <div className="flex flex-col min-h-screen px-6 pt-8 pb-8">
 
                 {/* Content */}
                 <div className="flex-1 flex flex-col items-center">

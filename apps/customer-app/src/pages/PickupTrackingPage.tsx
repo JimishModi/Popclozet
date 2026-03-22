@@ -59,6 +59,17 @@ export default function PickupTrackingPage() {
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
             <main className="flex-1 overflow-y-auto flex flex-col">
+                {/* Sticky Header */}
+                <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 border-b border-white/5 flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
+                    >
+                        <ChevronLeft className="w-6 h-6 text-white" />
+                    </button>
+                    <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Active Tracking</h1>
+                </header>
+
                 <section className="relative h-[240px] flex-shrink-0 bg-gradient-to-br from-[#1a1a1a] to-black rounded-b-3xl mb-6">
                     {/* Gradient Glow Orb */}
                     <div
@@ -69,18 +80,9 @@ export default function PickupTrackingPage() {
                         }}
                     />
 
-                    {/* Back Button */}
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="absolute top-6 left-5 z-20 flex items-center justify-center"
-                    >
-                        <ChevronLeft className="w-6 h-6 text-white" />
-                    </button>
-
                     {/* Information Placeholder */}
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-8">
                          <div className="w-16 h-1 bg-zinc-800 rounded-full mb-6"></div>
-                         <h2 className="text-xl font-bold text-white tracking-tight">Active Tracking</h2>
                          <p className="text-zinc-400 text-sm mt-1">Live location hidden</p>
                     </div>
                 </section>

@@ -6,7 +6,7 @@ import {
     ArrowLeft, User, Bell, Mail, Shield, LogOut, ChevronRight,
     MapPin, CreditCard, Clock, Ruler, Package, RefreshCw,
     HelpCircle, FileText, Trash2, Phone, Zap, AlertTriangle,
-    Check, X
+    Check, X, ChevronLeft
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { MobileShell } from '@/components/layout/MobileShell';
@@ -182,11 +182,11 @@ const SettingsPage: React.FC = () => {
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center gap-3">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
                 >
-                    <ArrowLeft className="w-5 h-5 text-zinc-400" />
+                    <ChevronLeft className="w-5 h-5 text-white" />
                 </button>
-                <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Settings</h1>
+                <h1 className="text-lg font-bold text-white">Settings</h1>
             </div>
 
             <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 space-y-6">

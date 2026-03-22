@@ -771,7 +771,7 @@
   /* Prevent horizontal scroll on mobile */
   html,
   body {
-    overflow-x: hidden;
+    overflow-x: clip;
     width: 100%;
   }
 

@@ -32,8 +32,8 @@ const AddressSelectionPage = () => {
 
   return (
     <MobileShell className="bg-[#111111] text-white">
-      <header className="px-5 pt-8 pb-4 flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2">
+      <header className="sticky top-0 z-50 bg-[#111111]/90 backdrop-blur-md border-b border-white/5 px-5 py-4 flex items-center gap-4">
+        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-white/5 transition-all active:scale-95">
           <ChevronLeft className="w-6 h-6" />
         </button>
         <h1 className="text-2xl font-black tracking-tighter" style={dmSans}>

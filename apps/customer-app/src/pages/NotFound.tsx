@@ -104,7 +104,7 @@ const NotFound = () => {
         </button>
         <button
           onClick={() => navigate(-1)}
-          className="w-full h-12 rounded-2xl border border-[#303030] bg-[#1a1a1a] text-zinc-300 text-sm font-semibold tracking-tight hover:bg-[#222] transition-colors active:scale-95"
+          className="w-full h-12 rounded-2xl border border-[#303030] bg-[#1a1a1a] text-zinc-300 text-sm font-semibold tracking-tight hover:bg-[#222] transition-all active:scale-95"
         >
           Go Back
         </button>

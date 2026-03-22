@@ -141,7 +141,7 @@ const SignUpPage: React.FC = () => {
             <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors"
+                    className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-all active:scale-95"
                 >
                     <ArrowLeft className="w-5 h-5 text-white" />
                 </button>

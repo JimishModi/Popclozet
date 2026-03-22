@@ -21,11 +21,16 @@ const COLLECTIONS = [
 
 const FEATURED_SLIDES = [
     { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=800&q=80", gender: "womens" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80", gender: "womens" },
-    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1516259762381-22954d7d3ad2?w=800&q=80", gender: "mens" },
-    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&q=80", gender: "mens" },
+    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80", gender: "womens" },
+    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1596459204919-c8a44421c6ca?w=800&q=80", gender: "womens" },
+
+    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=800&q=80", gender: "mens" },
+    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80", gender: "mens" },
+    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=800&q=80", gender: "mens" },
+
 ];
+
+
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
     {
@@ -110,9 +115,10 @@ const MobileHome: React.FC = () => {
     useEffect(() => {
         const interval = setInterval(() => {
             setActiveSlide((prev) => (prev + 1) % filteredSlides.length);
-        }, 4000);
+        }, 3000);
         return () => clearInterval(interval);
     }, [filteredSlides.length]);
+
 
     // Auto-detect location using GPS + Mapbox reverse geocoding
     useEffect(() => {
@@ -232,7 +238,10 @@ const MobileHome: React.FC = () => {
 
                     <div className="relative flex items-end justify-between">
                         {/* Left: Delivery badge + location */}
-                        <div className="flex flex-col gap-1">
+                        <div 
+                            className="flex flex-col gap-1 cursor-pointer"
+                            onClick={() => navigate('/checkout/address')}
+                        >
                             <span className="text-[#f2546d] text-xs font-bold tracking-tight">
                                 ⚡ in
                             </span>
@@ -248,6 +257,7 @@ const MobileHome: React.FC = () => {
                                 </span>
                             </div>
                         </div>
+
 
                         {/* Right: Action buttons */}
                         <div className="flex items-center gap-2 mb-1">
@@ -284,46 +294,43 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── GENDER SELECTOR: Overlapping Dark Panels ─── */}
                 <section className="px-5 mt-4">
-                    <div className="relative h-24 flex items-center justify-center">
-                        {/* Women panel (left) */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Women card */}
                         <motion.div
-                            className={cn(
-                                "absolute left-0 w-[62%] h-24 rounded-2xl cursor-pointer transition-all duration-300 flex items-end pb-4 pl-8",
-                                activeGender === "womens"
-                                    ? "bg-[#2a2a2a] z-20 shadow-[6px_0px_8px_rgba(0,0,0,0.4)]"
-                                    : "bg-[#222222] z-10"
-                            )}
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => setActiveGender("womens")}
-                            whileTap={{ scale: 0.98 }}
+                            className="relative h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
                         >
-                            <span className={cn(
-                                "text-sm font-bold tracking-wider transition-colors",
-                                activeGender === "womens" ? "text-white" : "text-zinc-500"
-                            )}>
+                            <img 
+                                src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400" 
+                                alt="Women" 
+                                className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
                                 WOMEN
                             </span>
                         </motion.div>
 
-                        {/* Men panel (right, overlapping) */}
+                        {/* Men card */}
                         <motion.div
-                            className={cn(
-                                "absolute right-0 w-[62%] h-24 rounded-2xl cursor-pointer transition-all duration-300 flex items-end pb-4 pl-10",
-                                activeGender === "mens"
-                                    ? "bg-[#2a2a2a] z-20 shadow-[-9px_0px_4px_rgba(0,0,0,0.25)]"
-                                    : "bg-[#222222] z-10"
-                            )}
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => setActiveGender("mens")}
-                            whileTap={{ scale: 0.98 }}
+                            className="relative h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
                         >
-                            <span className={cn(
-                                "text-sm font-bold tracking-wider transition-colors",
-                                activeGender === "mens" ? "text-white" : "text-zinc-500"
-                            )}>
+                            <img 
+                                src="https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=400" 
+                                alt="Men" 
+                                className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
                                 MEN
                             </span>
                         </motion.div>
                     </div>
                 </section>
+
 
 
                 {/* ─── SEARCH: Clickable Pill → opens /search ─── */}
@@ -346,24 +353,31 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── FEATURED CAROUSEL: 3-Card Peek ─── */}
                 <section className="mt-8 overflow-hidden">
-                    <div className="relative flex items-center justify-center h-[348px]">
+                    <div className="overflow-hidden w-full relative flex items-center justify-center h-[348px]">
+
                         {/* Side cards + Center card */}
-                        <div className="flex items-center gap-4" style={{ width: '100%', justifyContent: 'center' }}>
+                        <div className="flex items-center gap-6" style={{ width: '100%', justifyContent: 'center' }}>
                             {/* Left peek card */}
                             <motion.div
-                                className="w-[72px] h-[280px] bg-[#232323] rounded-2xl flex-shrink-0 overflow-hidden"
-                                animate={{ opacity: 0.7 }}
+                                className="w-[40px] h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
+                                animate={{ opacity: 0.4, scale: 0.9 }}
                             >
                                 <img
                                     src={filteredSlides[(activeSlide + filteredSlides.length - 1) % filteredSlides.length].image}
                                     alt="Previous"
-                                    className="w-full h-full object-cover opacity-60"
+                                    className="w-full h-full object-cover grayscale blur-[2px]"
                                 />
                             </motion.div>
-
+    
                             {/* Center card (active) */}
                             <AnimatePresence mode="wait">
                                 <motion.div
+                                    key={activeSlide}
+                                    initial={{ opacity: 0, scale: 0.95, x: 20 }}
+                                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 1.05, x: -20 }}
+                                    transition={{ duration: 0.4, ease: "easeOut" }}
+                                    className="relative w-[260px] h-[340px] rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer bg-zinc-900"
                                     onClick={() => {
                                         const slide = filteredSlides[activeSlide];
                                         const categoryMap: Record<string, string> = {
@@ -382,30 +396,33 @@ const MobileHome: React.FC = () => {
                                         alt={filteredSlides[activeSlide].title}
                                         className="w-full h-full object-cover"
                                     />
-                                    <div className="absolute inset-0 bg-black/30 transition-colors" />
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                                        <span className="px-3 py-1 rounded-full bg-[#f2546d] text-white text-xs font-bold uppercase tracking-wider shadow-sm">
+                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                    
+                                    <div className="absolute bottom-6 left-6 right-6 backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
+                                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[10px] font-bold uppercase tracking-wider mb-2">
                                             Trending
                                         </span>
-                                        <h3 className="text-2xl font-black text-white mt-3 tracking-tight drop-shadow-lg">
+                                        <h3 className="text-xl font-black text-white tracking-tight">
                                             {filteredSlides[activeSlide].title}
                                         </h3>
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
-
+    
                             {/* Right peek card */}
                             <motion.div
-                                className="w-[72px] h-[280px] bg-[#232323] rounded-2xl flex-shrink-0 overflow-hidden"
-                                animate={{ opacity: 0.7 }}
+                                className="w-[40px] h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
+                                animate={{ opacity: 0.4, scale: 0.9 }}
                             >
                                 <img
                                     src={filteredSlides[(activeSlide + 1) % filteredSlides.length].image}
                                     alt="Next"
-                                    className="w-full h-full object-cover opacity-60"
+                                    className="w-full h-full object-cover grayscale blur-[2px]"
                                 />
                             </motion.div>
                         </div>
+
+
                     </div>
 
                     {/* Pagination Dots */}

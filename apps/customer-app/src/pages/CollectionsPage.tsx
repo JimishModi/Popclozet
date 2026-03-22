@@ -97,7 +97,7 @@ const CollectionsPage = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate(-1)}
-              className="p-1 -ml-1"
+              className="p-1 -ml-1 rounded-full hover:bg-white/5 transition-all active:scale-95"
             >
               <ChevronLeft className="w-6 h-6 text-white" />
             </button>

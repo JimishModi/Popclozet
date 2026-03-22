@@ -57,23 +57,23 @@ const WishlistPage: React.FC = () => {
     return (
         <MobileShell className="bg-black text-white">
             {/* Header */}
-            <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
+            <div className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 flex items-center justify-between border-b border-white/5">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => navigate("/profile")}
-                        className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
+                        onClick={() => navigate(-1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
                     >
-                        <ChevronLeft className="w-5 h-5 text-zinc-400" />
+                        <ChevronLeft className="w-5 h-5 text-white" />
                     </button>
-                    <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">
+                    <h1 className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         My Wishlist
                     </h1>
-                    {wishlistItems.length > 0 && (
-                        <span className="ml-auto px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">
-                            {wishlistItems.length}
-                        </span>
-                    )}
                 </div>
+                {wishlistItems.length > 0 && (
+                    <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">
+                        {wishlistItems.length}
+                    </span>
+                )}
             </div>
 
             <main className="flex-1 overflow-y-auto px-4 py-4 pb-24">
