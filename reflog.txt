@@ -1,0 +1,10 @@
+9e08324f0 HEAD@{0}: reset: moving to ORIG_HEAD
+96c797937 HEAD@{1}: reset: moving to ORIG_HEAD
+9e08324f0 HEAD@{2}: commit: Saving user changes
+86110469b HEAD@{3}: pull --rebase origin main (finish): returning to refs/heads/main
+86110469b HEAD@{4}: pull --rebase origin main (pick): fix(db): correct column ordering in profiles view
+00b6aec26 HEAD@{5}: pull --rebase origin main (pick): Razorpay working
+266cf11ef HEAD@{6}: pull --rebase origin main (start): checkout 266cf11efe4db722c70fae962bf85c04d9339d0a
+96c797937 HEAD@{7}: reset: moving to HEAD
+96c797937 HEAD@{8}: commit: fix(db): correct column ordering in profiles view
+7cd34bbf6 HEAD@{9}: pull origin main: Merge made by the 'ort' strategy.

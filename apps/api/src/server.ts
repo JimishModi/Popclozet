@@ -15,14 +15,20 @@ const REST_KEY = process.env.MAPPLS_REST_KEY;
 
 if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
     console.warn('WARNING: MAPPLS_REST_KEY is not configured or using placeholder value.');
+} else {
+    console.log(`[API] MAPPLS_REST_KEY loaded, length: ${REST_KEY.length}`);
 }
 
 /**
  * GET /api/location/search
- * Proxies to MapmyIndia Auto-Suggest API
+ * Proxies to Mappls Auto-Suggest API
  */
 app.get("/api/location/search", async (req, res) => {
-    const { query } = req.query;
+    let { query } = req.query;
+    if (typeof query === 'string' && query.length > 40) {
+        query = query.substring(0, 40);
+        console.log(`[API] Truncated long query to: ${query}`);
+    }
 
     if (!query) {
         return res.status(400).json({ error: "Query is required" });
@@ -30,20 +36,25 @@ app.get("/api/location/search", async (req, res) => {
 
     try {
         const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query as string)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
-        console.log(`Searching Mappls: ${query}`);
-        
+        console.log(`[API] Searching Mappls Atlas: ${query}`);
+        console.log(`[API] URL: ${url.replace(REST_KEY || '', 'REDACTED')}`);
+
         const response = await axios.get(url, {
-            headers: { 'Referer': 'http://localhost:5500/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
-        
+
+        console.log(`[API] Mappls Response Status: ${response.status}`);
+
         // Handle both root array and 'suggestedLocations' wrapper
         const results = response.data.suggestedLocations || (Array.isArray(response.data) ? response.data : []);
+        console.log(`[API] Found ${results.length} results`);
         res.json(results);
     } catch (error: any) {
         console.error("Mappls Search Error:", error.response?.data || error.message);
-        res.status(500).json({ 
-            error: "Failed to fetch locations", 
-            detail: error.response?.data || error.message 
+        console.error("Full Error Stack:", error.stack);
+        res.status(500).json({
+            error: "Failed to fetch locations",
+            detail: error.response?.data || error.message
         });
     }
 });
@@ -62,15 +73,15 @@ app.get("/api/location/detail/:eloc", async (req, res) => {
         console.log(`[BACKEND] API URL: ${url}`);
         
         const response = await axios.get(url, {
-            headers: { 'Referer': 'http://localhost:5500/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
-        
+
         console.log(`[BACKEND] Detail API Response:`, JSON.stringify(response.data));
-        
+
         const result = response.data;
         // Mappls results often wrap data in a results array or return directly
         const data = Array.isArray(result) ? result[0] : (result.results ? result.results[0] : result);
-        
+
         if (data && (data.latitude || data.lat)) {
             const resolved = {
                 latitude: parseFloat(data.latitude || data.lat),
@@ -86,12 +97,13 @@ app.get("/api/location/detail/:eloc", async (req, res) => {
         }
     } catch (error: any) {
         console.error("[BACKEND] Mappls Detail Error:", error.response?.data || error.message);
-        res.status(500).json({ 
+        res.status(500).json({
             error: "Failed to fetch location details",
             detail: error.response?.data || error.message
         });
     }
 });
+
 
 /**
  * GET /api/location/reverse
@@ -109,12 +121,12 @@ app.get("/api/location/reverse", async (req, res) => {
         console.log(`Reverse Geocoding: ${lat}, ${lng}`);
         
         const response = await axios.get(url, {
-            headers: { 'Referer': 'http://localhost:5500/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
-        
+
         const results = response.data.results || (Array.isArray(response.data) ? response.data : [response.data]);
         const bestResult = results[0];
-        
+
         if (bestResult) {
             res.json(bestResult);
         } else {
@@ -152,7 +164,7 @@ app.get('/api/location/directions', async (req, res) => {
         const url = `https://route.mappls.com/route/direction/driving/${origin};${destination}?overview=full&geometries=geojson&access_token=${REST_KEY}`;
         
         const response = await axios.get(url, {
-            headers: { 'Referer': 'http://localhost:5500/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
         res.json(response.data);
     } catch (error: any) {
@@ -177,9 +189,9 @@ app.get("/api/location/distance", async (req, res) => {
         const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?region=ind&access_token=${REST_KEY}`;
         
         const response = await axios.get(url, {
-            headers: { 'Referer': 'http://localhost:5500/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
-        
+
         if (response.data && response.data.results && response.data.results.distances) {
             const distanceInMeters = response.data.results.distances[0][1];
             res.json({ distance: distanceInMeters / 1000 });

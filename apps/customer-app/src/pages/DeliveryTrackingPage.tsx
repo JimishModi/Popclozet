@@ -48,7 +48,7 @@ export default function DeliveryTrackingPage() {
         
         const fetchRider = async () => {
             const { data } = await supabase
-                .from('profiles')
+                .from('rider_profiles')
                 .select('*')
                 .eq('user_id', orderWithRider.rider_id)
                 .single();
@@ -97,7 +97,7 @@ export default function DeliveryTrackingPage() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full hover:bg-white/10"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ChevronLeft className="w-6 h-6" />
                     </button>
@@ -123,10 +123,19 @@ export default function DeliveryTrackingPage() {
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-black text-white uppercase tracking-tighter">Order Details</h2>
-                        <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
-                            <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
-                                Arriving in 45-60 mins
-                            </span>
+                        <div className="flex items-center gap-2">
+                            {order?.support_tier === 'premium' && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+                                    <span className="text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                                        Premium Support
+                                    </span>
+                                </div>
+                            )}
+                            <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
+                                <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
+                                    Arriving in 45-60 mins
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -215,6 +224,13 @@ export default function DeliveryTrackingPage() {
                 {/* Contact options */}
                 <div className="mt-6 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
                     <h3 className="text-sm font-semibold text-white mb-3">Need Help?</h3>
+                    {order?.support_tier === 'premium' && (
+                        <div className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-amber-400">
+                                Premium queue enabled for this order
+                            </p>
+                        </div>
+                    )}
                     <div className="flex gap-3">
                         <a 
                             href="tel:+918000155299"
@@ -256,6 +272,7 @@ export default function DeliveryTrackingPage() {
                         />
                         <OrderChat 
                             orderId={orderId} 
+                            supportTier={order?.support_tier}
                             onClose={() => setShowChat(false)} 
                         />
                     </div>

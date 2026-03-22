@@ -29,6 +29,12 @@ export interface OrderWithItems {
         product_id: string;
         size: string | null;
         rental_price: number;
+        individual_id?: string | null;
+        products?: {
+            id: string;
+            name: string;
+            images?: string[] | null;
+        } | null;
     }>;
     addresses?: {
         full_address: string;
@@ -47,74 +53,6 @@ function normalizeOrders(rows: any[]): OrderWithItems[] {
     }));
 }
 
-/**
- * Get the effective status of an order
- */
-function getEffectiveStatus(order: any): string {
-    return order.status || order.lifecycle_state || 'unknown';
-}
-
-/**
- * Get all orders for fulfillment view
- */
-export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
-    try {
-        const { data, error } = await supabase
-            .from('orders')
-            .select(`
-                *,
-                order_items (*),
-                addresses:delivery_address_id (full_address, latitude, longitude)
-            `)
-            .order('created_at', { ascending: true });
-
-        if (error) {
-            console.warn('getFulfillmentOrders:', error.message);
-            return [];
-        }
-
-        // Filter to relevant statuses
-        const relevant = (data || []).filter(o => {
-            const status = getEffectiveStatus(o);
-            return ['pending', 'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'placed', 'pending_payment'].includes(status);
-        });
-
-        return normalizeOrders(relevant);
-    } catch {
-        return [];
-    }
-}
-
-/**
- * Get packed orders (ready for dispatch)
- */
-export async function getPackedOrders(): Promise<OrderWithItems[]> {
-    try {
-        const { data, error } = await supabase
-            .from('orders')
-            .select(`
-                *,
-                order_items (*),
-                addresses:delivery_address_id (full_address, latitude, longitude)
-            `)
-            .order('created_at', { ascending: true });
-
-        if (error) {
-            console.warn('getPackedOrders:', error.message);
-            return [];
-        }
-
-        const packed = (data || []).filter(o => getEffectiveStatus(o) === 'packed');
-        return normalizeOrders(packed);
-    } catch {
-        return [];
-    }
-}
-
-/**
- * Helper: update order status via transition_order_state RPC.
- * Falls back to direct update if RPC fails (e.g. not deployed).
- */
 async function updateOrderStatus(orderId: string, newStatus: string, actorId: string) {
     try {
         // Try the robust RPC first
@@ -126,8 +64,9 @@ async function updateOrderStatus(orderId: string, newStatus: string, actorId: st
             p_rider_id: null // Explicitly provide null to resolve overload ambiguity
         });
 
-        if (!error && (data as any)?.success) {
-            return (data as any);
+        const payload = data as { success?: boolean } | null;
+        if (!error && payload?.success) {
+            return payload as any;
         }
 
         console.warn('RPC transition failed, falling back to direct update:', error?.message);
@@ -207,6 +146,20 @@ export async function generateWarehouseOtp(orderId: string): Promise<{ otp: stri
  * Pack an order (confirmed → packed)
  */
 export async function packOrder(orderId: string, actorId: string) {
+    const { data: assignment, error: assignmentError } = await supabase.rpc('assign_order_units', {
+        p_order_id: orderId,
+        p_actor_id: actorId,
+    });
+
+    if (assignmentError) {
+        throw new Error(assignmentError.message);
+    }
+
+    const assignmentPayload = assignment as { success?: boolean, message?: string } | null;
+    if (assignmentPayload && !assignmentPayload.success) {
+        throw new Error(assignmentPayload.message || 'Failed to assign physical units');
+    }
+
     return updateOrderStatus(orderId, 'packed', actorId);
 }
 
@@ -246,9 +199,28 @@ export async function getReturnRequests() {
             .from('return_requests')
             .select(`
                 *,
+                pickup_address:pickup_address_id (
+                    id, label, full_address, latitude, longitude, is_default
+                ),
                 orders:order_id (
-                    id, user_id, total_amount, status, lifecycle_state,
-                    order_items (product_id, size)
+                    id, user_id, total_amount, status, lifecycle_state, rider_id,
+                    return_pickup_date, return_time_slot,
+                    addresses:delivery_address_id (full_address, latitude, longitude),
+                    order_items (
+                        id,
+                        product_id,
+                        size,
+                        individual_id,
+                        product:products (id, name, images),
+                        unit:all_products!order_items_individual_id_fkey (
+                            individual_id,
+                            status,
+                            inventory:inventory_id (
+                                id,
+                                size
+                            )
+                        )
+                    )
                 )
             `)
             .order('created_at', { ascending: false });
@@ -266,26 +238,119 @@ export async function getReturnRequests() {
 /**
  * Approve a return request
  */
-export async function approveReturn(returnId: string) {
-    const { error } = await supabase
-        .from('return_requests')
-        .update({ status: 'approved' })
-        .eq('id', returnId)
-        .eq('status', 'requested');
+export async function approveReturn(returnId: string, actorId: string) {
+    const { data, error } = await supabase.rpc('approve_return_request', {
+        p_return_request_id: returnId,
+        p_actor_id: actorId,
+    });
 
     if (error) throw error;
+    
+    const payload = data as { success?: boolean, message?: string } | null;
+    if (payload && !payload.success) {
+        throw new Error(payload.message || 'Failed to approve return');
+    }
+
+    return data;
 }
 
 /**
- * Complete a return (item received at warehouse)
+ * Receive a return at the warehouse.
+ * Requires OTP verification — the rider must have dropped off first.
  */
-export async function completeReturn(returnId: string) {
-    const { error } = await supabase
-        .from('return_requests')
-        .update({ status: 'completed' })
-        .eq('id', returnId);
+export async function receiveReturnAtWarehouse(orderId: string, actorId: string, otp: string) {
+    const { data, error } = await supabase.rpc('receive_return_at_warehouse', {
+        p_order_id: orderId,
+        p_actor_id: actorId,
+        p_otp: otp,
+    });
 
     if (error) throw error;
+    
+    const payload = data as { success?: boolean, message?: string } | null;
+    if (payload && !payload.success) {
+        throw new Error(payload.message || 'Failed to receive return');
+    }
+
+    return data;
+}
+
+/**
+ * Get packed orders (ready for rider assignment)
+ */
+export async function getPackedOrders(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    id,
+                    product_id,
+                    size,
+                    rental_price,
+                    individual_id,
+                    products (id, name, images)
+                ),
+                addresses:delivery_address_id (full_address, latitude, longitude)
+            `)
+            .or('status.eq.packed,lifecycle_state.eq.packed')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('getPackedOrders error:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch (err) {
+        console.error('Failed to get packed orders:', err);
+        return [];
+    }
+}
+
+/**
+ * Get orders for warehouse fulfillment
+ */
+export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    id,
+                    product_id,
+                    size,
+                    rental_price,
+                    individual_id,
+                    products (id, name, images)
+                ),
+                addresses:delivery_address_id (full_address, latitude, longitude)
+            `)
+            .in('status', [
+                'pending',
+                'confirmed',
+                'packed',
+                'ready_for_pickup',
+                'rider_assigned',
+                'driver_arrived_warehouse',
+                'dispatched',
+                'out_for_delivery',
+                'delivered'
+            ])
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('getFulfillmentOrders error:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch (err) {
+        console.error('Failed to get fulfillment orders:', err);
+        return [];
+    }
 }
 
 /**
@@ -302,7 +367,7 @@ export async function getActivePickups(): Promise<OrderWithItems[]> {
                 addresses:delivery_address_id (full_address, latitude, longitude),
                 rider:rider_id (full_name)
             `)
-            .in('status', ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
+            .in('status', ['ready_for_pickup', 'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
             .order('updated_at', { ascending: false });
 
         if (error) {
@@ -336,3 +401,4 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
         return [];
     }
 }
+

@@ -46,7 +46,11 @@ export function OrderFulfillmentPage() {
     useEffect(() => { loadOrders(); }, [loadOrders]);
     useRealtimeOrders({ onChange: loadOrders });
 
-    const orders = allOrders.filter(o => o.status === filter);
+    const orders = allOrders.filter(o => {
+        if (filter === 'ready_for_pickup') return o.status === 'ready_for_pickup' || o.status === 'rider_assigned' || o.status === 'driver_arrived_warehouse';
+        if (filter === 'dispatched') return o.status === 'dispatched' || o.status === 'out_for_delivery' || o.status === 'delivered';
+        return o.status === filter;
+    });
 
     const handleAction = async (order: OrderWithItems) => {
         setProcessing(order.id);
@@ -165,7 +169,7 @@ export function OrderFulfillmentPage() {
                                             )}>
                                                 {order.status}
                                             </span>
-                                            {filter === 'ready_for_pickup' && (
+                                            {(filter === 'ready_for_pickup' || order.status === 'rider_assigned') && (
                                                 <div className="flex flex-col items-end">
                                                     {order.warehouse_otp ? (
                                                         <div className="flex flex-col items-end">

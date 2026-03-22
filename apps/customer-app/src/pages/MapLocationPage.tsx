@@ -12,9 +12,10 @@ import { NearbyHubs } from '@/components/map/NearbyHubs';
 import { HubDetailsSheet } from '@/components/map/HubDetailsSheet';
 import { useMapLocation } from '@/hooks/useMapLocation';
 import { useNearbyHubs } from '@/hooks/useNearbyHubs';
-import { saveAddressLocally, ValidatedAddress, getAddressDetail } from '@/services/addressService';
+import { saveAddressLocally, ValidatedAddress } from '@/services/addressService';
 import { HubWithDistance } from '@/services/hubService';
 import { useDriverSimulation } from '@/hooks/useDriverSimulation';
+import { toast } from 'sonner';
 
 type ViewMode = 'search' | 'hubs';
 
@@ -80,33 +81,18 @@ export default function MapLocationPage() {
         }
     }, [address, selectedAddress]);
 
-    const handleAddressSelect = async (addr: ValidatedAddress) => {
-        // Immediate update so UI feels responsive
+    const handleAddressSelect = (addr: ValidatedAddress) => {
         setSelectedAddress(addr);
         setViewMode('search');
+        
         const hasCoords = addr.lat && addr.lng && Math.abs(addr.lat) > 0.01;
+        
         if (hasCoords) {
-        // Coords already present — just sync map
+            // Coords already present — sync map
             setLocationWithAddress(addr.lat, addr.lng, addr);
-        } else if (addr.eLoc) {
-            // eLoc present but no coords — fetch them from detail API
-            console.log("[MapLocationPage] Fetching coords for eLoc:", addr.eLoc);
-            const detail = await getAddressDetail(addr.eLoc);
-            if (detail) {
-               const enriched: ValidatedAddress = {
-                   ...addr,
-                   lat: detail.lat,
-                   lng: detail.lng,
-                };
-                setSelectedAddress(enriched);
-                setLocationWithAddress(detail.lat, detail.lng, enriched);
-            } 
-            else {
-                console.warn("[MapLocationPage] Could not fetch coords for eLoc:", addr.eLoc);
-            }
-        }
-        else {
-            console.warn("[MapLocationPage] Address has no eLoc or coords:", addr.formattedAddress);
+        } else {
+            console.warn("[MapLocationPage] Address has no coords:", addr.formattedAddress);
+            toast.error("This address cannot be mapped. Please try another one.");
         }
     };
 
@@ -172,7 +158,7 @@ export default function MapLocationPage() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full hover:bg-white/10"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ChevronLeft className="w-6 h-6" />
                     </button>
@@ -187,16 +173,17 @@ export default function MapLocationPage() {
                     onAddressSelect={handleAddressSelect}
                     onLocateMe={handleLocateMe}
                     placeholder="Search for delivery address..."
+                    isLoading={false}
                 />
             </div>
 
             {/* Map */}
             <div className="relative h-[450px] mx-4 rounded-2xl overflow-hidden border border-zinc-800">
                 <InteractiveMap
-                    center={selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : (location || { lat: 19.076, lng: 72.8777 })}
+                    center={(selectedAddress && selectedAddress.lat && selectedAddress.lng && Math.abs(selectedAddress.lat) > 0.01) ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : (location || { lat: 19.076, lng: 72.8777 })}
                     zoom={selectedAddress || location ? 14 : 11}
                     darkMode={false}
-                    userLocation={selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : location}
+                    userLocation={(selectedAddress && selectedAddress.lat && selectedAddress.lng && Math.abs(selectedAddress.lat) > 0.01) ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : location}
                     hubs={hubs}
                     selectedHubId={selectedHubId || undefined}
                     onMapClick={handleMapClick}

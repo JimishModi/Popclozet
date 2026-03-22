@@ -4,10 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
   Bell, CreditCard, HelpCircle, Shield, Sparkles, X,
-  Edit3, Check, Loader2, Phone, Mail, Package
+  Edit3, Check, Loader2, Phone, Mail, Package, Zap, Trophy, Star
 } from "lucide-react";
-import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -18,37 +16,87 @@ import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
 
+import { getSubscriptionProfile } from "@/services/subscriptionService";
+
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, loading, signOut, updateProfile } = useAuth();
+  const { user, profile, loading, updateProfile } = useAuth();
   const { wishlistItems } = useWishlist();
+
+
+  /** Returns true only if the email looks like a real user-provided address */
+  const isRealEmail = (email?: string | null): email is string => {
+    if (!email) return false;
+    if (email.includes('@phone.') || email.includes('.internal') || email.includes('@sms.')) return false;
+    return email.includes('@') && email.includes('.');
+  };
+
+  // ── Sends a verification link to the user's real email ────────────────────
+  // Step 1: calls the link-email edge function to update auth.users with the real
+  //         email (bypassing the invalid placeholder email restriction)
+  // Step 2: calls signInWithOtp with shouldCreateUser: false so the magic link
+  //         goes to the SAME user instead of creating a new account
+  async function sendVerificationEmail(email: string): Promise<void> {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    // Step 1: Update auth.users email via edge function
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/link-email`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ email }),
+      }
+    );
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Failed to link email');
+
+    // Step 2: Now auth.users has the real email — send magic link to the same user
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false, // CRITICAL — don't create a new user
+        emailRedirectTo: `${window.location.origin}/auth/verify-email-callback`,
+      },
+    });
+
+    if (otpError) throw new Error(otpError.message);
+  }
+
+
   const { orders, loading: ordersLoading } = useOrders();
 
-  // Count items currently "In Closet" = active rentals (delivered, not yet picked up)
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
+  const [verifySent, setVerifySent] = useState(false);
+
   const inClosetCount = orders.filter(o =>
     ["delivered", "out_for_delivery", "preparing", "confirmed", "pending"].includes(o.status)
   ).length;
 
+  const [subProfile, setSubProfile] = useState<any>(null);
+  
+  useEffect(() => {
+    async function initSub() {
+      if (user) {
+        const data = await getSubscriptionProfile();
+        setSubProfile(data);
+      }
+    }
+    initSub();
+  }, [user]);
+
   const quickStats = [
-    {
-      label: "Orders",
-      value: ordersLoading ? "…" : String(orders.length),
-      icon: ShoppingBag,
-      href: "/orders"
-    },
-    {
-      label: "Wishlist",
-      value: String(wishlistItems.length),
-      icon: Heart,
-      href: "/wishlist"
-    },
-    {
-      label: "In Closet",
-      value: ordersLoading ? "…" : String(inClosetCount),
-      icon: ClosetIcon,
-      href: "/closet"
-    },
+    { label: "Orders", value: ordersLoading ? "…" : String(orders.length), icon: ShoppingBag, href: "/orders" },
+    { label: "Wishlist", value: String(wishlistItems.length), icon: Heart, href: "/wishlist" },
+    { label: "In Closet", value: ordersLoading ? "…" : String(inClosetCount), icon: ClosetIcon, href: "/closet" },
   ];
 
   const menuSections = [
@@ -77,7 +125,6 @@ const ProfilePage: React.FC = () => {
     },
   ];
 
-  // ── Edit Profile Sheet ──────────────────────────────────────────────────────
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -202,25 +249,37 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const handleVerifyEmail = async () => {
+    const emailToVerify = profile?.email;
+    if (!emailToVerify) return;
+    setVerifyLoading(true);
+    setVerifyError('');
+    setVerifySent(false);
+    try {
+      await sendVerificationEmail(emailToVerify);
+      setVerifySent(true);
+    } catch (err: any) {
+      setVerifyError(err.message || 'Failed to send verification email');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const rawName = profile?.full_name || user?.user_metadata?.full_name || profile?.email?.split("@")[0] || user?.email?.split("@")[0] || "User";
   const displayName = (() => { const first = rawName.trim().split(/\s+/)[0]; return first.charAt(0).toUpperCase() + first.slice(1); })();
-  const displaySub = profile?.phone || user?.email || "Signed in";
+  const displaySub = profile?.phone || (isRealEmail(profile?.email) ? profile?.email : null) || "Signed in";
 
   return (
-    <MobileShell className="bg-black text-white">
+    <div className="bg-black text-white min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
         <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
-        <button
-          onClick={() => navigate("/settings")}
-          className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
-        >
+        <button onClick={() => navigate("/settings")} className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
           <Settings className="w-5 h-5 text-zinc-400" />
         </button>
       </div>
 
       <main className="flex-1 overflow-y-auto pb-24">
-        {/* Loading skeleton */}
         {loading && (
           <div className="px-4 pt-8 space-y-4 animate-pulse">
             <div className="bg-white/5 rounded-3xl p-6 border border-white/10">
@@ -231,11 +290,6 @@ const ProfilePage: React.FC = () => {
                   <div className="h-3 bg-white/10 rounded-lg w-1/2" />
                 </div>
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="bg-white/5 rounded-2xl p-4 border border-white/5 h-24" />
-              ))}
             </div>
           </div>
         )}
@@ -252,7 +306,6 @@ const ProfilePage: React.FC = () => {
                 className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
               >
                 <div className="flex items-center gap-4">
-                  {/* Avatar */}
                   <div className="relative">
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px]">
                       <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
@@ -270,9 +323,7 @@ const ProfilePage: React.FC = () => {
                     <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-1 truncate">
                       {user ? `Hi, ${displayName}` : "Welcome!"}
                     </h1>
-                    <p className="text-sm text-zinc-500 mb-3 truncate">
-                      {user ? displaySub : "Sign in to unlock your closet"}
-                    </p>
+                    <p className="text-sm text-zinc-500 mb-3 truncate">{user ? displaySub : "Sign in to unlock your closet"}</p>
                     {user ? (
                       <button
                         onClick={() => setShowEditSheet(true)}
@@ -282,19 +333,53 @@ const ProfilePage: React.FC = () => {
                         Edit Profile
                       </button>
                     ) : (
-                      <button
-                        onClick={() => navigate("/auth/login")}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white text-sm font-bold shadow-[0_10px_30px_rgba(255,77,109,0.4)] transition-all active:scale-95"
-                      >
+                      <button onClick={() => navigate("/auth/login")} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white text-sm font-bold shadow-[0_10px_30px_rgba(255,77,109,0.4)] transition-all active:scale-95">
                         Sign In
                       </button>
                     )}
                   </div>
                 </div>
               </motion.div>
+
+              {/* Email Verification Banner — only when real unverified email exists */}
+              {user && profile && isRealEmail(profile.email) && !profile.email_verified && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-4 bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-2xl p-4"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-white">Verify your email</p>
+                      <p className="text-xs text-zinc-400 truncate">{profile.email}</p>
+                    </div>
+                  </div>
+
+                  {verifySent ? (
+                    <p className="text-xs text-green-400 font-semibold text-center py-1">
+                      ✓ Verification link sent — check your inbox
+                    </p>
+                  ) : (
+                    <>
+                      {verifyError && <p className="text-xs text-red-400 mb-2">{verifyError}</p>}
+                      <button
+                        onClick={handleVerifyEmail}
+                        disabled={verifyLoading}
+                        className="w-full py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold shadow-lg shadow-orange-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        {verifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {verifyLoading ? 'Sending...' : 'Send Verification Email'}
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              )}
             </div>
 
-            {/* Quick Stats Row — live data */}
+            {/* Quick Stats */}
             <div className="px-4 mb-6">
               <div className="grid grid-cols-3 gap-3">
                 {quickStats.map((stat, idx) => {
@@ -319,6 +404,55 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
+            {/* Subscription Card */}
+            <div className="px-4 mb-6">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                onClick={() => navigate(subProfile ? "/subscription-profile" : "/subscription-plans")}
+                className="relative overflow-hidden rounded-2xl p-4 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)] cursor-pointer group"
+              >
+                {subProfile ? (
+                  <div className={cn(
+                    "absolute inset-0 bg-gradient-to-r opacity-50 group-hover:opacity-70 transition-opacity",
+                    subProfile.plan.id === 'essential' ? "from-amber-600/30 to-orange-500/10" :
+                    subProfile.plan.id === 'standard' ? "from-blue-600/30 to-indigo-500/10" :
+                    "from-[#f2546d]/30 to-purple-600/10"
+                  )} />
+                ) : (
+                  <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                )}
+                
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center shadow-inner",
+                      subProfile ? "bg-white/10" : "bg-white/5"
+                    )}>
+                      {subProfile ? (
+                        subProfile.plan.id === 'pro' ? <Trophy className="w-6 h-6 text-yellow-400" /> :
+                        subProfile.plan.id === 'standard' ? <Sparkles className="w-6 h-6 text-blue-400" /> :
+                        <Zap className="w-6 h-6 text-amber-400" />
+                      ) : (
+                        <Star className="w-6 h-6 text-zinc-400" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-0.5">Membership</p>
+                      <h3 className="text-lg font-bold text-white leading-none">
+                        {subProfile ? subProfile.plan.name : "Join PopClozet Plus"}
+                      </h3>
+                      {!subProfile && (
+                        <p className="text-xs text-zinc-400 mt-1">Unlock exclusive benefits</p>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                </div>
+              </motion.div>
+            </div>
+
             {/* Menu Sections */}
             <div className="px-4 space-y-6">
               {menuSections.map((section, sectionIdx) => (
@@ -337,8 +471,7 @@ const ProfilePage: React.FC = () => {
                           key={item.label}
                           onClick={() => navigate(item.href)}
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-4 group text-left",
-                            "hover:bg-white/5 transition-all",
+                            "w-full flex items-center gap-3 px-4 py-4 group text-left hover:bg-white/5 transition-all",
                             index < section.items.length - 1 && "border-b border-white/5"
                           )}
                         >
@@ -347,9 +480,7 @@ const ProfilePage: React.FC = () => {
                           </div>
                           <span className="flex-1 text-white font-medium">{item.label}</span>
                           {item.badge && (
-                            <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">
-                              {item.badge}
-                            </span>
+                            <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">{item.badge}</span>
                           )}
                           <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
                         </button>
@@ -360,7 +491,6 @@ const ProfilePage: React.FC = () => {
               ))}
             </div>
 
-            {/* Logout Button */}
             {user && (
               <div className="px-4 mt-8">
                 <button
@@ -373,7 +503,6 @@ const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* App Info Footer */}
             <div className="mt-12 text-center pb-4">
               <p className="text-xs text-zinc-700 font-medium">PopClozet v1.0.0</p>
               <p className="text-xs text-zinc-800 mt-1">Made with ❤️ in Mumbai</p>
@@ -382,7 +511,7 @@ const ProfilePage: React.FC = () => {
         )}
       </main>
 
-      {/* Edit Profile Bottom Sheet */}
+      {/* Edit Profile Sheet */}
       <AnimatePresence>
         {showEditSheet && (
           <>
@@ -395,6 +524,7 @@ const ProfilePage: React.FC = () => {
               className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100]"
             />
             {/* Sheet */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEditSheet(false)} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
@@ -402,36 +532,23 @@ const ProfilePage: React.FC = () => {
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
               className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[100] bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-24"
             >
-              {/* Handle */}
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
-
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-white">Edit Profile</h2>
-                <button
-                  onClick={() => setShowEditSheet(false)}
-                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
-                >
+                <button onClick={() => setShowEditSheet(false)} className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
                   <X className="w-4 h-4 text-zinc-400" />
                 </button>
               </div>
 
               <div className="space-y-4">
-                {/* Full Name */}
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Full Name</label>
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
                     <User className="w-4 h-4 text-zinc-500 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      placeholder="Your full name"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
-                    />
+                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your full name" className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600" />
                   </div>
                 </div>
 
-                {/* Phone */}
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Phone Number</label>
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
@@ -448,9 +565,9 @@ const ProfilePage: React.FC = () => {
                       className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600"
                     />
                   </div>
+                  <p className="text-[10px] text-zinc-700 mt-1 pl-1">Phone number cannot be changed</p>
                 </div>
 
-                {/* Email */}
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Email</label>
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
@@ -494,20 +611,14 @@ const ProfilePage: React.FC = () => {
                   </button>
                 </div>
 
-                {saveError && (
-                  <p className="text-red-400 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{saveError}</p>
-                )}
+                {saveError && <p className="text-red-400 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{saveError}</p>}
 
                 <button
                   onClick={handleSaveProfile}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(255,77,109,0.3)] hover:shadow-[0_14px_40px_rgba(255,77,109,0.4)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(255,77,109,0.3)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {saving ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-                  ) : (
-                    <><Check className="w-4 h-4" /> Save Changes</>
-                  )}
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Check className="w-4 h-4" /> Save Changes</>}
                 </button>
               </div>
             </motion.div>
@@ -515,8 +626,8 @@ const ProfilePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <BottomNavBar />
-    </MobileShell>
+      <div className="h-8" />
+    </div>
   );
 };
 

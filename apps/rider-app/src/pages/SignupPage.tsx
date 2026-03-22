@@ -4,12 +4,13 @@
  * New rider registration page
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { Eye, EyeOff, Mail, Lock, User, Phone, AlertCircle, ChevronRight, Car } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
+import { supabase } from '@popclozet/api-client';
 
 type VehicleType = 'bike' | 'scooter' | 'car';
 
@@ -19,19 +20,23 @@ const vehicleOptions: { value: VehicleType; label: string; icon: string }[] = [
     { value: 'car', label: 'Car', icon: '🚗' },
 ];
 
-export function SignupPage() {
+interface SignupPageProps {
+    initialStep?: number;
+}
+
+export function SignupPage({ initialStep = 1 }: SignupPageProps) {
     const navigate = useNavigate();
-    const { signUp } = useAuth();
-    const [step, setStep] = useState(1);
+    const { signUp, user, profile, refreshProfile } = useAuth();
+    const [step, setStep] = useState(initialStep);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [botField, setBotField] = useState(''); // honeypot
 
     // Form data
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        phone: '',
+        name: profile?.full_name || '',
+        email: profile?.email || user?.email || '',
+        phone: profile?.phone || '',
         password: '',
         confirmPassword: '',
         vehicleType: 'scooter' as VehicleType,
@@ -40,6 +45,18 @@ export function SignupPage() {
     });
 
     const [showPassword, setShowPassword] = useState(false);
+
+    // Sync form data with profile/user when they load
+    useEffect(() => {
+        if (profile || user) {
+            setFormData(prev => ({
+                ...prev,
+                name: prev.name || profile?.full_name || '',
+                email: prev.email || profile?.email || user?.email || '',
+                phone: prev.phone || profile?.phone || '',
+            }));
+        }
+    }, [profile, user]);
 
     const updateFormData = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -111,6 +128,32 @@ export function SignupPage() {
         setIsLoading(true);
 
         try {
+            if (user && profile?.role === 'customer') {
+                // Existing user: create rider profile through the view
+                const { error: upgradeError } = await supabase
+                    .from('profiles')
+                    .insert({
+                        user_id: user.id,
+                        full_name: profile.full_name || user.user_metadata?.full_name || '',
+                        phone: profile.phone || user.user_metadata?.phone || formData.phone,
+                        role: 'rider',
+                        onboarding_completed: true,
+                        vehicle_type: formData.vehicleType,
+                        vehicle_number: formData.vehicleNumber,
+                        license_number: formData.licenseNumber
+                    })
+                    .select()
+                    .single();
+
+                if (upgradeError) throw upgradeError;
+                
+                // Wait for profile to refresh
+                await refreshProfile();
+                navigate('/');
+                return;
+            }
+
+            // New user registration
             await signUp(formData.email, formData.password, formData.name, formData.phone, {
                 role: 'rider',
                 vehicle_type: formData.vehicleType,
@@ -120,7 +163,12 @@ export function SignupPage() {
             // Navigate to home on success
             navigate('/');
         } catch (err: any) {
-            setError(err?.message || 'Failed to create account');
+            const message = err?.message || 'Failed to create account';
+            if (message.toLowerCase().includes('already registered') || message.toLowerCase().includes('already exists')) {
+                setError('An account with this email/phone already exists. Please log in to become a rider.');
+            } else {
+                setError(message);
+            }
         } finally {
             setIsLoading(false);
         }

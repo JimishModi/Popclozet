@@ -198,6 +198,69 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          id: string
+          name: string
+          description?: string | null
+          category?: string | null
+          gender?: string | null
+          occasion?: Json | null
+          brand?: string | null
+          color?: string | null
+          images?: string[] | null
+          rental_price?: number | null
+          price?: number | null
+          deposit_amount?: number | null
+          mrp?: number | null
+          sizes_available?: Json | null
+          is_available?: boolean | null
+          early_access_until?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          category?: string | null
+          gender?: string | null
+          occasion?: Json | null
+          brand?: string | null
+          color?: string | null
+          images?: string[] | null
+          rental_price?: number | null
+          price?: number | null
+          deposit_amount?: number | null
+          mrp?: number | null
+          sizes_available?: Json | null
+          is_available?: boolean | null
+          early_access_until?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          category?: string | null
+          gender?: string | null
+          occasion?: Json | null
+          brand?: string | null
+          color?: string | null
+          images?: string[] | null
+          rental_price?: number | null
+          price?: number | null
+          deposit_amount?: number | null
+          mrp?: number | null
+          sizes_available?: Json | null
+          is_available?: boolean | null
+          early_access_until?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           id: string
@@ -207,9 +270,22 @@ export type Database = {
           rental_end_date: string
           total_amount: number
           deposit_amount?: number
+          status?: string
           lifecycle_state?: string
           delivery_eta?: string | null
+          payment_method?: string | null
+          delivery_fee?: number | null
+          subscription_id?: string | null
+          order_type?: string | null
+          scheduled_slot?: Json | null
+          support_tier?: string | null
+          rider_id?: string | null
+          otp_delivery?: string | null
+          otp_return?: string | null
+          return_pickup_date?: string | null
+          return_time_slot?: string | null
           created_at: string
+          updated_at?: string | null
         }
         Insert: {
           id?: string
@@ -219,9 +295,22 @@ export type Database = {
           rental_end_date: string
           total_amount: number
           deposit_amount?: number
+          status?: string
           lifecycle_state?: string
           delivery_eta?: string | null
+          payment_method?: string | null
+          delivery_fee?: number | null
+          subscription_id?: string | null
+          order_type?: string | null
+          scheduled_slot?: Json | null
+          support_tier?: string | null
+          rider_id?: string | null
+          otp_delivery?: string | null
+          otp_return?: string | null
+          return_pickup_date?: string | null
+          return_time_slot?: string | null
           created_at?: string
+          updated_at?: string | null
         }
         Update: {
           id?: string
@@ -231,9 +320,22 @@ export type Database = {
           rental_end_date?: string
           total_amount?: number
           deposit_amount?: number
+          status?: string
           lifecycle_state?: string
           delivery_eta?: string | null
+          payment_method?: string | null
+          delivery_fee?: number | null
+          subscription_id?: string | null
+          order_type?: string | null
+          scheduled_slot?: Json | null
+          support_tier?: string | null
+          rider_id?: string | null
+          otp_delivery?: string | null
+          otp_return?: string | null
+          return_pickup_date?: string | null
+          return_time_slot?: string | null
           created_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -243,6 +345,7 @@ export type Database = {
           order_id: string
           product_id: string
           size?: string | null
+          individual_id?: string | null
           rental_price: number
           deposit_amount?: number
           rental_duration_days?: number
@@ -253,6 +356,7 @@ export type Database = {
           order_id: string
           product_id: string
           size?: string | null
+          individual_id?: string | null
           rental_price: number
           deposit_amount?: number
           rental_duration_days?: number
@@ -263,10 +367,92 @@ export type Database = {
           order_id?: string
           product_id?: string
           size?: string | null
+          individual_id?: string | null
           rental_price?: number
           deposit_amount?: number
           rental_duration_days?: number
           created_at?: string
+        }
+        Relationships: []
+      }
+      return_requests: {
+        Row: {
+          id: string
+          order_id: string
+          reason: string
+          pickup_address_id: string
+          pickup_slot: string
+          status: string
+          pickup_eta?: string | null
+          rider_id?: string | null
+          approved_at?: string | null
+          picked_up_at?: string | null
+          received_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          reason?: string
+          pickup_address_id: string
+          pickup_slot: string
+          status?: string
+          pickup_eta?: string | null
+          rider_id?: string | null
+          approved_at?: string | null
+          picked_up_at?: string | null
+          received_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          reason?: string
+          pickup_address_id?: string
+          pickup_slot?: string
+          status?: string
+          pickup_eta?: string | null
+          rider_id?: string | null
+          approved_at?: string | null
+          picked_up_at?: string | null
+          received_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      order_support_chats: {
+        Row: {
+          id: string
+          order_id: string
+          user_id: string
+          message: string
+          sender_type: string
+          is_read?: boolean | null
+          priority?: string | null
+          created_at?: string | null
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          user_id: string
+          message: string
+          sender_type: string
+          is_read?: boolean | null
+          priority?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          user_id?: string
+          message?: string
+          sender_type?: string
+          is_read?: boolean | null
+          priority?: string | null
+          created_at?: string | null
         }
         Relationships: []
       }
@@ -639,9 +825,152 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          plan_id: string
+          status: string
+          current_period_start?: string
+          current_period_end: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          plan_id: string
+          status?: string
+          current_period_start?: string
+          current_period_end: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          plan_id?: string
+          status?: string
+          current_period_start?: string
+          current_period_end?: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          id: string
+          name: string
+          price: number
+          tagline?: string | null
+          monthly_items: number
+          concurrent_items: number
+          max_item_value: number
+          free_delivery: boolean
+          insurance_included: boolean
+          features: Json
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Insert: {
+          id: string
+          name: string
+          price: number
+          tagline?: string | null
+          monthly_items: number
+          concurrent_items: number
+          max_item_value: number
+          free_delivery?: boolean
+          insurance_included?: boolean
+          features?: Json
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          price?: number
+          tagline?: string | null
+          monthly_items?: number
+          concurrent_items?: number
+          max_item_value?: number
+          free_delivery?: boolean
+          insurance_included?: boolean
+          features?: Json
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {}
-    Functions: {}
+    Functions: {
+      create_entitled_order: {
+        Args: {
+          p_delivery_address_id: string
+          p_items: Json
+          p_payment_method?: string | null
+          p_order_type?: string
+          p_scheduled_slot?: Json | null
+          p_delivery_distance_km?: number | null
+          p_pop_insurance?: boolean
+          p_rental_duration_days?: number
+          p_delivery_eta?: string | null
+        }
+        Returns: Json
+      }
+      get_checkout_entitlement_summary: {
+        Args: {
+          p_user_id?: string | null
+        }
+        Returns: Json
+      }
+      schedule_order_return: {
+        Args: {
+          p_order_id: string
+          p_pickup_address_id: string
+          p_pickup_slot: string
+          p_reason?: string | null
+        }
+        Returns: Json
+      }
+      approve_return_request: {
+        Args: {
+          p_return_request_id: string
+          p_actor_id: string
+        }
+        Returns: Json
+      }
+      receive_return_at_warehouse: {
+        Args: {
+          p_order_id: string
+          p_actor_id: string
+        }
+        Returns: Json
+      }
+      assign_order_units: {
+        Args: {
+          p_order_id: string
+          p_actor_id?: string | null
+        }
+        Returns: Json
+      }
+    }
     Enums: {}
     CompositeTypes: {}
   }

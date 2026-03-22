@@ -9,14 +9,16 @@ interface Message {
     message: string;
     sender_type: "customer" | "support";
     created_at: string;
+    priority?: "standard" | "premium";
 }
 
 interface OrderChatProps {
     orderId: string;
     onClose: () => void;
+    supportTier?: "standard" | "premium" | null;
 }
 
-export function OrderChat({ orderId, onClose }: OrderChatProps) {
+export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
@@ -100,7 +102,14 @@ export function OrderChat({ orderId, onClose }: OrderChatProps) {
             <div className="flex items-center justify-between p-4 border-b border-zinc-800">
                 <div className="flex items-center gap-2">
                     <Headset className="w-5 h-5 text-[#ff4d6d]" />
-                    <h3 className="font-bold text-white">Order Support</h3>
+                    <div>
+                        <h3 className="font-bold text-white">Order Support</h3>
+                        {supportTier === 'premium' && (
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#ff4d6d]">
+                                Premium Support
+                            </p>
+                        )}
+                    </div>
                 </div>
                 <button onClick={onClose} className="p-2 rounded-full hover:bg-zinc-800">
                     <X className="w-5 h-5 text-zinc-400" />

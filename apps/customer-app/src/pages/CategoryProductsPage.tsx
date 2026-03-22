@@ -341,7 +341,7 @@ const CategoryProductsPage: React.FC = () => {
                 {/* Title row */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-2">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => navigate(-1)} className="p-1 -ml-1">
+                        <button onClick={() => navigate(-1)} className="p-1 -ml-1 transition-all active:scale-95">
                             <ChevronLeft className="w-6 h-6 text-white" />
                         </button>
                         <h1 className="text-xl font-bold tracking-tight text-white capitalize">

@@ -26,6 +26,7 @@ export type OrderStatus =
     | 'confirmed'
     | 'packed'
     | 'ready_for_pickup'
+    | 'rider_assigned'
     | 'driver_arrived_warehouse'
     | 'order_picked_up'
     | 'dispatched'
@@ -33,9 +34,12 @@ export type OrderStatus =
     | 'delivered'
     | 'in_use'
     | 'return_requested'
+    | 'return_scheduled'
     | 'return_dispatched'
     | 'return_picked_up'
+    | 'return_at_warehouse'
     | 'returned'
+    | 'return_completed'
     | 'completed'
     | 'cancelled';
 
@@ -55,11 +59,16 @@ export interface UserProfile {
     id: string;
     user_id: string;
     full_name: string;
+    email: string;
     phone: string;
     avatar_url?: string;
     role: UserRole;
     onboarding_completed: boolean;
+    email_verified: boolean;
     measurements?: BodyMeasurements;
+    vehicle_type?: 'bike' | 'scooter' | 'car';
+    vehicle_number?: string;
+    license_number?: string;
     created_at: string;
     updated_at: string;
 }
@@ -173,6 +182,8 @@ export interface Order {
     rider_distance?: number;
     otp_delivery?: string;
     otp_return?: string;
+    return_pickup_date?: string;
+    return_time_slot?: string;
     created_at: string;
     updated_at: string;
 }
@@ -181,6 +192,7 @@ export interface OrderItem {
     id: string;
     order_id: string;
     product_id: string;
+    individual_id?: string | null;
     product: Product;
     size: string;
     rental_price: number;
@@ -217,6 +229,10 @@ export interface ReturnRequest {
     status: 'requested' | 'approved' | 'dispatched' | 'picked_up' | 'completed';
     pickup_eta?: string;
     rider_id?: string;
+    approved_at?: string;
+    picked_up_at?: string;
+    received_at?: string;
+    completed_at?: string;
     created_at: string;
 }
 

@@ -1,0 +1,47 @@
+On branch main
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	modified:   apps/customer-app/node_modules/.vite/deps/@radix-ui_react-dialog.js
+	modified:   apps/customer-app/node_modules/.vite/deps/@radix-ui_react-select.js
+	modified:   apps/customer-app/node_modules/.vite/deps/@radix-ui_react-slider.js
+	modified:   apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tabs.js
+	modified:   apps/customer-app/node_modules/.vite/deps/@radix-ui_react-tooltip.js
+	modified:   apps/customer-app/node_modules/.vite/deps/_metadata.json
+	modified:   apps/customer-app/node_modules/.vite/deps/vaul.js
+	modified:   apps/customer-app/src/App.tsx
+	modified:   apps/customer-app/src/context/SupabaseAuthContext.tsx
+	modified:   apps/customer-app/src/hooks/useRazorpayCheckout.ts
+	modified:   apps/customer-app/src/lib/razorpay.ts
+	modified:   apps/customer-app/src/pages/OrderConfirmedPage.tsx
+	modified:   apps/customer-app/src/pages/PaymentProcessingPage.tsx
+	modified:   apps/customer-app/src/services/authPersistence.ts
+	modified:   apps/customer-app/src/services/profileService.ts
+	modified:   apps/rider-app/src/App.tsx
+	modified:   apps/rider-app/src/components/OrderCard.d.ts
+	modified:   apps/rider-app/src/pages/DeliveryNavigationPage.tsx
+	modified:   apps/rider-app/src/pages/HomePage.tsx
+	modified:   apps/rider-app/src/pages/SignupPage.tsx
+	modified:   apps/rider-app/src/services/riderProfileService.ts
+	modified:   apps/warehouse-app/src/services/fulfillmentService.ts
+	modified:   packages/auth/src/index.tsx
+	modified:   packages/domain-contracts/src/index.ts
+	modified:   packages/domain-contracts/tsconfig.tsbuildinfo
+	modified:   packages/mapbox-core/src/index.d.ts
+
+Unmerged paths:
+  (use "git restore --staged <file>..." to unstage)
+  (use "git add <file>..." to mark resolution)
+	both modified:   apps/customer-app/src/pages/CheckoutPage.tsx
+	both modified:   apps/customer-app/src/pages/CreateAccountPage.tsx
+	both modified:   apps/customer-app/src/services/subscriptionService.ts
+	both modified:   packages/mapbox-core/src/index.ts
+	both modified:   packages/mapbox-core/tsconfig.tsbuildinfo
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reflog.txt
+	stash.txt
+	stash_show.txt
+	stash_stats.txt
+	status2.txt
+

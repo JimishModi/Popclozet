@@ -2,35 +2,45 @@
 // Checkout flow — creates order and notifies rider app via Supabase
 
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  CheckCircle,
-  ShoppingBag,
   Info,
   X,
   MapPin,
   Check,
-  Smartphone,
+  Wifi,
+  Mail,
   Banknote,
-  CreditCard,
-  Loader2
+  CreditCard
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { TimeSlotPicker } from "@/components/map/TimeSlotPicker";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
+import type { TimeSlot } from "@/services/deliveryService";
+import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
-import { TERMS_AND_CONDITIONS, COOKIE_POLICY } from "@/constants/legalDocs";
+
+/** Returns true only if the email looks like a real user-provided address */
+const isRealEmail = (email?: string | null): email is string => {
+  if (!email) return false;
+  if (email.includes('@phone.') || email.includes('.internal') || email.includes('@sms.')) return false;
+  return email.includes('@') && email.includes('.');
+};
+
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -41,6 +51,10 @@ const WAREHOUSE_LOCATION = {
   lng: 72.9155
 };
 const MAX_DELIVERY_DISTANCE_KM = 6;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// FIX 3: Use env variable instead of hardcoded localhost
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -60,22 +74,28 @@ const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation() as any;
+  // FIX 7: Use useSearchParams instead of window.location.search
+  const [searchParams] = useSearchParams();
+  const buyoutOrderId = searchParams.get("buyoutOrderId");
+
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreedToSizing, setAgreedToSizing] = useState(false);
   const [userIp, setUserIp] = useState<string>("");
 
-  // Payment method state
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>(null);
+  // FIX 2: Declare missing showTermsModal state
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
+  // Payment method: 'upi' (online) or 'cod'
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(() => {
+    return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+  });
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
-  const [upiId, setUpiId] = useState("");
-  const lookup = new URLSearchParams(window.location.search);
-  const buyoutOrderId = lookup.get("buyoutOrderId");
+  const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
+
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
@@ -87,6 +107,13 @@ export default function CheckoutPage() {
       .catch(err => console.error("Failed to fetch IP:", err));
   }, []);
 
+  // Save payment method preference
+  useEffect(() => {
+    if (paymentMethod) {
+      localStorage.setItem("preferred_payment_method", paymentMethod);
+    }
+  }, [paymentMethod]);
+
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -97,11 +124,13 @@ export default function CheckoutPage() {
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
-
-  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
+  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
+  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
 
   const validCartEntries = useMemo(() => {
     return cartEntries.filter(([id]) => {
@@ -110,18 +139,21 @@ export default function CheckoutPage() {
     });
   }, [cartEntries, cartProducts]);
 
-  const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
-  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
+  const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
+  const [upiId, setUpiId] = useState<string>("");
+  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
+  const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
-    // Check if an address was passed from AddressSelectionPage
     const passedAddress = location.state?.selectedAddress;
     if (passedAddress) {
       setDeliveryAddress(passedAddress);
     } else {
-      // Fallback: check if we have any addresses at all
       const addresses = getLocalAddresses();
+      // FIX 4: Populate addressList so the drawer isn't empty
+      setAddressList(addresses);
       if (addresses.length > 0) {
         setDeliveryAddress(addresses[0]);
       }
@@ -131,23 +163,30 @@ export default function CheckoutPage() {
     if (hub) setSelectedHub(hub);
 
     const checkSub = async () => {
-      const { getActiveSubscription, MOCK_PLANS } = await import("@/services/subscriptionService");
-      const sub = await getActiveSubscription();
-      if (sub) {
-        const plan = MOCK_PLANS.find(p => p.id === sub.plan_id);
-        setHasFreeDeliveryBenefit(plan?.free_delivery || false);
-        setHasInsuranceBenefit(plan?.insurance_included || false);
-        if (plan?.insurance_included) setPopInsurance(true);
+      const benefits = await getSubscriptionBenefits();
+      if (benefits) {
+        setSubBenefits(benefits);
+        setHasFreeDeliveryBenefit(benefits.freeDelivery);
+        setHasInsuranceBenefit(benefits.insuranceIncluded);
+        if (benefits.insuranceIncluded) setPopInsurance(true);
+      } else {
+        setSubBenefits(null);
+        setHasFreeDeliveryBenefit(false);
+        setHasInsuranceBenefit(false);
       }
     };
     checkSub();
-
-    // Pre-fill default UPI from settings
-    const savedDefaultUpi = localStorage.getItem("default_upi");
-    if (savedDefaultUpi) {
-      setUpiId(savedDefaultUpi);
-    }
   }, []);
+
+  useEffect(() => {
+    if (!subBenefits?.hasFreeHomeTryOn && selectedOrderType === 'home_try_on') {
+      setSelectedOrderType('rental');
+    }
+
+    if (!subBenefits?.hasAdvanceBooking && selectedOrderType === 'rental' && selectedScheduledSlot) {
+      setSelectedScheduledSlot(null);
+    }
+  }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
 
 
   // Distance Check Effect (Strictly MapmyIndia API)
@@ -155,26 +194,27 @@ export default function CheckoutPage() {
     const fetchDistance = async (destination: string) => {
       setDistanceLoading(true);
       setDistanceError(null);
-      
+
       try {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
         console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
-        
-        const response = await fetch(`http://localhost:3001/api/location/distance?origin=${origin}&destination=${destination}`);
-        
+
+        // FIX 3: Use env-based API_BASE_URL
+        const response = await fetch(`${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`);
+
         if (response.ok) {
           const data = await response.json();
           const distance = data.distance;
-          
+
           console.log("[DistanceCheck] API verified distance:", distance);
           setActualDistance(distance);
-          
+
           if (distance > MAX_DELIVERY_DISTANCE_KM) {
             setShowDistanceWarningPopup(true);
-            toast.info(`Delivery address is ${distance.toFixed(1)} km from our warehouse. ₹10/km additional charges apply beyond 6km.`, {
-              duration: 8000,
-              position: "top-center"
-            });
+            toast.info(`Long-distance delivery charges apply. ₹10/km additional fee applies for addresses outside our 6km standard zone.`, {
+            duration: 8000,
+            position: "top-center"
+          });
           }
         } else {
           throw new Error("MapmyIndia API service error");
@@ -191,51 +231,42 @@ export default function CheckoutPage() {
     if (deliveryAddress) {
       console.log("[Checkout] Starting distance check for:", deliveryAddress.formattedAddress);
 
-  // Coerce lat/lng to numbers — they may be stored as strings in localStorage
       const lat = typeof deliveryAddress.lat === 'number' ? deliveryAddress.lat : parseFloat(deliveryAddress.lat as any);
       const lng = typeof deliveryAddress.lng === 'number' ? deliveryAddress.lng : parseFloat(deliveryAddress.lng as any);
       const hasCoords = !isNaN(lat) && !isNaN(lng) && Math.abs(lat) > 0.01;
 
       console.log("[Checkout] Address Data:", { eLoc: deliveryAddress.eLoc, lat, lng, hasCoords });
 
-  // Priority 1: eLoc (most reliable for MapmyIndia POIs)
-    if (deliveryAddress.eLoc) {
-      console.log("[Checkout] Using eLoc for distance calculation:", deliveryAddress.eLoc);
-      fetchDistance(deliveryAddress.eLoc);
-    }
-    // Priority 2: Parsed coordinates
-    else if (hasCoords) {
-      console.log("[Checkout] Using coordinates for distance calculation");
-      fetchDistance(`${lng},${lat}`);
-    }
-    // Priority 3: Resolve via searchLocations fallback
-    else if (deliveryAddress.formattedAddress) {
-      console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
-      setIsResolvingAddress(true);
-      setDistanceError(null);
-      searchLocations(deliveryAddress.formattedAddress)
-        .then((results) => {
-          const first = results?.[0];
-          if (first?.eLoc) {
-            fetchDistance(first.eLoc);
-          } else if (first?.lat && first?.lng) {
-            fetchDistance(`${first.lng},${first.lat}`);
-          } else {
+      if (deliveryAddress.eLoc) {
+        fetchDistance(deliveryAddress.eLoc);
+      } else if (hasCoords) {
+        fetchDistance(`${lng},${lat}`);
+      } else if (deliveryAddress.formattedAddress) {
+        console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
+        setIsResolvingAddress(true);
+        setDistanceError(null);
+        searchLocations(deliveryAddress.formattedAddress)
+          .then((results) => {
+            const first = results?.[0];
+            if (first?.eLoc) {
+              fetchDistance(first.eLoc);
+            } else if (first?.lat && first?.lng) {
+              fetchDistance(`${first.lng},${first.lat}`);
+            } else {
+              setDistanceError("Could not resolve address coordinates");
+              setActualDistance(null);
+            }
+          })
+          .catch(() => {
             setDistanceError("Could not resolve address coordinates");
             setActualDistance(null);
-          }
-        })
-        .catch(() => {
-          setDistanceError("Could not resolve address coordinates");
-          setActualDistance(null);
-        })
-        .finally(() => setIsResolvingAddress(false));
+          })
+          .finally(() => setIsResolvingAddress(false));
+      } else {
+        setDistanceError("Location coordinates not found");
+        setActualDistance(null);
+      }
     }
-    else {
-      setDistanceError("Location coordinates not found");
-      setActualDistance(null);
-    }
-  }
   }, [deliveryAddress]);
 
   // Fetch cart products dynamically
@@ -257,11 +288,11 @@ export default function CheckoutPage() {
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
             originalPrice: parseFloat(p.price ?? '0'),
             imageUrl: p.images?.[0] || '',
+            isLiveProduct: true,
           };
         });
       }
 
-      // Fallback to local mocks if not in DB
       uniqueIds.forEach(id => {
         if (!productMap[id]) {
           const mockup = ALL_MOCK_PRODUCTS.find((p: any) => p.id === id);
@@ -271,6 +302,7 @@ export default function CheckoutPage() {
               price: mockup.rentalPrice || mockup.price || 0,
               originalPrice: mockup.price || 0,
               imageUrl: mockup.imageUrl || mockup.images?.[0] || '',
+              isLiveProduct: false,
             };
           }
         }
@@ -290,23 +322,57 @@ export default function CheckoutPage() {
       setBuyoutLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            item:products (*)
-          )
-        `)
+        .select(`*, order_items (*, item:products (*))`)
         .eq('id', buyoutOrderId)
         .single();
-      
-      if (data && !error) {
-        setBuyoutOrderData(data);
-      }
+
+      if (data && !error) setBuyoutOrderData(data);
       setBuyoutLoading(false);
     };
     fetchBuyout();
   }, [buyoutOrderId]);
+
+  // Check subscription limits
+  const totalQty = useMemo(() => {
+    return validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+  }, [validCartEntries]);
+
+  const invalidCatalogItem = validCartEntries.find(([id]) => {
+    const baseId = id.split('_')[0];
+    const product = cartProducts[baseId];
+    return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
+  });
+  const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
+  const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
+  const requiresScheduledSlot = selectedOrderType === 'home_try_on';
+  const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
+    const p = cartProducts[id.split('_')[0]];
+    const value = p?.mrp || p?.originalPrice || p?.price || 0;
+    return value > subBenefits.maxItemValue;
+  }) : undefined;
+  const hasExpensiveItem = !!expensiveItem;
+
+  const subscriptionError = (() => {
+    if (buyoutOrderId) return null;
+    if (invalidCatalogItem) {
+      return "One or more items in this checkout are not linked to a live catalog product. Remove them before placing the order.";
+    }
+    if (selectedOrderType === 'home_try_on' && !subBenefits?.hasFreeHomeTryOn) {
+      return "Home try-on is available only on plans that include that feature.";
+    }
+    if (requiresScheduledSlot && !selectedScheduledSlot) {
+      return "Select a time slot for the home try-on booking.";
+    }
+    if (!subBenefits) return null;
+    if (exceedsMonthlyLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
+    }
+    if (exceedsConcurrentLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
+    }
+    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your order exceeds this limit.`;
+    return null;
+  })();
 
   // Calculate totals
   const subtotal = useMemo(() => {
@@ -314,12 +380,15 @@ export default function CheckoutPage() {
       // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
       return Math.round(buyoutOrderData.total_amount * 0.7);
     }
+    if (subBenefits && !subscriptionError) {
+      return 0; // Rentals covered by subscription
+    }
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
       return total + (product?.price || 0) * qty;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData]);
+  }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
 
   const originalTotal = useMemo(() => {
     if (buyoutOrderData) return buyoutOrderData?.total_amount ?? 0;
@@ -334,50 +403,44 @@ export default function CheckoutPage() {
   const discount = originalTotal - subtotal;
 
   const deliveryFeeBase = 40;
+
+  // FIX 5: Single source of truth for distance surcharge — used everywhere including warning popup
   const distanceSurcharge = useMemo(() => {
     if (!actualDistance || actualDistance <= MAX_DELIVERY_DISTANCE_KM) return 0;
     return Math.round(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
   }, [actualDistance]);
 
-  const deliveryFee = hasFreeDeliveryBenefit ? 0 : (deliveryFeeBase + distanceSurcharge);
+  const deliveryFee = selectedOrderType === 'home_try_on'
+    ? 0
+    : hasFreeDeliveryBenefit
+      ? 0
+      : (deliveryFeeBase + distanceSurcharge);
+  const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
   const insuranceFee = hasInsuranceBenefit ? 0 : (popInsurance ? 200 : 0);
   const total = subtotal + deliveryFee + insuranceFee;
 
   /* ---------------------------------- */
   /* Payment Processing                  */
   /* ---------------------------------- */
-  const processPayment = async () => {
-    if (!agreedToTerms || !agreedToSizing) {
-      toast.error("Please accept the terms and sizing agreement");
-      setShowTermsModal(true);
-      return false;
-    }
-
-    if (!paymentMethod) {
-      toast.error("Please select a payment method");
-      setShowPaymentMethodSelector(true);
-      return false;
-    }
-
-    if (paymentMethod === 'upi' && !selectedUpiApp && !upiId.trim()) {
-      toast.error("Please select a UPI app or enter your UPI ID");
-      return false;
-    }
-
-    setIsPlacingOrder(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return true;
-  };
+  const [showEmailGate, setShowEmailGate] = useState(false);
 
   /* ---------------------------------- */
-  /* Place Order                        */
+  /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
+    // Only gate on email if they actually have a real email set
+    const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
+    if (realEmail && !profile?.email_verified) {
+      setShowEmailGate(true);
+      return;
+    }
+
     if (!buyoutOrderId && validCartEntries.length === 0) return;
     if (!agreedToTerms || !agreedToSizing) {
       setShowTermsModal(true);
       return;
     }
+
     if (!paymentMethod) {
       setShowPaymentMethodSelector(true);
       return;
@@ -385,40 +448,37 @@ export default function CheckoutPage() {
 
     console.log('[Checkout] Starting order placement...', { paymentMethod });
     setError(null);
-
-    const paymentSuccess = await processPayment();
-    if (!paymentSuccess) {
-      setIsPlacingOrder(false);
-      return;
-    }
-
-    // --- Buyout Flow ---
-    if (buyoutOrderId) {
-      try {
-        // Just update existing order status to 'completed'
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: 'completed' })
-          .eq('id', buyoutOrderId);
-        
-        if (error) throw error;
-
-        // Navigate to payment processing
-        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${buyoutOrderId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
-        return;
-      } catch (err: any) {
-        toast.error(err.message);
-        setIsPlacingOrder(false);
-        return;
-      }
-    }
+    setIsPlacingOrder(true);
 
     try {
       if (!supabase) throw new Error("Service unavailable");
 
       const userId = user?.id;
       if (!userId) throw new Error("Please sign in to place an order");
+
+      // --- Buyout Flow (keep-it) ---
+      if (buyoutOrderId) {
+        const targetId = buyoutOrderId;
+        await supabase.from('orders').update({ status: 'pending_payment' }).eq('id', buyoutOrderId);
+
+        if (paymentMethod === 'cod') {
+          await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
+          // FIX 6: Clear cart on buyout COD path too
+          await clearCartDB().catch(() => { });
+          for (const [id] of validCartEntries) removeFromCart(id);
+          navigate(`/order-confirmed/${targetId}`);
+        } else {
+          setIsPlacingOrder(false);
+          initiatePayment({
+            internalOrderId: targetId,
+            amountInRupees: total,
+            userName: profile?.full_name || user?.user_metadata?.full_name,
+            userEmail: profile?.email,
+            userPhone: profile?.phone || user?.phone,
+          });
+        }
+        return;
+      }
 
       // 1) Get or create a delivery address
       const addrFull = deliveryAddress?.formattedAddress || "Default Address, Mumbai";
@@ -454,77 +514,41 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Insert order
+      // 2) Create the entitled order via RPC
       const rentalDays = 4;
-      const startDate = new Date().toISOString().split("T")[0];
-      const endDate = new Date(Date.now() + rentalDays * 86400000).toISOString().split("T")[0];
-      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString(); // fallback 60 mins
+      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString();
 
-      const orderStatus = paymentMethod === 'cod' ? 'pending' : 'pending_payment';
-
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          delivery_address_id: addressId,
-          rental_start_date: startDate,
-          rental_end_date: endDate,
-          total_amount: total,
-          deposit_amount: Math.round(subtotal * 0.3),
-          delivery_eta: deliveryEta,
-          status: orderStatus,
-          payment_method: paymentMethod,
-          delivery_fee: deliveryFee,
-        })
-        .select("id")
-        .single();
-
-      if (orderErr) throw new Error(orderErr.message);
-
-      // 3) Insert order_items
-      // If the cart has mock IDs (like "prod1"), it will crash the DB foreign key constraint.
-      // We need to ensure we only send real UUIDs. Let's fetch one real UUID to use as a fallback if needed.
-      const { data: realProducts } = await supabase.from('products').select('id').limit(1);
-      const fallbackUuid = realProducts?.[0]?.id;
-
-      const orderItems = validCartEntries.map(([id, qty]) => {
-        // Handle IDs carefully: they might be UUIDs or mocked IDs like "prod1_S"
+      const rpcItems = validCartEntries.map(([id, qty]) => {
         const rawBaseId = id.includes('_') ? id.split('_')[0] : id;
         const size = id.includes('_') ? id.split('_')[1] : 'S';
-        const product = cartProducts[rawBaseId] || cartProducts[id]; // Also check if it's there without split
 
-        // Use the real UUID if it exists in the live DB, OTHERWISE use the fallback UUID so the DB doesn't crash on mock data
-        // We'll trust that if rawBaseId has a hyphen and is somewhat long, it's likely a real UUID.
-        const likelyRealUuid = rawBaseId.includes('-');
-        const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
-
-        if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", id);
-          throw new Error("Invalid product ID in cart");
+        if (!UUID_PATTERN.test(rawBaseId)) {
+          throw new Error("One or more cart items are not linked to a live product in the database.");
         }
 
         return {
-          order_id: order.id,
-          product_id: baseId,
-          size: size,
-          rental_price: (product?.price || 0) * qty,
-          deposit_amount: Math.round((product?.price || 0) * qty * 0.3),
-          rental_duration_days: rentalDays,
+          product_id: rawBaseId,
+          size,
+          quantity: qty,
         };
       });
 
-      console.log("[Checkout] Prepared order items payload:", orderItems);
+      const orderResult = await createEntitledOrder({
+        deliveryAddressId: addressId,
+        items: rpcItems,
+        paymentMethod: paymentMethod === 'upi' ? 'upi' : 'cod',
+        orderType: selectedOrderType,
+        scheduledSlot: selectedScheduledSlot,
+        deliveryDistanceKm: actualDistance,
+        popInsurance,
+        rentalDurationDays: rentalDays,
+        deliveryEta,
+      });
 
-      const { error: itemsErr } = await supabase.from("order_items").insert(orderItems);
-      if (itemsErr) {
-        console.error("[Checkout] Order items insert failed. Details:", itemsErr);
-        throw new Error("Order items saving failed: " + itemsErr.message);
-      }
-
-      // 4) Insert Legal Acceptance Log
+      // 3) Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
         user_id: userId,
-        order_id: order.id,
+        order_id: orderResult.orderId,
         ip_address: userIp || 'unknown',
         tc_version: 'v1.0'
       });
@@ -532,21 +556,22 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 5) Clear cart (if not buyout)
-      if (!buyoutOrderId) {
+      // 4) Clear cart (if not buyout and if COD)
+      // For UPI, the cart is cleared on the PaymentProcessingPage or OrderConfirmedPage fallback
+      if (!buyoutOrderId && paymentMethod === 'cod') {
         await clearCartDB().catch(() => { });
         for (const [id] of validCartEntries) {
           removeFromCart(id);
         }
       }
 
-      // 6) Navigate based on payment method
-      const targetId = buyoutOrderId || (order as any).id;
+      // 5) Navigate based on payment method
+      const targetId = orderResult.orderId;
+      const finalAmount = orderResult.totalAmount;
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${targetId}`);
       } else {
-        const upiAppParam = selectedUpiApp ? `&upiApp=${selectedUpiApp}` : "";
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${total}&method=upi${upiAppParam}${upiId ? `&upiId=${upiId}` : ""}`);
+        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -566,14 +591,23 @@ export default function CheckoutPage() {
             <p className="text-sm text-zinc-500 mt-4">Loading order details...</p>
           </div>
         )}
-        
+
         {/* Header */}
-        <section className="relative px-5 pt-6 pb-2">
+        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 pt-6 pb-2">
           <div className="absolute -top-20 -left-14 w-36 h-36 rounded-full blur-[100px] pointer-events-none" style={{ background: "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)" }} />
-          <button onClick={() => navigate(-1)} className="relative flex items-center justify-center">
+          <button onClick={() => navigate(-1)} className="relative flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/5 transition-all active:scale-95">
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
-        </section>
+        </header>
+
+        {subscriptionError && (
+          <section className="px-5 mt-4">
+            <div className="bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <p className="leading-tight">{subscriptionError}</p>
+            </div>
+          </section>
+        )}
 
         {/* User Info */}
         <section className="px-5 mt-4">
@@ -582,7 +616,7 @@ export default function CheckoutPage() {
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Contact Details</h3>
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
-          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{user?.email}</p>
+          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
 
           <div className="flex items-center justify-between mt-9">
             <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
@@ -591,7 +625,6 @@ export default function CheckoutPage() {
           {deliveryAddress ? (
             <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
               <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
-              
               <div className="mt-3 flex items-center gap-2 relative z-10">
                 {isResolvingAddress ? (
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
@@ -601,34 +634,107 @@ export default function CheckoutPage() {
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
                   </div>
-                ) : actualDistance !== null ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
-                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
-                      {actualDistance.toFixed(1)} km from warehouse
-                    </span>
-                  </div>
-                ) : distanceError ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
-                      {distanceError}
-                    </span>
-                  </div>
-                ) : !deliveryAddress.lat || !deliveryAddress.lng ? (
-                  <div className="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
-                      Coordinate search failed
-                    </span>
-                  </div>
                 ) : null}
               </div>
-              
-              {/* Subtle accent blur */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
             </div>
           ) : (
             <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
               + Select Address
             </button>
+          )}
+
+          {!buyoutOrderId && subBenefits && (
+            <>
+              <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Plan Access</h3>
+              <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>{subBenefits.planName} plan</p>
+                    <p className="text-[11px] text-zinc-500 mt-1 font-bold uppercase tracking-widest">
+                      Monthly quota and concurrent active-item limit
+                    </p>
+                  </div>
+                  <div className="px-2 py-1 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
+                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
+                      ₹{subBenefits.maxItemValue} cap
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-[#171717] px-3 py-3">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Monthly left</p>
+                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
+                  </div>
+                  <div className="rounded-xl bg-[#171717] px-3 py-3">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Concurrent left</p>
+                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
+                  </div>
+                </div>
+              </div>
+
+              {subBenefits.hasFreeHomeTryOn && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderType('rental')}
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-left transition-colors",
+                      selectedOrderType === 'rental'
+                        ? "border-[#f2546d] bg-[#f2546d]/10"
+                        : "border-white/5 bg-[#232323]"
+                    )}
+                  >
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Rental</p>
+                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Standard subscription checkout</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderType('home_try_on')}
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-left transition-colors",
+                      selectedOrderType === 'home_try_on'
+                        ? "border-[#f2546d] bg-[#f2546d]/10"
+                        : "border-white/5 bg-[#232323]"
+                    )}
+                  >
+                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Home Try-On</p>
+                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Pro-only scheduled booking</p>
+                  </button>
+                </div>
+              )}
+
+              {(subBenefits.hasAdvanceBooking || selectedOrderType === 'home_try_on') && (
+                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>
+                        {selectedOrderType === 'home_try_on' ? 'Schedule Home Try-On' : 'Schedule Delivery Slot'}
+                      </p>
+                      <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">
+                        {selectedOrderType === 'home_try_on' ? 'Required for try-on bookings' : 'Optional if you want a fixed delivery window'}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-widest",
+                      selectedOrderType === 'home_try_on' ? "text-[#f2546d]" : "text-zinc-500"
+                    )}>
+                      {selectedOrderType === 'home_try_on' ? 'Required' : 'Optional'}
+                    </span>
+                  </div>
+                  <TimeSlotPicker
+                    selectedSlot={selectedScheduledSlot}
+                    onSelect={setSelectedScheduledSlot}
+                    className="mt-4"
+                  />
+                  {selectedScheduledSlot && (
+                    <p className="mt-3 text-[11px] text-[#f2546d] font-bold uppercase tracking-widest">
+                      Selected: {selectedScheduledSlot.date} • {selectedScheduledSlot.start} - {selectedScheduledSlot.end}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
@@ -640,17 +746,11 @@ export default function CheckoutPage() {
               {paymentMethod === 'upi' ? (
                 <>
                   <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
-                    <Smartphone className="w-5 h-5 text-[#f2546d]" />
+                    <Wifi className="w-5 h-5 text-[#f2546d]" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>
-                      {selectedUpiApp ? `Pay via ${selectedUpiApp}` : "UPI Payment"}
-                    </p>
-                    {(selectedUpiApp || upiId) && (
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {selectedUpiApp || upiId}
-                      </p>
-                    )}
+                    <p className="text-sm font-bold text-white" style={dmSans}>Pay Online</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">UPI, Card, Netbanking & more</p>
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -712,19 +812,11 @@ export default function CheckoutPage() {
             </div>
             <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
               <div className="flex flex-col">
-                <span>Delivery fee</span>
+                <span>{selectedOrderType === 'home_try_on' ? 'Home try-on delivery' : 'Delivery fee'}</span>
                 {isResolvingAddress ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Resolving address...</span>
                 ) : distanceLoading ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Checking distance...</span>
-                ) : actualDistance !== null ? (
-                  <span className="text-[11px] text-[#f2546d] font-bold">
-                    Distance: {actualDistance.toFixed(1)} km
-                  </span>
-                ) : distanceError ? (
-                  <span className="text-[10px] text-amber-500 italic">{distanceError}</span>
-                ) : (!deliveryAddress?.lat || !deliveryAddress?.lng) ? (
-                  <span className="text-[10px] text-amber-500 italic">Coordinate search failed</span>
                 ) : null}
                 {distanceSurcharge > 0 && (
                   <span className="text-[10px] text-zinc-500 font-medium">
@@ -733,8 +825,8 @@ export default function CheckoutPage() {
                 )}
               </div>
               <div className="text-right">
-                <span className={cn(hasFreeDeliveryBenefit && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
-                {hasFreeDeliveryBenefit && <span className="ml-2">₹ 0</span>}
+                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
+                {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
             <div className="flex justify-between items-center text-lg text-[#b4b4b4]" style={dmSans}>
@@ -778,26 +870,31 @@ export default function CheckoutPage() {
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
-              onClick={handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId)}
+              onClick={subscriptionError ? undefined : handlePlaceOrder}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                isPlacingOrder ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
-              {isPlacingOrder
-                ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
-                : paymentMethod === 'upi'
-                  ? "PAY VIA UPI"
-                  : paymentMethod === 'cod'
-                    ? "PLACE ORDER"
-                    : "PAY"
+              {subscriptionError
+                ? "LIMIT EXCEEDED"
+                : isPlacingOrder
+                  ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
+                  : selectedOrderType === 'home_try_on'
+                    ? "BOOK TRY-ON"
+                  : paymentMethod === 'upi'
+                    ? "PAY VIA UPI"
+                    : paymentMethod === 'cod'
+                      ? "PLACE ORDER"
+                      : "PAY"
               }
             </button>
           </div>
         </div>
       </div>
 
+      {/* Address Selector Drawer */}
       <Drawer.Root open={showAddressSelector} onOpenChange={setShowAddressSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
@@ -831,121 +928,53 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              <Drawer.Title className="text-xl font-black text-white mb-6" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Choose Payment Method</Drawer.Title>
+              <p className="text-zinc-500 text-sm mb-6 font-medium">All payments are 100% secure and encrypted</p>
               <Drawer.Description className="sr-only">Select how you want to pay</Drawer.Description>
 
               <div className="space-y-3">
-                {/* UPI Option */}
                 <button
                   onClick={() => setPaymentMethod('upi')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'upi'
-                      ? "bg-[#f2546d]/10 border-[#f2546d]"
-                      : "bg-[#141414] border-white/5 hover:border-white/10"
+                    paymentMethod === 'upi' ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      paymentMethod === 'upi' ? "bg-[#f2546d]/20" : "bg-zinc-800"
-                    )}>
-                      <Smartphone className={cn("w-6 h-6", paymentMethod === 'upi' ? "text-[#f2546d]" : "text-zinc-500")} />
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'upi' ? "bg-[#f2546d]/20" : "bg-zinc-800")}>
+                      <Wifi className={cn("w-6 h-6", paymentMethod === 'upi' ? "text-[#f2546d]" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-white font-bold text-base" style={dmSans}>UPI Payment</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay instantly via UPI apps</p>
+                      <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
+                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
                     </div>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700"
-                    )}>
+                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
                       {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
+                  {paymentMethod === 'upi' && (
+                    <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
+                      ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
+                    </p>
+                  )}
                 </button>
 
-                {/* UPI ID Input (shown when UPI is selected) */}
-                {paymentMethod === 'upi' && (
-                  <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-4 gap-3 px-1">
-                      {[
-                        { id: 'PhonePe', icon: '/images/upi-icons/phonepe.png' },
-                        { id: 'Google Pay', icon: '/images/upi-icons/gpay.png' },
-                        { id: 'Paytm', icon: '/images/upi-icons/paytm.png' },
-                        { id: 'Amazon Pay', icon: '/images/upi-icons/amazonpay.png' }
-                      ].map((app) => (
-                        <button
-                          key={app.id}
-                          onClick={() => {
-                            setSelectedUpiApp(app.id);
-                            setUpiId(""); // Clear custom UPI ID if app is selected
-                          }}
-                          className={cn(
-                            "flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all",
-                            selectedUpiApp === app.id
-                              ? "bg-white/5 border-[#f2546d]"
-                              : "bg-[#141414] border-white/5"
-                          )}
-                        >
-                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center">
-                            <img src={app.icon} alt={app.id} className="w-full h-full object-contain" />
-                          </div>
-                          <span className="text-[10px] font-bold text-zinc-500 text-center leading-tight">{app.id}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-white/5"></span>
-                      </div>
-                      <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                        <span className="bg-[#191919] px-4 text-zinc-600">OR Enter UPI ID</span>
-                      </div>
-                    </div>
-
-                    <div className="px-1">
-                      <input
-                        type="text"
-                        value={upiId}
-                        onChange={(e) => {
-                          setUpiId(e.target.value);
-                          setSelectedUpiApp(null); // Clear app selection if custom ID is typed
-                        }}
-                        placeholder="yourname@upi"
-                        className="w-full bg-[#232323] border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors placeholder:text-zinc-600"
-                        style={dmSans}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* COD Option */}
                 <button
                   onClick={() => setPaymentMethod('cod')}
                   className={cn(
                     "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'cod'
-                      ? "bg-emerald-500/10 border-emerald-500"
-                      : "bg-[#141414] border-white/5 hover:border-white/10"
+                    paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center",
-                      paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800"
-                    )}>
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
                       <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
                       <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
                     </div>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700"
-                    )}>
+                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
                       {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -957,9 +986,7 @@ export default function CheckoutPage() {
                 disabled={!paymentMethod}
                 className={cn(
                   "w-full mt-8 py-4 rounded-2xl font-black text-lg transition-all",
-                  paymentMethod
-                    ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
-                    : "bg-zinc-800 text-zinc-600"
+                  paymentMethod ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20" : "bg-zinc-800 text-zinc-600"
                 )}
                 style={dmSans}
               >
@@ -970,19 +997,76 @@ export default function CheckoutPage() {
         </Drawer.Portal>
       </Drawer.Root>
 
+      {/* Email Verification Gate */}
+      <AnimatePresence>
+        {showEmailGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEmailGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto mb-6">
+                <Mail className="w-10 h-10 text-orange-500" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Verify Email</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                For security and order confirmation, please verify your email address <span className="text-white font-bold">{profile?.email || user?.email}</span> before placing your first order.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    const emailToVerify = profile?.email || user?.email;
+                    if (!emailToVerify) {
+                      toast.error("No email found. Please add an email in your profile first.");
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase.auth.signInWithOtp({
+                        email: emailToVerify,
+                        options: { emailRedirectTo: `${window.location.origin}/auth/verify-email-callback` },
+                      });
+                      if (error) throw error;
+                      toast.success("Verify Email link sent to " + emailToVerify);
+                      setShowEmailGate(false);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to send link");
+                    }
+                  }}
+                  className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold text-lg shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  SEND VERIFY LINK
+                </button>
+                <button onClick={() => setShowEmailGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Terms Modal */}
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
             <div className="p-8 overflow-y-auto scrollbar-hide">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
-
               <div className="mb-10 text-center">
                 <Drawer.Title className="text-[32px] font-black text-white leading-tight tracking-tighter" style={dmSans}>Rental Rules</Drawer.Title>
                 <Drawer.Description className="text-zinc-500 text-sm mt-2 font-medium">Quick summary of your liability</Drawer.Description>
               </div>
 
-              {/* Legal Icons Summary */}
               <div className="grid grid-cols-1 gap-6 mb-12">
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-[#f2546d]/10 flex items-center justify-center flex-shrink-0">
@@ -993,7 +1077,6 @@ export default function CheckoutPage() {
                     <p className="text-zinc-500 text-xs mt-1 font-bold leading-relaxed">We handle small spills and normal wear. Don't stress too much!</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                     <X className="w-7 h-7 text-blue-500" />
@@ -1003,7 +1086,6 @@ export default function CheckoutPage() {
                     <p className="text-zinc-500 text-xs mt-1 font-bold leading-relaxed">Professional cleaning is our job. Please avoid self-washing items.</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-5 p-4 rounded-[24px] bg-white/[0.03] border border-white/5">
                   <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
                     <Clock className="w-7 h-7 text-amber-500" />
@@ -1015,19 +1097,11 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-               <div className="space-y-5 mb-10">
+              <div className="space-y-5 mb-10">
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={agreedToTerms}
-                      onChange={() => setAgreedToTerms(!agreedToTerms)}
-                    />
-                    <div className={cn(
-                      "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-                      agreedToTerms ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700"
-                    )}>
+                    <input type="checkbox" className="hidden" checked={agreedToTerms} onChange={() => setAgreedToTerms(!agreedToTerms)} />
+                    <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all", agreedToTerms ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700")}>
                       {agreedToTerms && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -1041,16 +1115,8 @@ export default function CheckoutPage() {
 
                 <label className="flex items-start gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer active:scale-[0.98] transition-all">
                   <div className="pt-1">
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={agreedToSizing}
-                      onChange={() => setAgreedToSizing(!agreedToSizing)}
-                    />
-                    <div className={cn(
-                      "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-                      agreedToSizing ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700"
-                    )}>
+                    <input type="checkbox" className="hidden" checked={agreedToSizing} onChange={() => setAgreedToSizing(!agreedToSizing)} />
+                    <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all", agreedToSizing ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700")}>
                       {agreedToSizing && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
                   </div>
@@ -1065,9 +1131,7 @@ export default function CheckoutPage() {
                 disabled={!agreedToTerms || !agreedToSizing}
                 className={cn(
                   "w-full py-5 rounded-[24px] font-black text-lg tracking-tight transition-all",
-                  (agreedToTerms && agreedToSizing)
-                    ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/30"
-                    : "bg-zinc-800 text-zinc-600 grayscale pointer-events-none"
+                  (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/30" : "bg-zinc-800 text-zinc-600 grayscale pointer-events-none"
                 )}
                 style={dmSans}
               >
@@ -1085,17 +1149,14 @@ export default function CheckoutPage() {
           <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
-              
               <div className="flex flex-col items-center text-center mb-8">
                 <div className="w-16 h-16 rounded-3xl bg-[#f2546d]/10 flex items-center justify-center mb-6">
                   <Clock className="w-8 h-8 text-[#f2546d]" />
                 </div>
-                <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>
-                  Long Distance Delivery
-                </h2>
+                <h2 className="text-2xl font-black text-white leading-tight tracking-tighter" style={dmSans}>Long Distance Delivery</h2>
                 <div className="mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 w-full">
                   <p className="text-zinc-400 text-sm font-medium leading-relaxed">
-                    Your delivery address is <span className="text-white font-bold">{actualDistance?.toFixed(1)} km</span> from our warehouse.
+                    Your delivery address is outside our standard free-delivery zone.
                   </p>
                   <p className="text-[#f2546d] text-[13px] font-bold mt-2">
                     A surcharge of ₹10 per km applies for distances beyond 6 km.
@@ -1103,6 +1164,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* FIX 5: Reuse distanceSurcharge memo instead of duplicating calculation */}
               <div className="bg-[#141414] p-5 rounded-2xl border border-white/5 mb-8">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-zinc-500 text-sm font-bold uppercase tracking-wider">Base Delivery</span>
@@ -1110,15 +1172,15 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between items-center text-[#f2546d]">
                   <span className="text-sm font-bold uppercase tracking-wider">Distance Surcharge</span>
-                  <span className="font-bold">+ ₹ {(actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0}</span>
+                  <span className="font-bold">+ ₹ {distanceSurcharge}</span>
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {40 + ((actualDistance && actualDistance > 6) ? Math.round(actualDistance - 6) * 10 : 0)}</span>
+                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => setShowDistanceWarningPopup(false)}
                 className="w-full h-14 flex items-center justify-center rounded-[20px] bg-[#f2546d] text-white font-black text-lg shadow-xl shadow-[#f2546d]/20 active:scale-95 transition-all"
                 style={dmSans}

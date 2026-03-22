@@ -38,7 +38,18 @@ export default function OrderDeliveredPage() {
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
             <main className="flex-1 overflow-y-auto flex flex-col">
-                {/* ─── MAP + BACK BUTTON ─── */}
+                {/* Sticky Header */}
+                <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 border-b border-white/5 flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
+                    >
+                        <ChevronLeft className="w-6 h-6 text-white" />
+                    </button>
+                    <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Order Details</h1>
+                </header>
+
+                {/* ─── MAP SECTION ─── */}
                 <section className="relative h-[190px] flex-shrink-0">
                     {/* Gradient Glow Orb */}
                     <div
@@ -48,14 +59,6 @@ export default function OrderDeliveredPage() {
                                 "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)",
                         }}
                     />
-
-                    {/* Back Button */}
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="absolute top-6 left-5 z-30 flex items-center justify-center"
-                    >
-                        <ChevronLeft className="w-6 h-6 text-white" />
-                    </button>
 
                     {/* Map Display */}
                     <div className="w-full h-full">

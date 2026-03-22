@@ -65,7 +65,7 @@ const MoodPage: React.FC = () => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                        className="p-1 rounded-full hover:bg-white/10 transition-all active:scale-95"
                     >
                         <ChevronLeft className="w-6 h-6 text-white" />
                     </button>

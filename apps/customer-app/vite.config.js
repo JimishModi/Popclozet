@@ -7,8 +7,15 @@ export default defineConfig({
     // Load .env from monorepo root
     envDir: path.resolve(__dirname, "../.."),
     server: {
-        host: "::",
+        host: "localhost",
         port: 5500,
+        proxy: {
+            "/api": {
+                target: "http://localhost:3001",
+                changeOrigin: true,
+                secure: false,
+            },
+        },
     },
     plugins: [
         react(),
@@ -115,7 +122,7 @@ export default defineConfig({
                         handler: "NetworkFirst",
                         options: {
                             cacheName: "supabase-api-cache",
-                            networkTimeoutSeconds: 10, // Increased from 3 to 10 for better resilience
+                            networkTimeoutSeconds: 3,
                             cacheableResponse: { statuses: [200] },
                         },
                     },
@@ -149,12 +156,11 @@ export default defineConfig({
                         },
                     },
                 ],
-                navigateFallback: "/index.html",
-                navigateFallbackAllowlist: [/^\/(?!api|admin)/],
+                navigateFallback: "/offline.html",
                 navigateFallbackDenylist: [/^\/api/, /^\/admin/],
             },
             devOptions: {
-                enabled: false, // DISABLED to prevent "Offline mode" error on local reloads
+                enabled: false,
             },
         }),
     ],

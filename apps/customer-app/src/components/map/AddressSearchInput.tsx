@@ -14,6 +14,7 @@ interface AddressSearchInputProps {
     onLocateMe?: () => void;
     showRecentAddresses?: boolean;
     disabled?: boolean;
+    isLoading?: boolean;
 }
 
 export function AddressSearchInput({
@@ -24,10 +25,15 @@ export function AddressSearchInput({
     onLocateMe,
     showRecentAddresses = true,
     disabled = false,
+    isLoading: externalLoading = false,
 }: AddressSearchInputProps) {
     const [query, setQuery] = useState(value);
     const [suggestions, setSuggestions] = useState<ValidatedAddress[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingInternal, setIsLoadingInternal] = useState(false);
+    
+    // Combine internal and external loading states
+    const isLoading = isLoadingInternal || externalLoading;
+    
     const [isFocused, setIsFocused] = useState(false);
     const [recentAddresses, setRecentAddresses] = useState<ValidatedAddress[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +77,7 @@ export function AddressSearchInput({
             return;
         }
 
-        setIsLoading(true);
+        setIsLoadingInternal(true);
         try {
             const results = await searchAddresses(searchQuery);
             setSuggestions(results);
@@ -79,7 +85,7 @@ export function AddressSearchInput({
             console.error('Search failed:', error);
             setSuggestions([]);
         } finally {
-            setIsLoading(false);
+            setIsLoadingInternal(false);
         }
     }, []);
 

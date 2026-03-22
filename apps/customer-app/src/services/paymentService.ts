@@ -14,7 +14,13 @@ export async function getMyPayments() {
   return data;
 }
 
-export async function createPayment(orderId: string, amount: number, paymentMethod: 'upi' | 'cod' = 'upi') {
+export async function createPayment(
+  orderId: string,
+  amount: number,
+  provider: 'razorpay' | 'cod' = 'razorpay',
+  razorpayPaymentId?: string,
+  razorpayOrderId?: string,
+) {
   const {
     data: { user },
     error: authError,
@@ -24,8 +30,7 @@ export async function createPayment(orderId: string, amount: number, paymentMeth
     throw new Error('Not authenticated');
   }
 
-  const provider = paymentMethod === 'cod' ? 'cod' : 'upi';
-  const status = paymentMethod === 'cod' ? 'pending_cod' : 'pending';
+  const status = provider === 'cod' ? 'pending_cod' : 'pending';
 
   const { data, error } = await supabase.from('payments').insert({
     user_id: user.id,
@@ -33,6 +38,8 @@ export async function createPayment(orderId: string, amount: number, paymentMeth
     amount,
     status,
     provider,
+    ...(razorpayPaymentId && { razorpay_payment_id: razorpayPaymentId }),
+    ...(razorpayOrderId && { razorpay_order_id: razorpayOrderId }),
   });
 
   if (error) {
@@ -42,3 +49,4 @@ export async function createPayment(orderId: string, amount: number, paymentMeth
 
   return data;
 }
+

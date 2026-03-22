@@ -40,7 +40,7 @@ export interface RiderLocation {
 }
 
 // Used by OrderRequestsPage
-export interface RiderNotification {
+export interface RiderOrderRequest {
     id: string;
     order_id: string;
     rider_id: string;
@@ -52,6 +52,19 @@ export interface ClaimResult {
     success: boolean;
     message?: string;
     already_claimed?: boolean;
+}
+
+const RETURN_FLOW_STATUSES = new Set<OrderStatus>([
+    'return_scheduled',
+    'return_dispatched',
+    'return_picked_up',
+    'return_at_warehouse',
+    'returned',
+    'return_completed',
+]);
+
+function isReturnFlowOrder(order: { status?: string; order_type?: string | null }) {
+    return RETURN_FLOW_STATUSES.has((order.status ?? '') as OrderStatus) || order.order_type === 'return';
 }
 
 // ─── Order request actions ────────────────────────────────────────────────────
@@ -135,7 +148,7 @@ export async function declineOrderNotification(notificationId: string): Promise<
  */
 export function subscribeToOrderRequests(
     riderId: string,
-    onNew: (notification: RiderNotification) => void,
+    onNew: (notification: RiderOrderRequest) => void,
     onDeleted: (notificationId: string) => void,
 ): () => void {
     const channel = supabase
@@ -148,7 +161,7 @@ export function subscribeToOrderRequests(
                 table: 'rider_notifications',
                 filter: `rider_id=eq.${riderId}`,
             },
-            (payload) => onNew(payload.new as RiderNotification),
+            (payload) => onNew(payload.new as RiderOrderRequest),
         )
         .on(
             'postgres_changes',
@@ -183,7 +196,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
     const { data, error } = await supabase
         .from('orders')
         .select(`
-            id, user_id, status, total_amount, created_at, delivery_eta,
+            id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
             addresses:delivery_address_id (full_address, latitude, longitude),
             order_items (id, product_id, rental_price)
         `)
@@ -191,26 +204,48 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         .in('status', [
             'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
             'order_picked_up', 'dispatched', 'out_for_delivery',
+            'return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse',
         ]);
 
     if (error) { console.error('[riderOrderService] getRiderOrders:', error); return []; }
 
     return (data ?? []).map((order: any) => {
         const addr = order.addresses;
-        return {
-            id: order.id, orderId: order.id, customerId: order.user_id,
-            orderType: 'delivery' as const, status: order.status,
-            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
-            deliveryAddress: {
+        const isReturn = isReturnFlowOrder(order);
+        const pickupAddress = isReturn
+            ? {
                 fullAddress: addr?.full_address ?? 'Customer Address',
                 lat: addr?.latitude ?? 0,
                 lng: addr?.longitude ?? 0,
-            },
+            }
+            : {
+                fullAddress: 'PopClozet Warehouse, Powai',
+                lat: 19.1234,
+                lng: 72.8567,
+            };
+        const deliveryAddress = isReturn
+            ? {
+                fullAddress: 'PopClozet Warehouse, Powai',
+                lat: 19.1234,
+                lng: 72.8567,
+            }
+            : {
+                fullAddress: addr?.full_address ?? 'Customer Address',
+                lat: addr?.latitude ?? 0,
+                lng: addr?.longitude ?? 0,
+            };
+
+        return {
+            id: order.id, orderId: order.id, customerId: order.user_id,
+            orderType: isReturn ? 'return' as const : 'delivery' as const,
+            status: order.status,
+            pickupAddress,
+            deliveryAddress,
             items: (order.order_items ?? []).map((i: any) => ({
                 name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
             })),
             totalAmount: order.total_amount ?? 0,
-            deliveryFee: Math.round((order.total_amount ?? 0) * 0.15),
+            deliveryFee: order.delivery_fee ?? Math.round((order.total_amount ?? 0) * 0.15),
             assignedAt: order.created_at,
             createdAt: order.created_at,
         };
@@ -244,15 +279,29 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     if (error || !data) { console.error('[riderOrderService] getRiderOrderById:', error); return null; }
 
     const addr = data.addresses as any;
+    const isReturn = isReturnFlowOrder(data);
     return {
         id: data.id, orderId: data.id, customerId: data.user_id,
-        orderType: data.order_type ?? 'delivery', status: data.status,
-        pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
-        deliveryAddress: {
-            fullAddress: addr?.full_address ?? 'Customer Address',
-            lat: addr?.latitude ?? 0,
-            lng: addr?.longitude ?? 0,
-        },
+        orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
+        status: data.status,
+        pickupAddress: isReturn
+            ? {
+                fullAddress: addr?.full_address ?? 'Customer Address',
+                lat: addr?.latitude ?? 0,
+                lng: addr?.longitude ?? 0,
+            }
+            : {
+                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+            },
+        deliveryAddress: isReturn
+            ? {
+                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+            }
+            : {
+                fullAddress: addr?.full_address ?? 'Customer Address',
+                lat: addr?.latitude ?? 0,
+                lng: addr?.longitude ?? 0,
+            },
         items: (data.order_items ?? []).map((i: any) => ({
             name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
         })),
@@ -304,6 +353,32 @@ export async function markAsDelivered(orderId: string, riderId: string) {
 }
 
 /**
+ * Rider drops off a return at the warehouse.
+ * Generates an OTP that the warehouse staff must enter to complete receipt.
+ * Transitions: return_picked_up → return_at_warehouse
+ */
+export async function riderDropOffReturn(orderId: string, riderId: string) {
+    const { data, error } = await supabase.rpc('rider_drop_off_return', {
+        p_order_id: orderId,
+        p_actor_id: riderId,
+    });
+    if (error) return { success: false, message: error.message };
+    return data as { success: boolean; message?: string; otp?: string; status?: string };
+}
+
+/**
+ * @deprecated Use riderDropOffReturn instead. This is now warehouse-only with OTP.
+ */
+export async function receiveReturnAtWarehouse(orderId: string, actorId: string) {
+    const { data, error } = await supabase.rpc('receive_return_at_warehouse', {
+        p_order_id: orderId,
+        p_actor_id: actorId,
+    });
+    if (error) return { success: false, message: error.message };
+    return data as { success: boolean; message?: string; status?: string };
+}
+
+/**
  * Complete delivery via RPC (server-side auth, credits wallet automatically)
  */
 export async function completeDelivery(orderId: string): Promise<void> {
@@ -319,6 +394,8 @@ export const PREDEFINED_MESSAGES = [
     'Your package has been picked up. Heading to your location now.',
     'I will arrive at your location shortly.',
     'I am near your delivery location. Please be available.',
+    'I am on the way to collect your return.',
+    'I have collected your return and I am heading back to the warehouse.',
 ];
 
 export async function sendMessageToCustomer(

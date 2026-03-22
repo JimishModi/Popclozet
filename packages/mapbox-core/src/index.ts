@@ -104,12 +104,12 @@ export const getMapInstance = (): mapboxgl.Map | null => mapInstance;
 
 /**
  * Draw a route on the map from provided coordinates.
- * This function only handles RENDERING, not calculation.
+ * This function handles RENDERING of a LineString on the map.
  */
-export const drawRouteFromCoords = (
+export const drawRoute = async (
     map: mapboxgl.Map,
     coordinates: number[][] // [lng, lat] expected by Mapbox
-): void => {
+): Promise<void> => {
     const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
         type: 'Feature',
         properties: {},
@@ -156,6 +156,8 @@ export const drawRouteFromCoords = (
     map.fitBounds(bounds, { padding: 50 });
 };
 
+// Aliases for compatibility
+export const drawRouteFromCoords = drawRoute;
 
 // ==========================================
 // IIT BOMBAY GEOFENCING

@@ -313,6 +313,11 @@ export async function notifyOrderStatusChange(
             title: '🏭 Ready for Pickup',
             message: 'Your package is ready and a rider has been assigned to collect it.',
         },
+        rider_assigned: {
+            type: 'order_update',
+            title: '🚗 Rider Assigned!',
+            message: 'A rider has been assigned to pick up your package. They are on their way to the warehouse!',
+        },
         driver_arrived_warehouse: {
             type: 'order_update',
             title: '🚗 Rider at Warehouse',

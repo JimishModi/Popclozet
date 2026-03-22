@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MobileShell } from '@/components/layout/MobileShell';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/SupabaseAuthContext';
@@ -26,6 +24,7 @@ interface RentalItem {
     itemCount?: number;
     isInTransit?: boolean;
     isDelivered?: boolean;
+    isReturnInProgress?: boolean;
     hoursLeft?: number;
     minutesLeft?: number;
 }
@@ -64,13 +63,11 @@ const ClosetPage: React.FC = () => {
 
             // Timeout to prevent infinite hang on Supabase cold-start
             const rentalsPromise = getMyActiveRentals();
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Rentals fetch timeout')), 4000)
-            );
+            const timeoutPromise = new Error('Rentals fetch timeout');
 
             let activeOrders: any[];
             try {
-                activeOrders = await Promise.race([rentalsPromise, timeoutPromise]);
+                activeOrders = await rentalsPromise;
             } catch (timeoutErr) {
                 console.warn('[Closet] Supabase timed out — showing empty state');
                 setRentals([]);
@@ -89,12 +86,19 @@ const ClosetPage: React.FC = () => {
                 const timeInfo = rentalEndTime ? getRemainingRentalTime(order.rental_end_date) : { expired: false, days: 3, hours: 0, minutes: 0 };
 
                 // Status Logic:
-                // If status is 'delivered' or 'in_use' -> 'current'
-                // Else -> 'future' (ignore for now per user request)
+                // Keep active rentals visible through the scheduled return lifecycle.
                 const isDelivered = ['delivered', 'in_use'].includes(order.status);
                 const isInTransit = ['out_for_delivery', 'dispatched'].includes(order.status);
-                
-                const type = (isDelivered || isInTransit) ? 'current' : 'future';
+                const isReturnInProgress = [
+                    'return_requested',
+                    'return_scheduled',
+                    'return_dispatched',
+                    'return_picked_up',
+                    'return_at_warehouse',
+                    'returned',
+                ].includes(order.status);
+
+                const type = (isDelivered || isInTransit || isReturnInProgress) ? 'current' : 'future';
 
                 // Date label
                 let dateRange = 'Dates TBD';
@@ -123,6 +127,7 @@ const ClosetPage: React.FC = () => {
                     arrivalDays,
                     isInTransit,
                     isDelivered,
+                    isReturnInProgress,
                     itemCount: order.order_items?.length || 0
                 };
             });
@@ -141,10 +146,10 @@ const ClosetPage: React.FC = () => {
     };
 
     const currentRentals = rentals.filter((item) => item.type === 'current');
-    const futureRentals = rentals.filter((item) => item.type === 'future');
+    // const futureRentals = rentals.filter((item) => item.type === 'future'); // Removed as per user edit
 
     return (
-        <MobileShell className="bg-[#111111] text-white">
+        <div className="bg-[#111111] text-white min-h-screen relative overflow-hidden">
             {/* ─── Pink glow (top-left decorative) ─── */}
             <div
                 className="pointer-events-none absolute top-[-59px] left-[-33px] w-[145px] h-[137px]"
@@ -198,7 +203,7 @@ const ClosetPage: React.FC = () => {
                         <p className="text-lg font-semibold text-white mb-2" style={dmSans}>Your Closet is Empty</p>
                         <p className="text-sm text-gray-400 mb-6" style={dmSans}>Start renting outfits to see them here</p>
                         <button
-                            onClick={() => navigate('/home')}
+                            onClick={() => navigate('/collections')}
                             className="px-6 py-3 rounded-2xl bg-[#f2546d] text-white text-sm font-bold"
                             style={dmSans}
                         >
@@ -334,9 +339,7 @@ const ClosetPage: React.FC = () => {
 
                 {/* FUTURE BOOKINGS HIDDEN PER USER REQUEST */}
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

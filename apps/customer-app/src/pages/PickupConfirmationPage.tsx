@@ -55,16 +55,16 @@ export default function PickupConfirmationPage() {
     return (
         <MobileShell className="bg-black text-white">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-zinc-800/50">
+            <header className="flex items-center justify-between px-4 py-3 sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-zinc-800/50">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 -ml-2 rounded-full hover:bg-white/10"
+                    className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
                 <h1 className="text-lg font-semibold">Pickup Confirmed</h1>
                 <div className="w-10" /> {/* Spacer */}
-            </div>
+            </header>
 
             {/* Content */}
             <main className="flex-1 overflow-y-auto px-4 py-6 pb-32 space-y-6">

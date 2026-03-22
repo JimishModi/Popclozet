@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     markOrderPickedUp,
     markAsOutForDelivery,
+    riderDropOffReturn,
     sendMessageToCustomer,
     verifyWarehouseOtp,
     releaseOrder,
@@ -47,9 +48,10 @@ const STEP_CONFIG: Record<PickupStep, { badge: string; badgeColor: string; icon:
 
 function statusToStep(status: string): PickupStep {
     switch (status) {
+        case 'rider_assigned': return 'navigating';
         case 'driver_arrived_warehouse': return 'arrived';
         case 'order_picked_up':
-        case 'dispatched': // Treat dispatched as picked_up for UI purposes
+        case 'dispatched':
         case 'out_for_delivery': return 'picked_up';
         default: return 'navigating';
     }
@@ -95,6 +97,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
+    const [returnOtp, setReturnOtp] = useState<string | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
 
     const showToastRef = useRef(showToast);
@@ -103,9 +106,37 @@ export const WarehouseNavigationPage: React.FC = () => {
     useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
     const riderName = useMemo(
-        () => (profile as Record<string, unknown> | null)?.full_name as string | undefined,
+        () => (profile as unknown as { full_name?: string } | null)?.full_name,
         [profile],
     );
+    const isReturnFlow = useMemo(
+        () => ['return_picked_up', 'return_at_warehouse', 'returned', 'return_completed'].includes(order?.status ?? ''),
+        [order?.status],
+    );
+
+    // ── useMemo for step config (MUST be before early returns per React rules) ──
+
+    const stepIndex = useMemo(() => STEP_ORDER.indexOf(step), [step]);
+
+    const currentStepCfg = useMemo(() => {
+        if (!isReturnFlow) return STEP_CONFIG[step];
+        switch (step) {
+            case 'navigating':
+                return {
+                    badge: 'Return Drop-off',
+                    badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                    icon: Truck,
+                };
+            case 'picked_up':
+                return {
+                    badge: 'Return Received',
+                    badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                    icon: CheckCircle,
+                };
+            default:
+                return STEP_CONFIG[step];
+        }
+    }, [isReturnFlow, step]);
 
     // ── Fetch order ────────────────────────────────────────────────────────────
 
@@ -123,7 +154,11 @@ export const WarehouseNavigationPage: React.FC = () => {
                 if (cancelled) return;
                 setOrder(data as unknown as WarehouseOrder);
                 // Set step based on current status
-                if (data.status === 'driver_arrived_warehouse') {
+                if (['returned', 'return_completed'].includes(data.status)) {
+                    setStep('picked_up');
+                } else if (data.status === 'return_at_warehouse') {
+                    setStep('picked_up');
+                } else if (data.status === 'driver_arrived_warehouse') {
                     setStep('arrived');
                 } else if (data.status === 'order_picked_up' || data.status === 'dispatched' || data.status === 'out_for_delivery') {
                     setStep('picked_up');
@@ -170,7 +205,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             map = initializeMap(mapRef.current, riderLocation, 13);
         } catch (e) {
             console.warn('[WarehouseNav] Map init failed, retrying on clean container:', e);
-            // Clear any stale mapbox state on the DOM node
             if (mapRef.current) {
                 mapRef.current.innerHTML = '';
             }
@@ -186,7 +220,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         map.on('load', async () => {
             await drawRoute(map, riderLocation, WAREHOUSE_LOCATION);
 
-            // Add native geolocation control for live tracking
             const geolocate = new mapboxgl.GeolocateControl({
                 positionOptions: { enableHighAccuracy: true },
                 trackUserLocation: true,
@@ -199,27 +232,69 @@ export const WarehouseNavigationPage: React.FC = () => {
         return () => { mapInstance.current?.remove(); mapInstance.current = null; };
     }, [riderLocation?.[0], riderLocation?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const stepIndex = useMemo(() => STEP_ORDER.indexOf(step), [step]);
-
     // ── Actions ────────────────────────────────────────────────────────────────
 
+    const handleDropOffReturn = useCallback(async () => {
+        console.log('[Rider] handleDropOffReturn called', { id, userId: user?.id, hasOrder: !!order });
+        if (!id || !user?.id || !order) {
+            console.warn('[Rider] handleDropOffReturn guard failed', { id, userId: user?.id, hasOrder: !!order });
+            return;
+        }
+        setActionLoading(true);
+        try {
+            console.log('[Rider] Calling riderDropOffReturn RPC...');
+            const result = await riderDropOffReturn(id, user.id);
+            console.log('[Rider] riderDropOffReturn result:', result);
+            if (!result.success) throw new Error(result.message);
+
+            // Save the OTP to display on screen for warehouse staff
+            setReturnOtp(result.otp || null);
+
+            await insertNotification({
+                user_id: order.user_id,
+                type: 'return_at_warehouse',
+                title: '🏬 Return arrived at warehouse',
+                body: 'Your return has arrived at the warehouse and is being processed.',
+                order_id: id,
+            });
+
+            showToast('Return dropped off! Show the OTP to warehouse staff.', 'success');
+            setStep('picked_up');
+        } catch (err: any) {
+            console.error('[Rider] handleDropOffReturn error:', err);
+            showToast(err.message || 'Failed to drop off return', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    }, [id, user?.id, order, showToast]);
+
     const handleConfirmArrival = useCallback(() => {
-        if (!id || !user?.id) return;
+        console.log('[Rider] handleConfirmArrival called', { id, userId: user?.id, isReturnFlow });
+        if (!id || !user?.id) {
+            console.warn('[Rider] handleConfirmArrival guard failed');
+            return;
+        }
 
         if (riderLocation) {
             const distance = calculateDistance(
                 { lng: riderLocation[0], lat: riderLocation[1] },
                 { lng: WAREHOUSE_LOCATION[0], lat: WAREHOUSE_LOCATION[1] }
             );
-            if (distance > 0.2) { // Tighter radius but still allowing some drift
+            if (distance > 0.2) {
                 const proceed = window.confirm(`You are ${distance.toFixed(2)}km away. Proceed only if at Hostel 2.`);
                 if (!proceed) return;
             }
         }
 
+        if (isReturnFlow) {
+            console.log('[Rider] isReturnFlow=true, calling handleDropOffReturn');
+            void handleDropOffReturn();
+            return;
+        }
+
         setOtpValue('');
         setShowOtpModal(true);
-    }, [id, user?.id, riderLocation, showToast]);
+    }, [id, user?.id, riderLocation, isReturnFlow, handleDropOffReturn]);
 
     const handleVerifyOtp = useCallback(async () => {
         if (!id || !user?.id) return;
@@ -230,8 +305,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             const result = await verifyWarehouseOtp(id, otpValue, user.id);
             if (!result.success) throw new Error(result.message);
 
-            // OTP verified = rider confirmed arrival at warehouse.
-            // Show "Confirm Pickup" next — do NOT navigate away yet.
             showToast('Arrival verified! Now confirm the pickup.', 'success');
             setStep('arrived');
             setShowOtpModal(false);
@@ -265,10 +338,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         }
     }, [id, user?.id, order, riderName, showToast]);
 
-    /**
-     * After Confirm Pickup, single tap starts delivery:
-     * marks order as out_for_delivery + notifies customer + navigates to delivery map
-     */
     const handleStartNavigation = useCallback(async () => {
         if (!id || !user?.id || !order) return;
         setActionLoading(true);
@@ -277,7 +346,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             const result = await markAsOutForDelivery(id, user.id);
             if (!result.success) throw new Error(result.message);
 
-            // Notify customer — their OTP card will now appear
             if (order?.user_id) {
                 const riderName = (profile as any)?.full_name || 'Your rider';
                 await supabase.from('notifications').insert({
@@ -339,19 +407,6 @@ export const WarehouseNavigationPage: React.FC = () => {
     );
     const primaryBtn = (gradient: string) =>
         `w-full py-3.5 rounded-xl bg-gradient-to-r ${gradient} text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50`;
-    const MessageButton = () => (
-        <button
-            onClick={() => setShowMessageModal(true)}
-            disabled={messageSent}
-            className={`w-full py-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${messageSent
-                ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
-                : 'border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800'
-                }`}
-        >
-            <MessageCircle size={16} />
-            {messageSent ? 'Message Sent ✓' : 'Send Message to Customer'}
-        </button>
-    );
 
     if (loading) {
         return (
@@ -361,8 +416,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         );
     }
     if (!order) return null;
-
-    const currentStepCfg = STEP_CONFIG[step];
 
     return (
         <div className="fixed inset-0 bg-black flex flex-col">
@@ -423,7 +476,21 @@ export const WarehouseNavigationPage: React.FC = () => {
 
                 <div className="px-6 pb-6 space-y-2.5">
                     <AnimatePresence mode="wait">
-                        {step === 'navigating' && (
+                        {step === 'navigating' && isReturnFlow && (
+                            <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                                <button
+                                    onClick={() => {
+                                        console.log('[Rider] Return drop-off button clicked directly');
+                                        handleDropOffReturn();
+                                    }}
+                                    disabled={actionLoading}
+                                    className={primaryBtn('from-indigo-600 to-indigo-500')}
+                                >
+                                    {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> Drop-off Return at Warehouse</>}
+                                </button>
+                            </motion.div>
+                        )}
+                        {step === 'navigating' && !isReturnFlow && (
                             <motion.div key="navigating" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                                 <button onClick={handleConfirmArrival} disabled={actionLoading || isCancelling} className={primaryBtn('from-blue-600 to-blue-500')}>
                                     {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> I've Arrived at Warehouse</>}
@@ -433,7 +500,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 </button>
                             </motion.div>
                         )}
-                        {step === 'arrived' && (
+                        {step === 'arrived' && !isReturnFlow && (
                             <motion.div key="arrived" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                                 <button onClick={handleConfirmPickup} disabled={actionLoading || isCancelling} className={primaryBtn('from-emerald-600 to-emerald-500')}>
                                     {actionLoading ? <ActionSpinner /> : <><Package size={18} /> Confirm Order Pickup</>}
@@ -443,9 +510,8 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 </button>
                             </motion.div>
                         )}
-                        {step === 'picked_up' && (
+                        {step === 'picked_up' && !isReturnFlow && (
                             <motion.div key="start-nav" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
-                                {/* Primary: Start Navigation → heads to customer */}
                                 <button
                                     onClick={handleStartNavigation}
                                     disabled={actionLoading}
@@ -462,7 +528,6 @@ export const WarehouseNavigationPage: React.FC = () => {
                                     )}
                                 </button>
 
-                                {/* Optional: message customer */}
                                 <button
                                     onClick={() => setShowMessageModal(true)}
                                     disabled={messageSent}
@@ -473,6 +538,33 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 >
                                     <MessageCircle size={16} />
                                     {messageSent ? 'Message Sent ✓' : 'Message Customer'}
+                                </button>
+                            </motion.div>
+                        )}
+                        {step === 'picked_up' && isReturnFlow && (
+                            <motion.div key="return-dropoff" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                                {returnOtp ? (
+                                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5 text-center">
+                                        <KeyRound size={24} className="mx-auto text-blue-400 mb-2" />
+                                        <p className="text-white font-semibold text-sm mb-1">Warehouse Verification OTP</p>
+                                        <p className="text-zinc-400 text-xs mb-3">Show this code to warehouse staff</p>
+                                        <div className="text-4xl font-mono font-bold text-white tracking-[0.3em] bg-black/50 rounded-xl py-3 px-4 border border-zinc-800">
+                                            {returnOtp}
+                                        </div>
+                                        <p className="text-zinc-500 text-xs mt-3">Expires in 15 minutes</p>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+                                        <CheckCircle size={22} className="mx-auto text-emerald-400 mb-2" />
+                                        <p className="text-white font-semibold">Return dropped off at warehouse</p>
+                                        <p className="text-zinc-400 text-sm mt-1">Waiting for warehouse to verify...</p>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="w-full py-3 rounded-xl border border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium transition-all"
+                                >
+                                    Back to Dashboard
                                 </button>
                             </motion.div>
                         )}

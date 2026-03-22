@@ -1,0 +1,40 @@
+commit 9fc78d33ec9e57cf91a74886f18099a27145771b
+Merge: 96c797937 97df82c53
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Sat Mar 21 00:28:44 2026 +0530
+
+    WIP on main: 96c797937 fix(db): correct column ordering in profiles view
+
+ .../.vite/deps/@radix-ui_react-dialog.js           |   8 +-
+ .../.vite/deps/@radix-ui_react-select.js           |  26 +-
+ .../.vite/deps/@radix-ui_react-slider.js           |   6 +-
+ .../.vite/deps/@radix-ui_react-tabs.js             |   6 +-
+ .../.vite/deps/@radix-ui_react-tooltip.js          |   8 +-
+ .../node_modules/.vite/deps/_metadata.json         | 294 +++++++++---------
+ apps/customer-app/node_modules/.vite/deps/vaul.js  |   8 +-
+ apps/customer-app/src/App.tsx                      |  14 +-
+ .../src/context/SupabaseAuthContext.tsx            | 339 ++++++++-------------
+ apps/customer-app/src/hooks/useRazorpayCheckout.ts |   2 +-
+ apps/customer-app/src/lib/razorpay.ts              |  27 +-
+ apps/customer-app/src/pages/CheckoutPage.tsx       |  38 ++-
+ apps/customer-app/src/pages/CreateAccountPage.tsx  |   3 +-
+ apps/customer-app/src/pages/OrderConfirmedPage.tsx |  16 +
+ .../src/pages/PaymentProcessingPage.tsx            | 106 ++++---
+ apps/customer-app/src/services/authPersistence.ts  |  19 +-
+ apps/customer-app/src/services/profileService.ts   |   3 +
+ .../src/services/subscriptionService.ts            |   2 +-
+ apps/customer-app/tsconfig.app.tsbuildinfo         |   2 +-
+ apps/rider-app/src/App.tsx                         |  11 +
+ apps/rider-app/src/components/OrderCard.d.ts       |   2 +-
+ .../rider-app/src/pages/DeliveryNavigationPage.tsx |  29 +-
+ apps/rider-app/src/pages/HomePage.tsx              |  49 ++-
+ apps/rider-app/src/pages/SignupPage.tsx            |  64 +++-
+ apps/rider-app/src/services/riderProfileService.ts |   6 +-
+ .../src/services/fulfillmentService.ts             |  34 +++
+ packages/auth/src/index.tsx                        |   3 +-
+ packages/domain-contracts/src/index.ts             |   3 +
+ packages/domain-contracts/tsconfig.tsbuildinfo     |   2 +-
+ packages/mapbox-core/src/index.d.ts                |   8 +-
+ packages/mapbox-core/src/index.ts                  |  17 +-
+ packages/mapbox-core/tsconfig.tsbuildinfo          |   2 +-
+ 32 files changed, 665 insertions(+), 492 deletions(-)

@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...', { url: supabaseUrl });
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...');
 
 let client: SupabaseClient;
 try {
@@ -60,14 +60,36 @@ export const getUserRole = async (): Promise<UserRole | null> => {
     const user = await getCurrentUser();
     if (!user) return null;
 
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
+    try {
+        // Check warehouse_profiles first (highest privilege)
+        const { data: wh } = await supabase
+            .from('warehouse_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (wh) return 'warehouse';
 
-    if (error) throw error;
-    return data?.role ?? null;
+        // Check rider_profiles
+        const { data: rider } = await supabase
+            .from('rider_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (rider) return 'rider';
+
+        // Customer is the default if found in customer_profiles
+        const { data: customer } = await supabase
+            .from('customer_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (customer) return 'customer';
+
+    } catch (err) {
+        console.warn('Could not fetch user role:', err);
+    }
+
+    return null;
 };
 
 // ==========================================
@@ -131,15 +153,22 @@ export const getAllowedTransitions = (
             order_picked_up: ['dispatched'],
             dispatched: ['out_for_delivery'],
             out_for_delivery: ['delivered'],
+            return_scheduled: ['return_dispatched'],
+            return_dispatched: ['return_picked_up'],
+            return_picked_up: ['return_at_warehouse'],
         },
         customer: {
             pending: ['cancelled'],
             delivered: ['return_requested'],
+            in_use: ['return_requested'],
         },
         warehouse: {
             pending: ['confirmed'],
             confirmed: ['packed'],
             packed: ['ready_for_pickup'],
+            return_requested: ['return_scheduled'],
+            return_at_warehouse: ['returned'],
+            returned: ['return_completed'],
         },
     };
 

@@ -1,8 +1,8 @@
 /**
  * Role Service
- * 
- * Provides role-based access control using Supabase Auth profiles.
- * Roles: consumer, rider, admin
+ *
+ * Determines user role by checking which role-specific table contains the user.
+ * Tables: customer_profiles, rider_profiles, warehouse_profiles
  */
 
 import { supabase } from '@popclozet/api-client';
@@ -11,39 +11,51 @@ import { supabase } from '@popclozet/api-client';
 // TYPES
 // ==========================================
 
-export type UserRole = 'consumer' | 'rider' | 'admin';
+export type UserRole = 'customer' | 'rider' | 'admin' | 'warehouse';
 
 // ==========================================
 // ROLE QUERIES
 // ==========================================
 
 /**
- * Get the role for a given user ID from the profiles table.
+ * Determine role for a given user ID by checking each role-specific table.
+ * Priority: warehouse_profiles > rider_profiles > customer_profiles
  */
 export async function getUserRole(userId: string): Promise<UserRole> {
     try {
-        if (supabase) {
-            const { data } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('user_id', userId)
-                .maybeSingle();
+        // Check warehouse_profiles first (highest privilege)
+        const { data: wh } = await supabase
+            .from('warehouse_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (wh) return 'warehouse';
 
-            if (data?.role) {
-                return data.role as UserRole;
-            }
-        }
+        // Check rider_profiles
+        const { data: rider } = await supabase
+            .from('rider_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (rider) return 'rider';
+
+        // Customer is the default if found in customer_profiles
+        const { data: customer } = await supabase
+            .from('customer_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (customer) return 'customer';
+
     } catch (err) {
         console.warn('Could not fetch user role:', err);
     }
 
-    // Default to consumer
-    return 'consumer';
+    return 'customer';
 }
 
 /**
  * Guard function — throws if the current user doesn't have the required role.
- * Use in service functions that need role-based access control.
  */
 export async function requireRole(requiredRole: UserRole): Promise<void> {
     if (!supabase) throw new Error('Service unavailable');
@@ -53,7 +65,7 @@ export async function requireRole(requiredRole: UserRole): Promise<void> {
 
     const role = await getUserRole(user.id);
 
-    if (role !== requiredRole && role !== 'admin') {
+    if (role !== requiredRole && role !== 'admin' && role !== 'warehouse') {
         throw new Error(`Access denied. Required role: ${requiredRole}, your role: ${role}`);
     }
 }

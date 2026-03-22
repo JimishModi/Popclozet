@@ -138,6 +138,10 @@ export function InteractiveMap({
         const existing = markersRef.current.get('user');
         if (existing) {
             existing.setLngLat([userLocation.lng, userLocation.lat]);
+            // Fix for React 18 Strict Mode detaching markers from the DOM
+            if (!existing.getElement().parentNode && mapRef.current) {
+                existing.addTo(mapRef.current);
+            }
         } else {
             // Standard red marker
             const marker = addMarker(mapRef.current, [userLocation.lat, userLocation.lng], {

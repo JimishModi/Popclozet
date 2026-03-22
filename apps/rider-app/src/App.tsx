@@ -61,7 +61,18 @@ function App() {
 
     // ROLE CHECK: Block wrong roles with blocking screen
     // Skip if profile hasn't loaded yet (let them use the app)
-    if (profile && profile.role && profile.role !== 'rider' && profile.role !== 'customer') {
+    // ROLE CHECK: Allow customers to complete rider registration
+    if (profile && profile.role === 'customer') {
+        return (
+            <Routes>
+                <Route path="/complete-rider-registration" element={<SignupPage initialStep={3} />} />
+                <Route path="*" element={<Navigate to="/complete-rider-registration" replace />} />
+            </Routes>
+        );
+    }
+
+    // Block other wrong roles
+    if (profile && profile.role && profile.role !== 'rider') {
         return <WrongRoleScreen expectedRole="rider" currentRole={profile.role} />;
     }
 

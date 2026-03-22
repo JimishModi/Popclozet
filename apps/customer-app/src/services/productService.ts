@@ -35,6 +35,7 @@ export interface Product {
     discount_value?: number;
     discounted_price?: number;
     mrp?: number;
+    earlyAccessUntil?: string | null;
     // Hygiene-related fields
     fabricType?: string;
     fabricHint?: string;
@@ -215,6 +216,7 @@ class ProductService {
                 parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
                 dbProduct.product_discounts?.[0] || { discount_type: dbProduct.discount_type, discount_value: dbProduct.discount_value }
             ),
+            earlyAccessUntil: dbProduct.early_access_until ?? null,
         };
     }
 
@@ -228,6 +230,13 @@ class ProductService {
             finalPrice = Math.max(0, originalPrice - discount.discount_value);
         }
         return Math.round(finalPrice);
+    }
+
+    private isOfflineVisible(product: Product): boolean {
+        if (!product.earlyAccessUntil) return true;
+
+        const unlockTime = Date.parse(product.earlyAccessUntil);
+        return Number.isNaN(unlockTime) || unlockTime <= Date.now();
     }
 
     // Transform app product to database format
@@ -352,7 +361,8 @@ class ProductService {
     // Get products from IndexedDB (offline)
     private async getProductsOffline(): Promise<Product[]> {
         const db = await this.initDB();
-        return await db.getAll('products');
+        const products = await db.getAll('products');
+        return products.filter(product => this.isOfflineVisible(product));
     }
 
     // Get products by gender
@@ -374,11 +384,13 @@ class ProductService {
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
-                return await db.getAllFromIndex('products', 'by-gender', gender);
+                const products = await db.getAllFromIndex('products', 'by-gender', gender);
+                return products.filter(product => this.isOfflineVisible(product));
             }
         } else {
             const db = await this.initDB();
-            return await db.getAllFromIndex('products', 'by-gender', gender);
+            const products = await db.getAllFromIndex('products', 'by-gender', gender);
+            return products.filter(product => this.isOfflineVisible(product));
         }
     }
 
@@ -398,11 +410,13 @@ class ProductService {
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
-                return await db.getAllFromIndex('products', 'by-event', event);
+                const products = await db.getAllFromIndex('products', 'by-event', event);
+                return products.filter(product => this.isOfflineVisible(product));
             }
         } else {
             const db = await this.initDB();
-            return await db.getAllFromIndex('products', 'by-event', event);
+            const products = await db.getAllFromIndex('products', 'by-event', event);
+            return products.filter(product => this.isOfflineVisible(product));
         }
     }
 
@@ -423,11 +437,13 @@ class ProductService {
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
-                return await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
+                const products = await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
+                return products.filter(product => this.isOfflineVisible(product));
             }
         } else {
             const db = await this.initDB();
-            return await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
+            const products = await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
+            return products.filter(product => this.isOfflineVisible(product));
         }
     }
 
@@ -446,11 +462,13 @@ class ProductService {
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
-                return await db.get('products', id);
+                const product = await db.get('products', id);
+                return product && this.isOfflineVisible(product) ? product : undefined;
             }
         } else {
             const db = await this.initDB();
-            return await db.get('products', id);
+            const product = await db.get('products', id);
+            return product && this.isOfflineVisible(product) ? product : undefined;
         }
     }
 

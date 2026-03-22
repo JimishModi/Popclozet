@@ -20,6 +20,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
         color: 'text-amber-400',
         bg: 'bg-amber-500/15',
     },
+    rider_assigned: {
+        label: 'Rider Assigned',
+        color: 'text-cyan-400',
+        bg: 'bg-cyan-500/15',
+    },
     driver_arrived_warehouse: {
         label: 'Rider at Warehouse',
         color: 'text-blue-400',
@@ -172,8 +177,8 @@ export function ActivePickupsPage() {
                                         </div>
                                     </div>
 
-                                    {/* OTP Section (Only for ready_for_pickup) */}
-                                    {order.status === 'ready_for_pickup' && (
+                                    {/* OTP Section (For ready_for_pickup and rider_assigned) */}
+                                    {(order.status === 'ready_for_pickup' || order.status === 'rider_assigned') && (
                                         <div className="mt-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50 flex flex-col items-center justify-center gap-2">
                                             {order.warehouse_otp ? (
                                                 <>
@@ -211,12 +216,12 @@ export function ActivePickupsPage() {
 
                                     {/* Progress Indicator */}
                                     <div className="flex items-center gap-1">
-                                        {['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'].map((s, i) => (
+                                        {['ready_for_pickup', 'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'].map((s, i) => (
                                             <div
                                                 key={s}
                                                 className={clsx(
                                                     'h-1 flex-1 rounded-full transition-all duration-500',
-                                                    ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched']
+                                                    ['ready_for_pickup', 'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched']
                                                         .indexOf(order.status) >= i
                                                         ? 'bg-gradient-to-r from-purple-500 to-emerald-500'
                                                         : 'bg-zinc-800'

@@ -24,8 +24,8 @@ export const MobileShell: React.FC<MobileShellProps> = ({
             {/* Mobile container */}
             <div
                 className={cn(
-                    "w-full max-w-[430px] min-h-screen relative overflow-hidden",
-                    "bg-background dark:bg-[#0a0a0a]",
+                    "w-full max-w-[430px] min-h-screen relative overflow-clip",
+                    "bg-[#0a0a0a]",
                     "shadow-2xl shadow-black/50",
                     className
                 )}

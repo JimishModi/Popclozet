@@ -1,16 +1,6 @@
 /**
  * Auth Package — Session & Profile Resolution
- * @popclozet/auth v1.1.2
- *
- * Fixes:
- * - Profile fetch no longer times out for new users: creates a stub profile
- *   if none exists, rather than returning null and leaving the app in a
- *   broken state.
- * - onAuthStateChange no longer re-fetches profile on TOKEN_REFRESHED events
- *   (was causing unnecessary round-trips every ~60s).
- * - Safety timeout extended to 8s (was 5s) to survive slow cold-starts on
- *   Supabase free tier without false-firing.
- * - fetchProfile accepts a `createIfMissing` flag used on sign-up flow.
+ * @popclozet/auth v1.2.0
  */
 
 import {
@@ -36,6 +26,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string, phone: string, metadata?: Record<string, unknown>) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,11 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Prevent state updates after unmount
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
-  // ── Safety timeout (extended to 8s to survive free-tier cold-starts) ──────
+  // Safety timeout
   useEffect(() => {
     const t = setTimeout(() => {
       if (!mountedRef.current) return;
@@ -74,40 +64,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Profile fetch ─────────────────────────────────────────────────────────
-  //
-  // Fix: if no profile row exists (new user, trigger didn't fire, etc.)
-  // we create a stub row rather than returning null, which leaves every
-  // component that calls `profile?.role` in an undefined state.
+
+  const getRiderProfileFallback = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('riders')
+      .select('id, user_id, name, phone, email, avatar_url, joined_at, updated_at')
+      .or(`id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id ?? data.user_id ?? userId,
+      user_id: data.user_id ?? data.id ?? userId,
+      full_name: data.name ?? '',
+      phone: data.phone ?? '',
+      avatar_url: data.avatar_url ?? undefined,
+      role: 'rider' as UserRole,
+      onboarding_completed: true,
+      created_at: data.joined_at ?? new Date().toISOString(),
+      updated_at: data.updated_at ?? data.joined_at ?? new Date().toISOString(),
+    } as UserProfile;
+  };
 
   const fetchProfile = async (userId: string, userMeta?: Record<string, unknown>) => {
     console.log('[Auth] Starting profile fetch for:', userId);
     try {
-      const { data, error } = await supabase
+      // Use .limit(1) instead of .maybeSingle() because users may exist
+      // in multiple profile tables (e.g., customer_profiles AND rider_profiles).
+      // Order by role to prioritize rider/warehouse over customer.
+      const { data: rows, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .order('role', { ascending: false })  // descending: 'warehouse' > 'rider' > 'customer'
+        .limit(1);
 
-      if (error) throw error;
+      let derivedRole: UserRole = 'warehouse';
 
-      if (data) {
-        console.log('[Auth] Profile found:', data.role);
-        if (mountedRef.current) setProfile(data as UserProfile);
+      const data = rows?.[0] ?? null;
+      const riderFallback = await getRiderProfileFallback(userId);
+
+      if (data || riderFallback) {
+        const resolvedProfile = riderFallback && (!data || data.role !== 'rider')
+          ? {
+              ...(data ?? {}),
+              ...riderFallback,
+              full_name: riderFallback.full_name || data?.full_name || '',
+              phone: riderFallback.phone || data?.phone || '',
+            }
+          : (data as UserProfile);
+
+        console.log('[Auth] Profile found:', resolvedProfile.role);
+        if (mountedRef.current) setProfile(resolvedProfile);
         return;
       }
 
-      // No profile found — create a stub so the app isn't broken.
+      // No profile found — create a stub in customer_profiles
       console.warn('[Auth] No profile found — creating stub profile');
       const stub = {
+        id: userId,
         user_id: userId,
         full_name: (userMeta?.full_name as string) ?? '',
         phone: (userMeta?.phone as string) ?? '',
-        role: (userMeta?.role as UserRole) ?? 'customer',
+        // email: (userMeta?.email as string) ?? '',
         onboarding_completed: false,
       };
 
       const { data: created, error: createError } = await supabase
-        .from('profiles')
+        .from('customer_profiles')
         .insert(stub)
         .select()
         .single();
@@ -117,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mountedRef.current) setProfile(null);
       } else {
         console.log('[Auth] Stub profile created');
-        if (mountedRef.current) setProfile(created as UserProfile);
+        if (mountedRef.current) setProfile({ ...created, role: 'customer' } as UserProfile);
       }
     } catch (err) {
       console.error('[Auth] Profile resolution failed:', err);
@@ -142,26 +167,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          console.log('[Auth] Session exists — firing background profile fetch');
-          // DON'T AWAIT: let the app render while we fetch details
           fetchProfile(session.user.id, session.user.user_metadata);
         } else {
-          console.log('[Auth] No session — ready');
           setProfile(null);
         }
       } catch (err) {
         console.error('[Auth] Bootstrap crashed:', err);
       } finally {
-        if (active) {
-          console.log('[Auth] Bootstrap finished (dismissing loader)');
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
 
     initAuth();
 
-    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Auth State Change Event:', event);
       if (!active) return;
@@ -170,13 +188,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // DON'T AWAIT: allow loading=false to trigger immediately
         fetchProfile(session.user.id, session.user.user_metadata);
       } else {
         setProfile(null);
       }
 
-      // Crucial: always dismiss loader on any auth event
       setLoading(false);
     });
 
@@ -184,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       subscription.unsubscribe();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -206,8 +222,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { data: { full_name: fullName, phone, ...(metadata ?? {}) } },
     });
     if (error) throw error;
-    // Profile is created by the DB trigger. If it fails, fetchProfile
-    // will create a stub on next bootstrap.
   };
 
   const signOut = async () => {
@@ -220,16 +234,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) throw new Error('No user logged in');
+    // Using current profile role to determine which table to update
+    const role = profile?.role || 'customer';
+    
+    let table = 'customer_profiles';
+    if (role === 'rider') table = 'rider_profiles';
+    if (role === 'warehouse' || role === 'admin') table = 'warehouse_profiles';
+
+    // Omit role from updates as it's not a real column in these tables
+    const { role: _role, ...dbUpdates } = updates as any;
+
     const { error } = await supabase
-      .from('profiles')
-      .update(updates)
+      .from(table)
+      .update(dbUpdates)
       .eq('user_id', user.id);
+      
     if (error) throw error;
     await fetchProfile(user.id);
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut, updateProfile, refreshProfile: () => user ? fetchProfile(user.id) : Promise.resolve() }}>
       {children}
     </AuthContext.Provider>
   );

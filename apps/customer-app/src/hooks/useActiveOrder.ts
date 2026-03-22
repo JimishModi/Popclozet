@@ -24,10 +24,17 @@ const ACTIVE_STATUSES = [
     'confirmed',
     'packed',
     'ready_for_pickup',
+    'rider_assigned',
     'driver_arrived_warehouse',
     'order_picked_up',
     'dispatched',
     'out_for_delivery',
+    'return_requested',
+    'return_scheduled',
+    'return_dispatched',
+    'return_picked_up',
+    'return_at_warehouse',
+    'returned',
 ];
 
 export function useActiveOrder() {
@@ -76,7 +83,7 @@ export function useActiveOrder() {
             let riderName: string | undefined;
             if (data.rider_id) {
                 const { data: riderProfile } = await supabase
-                    .from('profiles')
+                    .from('rider_profiles')
                     .select('full_name')
                     .eq('user_id', data.rider_id)
                     .single();

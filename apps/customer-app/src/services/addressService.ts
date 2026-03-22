@@ -1,12 +1,59 @@
 // src/services/addressService.ts
 // Standardized address service using Mappls via Backend Proxy
 
-const API_URL = 'http://localhost:3001';
+const ENV_API_URL =
+  (typeof import.meta !== 'undefined' &&
+    (((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) ||
+      ((import.meta as any).env?.VITE_API_URL as string | undefined))) ||
+  '';
+
+const API_URL = ENV_API_URL.replace(/\/$/, '');
+
+function buildApiUrl(path: string): string {
+  if (API_URL) {
+    return `${API_URL}${path}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${path}`;
+  }
+
+  return `http://localhost:3001${path}`;
+}
+
+async function fetchBackendJson(path: string): Promise<any | null> {
+  const candidates = [buildApiUrl(path)];
+
+  if (
+    typeof window !== 'undefined' &&
+    window.location?.origin &&
+    !candidates.includes(`${window.location.origin}${path}`)
+  ) {
+    candidates.push(`${window.location.origin}${path}`);
+  }
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        continue;
+      }
+
+      return await response.json();
+    } catch {
+      // Fallback to the next candidate.
+    }
+  }
+
+  return null;
+}
 
 export interface SavedAddress {
   lat: number;
   lng: number;
   formattedAddress: string;
+  full_address?: string;
+  label?: string;
   pincode?: string;
   city?: string;
   eLoc?: string; // MapmyIndia's proprietary eLoc
@@ -15,25 +62,33 @@ export interface SavedAddress {
 export type ValidatedAddress = SavedAddress;
 
 function mapMapplsPlace(place: any): ValidatedAddress {
-    // Determine the best address display string
-    const name = place.placeName || place.item_name || '';
-    const address = place.placeAddress || place.formatted_address || place.address || '';
-    const displayAddress = name && address && !address.startsWith(name) 
-        ? `${name}, ${address}` 
-        : (address || name);
+  console.log('RAW Mappls place:', JSON.stringify(place));
 
-    const mapped = {
-        lat: parseFloat(place.latitude || place.lat || 0),
-        lng: parseFloat(place.longitude || place.lng || 0),
-        formattedAddress: displayAddress,
-        pincode: place.pincode || '',
-        city: place.city || '',
-        // Handle all common variations of eLoc/eloc key
-        eLoc: place.eLoc || place.eloc || place.elt || ''
-    };
+  const lat = parseFloat(place.latitude || place.lat || place.placeLat || place.y || 0);
+  const lng = parseFloat(place.longitude || place.lng || place.placeLng || place.x || 0);
+  const eLoc = place.eLoc || place.placeId || '';
 
-    console.log("[AddressService] Mapped Mappls result:", mapped);
-    return mapped;
+  // Determine the best address display string
+  const name = place.placeName || place.item_name || '';
+  const address = place.placeAddress || place.formatted_address || place.address || '';
+  const displayAddress = name && address && !address.startsWith(name)
+    ? `${name}, ${address}`
+    : (address || name);
+
+  const mapped = {
+    lat,
+    lng,
+    formattedAddress: displayAddress,
+    full_address: displayAddress,
+    label: place.label || place.address_type || 'Other',
+    pincode: place.pincode || '',
+    city: place.city || '',
+    // Handle all common variations of eLoc/eloc key
+    eLoc: place.eLoc || place.eloc || place.elt || place.placeId || ''
+  };
+
+  console.log("[AddressService] Mapped Mappls result:", mapped);
+  return mapped;
 }
 
 /**
@@ -43,12 +98,10 @@ export async function searchLocations(query: string): Promise<ValidatedAddress[]
   if (!query || query.length < 3) return [];
 
   try {
-    const response = await fetch(`${API_URL}/api/location/search?query=${encodeURIComponent(query)}`);
-    if (!response.ok) throw new Error('Search failed');
-    
-    const data = await response.json();
+    const data = await fetchBackendJson(`/api/location/search?query=${encodeURIComponent(query)}`);
+    if (!data) throw new Error('Search failed');
     const locations = Array.isArray(data) ? data : (data.suggestedLocations || []);
-    
+
     return locations.map(mapMapplsPlace);
   } catch (error) {
     console.error('Error searching locations:', error);
@@ -60,7 +113,16 @@ export async function searchLocations(query: string): Promise<ValidatedAddress[]
  * Legacy wrapper for searchLocations to maintain compatibility with older calls if any
  */
 export async function searchAddresses(query: string): Promise<ValidatedAddress[]> {
-    return searchLocations(query);
+  return searchLocations(query);
+}
+
+export async function validateAddress(query: string): Promise<ValidatedAddress> {
+  const results = await searchLocations(query);
+  if (!results.length) {
+    throw new Error('Address not found');
+  }
+
+  return results[0];
 }
 
 /**
@@ -68,10 +130,8 @@ export async function searchAddresses(query: string): Promise<ValidatedAddress[]
  */
 export async function getAddressDetail(eloc: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const response = await fetch(`${API_URL}/api/location/detail/${eloc}`);
-    if (!response.ok) return null;
-    
-    const data = await response.json();
+    const data = await fetchBackendJson(`/api/location/detail/${eloc}`);
+    if (!data) return null;
     return {
       lat: data.latitude,
       lng: data.longitude
@@ -82,17 +142,16 @@ export async function getAddressDetail(eloc: string): Promise<{ lat: number; lng
   }
 }
 
+
 /**
  * Reverse geocode coordinates
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<ValidatedAddress | null> {
   try {
-    const response = await fetch(`${API_URL}/api/location/reverse?lat=${lat}&lng=${lng}`);
-    if (!response.ok) throw new Error('Reverse geocode failed');
-    
-    const data = await response.json();
+    const data = await fetchBackendJson(`/api/location/reverse?lat=${lat}&lng=${lng}`);
+    if (!data) throw new Error('Reverse geocode failed');
     if (!data) return null;
-    
+
     return mapMapplsPlace(data);
   } catch (error) {
     console.error('Error reverse geocoding:', error);
@@ -123,7 +182,7 @@ export function saveRecentAddress(address: ValidatedAddress) {
  * Legacy wrapper for saveRecentAddress to maintain compatibility
  */
 export function saveAddressLocally(address: ValidatedAddress) {
-    saveRecentAddress(address);
+  saveRecentAddress(address);
 }
 
 export function getRecentAddresses(): ValidatedAddress[] {
@@ -139,5 +198,5 @@ export function getRecentAddresses(): ValidatedAddress[] {
  * Legacy wrapper for getRecentAddresses
  */
 export function getLocalAddresses(): ValidatedAddress[] {
-    return getRecentAddresses();
+  return getRecentAddresses();
 }
