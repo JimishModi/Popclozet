@@ -1,0 +1,5 @@
+src/pages/CreateAccountPage.tsx(18,38): error TS2339: Property 'onboarding_completed' does not exist on type 'UserProfile'.
+src/pages/GoogleOnboardingPage.tsx(30,38): error TS2339: Property 'onboarding_completed' does not exist on type 'UserProfile'.
+undefined
+D:\PopClozet\PopCLozet-Apps\apps\customer-app:
+ΓÇëERR_PNPM_RECURSIVE_EXEC_FIRST_FAILΓÇë Command failed with exit code 1: tsc -b
