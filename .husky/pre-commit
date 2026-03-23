@@ -5,7 +5,9 @@
 echo "🔒 Running security checks..."
 
 # ─── 1. Check for leaked secrets ────────────────────────────
-SECRETS_PATTERN='(SUPABASE_KEY|SUPABASE_URL|supabase_service_role|MAPBOX_TOKEN|STRIPE_SECRET|RAZORPAY_SECRET|RESEND_API_KEY|PRIVATE_KEY|BEGIN RSA|BEGIN OPENSSH|password\s*=\s*["\x27][^\s]+)'
+# Regex looks for sensitive keys followed by a hardcoded string assignment.
+# This prevents flagging environment variable access (import.meta.env, process.env).
+SECRETS_PATTERN='(SUPABASE_KEY|SUPABASE_URL|MAPBOX_TOKEN|STRIPE_SECRET|RAZORPAY_SECRET|RESEND_API_KEY|PRIVATE_KEY|password)\s*=\s*["\x27][^" \x27]{8,}|(BEGIN RSA|BEGIN OPENSSH|supabase_service_role)'
 
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 

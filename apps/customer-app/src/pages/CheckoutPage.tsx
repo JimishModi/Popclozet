@@ -125,17 +125,17 @@ export default function CheckoutPage() {
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
-  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
+  const cartEntries = Object.entries(cartItems);
 
   const validCartEntries = useMemo(() => {
-    return cartEntries.filter(([id]) => {
-      const baseId = id.split('_')[0];
-      return cartProducts[baseId] !== undefined;
+    return cartEntries.filter(([key, data]) => {
+      const parts = key.split('_');
+      const productId = parts[0];
+      return cartProducts[productId] !== undefined;
     });
   }, [cartEntries, cartProducts]);
 
@@ -180,7 +180,6 @@ export default function CheckoutPage() {
     */
     setSubBenefits(null);
     setHasFreeDeliveryBenefit(false);
-    setHasInsuranceBenefit(false);
   }, []);
 
   useEffect(() => {
@@ -215,11 +214,7 @@ export default function CheckoutPage() {
           setActualDistance(distance);
 
           if (distance > MAX_DELIVERY_DISTANCE_KM) {
-            setShowDistanceWarningPopup(true);
-            toast.info(`Long-distance delivery charges apply. ₹10/km additional fee applies for addresses outside our 6km standard zone.`, {
-            duration: 8000,
-            position: "top-center"
-          });
+            // Distance warning popup removed
           }
         } else {
           throw new Error("MapmyIndia API service error");
@@ -290,6 +285,10 @@ export default function CheckoutPage() {
         data.forEach((p: any) => {
           productMap[p.id] = {
             ...p,
+            rental_price_1d: p.rental_price_1d,
+            rental_price_2d: p.rental_price_2d,
+            rental_price_3d: p.rental_price_3d,
+            buy_price: p.buy_price,
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
             originalPrice: parseFloat(p.price ?? '0'),
             imageUrl: p.images?.[0] || '',
@@ -318,7 +317,18 @@ export default function CheckoutPage() {
     };
 
     fetchCartProducts();
-  }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
+  }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
+
+  const getPlanPrice = (product: any, plan: string) => {
+    if (!product) return 0;
+    switch (plan) {
+      case '1d': return product.rental_price_1d;
+      case '2d': return product.rental_price_2d;
+      case '3d': return product.rental_price_3d || product.price;
+      case 'buy': return product.buy_price;
+      default: return product.price;
+    }
+  };
 
   // Load Buyout Order if specified
   useEffect(() => {
@@ -339,7 +349,7 @@ export default function CheckoutPage() {
 
   // Check subscription limits
   const totalQty = useMemo(() => {
-    return validCartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+    return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
   }, [validCartEntries]);
 
   const invalidCatalogItem = validCartEntries.find(([id]) => {
@@ -366,25 +376,21 @@ export default function CheckoutPage() {
       // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
       return Math.round(buyoutOrderData.total_amount * 0.7);
     }
-    /*
-    if (subBenefits && !subscriptionError) {
-      return 0; // Rentals covered by subscription
-    }
-    */
-    return validCartEntries.reduce((total, [id, qty]) => {
-      const baseId = id.split('_')[0];
-      const product = cartProducts[baseId];
-      return total + (product?.price || 0) * qty;
+    return validCartEntries.reduce((total, [key, data]) => {
+      const productId = key.split('_')[0];
+      const product = cartProducts[productId];
+      const price = getPlanPrice(product, data.plan);
+      return total + (price || 0) * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
 
   const originalTotal = useMemo(() => {
-    if (buyoutOrderData) return buyoutOrderData?.total_amount ?? 0;
-    return validCartEntries.reduce((total, [id, qty]) => {
-      const baseId = id.split('_')[0];
-      const product = cartProducts[baseId];
-      const orig = product?.originalPrice || product?.price || 0;
-      return total + orig * qty;
+    if (buyoutOrderData) return buyoutOrderData.total_amount;
+    return validCartEntries.reduce((total, [key, data]) => {
+      const productId = key.split('_')[0];
+      const product = cartProducts[productId];
+      const mrp = product?.mrp || (getPlanPrice(product, '3d') * 5);
+      return total + mrp * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData]);
 
@@ -392,11 +398,8 @@ export default function CheckoutPage() {
 
   const deliveryFeeBase = 40;
 
-  // FIX 5: Single source of truth for distance surcharge — used everywhere including warning popup
-  const distanceSurcharge = useMemo(() => {
-    if (!actualDistance || actualDistance <= MAX_DELIVERY_DISTANCE_KM) return 0;
-    return Math.round(actualDistance - MAX_DELIVERY_DISTANCE_KM) * 10;
-  }, [actualDistance]);
+  // FIX 5: Single source of truth for distance surcharge — removed as per request
+  const distanceSurcharge = 0;
 
   const deliveryFee = selectedOrderType === 'home_try_on'
     ? 0
@@ -453,7 +456,10 @@ export default function CheckoutPage() {
           await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
           // FIX 6: Clear cart on buyout COD path too
           await clearCartDB().catch(() => { });
-          for (const [id] of validCartEntries) removeFromCart(id);
+          for (const [key, data] of validCartEntries) {
+            const parts = key.split('_');
+            removeFromCart(parts[0], data.size, data.plan);
+          }
           navigate(`/order-confirmed/${targetId}`);
         } else {
           setIsPlacingOrder(false);
@@ -502,32 +508,76 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Prepare items for RPC
-      const rentalDays = 4;
-      const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString();
 
-      const rpcItems = validCartEntries.map(([id, qty]) => ({
-        product_id: id.split('_')[0],
-        size: id.includes('_') ? id.split('_')[1] : 'S',
-        quantity: qty,
-      }));
+      const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
 
-      const orderResult = await createEntitledOrder({
-        deliveryAddressId: addressId,
-        items: rpcItems,
-        paymentMethod: paymentMethod === 'upi' ? 'upi' : 'cod',
-        orderType: selectedOrderType,
-        scheduledSlot: selectedScheduledSlot,
-        deliveryDistanceKm: actualDistance,
-        popInsurance,
-        rentalDurationDays: rentalDays,
-        deliveryEta,
+      // Ensure start and end dates make sense
+      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1 
+                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2 
+                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0 
+                        : 3;
+      const startDate = new Date();
+      const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
+      const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
+
+      const { data: order, error: orderErr } = await supabase
+        .from("orders")
+        .insert({
+          user_id: userId,
+          delivery_address_id: addressId,
+          rental_start_date: startDate.toISOString(),
+          rental_end_date: endDate.toISOString(),
+          total_amount: total,
+          delivery_eta: deliveryEtaStr,
+          status: orderStatus,
+          payment_method: paymentMethod,
+          delivery_fee: deliveryFee,
+        })
+        .select("id")
+        .single();
+
+      if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order record");
+
+      const { data: realProducts } = await supabase.from('products').select('id').limit(1);
+      const fallbackUuid = realProducts?.[0]?.id;
+
+      const orderItemsToInsert = validCartEntries.map(([key, data]) => {
+        const parts = key.split('_');
+        const rawBaseId = parts[0];
+        const { quantity, size, plan } = data;
+        const product = cartProducts[rawBaseId] || cartProducts[key];
+
+        const likelyRealUuid = rawBaseId.includes('-');
+        const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
+
+        if (!baseId) {
+          console.error("[Checkout] Invalid cart item ID:", key);
+          throw new Error("Invalid product ID in cart");
+        }
+
+        const planDays = plan === '1d' ? 1 : plan === '2d' ? 2 : plan === '3d' ? 3 : 0;
+        const itemPrice = getPlanPrice(product, plan);
+
+        return {
+          order_id: order.id,
+          product_id: baseId,
+          size: size,
+          rental_price: itemPrice * quantity,
+          rental_duration_days: planDays || rentalDays,
+          pricing_plan: plan,
+        };
       });
+
+      const { error: insertItemsErr } = await supabase.from("order_items").insert(orderItemsToInsert);
+      if (insertItemsErr) throw new Error(insertItemsErr.message);
+
+      const createdOrderId = order.id;
+      const createdOrderTotal = total;
 
       // 3) Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
-        user_id: userId,
-        order_id: orderResult.orderId,
+        user_id: user?.id,
+        order_id: createdOrderId,
         ip_address: userIp || 'unknown',
         tc_version: 'v1.0'
       });
@@ -539,14 +589,15 @@ export default function CheckoutPage() {
       // For UPI, the cart is cleared on the PaymentProcessingPage or OrderConfirmedPage fallback
       if (!buyoutOrderId && paymentMethod === 'cod') {
         await clearCartDB().catch(() => { });
-        for (const [id] of validCartEntries) {
-          removeFromCart(id);
+        for (const [key, data] of validCartEntries) {
+          const parts = key.split('_');
+          removeFromCart(parts[0], data.size, data.plan);
         }
       }
 
       // 5) Navigate based on payment method
-      const targetId = orderResult.orderId;
-      const finalAmount = orderResult.totalAmount;
+      const targetId = createdOrderId;
+      const finalAmount = createdOrderTotal;
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${targetId}`);
       } else {
@@ -706,14 +757,9 @@ export default function CheckoutPage() {
                 ) : distanceLoading ? (
                   <span className="text-[11px] text-zinc-500 animate-pulse">Checking distance...</span>
                 ) : null}
-                {distanceSurcharge > 0 && (
-                  <span className="text-[10px] text-zinc-500 font-medium">
-                    (₹40 base + ₹{distanceSurcharge} long-distance)
-                  </span>
-                )}
               </div>
               <div className="text-right">
-                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase + distanceSurcharge}</span>
+                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
                 {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>

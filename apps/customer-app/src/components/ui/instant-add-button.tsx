@@ -2,7 +2,7 @@
 import React, { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingBag, Plus, Minus } from "lucide-react";
-import { useCart } from "@/context/CartContext";
+import { useCart, PricingPlan } from "@/context/CartContext";
 import { useFlyToCart } from "@/context/FlyToCartContext";
 
 interface InstantAddButtonProps {
@@ -15,12 +15,10 @@ interface InstantAddButtonProps {
   onDecrement?: (productId: string) => void;
   className?: string;
   disabled?: boolean;
-  /**
-   * When true show the full pill label (e.g. "Rent Now" / ShoppingBag + text).
-   * When false render a compact icon-only control suitable for inline placement.
-   * Default: false
-   */
   showLabel?: boolean;
+  size?: string;
+  plan?: PricingPlan;
+  productImage?: string; // added for fly animation compatibility with card
 }
 
 const InstantAddButton: React.FC<InstantAddButtonProps> = ({
@@ -34,28 +32,32 @@ const InstantAddButton: React.FC<InstantAddButtonProps> = ({
   className = "",
   disabled = false,
   showLabel = false,
+  size = "S",
+  plan = "3d",
+  productImage,
 }) => {
   const { getItemQuantity, addToCart, updateQuantity } = useCart();
   const { triggerFlyAnimation } = useFlyToCart();
   const btnRef = useRef<HTMLSpanElement | null>(null);
 
-  const contextQuantity = getItemQuantity ? getItemQuantity(productId) : 0;
+  const contextQuantity = getItemQuantity ? getItemQuantity(productId, size, plan) : 0;
   const quantity = typeof quantityProp === "number" ? quantityProp : contextQuantity;
+  const currentImage = productImage || imageSrc;
 
   const handleAdd = () => {
     if (disabled) return;
     if (onAdd) {
       onAdd(productId);
     } else if (addToCart) {
-      addToCart(productId);
+      addToCart(productId, size, plan);
     }
 
     const nextQty = (quantity || 0) + 1;
     onChange?.(productId, nextQty);
 
-    if (btnRef.current && imageSrc && triggerFlyAnimation) {
+    if (btnRef.current && currentImage && triggerFlyAnimation) {
       const rect = (btnRef.current as Element).getBoundingClientRect();
-      triggerFlyAnimation(imageSrc, rect);
+      triggerFlyAnimation(currentImage, rect);
     }
 
     onIncrement?.(productId);
@@ -73,7 +75,7 @@ const InstantAddButton: React.FC<InstantAddButtonProps> = ({
     onChange?.(productId, nextQty);
 
     if (updateQuantity) {
-      updateQuantity(productId, nextQty);
+      updateQuantity(productId, size, plan, nextQty);
     }
   };
 

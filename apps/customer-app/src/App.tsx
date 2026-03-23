@@ -19,7 +19,6 @@ import { WishlistProvider } from "./context/WishlistContext";
 import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { StyleAssistant } from "./components/StyleAssistant";
 import { InstallPrompt } from "./components/InstallPrompt";
 
 import { LocationGate } from "@/components/location/LocationGate";
@@ -254,7 +253,6 @@ const GlobalLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
       <MobileShell hideBottomNav={hideBottomNav}>
         {children}
-        <StyleAssistant />
         <InstallPrompt />
       </MobileShell>
       {!hideBottomNav && <BottomNavBar />}

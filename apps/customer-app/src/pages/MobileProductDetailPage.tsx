@@ -13,6 +13,8 @@ import type { Product } from "@/services/productService";
 import { fullImage } from "@/lib/optimizeImage";
 import shareButtonIcon from "@/assets/icons/share-button.svg";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
+import { toast } from "sonner";
+import type { PricingPlan } from "@/context/CartContext";
 // import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -81,10 +83,38 @@ const MobileProductDetailPage: React.FC = () => {
     const { addToCart, cartItems, totalItems } = useCart();
     const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const { user } = useAuth();
+
+    const handleShare = async () => {
+        const url = window.location.href;
+        const title = product?.name || 'PopClozet Fashion';
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: title,
+                    text: `Check out this ${title} on PopClozet!`,
+                    url: url,
+                });
+            } catch (err) {
+                if ((err as Error).name !== 'AbortError') {
+                    console.error('Error sharing:', err);
+                }
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(url);
+                toast.success('Link copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy link:', err);
+                toast.error('Failed to copy link');
+            }
+        }
+    };
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [isAdded, setIsAdded] = useState(false);
+    const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("3d");
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
@@ -218,15 +248,19 @@ const MobileProductDetailPage: React.FC = () => {
     const currentRental = product?.discounted_price || baseRental;
     const mrp = product?.mrp || (baseRental * 5); // Fallback to 5x if no mrp
 
-    const hasPromoDiscount = currentRental < baseRental;
+    const getPlanPrice = (plan: PricingPlan) => {
+        if (!product) return 0;
+        switch (plan) {
+            case '1d': return product.rental_price_1d;
+            case '2d': return product.rental_price_2d;
+            case '3d': return product.rental_price_3d || product.rentalPrice;
+            case 'buy': return product.buy_price;
+            default: return product.rentalPrice;
+        }
+    };
 
-    const displayOriginalPrice = hasPromoDiscount ? baseRental : mrp;
-    const displayCurrentPrice = currentRental;
-
-    const savingsPercent = Math.round(
-        ((displayOriginalPrice - displayCurrentPrice) / displayOriginalPrice) * 100
-    );
-
+    const currentPlanPrice = getPlanPrice(selectedPlan) || 0;
+    const savingsPercent = mrp > currentPlanPrice ? Math.round(((mrp - currentPlanPrice) / mrp) * 100) : 0;
     const showSavings = savingsPercent > 0;
 
     const toggleWishlist = () => {
@@ -242,7 +276,7 @@ const MobileProductDetailPage: React.FC = () => {
         if (product && selectedSize) {
             const sizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
             if (sizeStock > 0) {
-                addToCart(`${product.id}_${selectedSize}`);
+                addToCart(product.id, selectedSize, selectedPlan);
                 setIsAdded(true);
                 // Reset after 3 seconds or keep it until navigation
                 setTimeout(() => setIsAdded(false), 3000);
@@ -495,7 +529,10 @@ const MobileProductDetailPage: React.FC = () => {
                     )}
 
                     {/* Share Button Floating Overlay */}
-                    <button className="absolute top-4 right-4 z-10 p-2.5 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 active:scale-95 transition-all">
+                    <button 
+                        onClick={handleShare}
+                        className="absolute top-4 right-4 z-10 p-2.5 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 active:scale-95 transition-all"
+                    >
                         <img
                             src={shareButtonIcon}
                             alt="Share"
@@ -544,16 +581,16 @@ const MobileProductDetailPage: React.FC = () => {
                             className="text-2xl font-semibold text-white tracking-[-0.72px]"
                             style={dmSans}
                         >
-                            ₹ {displayCurrentPrice}
+                            ₹ {currentPlanPrice}
                         </span>
-                        {showSavings && (
+                        {selectedPlan !== 'buy' && mrp > currentPlanPrice && (
                             <>
                                 <span className="relative">
                                     <span
                                         className="text-2xl font-semibold text-[#5f606a] tracking-[-0.72px]"
                                         style={dmSans}
                                     >
-                                        ₹ {displayOriginalPrice}
+                                        ₹ {mrp}
                                     </span>
                                     <span className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#5f606a]" />
                                 </span>
@@ -561,10 +598,52 @@ const MobileProductDetailPage: React.FC = () => {
                                     className="text-lg font-semibold text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
                                     style={dmSans}
                                 >
-                                    Save {savingsPercent}%
+                                    Save {Math.round(((mrp - currentPlanPrice) / mrp) * 100)}%
                                 </span>
                             </>
                         )}
+                    </div>
+
+                    {/* ─── SELECT DURATION ─── */}
+                    <div className="mt-8">
+                        <span
+                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
+                            style={dmSans}
+                        >
+                            Select Duration
+                        </span>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            {[
+                                { id: '1d', label: '1 Day', price: product.rental_price_1d },
+                                { id: '2d', label: '2 Days', price: product.rental_price_2d },
+                                { id: '3d', label: '3 Days', price: product.rental_price_3d || product.rentalPrice },
+                                { id: 'buy', label: 'Instant Buy', price: product.buy_price },
+                            ].map((plan) => {
+                                const isSelected = selectedPlan === plan.id;
+                                const hasPrice = plan.price && plan.price > 0;
+                                if (!hasPrice && plan.id !== '3d') return null; // Only show plans with valid prices
+
+                                return (
+                                    <button
+                                        key={plan.id}
+                                        onClick={() => setSelectedPlan(plan.id as PricingPlan)}
+                                        className={cn(
+                                            "flex flex-col items-center justify-center p-3 rounded-2xl min-w-[80px] border transition-all duration-300",
+                                            isSelected 
+                                                ? "bg-[#f2546d] border-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105" 
+                                                : "bg-[#1A1A1A] border-white/5 text-zinc-400 hover:border-white/10"
+                                        )}
+                                    >
+                                        <span className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">
+                                            {plan.label}
+                                        </span>
+                                        <span className="text-sm font-black">
+                                            ₹{plan.price || 'N/A'}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* ─── SELECT SIZE ─── */}

@@ -9,7 +9,7 @@ import {
     ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCart } from "@/context/CartContext";
+import { useCart, PricingPlan } from "@/context/CartContext";
 import { useNavigate } from "react-router-dom";
 
 interface StickyAddToCartProps {
@@ -60,13 +60,24 @@ export default function StickyAddToCart({
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    const hasValidDates = selectedDates.start && selectedDates.end;
-    const canAddToCart = hasValidDates && selectedSize;
+    const hasValidDates = !!(selectedDates.start && selectedDates.end);
+    const canAddToCart = !!(hasValidDates && selectedSize);
+
+    const getRentalDays = () => {
+        if (!selectedDates.start || !selectedDates.end) return 0;
+        const diff = selectedDates.end.getTime() - selectedDates.start.getTime();
+        return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    };
 
     const handleAddToCart = () => {
         if (!canAddToCart) return;
 
-        addToCart(productId);
+        const days = getRentalDays();
+        let plan: PricingPlan = '3d';
+        if (days === 1) plan = '1d';
+        else if (days === 2) plan = '2d';
+
+        addToCart(productId, selectedSize!, plan);
         setIsAdded(true);
 
         setTimeout(() => {

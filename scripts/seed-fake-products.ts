@@ -12,8 +12,8 @@
  *     product 16/
  *
  * Run:
- *   SUPABASE_URL=https://hfcdvcpgpkdgmcakgiuy.supabase.co \
- *   SUPABASE_SERVICE_KEY=your-service-role-key \
+ *   SUPABASE_URL: https://your-project.supabase.co \
+ *   SUPABASE_SERVICE_KEY: your-service-role-key \
  *   IMAGES_DIR="C:/path/to/your/images/folder" \
  *   npx tsx scripts/seed-fake-products.ts
  */

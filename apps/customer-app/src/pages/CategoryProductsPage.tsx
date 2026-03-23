@@ -14,7 +14,6 @@ import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { useCart } from "@/context/CartContext";
-import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 
 type FilterTab = "gender" | "size" | "price" | "brand";
 
@@ -208,22 +207,6 @@ const CategoryProductsPage: React.FC = () => {
 
                 // Show real products immediately, then mix in fakes
                 setProducts(mapped);
-
-                // Mix in LRU-rotated fake "rented out" products — always 5 from the 16-jacket pool
-                const fakeLimit = 5;
-                if (category && fakeLimit > 0) {
-                    fetchRotatedFakeProducts(category, filters.brands?.[0], fakeLimit)
-                        .then(fakes => {
-                            if (fakes.length === 0) return;
-                            const merged = [...mapped, ...fakes];
-                            for (let i = merged.length - 1; i > 0; i--) {
-                                const j = Math.floor(Math.random() * (i + 1));
-                                [merged[i], merged[j]] = [merged[j], merged[i]];
-                            }
-                            setProducts(merged as any);
-                        })
-                        .catch(() => {/* non-fatal — real products already set */});
-                }
 
                 // Update local cache for next time (non-blocking, real products only)
                 if (mapped.length > 0) {

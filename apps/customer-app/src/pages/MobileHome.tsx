@@ -17,6 +17,8 @@ import popclozetLogo from "@/logo/logo.png";
 const COLLECTIONS = [
     { id: "jackets", title: "Jackets", image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80" },
     { id: "footwear", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
+    { id: "party", title: "Party Wear", image: "https://images.unsplash.com/photo-1596459204919-c8a44421c6ca?w=500&q=80" },
+    { id: "accessories", title: "Accessories", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=500&q=80" }
 ];
 
 const FEATURED_SLIDES = [
@@ -34,49 +36,16 @@ const FEATURED_SLIDES = [
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
     {
-        id: 0, title: "Post Cleaning", icon: (
-            /* Garment bag / hanger icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 4V2M10 8C10 8 10 5 14 5C18 5 18 8 18 8M8 8L14 24L20 8H8Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M6 8H22" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M9 12H19M10 16H18M11 20H17" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
+        id: 0, title: "Post Cleaning", icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
     },
     {
-        id: 1, title: "Sanitization", icon: (
-            /* Spray bottle icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10 10H16V8H12V5H16V3H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M17 5H20L21 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="9" y="10" width="8" height="4" rx="1" stroke="white" strokeWidth="1.5" />
-                <path d="M10 14L9 25C9 25.5523 9.44772 26 10 26H16C16.5523 26 17 25.5523 17 25L16 14" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="22" cy="10" r="1" fill="white" opacity="0.5" />
-                <circle cx="24" cy="7" r="0.7" fill="white" opacity="0.4" />
-                <circle cx="20" cy="8" r="0.7" fill="white" opacity="0.3" />
-            </svg>
-        ),
+        id: 1, title: "Sanitization", icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
     },
     {
-        id: 2, title: "Pre Cleaning", icon: (
-            /* Cleaning brush / bucket icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 14H21L19 26H9L7 14Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 14H23" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M14 2V14" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M10 6L14 2L18 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M11 18V22M14 17V23M17 18V22" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
+        id: 2, title: "Pre Cleaning", icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
     },
     {
-        id: 3, title: "Quality Check", icon: (
-            /* Shield with checkmark icon */
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 2L4 7V13C4 19.63 8.28 25.79 14 27C19.72 25.79 24 19.63 24 13V7L14 2Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M9.5 14.5L12.5 17.5L18.5 11.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        ),
+        id: 3, title: "Quality Check", icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
     },
 ];
 
@@ -188,19 +157,7 @@ const MobileHome: React.FC = () => {
             setLoadingCatalogue(true);
             try {
                 const products = await productService.getProductsByGender(activeGender);
-                const real = products.slice(0, 3); // Show 3 real + 1 fake = 4 total (25%)
-
-                // Mix in 1 fake "rented out" jacket
-                const { fetchRotatedFakeProducts } = await import('@/services/fakeProductMixService');
-                const fakes = await fetchRotatedFakeProducts('jackets', undefined, 1);
-
-                const merged = [...real, ...fakes];
-                // Shuffle so fake doesn't always appear last
-                for (let i = merged.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [merged[i], merged[j]] = [merged[j], merged[i]];
-                }
-                setCatalogueProducts(merged as any);
+                setCatalogueProducts(products.slice(0, 4));
             } catch (error) {
                 console.error("Failed to fetch catalogue products:", error);
                 // Fallback: show real products only
@@ -465,32 +422,35 @@ const MobileHome: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-[18px]">
-                        {COLLECTIONS.map((collection, index) => (
+                        {COLLECTIONS.slice(0, 5).map((collection, index) => (
                             <motion.div
                                 key={collection.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1 + index * 0.1 }}
-                                whileTap={{ scale: 0.97 }}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={() => navigate(`/shop/all?category=${collection.id}&title=${collection.title}&fromHome=true&initialGender=${activeGender}`)}
-                                className="relative h-[250px] rounded-2xl overflow-hidden cursor-pointer bg-[#232323]"
+                                className="relative h-[220px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
                             >
-                                <img
+                                <motion.img
                                     src={collection.image}
                                     alt={collection.title}
                                     className="absolute inset-0 w-full h-full object-cover"
+                                    whileHover={{ scale: 1.05 }}
+                                    transition={{ duration: 0.4 }}
                                 />
                                 {/* Gradient overlay at bottom */}
                                 <div
-                                    className="absolute bottom-0 left-0 right-0 h-[67px] rounded-b-2xl"
+                                    className="absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[24px]"
                                     style={{
-                                        background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, #111111 100%)",
-                                        backdropFilter: "blur(9.2px)",
+                                        background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.8) 50%, #111111 100%)",
                                     }}
                                 />
-                                <span className="absolute bottom-4 left-0 right-0 text-center text-sm font-bold text-white">
-                                    {collection.title}
-                                </span>
+                                <div className="absolute bottom-5 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                                    <span className="text-lg font-black text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
+                                        {collection.title}
+                                    </span>
+                                </div>
                             </motion.div>
                         ))}
                     </div>
@@ -515,7 +475,7 @@ const MobileHome: React.FC = () => {
                         <div className="bg-[#191919] rounded-2xl px-6 py-6">
                             {/* Icon + Title */}
                             <div className="flex items-center gap-4 mb-6">
-                                <div className="w-12 h-12 rounded-xl bg-[#232323] border border-zinc-700/50 flex items-center justify-center text-2xl">
+                                <div className="w-14 h-14 rounded-xl bg-[#232323] border border-zinc-700/50 flex items-center justify-center overflow-hidden">
                                     {ABOUT_US_SLIDES[activeAboutSlide].icon}
                                 </div>
                                 <span className="text-base font-bold text-white tracking-tight">

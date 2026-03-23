@@ -55,7 +55,7 @@ const MoodPage: React.FC = () => {
     const handleRent = (id: string, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        addToCart(id);
+        addToCart(id, "S", "3d");
     };
 
     return (

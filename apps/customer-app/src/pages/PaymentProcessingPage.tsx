@@ -51,8 +51,9 @@ export default function PaymentProcessingPage() {
                         // Clear cart on successful payment
                         await clearCartDB().catch(() => { });
                         const cartEntries = Object.entries(cartItems);
-                        for (const [id] of cartEntries) {
-                            removeFromCart(id);
+                        for (const [key, data] of cartEntries) {
+                            const parts = key.split('_');
+                            removeFromCart(parts[0], data.size, data.plan);
                         }
                         // Navigate to order confirmed
                         navigate(`/order-confirmed/${orderId}`, { replace: true });

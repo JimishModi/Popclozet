@@ -7,12 +7,8 @@ import { ChevronLeft, Search, ChevronRight, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { productService } from "@/services/productService";
 
-// Category filter
-const CATEGORIES = ["All", "Luxury", "Streetwear", "Casual", "Sports"];
-
 const BrandsPage: React.FC = () => {
     const navigate = useNavigate();
-    const [activeCategory, setActiveCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
     const [brands, setBrands] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -35,13 +31,6 @@ const BrandsPage: React.FC = () => {
         const matchesSearch = !searchQuery || brand.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesSearch;
     });
-
-    // Helper to get brand color (random but consistent for sessions)
-    const getBrandColor = (name: string) => {
-        const colors = ["#F2546D", "#3B82F6", "#A855F7", "#EF4444", "#22C55E", "#F59E0B", "#8B5CF6"];
-        const idx = name.length % colors.length;
-        return colors[idx];
-    };
 
     return (
         <MobileShell className="bg-[#111111] text-white">
@@ -70,24 +59,6 @@ const BrandsPage: React.FC = () => {
                             className="w-full h-10 bg-[#232323] text-white text-sm font-medium pl-11 pr-4 rounded-full outline-none placeholder:text-zinc-500"
                         />
                     </div>
-
-                    {/* Category filter pills */}
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        {CATEGORIES.map((cat) => (
-                            <button
-                                key={cat}
-                                onClick={() => setActiveCategory(cat)}
-                                className={cn(
-                                    "px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all",
-                                    activeCategory === cat
-                                        ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20"
-                                        : "bg-[#232323] text-zinc-400 hover:text-white"
-                                )}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
                 </div>
 
                 {/* ─── Brands Grid ─── */}
@@ -100,7 +71,6 @@ const BrandsPage: React.FC = () => {
                     ) : (
                         <div className="grid grid-cols-2 gap-4">
                             {filteredBrands.map((brand, index) => {
-                                const color = getBrandColor(brand);
                                 return (
                                     <motion.div
                                         key={brand}
@@ -109,31 +79,17 @@ const BrandsPage: React.FC = () => {
                                         transition={{ delay: index * 0.05 }}
                                         whileTap={{ scale: 0.97 }}
                                         onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
-                                        className="relative rounded-2xl overflow-hidden cursor-pointer group"
-                                        style={{ background: `linear-gradient(135deg, ${color}15, ${color}08)` }}
+                                        className="relative rounded-3xl overflow-hidden cursor-pointer bg-[#1E1E1E] border border-white/5 hover:border-[#E95466]/50 transition-all group flex flex-col items-center p-6 text-center shadow-lg"
                                     >
-                                        <div className="p-5 pb-4 border border-white/5 rounded-2xl hover:border-white/10 transition-colors h-full flex flex-col">
-                                            <div
-                                                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
-                                                style={{ backgroundColor: `${color}25`, boxShadow: `0 4px 20px ${color}15` }}
-                                            >
-                                                <span className="text-xl font-black" style={{ color }}>
-                                                    {brand.charAt(0)}
-                                                </span>
-                                            </div>
-
-                                            <h3 className="text-base font-bold text-white mb-0.5 group-hover:text-[#f2546d] transition-colors">
-                                                {brand}
-                                            </h3>
-
-                                            <p className="text-[11px] text-zinc-500 mb-3">Shop {brand}</p>
-
-                                            <div className="flex items-center justify-end mt-auto">
-                                                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#f2546d]/20 transition-colors">
-                                                    <ChevronRight className="w-3 h-3 text-zinc-400 group-hover:text-[#f2546d] transition-colors" />
-                                                </div>
-                                            </div>
+                                        <div className="w-16 h-16 rounded-full bg-black/50 border border-white/5 flex items-center justify-center mb-4 group-hover:bg-[#E95466]/10 transition-colors">
+                                            <span className="text-2xl font-black text-white group-hover:text-[#E95466] transition-colors uppercase">
+                                                {brand.charAt(0)}
+                                            </span>
                                         </div>
+                                        <h3 className="text-sm font-bold text-white mb-1 group-hover:text-[#E95466] w-full truncate transition-colors">
+                                            {brand}
+                                        </h3>
+                                        <p className="text-[10px] text-zinc-500 font-medium tracking-wider uppercase">Collection</p>
                                     </motion.div>
                                 );
                             })}

@@ -1,5 +1,6 @@
 // src/components/QuickViewModal.tsx
 import { useState } from "react";
+import { useCart, PricingPlan } from "@/context/CartContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -12,7 +13,6 @@ import {
     Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCart } from "@/context/CartContext";
 
 interface Product {
     id: string | number;
@@ -82,7 +82,12 @@ export default function QuickViewModal({
         if (!canAddToCart) return;
 
         // Use the Cart Context's addToCart which takes a productId
-        addToCart(String(product.id));
+        const days = getRentalDays();
+        let plan: PricingPlan = '3d';
+        if (days === 1) plan = '1d';
+        else if (days === 2) plan = '2d';
+        
+        addToCart(String(product.id), selectedSize!, plan);
 
         setIsAdded(true);
         setTimeout(() => {

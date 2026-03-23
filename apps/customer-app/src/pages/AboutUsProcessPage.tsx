@@ -8,15 +8,7 @@ import { Sparkles } from "lucide-react";
 const PROCESS_STEPS = [
     {
         title: "Pre-Cleaning",
-        icon: (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 14H21L19 26H9L7 14Z" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 14H23" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M14 2V14" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M10 6L14 2L18 6" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M11 18V22M14 17V23M17 18V22" stroke="#F2546D" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
+        icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre-Cleaning" />,
         details: [
             "Inspect garment for stains, damage, or odors",
             "Remove lint, hair, and debris",
@@ -26,14 +18,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Sanitization",
-        icon: (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10 10H16V8H12V5H16V3H12" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M17 5H20L21 3" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="9" y="10" width="8" height="4" rx="1" stroke="#F2546D" strokeWidth="1.5" />
-                <path d="M10 14L9 25C9 25.5523 9.44772 26 10 26H16C16.5523 26 17 25.5523 17 25L16 14" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        ),
+        icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
         details: [
             "Steam sanitization at 100°C for 10 minutes",
             "UV-C light treatment for 15 minutes",
@@ -43,13 +28,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Post-Cleaning",
-        icon: (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 4V2M10 8C10 8 10 5 14 5C18 5 18 8 18 8M8 8L14 24L20 8H8Z" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M6 8H22" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M9 12H19M10 16H18M11 20H17" stroke="#F2546D" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-            </svg>
-        ),
+        icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post-Cleaning" />,
         details: [
             "Inspect for remaining stains or damage",
             "Steam press to remove wrinkles",
@@ -59,12 +38,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Quality Check",
-        icon: (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 2L4 7V13C4 19.63 8.28 25.79 14 27C19.72 25.79 24 19.63 24 13V7L14 2Z" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M9.5 14.5L12.5 17.5L18.5 11.5" stroke="#F2546D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        ),
+        icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
         details: [
             "Visual inspection under good lighting",
             "Odour test",
@@ -102,8 +76,8 @@ const AboutUsProcessPage: React.FC = () => {
                             <div key={index} className="flex gap-6 pb-1">
                                 {/* Timeline graphic: Icon + Line */}
                                 <div className="flex flex-col items-center">
-                                    <div className="w-12 h-12 rounded-2xl bg-[#141414] border border-white/10 flex items-center justify-center shrink-0 z-10 shadow-lg shadow-black/20">
-                                        <div className="scale-90">{step.icon}</div>
+                                    <div className="w-14 h-14 rounded-2xl bg-[#141414] border border-white/10 flex items-center justify-center shrink-0 z-10 shadow-lg shadow-black/20 overflow-hidden">
+                                        <div className="w-full h-full z-10">{step.icon}</div>
                                     </div>
                                     {/* Line connecting the stages */}
                                     {index !== PROCESS_STEPS.length - 1 && (
