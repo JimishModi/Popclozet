@@ -62,6 +62,7 @@ export interface UserProfile {
     email: string;
     phone: string;
     avatar_url?: string;
+    email_verified: boolean;
     role: UserRole;
     onboarding_completed: boolean;
     email_verified: boolean;

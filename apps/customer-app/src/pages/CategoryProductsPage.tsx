@@ -379,7 +379,7 @@ const CategoryProductsPage: React.FC = () => {
                         >
                             <ShoppingBag className="w-4 h-4 text-zinc-400" />
                             {totalItems > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                                     {totalItems > 9 ? '9+' : totalItems}
                                 </span>
                             )}

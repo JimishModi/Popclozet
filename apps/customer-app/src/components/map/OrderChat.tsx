@@ -101,11 +101,11 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-800">
                 <div className="flex items-center gap-2">
-                    <Headset className="w-5 h-5 text-[#ff4d6d]" />
+                    <Headset className="w-5 h-5 text-[#f2546d]" />
                     <div>
                         <h3 className="font-bold text-white">Order Support</h3>
                         {supportTier === 'premium' && (
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[#ff4d6d]">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#f2546d]">
                                 Premium Support
                             </p>
                         )}
@@ -123,7 +123,7 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
             >
                 {isLoading ? (
                     <div className="flex justify-center py-10">
-                        <div className="w-6 h-6 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="text-center py-10">
@@ -137,7 +137,7 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
                         >
                             <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                                 msg.sender_type === 'customer' 
-                                    ? 'bg-[#ff4d6d] text-white rounded-tr-none' 
+                                    ? 'bg-[#f2546d] text-white rounded-tr-none' 
                                     : 'bg-zinc-800 text-zinc-200 rounded-tl-none'
                             }`}>
                                 {msg.message}
@@ -155,12 +155,12 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
-                        className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-[#ff4d6d]"
+                        className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-[#f2546d]"
                     />
                     <button 
                         type="submit"
                         disabled={!newMessage.trim()}
-                        className="p-3 rounded-xl bg-[#ff4d6d] text-white disabled:opacity-50"
+                        className="p-3 rounded-xl bg-[#f2546d] text-white disabled:opacity-50"
                     >
                         <Send className="w-4 h-4" />
                     </button>

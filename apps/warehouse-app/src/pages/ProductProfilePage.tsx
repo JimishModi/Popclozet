@@ -4,16 +4,17 @@
  * Workers can: view all info, add stock to existing size, add a new size, manage discounts.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ArrowLeft, Package, Edit2, Plus, ChevronDown, ChevronRight,
+    ArrowLeft, Package, Edit2, Plus, ChevronDown, ChevronRight, ChevronLeft,
     Tag, Percent, DollarSign, Calendar, Check, X, Loader,
-    QrCode, Droplets, AlertTriangle, ToggleLeft, ToggleRight
+    QrCode, Droplets, AlertTriangle, ToggleLeft, ToggleRight,
+    Camera, Save, Trash2
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useAuth } from '@popclozet/auth';
 import { useToast } from '../contexts/ToastContext';
 import {
@@ -22,23 +23,30 @@ import {
     addNewSizeToProduct,
     saveProductDiscount,
     toggleDiscount,
+    updateProductProfile,
+    archivePhysicalUnit,
     type FullProductProfile,
     type InventorySubProfile,
+    type ProductUpdate,
 } from '../services/productProfileService';
+import { supabase } from '@popclozet/api-client';
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const GENDERS = ['men', 'women', 'unisex'];
 
 /* -----------------------------------------------------------
    Add Stock Modal (for existing size OR new size)
    ----------------------------------------------------------- */
 function AddStockModal({
     productId,
+    category,
     existingInventory,
     onClose,
     onDone,
     actorId,
 }: {
     productId: string;
+    category: string;
     existingInventory: InventorySubProfile[];
     onClose: () => void;
     onDone: (newIds: string[]) => void;
@@ -48,12 +56,28 @@ function AddStockModal({
     const existingSizes = existingInventory.map(i => i.size);
     const [mode, setMode] = useState<'existing' | 'new'>('existing');
     const [selectedInventoryId, setSelectedInventoryId] = useState(existingInventory[0]?.id ?? '');
+    const [dynamicSizes, setDynamicSizes] = useState<string[]>(DEFAULT_SIZES);
     const [newSize, setNewSize] = useState('');
     const [qty, setQty] = useState(1);
     const [mrp, setMrp] = useState('');
     const [cost, setCost] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [createdIds, setCreatedIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            if (!category) return;
+            const { data } = await supabase
+                .from('category_configs')
+                .select('sizes')
+                .eq('category', category.toLowerCase())
+                .single();
+            if (data?.sizes) {
+                setDynamicSizes(data.sizes);
+            }
+        };
+        fetchConfig();
+    }, [category]);
 
     const handleSubmit = async () => {
         if (qty <= 0) { showToast('Qty must be > 0', 'error'); return; }
@@ -100,8 +124,12 @@ function AddStockModal({
                 <div className="space-y-3 max-h-[260px] overflow-y-auto">
                     {createdIds.map(id => (
                         <div key={id} className="bg-surface rounded-xl p-3 flex flex-col items-center gap-2 border border-surface-border">
-                            <div className="bg-white p-2 rounded-lg">
-                                <QRCodeSVG value={id} size={96} level="H" />
+                            <div className="bg-white p-2 rounded-lg relative">
+                                <QRCodeCanvas id={`qr-${id}`} value={id} size={96} level="H" includeMargin={true} marginSize={2} />
+                                {/* Hidden high-res version for PDF extraction */}
+                                <div className="absolute opacity-0 pointer-events-none overflow-hidden h-0 w-0">
+                                    <QRCodeCanvas id={`qr-highres-${id}`} value={id} size={1024} level="H" includeMargin={true} marginSize={4} />
+                                </div>
                             </div>
                             <p className="text-[10px] font-mono text-zinc-400">{id}</p>
                         </div>
@@ -156,7 +184,7 @@ function AddStockModal({
                 <div>
                     <label className="text-xs text-zinc-400 mb-1 block">New Size</label>
                     <div className="flex flex-wrap gap-2">
-                        {SIZES.filter(s => !existingSizes.includes(s)).map(s => (
+                        {dynamicSizes.filter(s => !existingSizes.includes(s)).map(s => (
                             <button
                                 key={s}
                                 onClick={() => setNewSize(s)}
@@ -170,7 +198,7 @@ function AddStockModal({
                                 {s}
                             </button>
                         ))}
-                        {SIZES.filter(s => !existingSizes.includes(s)).length === 0 && (
+                        {dynamicSizes.filter(s => !existingSizes.includes(s)).length === 0 && (
                             <p className="text-xs text-zinc-500">All sizes already added.</p>
                         )}
                     </div>
@@ -286,15 +314,28 @@ function AddDiscountModal({
 /* -----------------------------------------------------------
    Size Sub-Profile Card
    ----------------------------------------------------------- */
-function SizeCard({ inv }: { inv: InventorySubProfile }) {
+function SizeCard({ product, inv }: { product: FullProductProfile; inv: InventorySubProfile }) {
     const [open, setOpen] = useState(false);
+    const { showToast } = useToast();
+    const { user } = useAuth();
 
     const statusColor = (s: string) => ({
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
         washing: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
         rented: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
         returned: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
+        archived: 'text-red-400 bg-red-500/10 border-red-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
+
+    const handleDownloadUnitLabel = async (unit: any, size: string) => {
+        try {
+            const { generateQrLabelPdf } = await import('./ProductIntakePage');
+            await generateQrLabelPdf(unit.individual_id);
+            showToast('Label generated ✓');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to generate PDF', 'error');
+        }
+    };
 
     return (
         <div className="bg-surface border border-surface-border rounded-xl overflow-hidden">
@@ -336,7 +377,7 @@ function SizeCard({ inv }: { inv: InventorySubProfile }) {
                                 <p className="text-xs text-zinc-600 text-center py-3">No physical units recorded yet.</p>
                             ) : (
                                 inv.units.map(unit => (
-                                    <div key={unit.individual_id} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-surface-hover">
+                                    <div key={unit.individual_id} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-surface-hover group">
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-mono text-zinc-300 truncate">{unit.individual_id}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
@@ -347,8 +388,41 @@ function SizeCard({ inv }: { inv: InventorySubProfile }) {
                                                 {unit.mrp_price && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp_price.toLocaleString()}</span>}
                                             </div>
                                         </div>
-                                        <div className="shrink-0 bg-white p-1 rounded">
-                                            <QRCodeSVG value={unit.individual_id} size={36} level="M" />
+                                        <div className="flex items-center gap-2">
+                                            {unit.status !== 'archived' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm(`Archive unit ${unit.individual_id}?`)) {
+                                                            try {
+                                                                await archivePhysicalUnit(unit.individual_id, user?.id);
+                                                                showToast('Unit archived');
+                                                                // Reload data
+                                                                window.location.reload(); // Simple refresh for now
+                                                            } catch (err: any) {
+                                                                showToast(err.message || 'Failed to archive', 'error');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                                                    title="Archive Unit"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleDownloadUnitLabel(unit, inv.size)}
+                                                className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:text-white"
+                                                title="Download Label"
+                                            >
+                                                <QrCode size={14} />
+                                            </button>
+                                            <div className="shrink-0 bg-white p-1 rounded relative">
+                                                <QRCodeCanvas id={`qr-${unit.individual_id}`} value={unit.individual_id} size={36} level="H" includeMargin={true} marginSize={1} />
+                                                {/* Hidden high-res version for PDF extraction */}
+                                                <div className="absolute opacity-0 pointer-events-none overflow-hidden h-0 w-0">
+                                                    <QRCodeCanvas id={`qr-highres-${unit.individual_id}`} value={unit.individual_id} size={1024} level="H" includeMargin={true} marginSize={4} />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))
@@ -369,10 +443,24 @@ export function ProductProfilePage() {
     const navigate = useNavigate();
     const { showToast } = useToast();
     const { user } = useAuth();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [product, setProduct] = useState<FullProductProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [dbCategories, setDbCategories] = useState<string[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
     const [modal, setModal] = useState<'stock' | 'discount' | null>(null);
+
+    const fetchCategoryConfigs = async () => {
+        const { data } = await supabase.from('category_configs').select('category');
+        if (data) {
+            setDbCategories(data.map(d => d.category).sort());
+        }
+    };
+
+    useEffect(() => {
+        fetchCategoryConfigs();
+    }, []);
 
     const load = useCallback(async () => {
         if (!productId) return;
@@ -386,7 +474,101 @@ export function ProductProfilePage() {
         }
     }, [productId]);
 
+    const handleStartEdit = () => {
+        if (!product) return;
+        setEditForm({
+            name: product.name,
+            brand: product.brand || '',
+            category: product.category,
+            gender: product.gender,
+            rental_price: product.rental_price ?? 0,
+            images: [...(product.images || [])],
+            is_available: product.is_available,
+        });
+        setIsEditing(true);
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editForm || !product) return;
+        setLoading(true);
+        try {
+            await updateProductProfile(product.id, editForm);
+            showToast('Changes saved successfully');
+            setIsEditing(false);
+            load();
+        } catch (err: any) {
+            showToast(err.message || 'Failed to save', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !editForm) return;
+
+        setIsUploading(true);
+        try {
+            const newUrls: string[] = [];
+            for (const file of Array.from(files)) {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Math.random()}.${fileExt}`;
+                const filePath = `products/${fileName}`;
+
+                const { data, error } = await supabase.storage
+                    .from('product-images')
+                    .upload(filePath, file);
+
+                if (error) throw error;
+                const { data: { publicUrl } } = supabase.storage
+                    .from('product-images')
+                    .getPublicUrl(filePath);
+                
+                newUrls.push(publicUrl);
+            }
+
+            setEditForm({
+                ...editForm,
+                images: [...(editForm.images || []), ...newUrls],
+            });
+            showToast(`Uploaded ${newUrls.length} photo(s)`);
+        } catch (err: any) {
+            showToast(err.message, 'error');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleRemoveImage = (index: number) => {
+        if (!editForm) return;
+        const newImages = [...(editForm.images || [])];
+        newImages.splice(index, 1);
+        setEditForm({ ...editForm, images: newImages });
+        if (currentImgIndex >= newImages.length) {
+            setCurrentImgIndex(Math.max(0, newImages.length - 1));
+        }
+    };
+
     useEffect(() => { load(); }, [load]);
+
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [currentImgIndex, setCurrentImgIndex] = useState(0);
+
+    // Edit State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<ProductUpdate | null>(null);
+
+    const nextImage = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (!product?.images) return;
+        setCurrentImgIndex((prev) => (prev + 1) % product.images.length);
+    }, [product]);
+
+    const prevImage = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (!product?.images) return;
+        setCurrentImgIndex((prev) => (prev - 1 + product.images.length) % product.images.length);
+    }, [product]);
 
     const handleToggleDiscount = async (id: string, current: boolean) => {
         try {
@@ -440,48 +622,188 @@ export function ProductProfilePage() {
                         <ArrowLeft size={18} />
                     </button>
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-base font-bold text-white truncate">{product.name}</h1>
-                        <p className="text-[10px] text-zinc-500">{product.brand} · {product.category} · {product.gender}</p>
+                        {isEditing ? (
+                            <input
+                                value={editForm?.name ?? ''}
+                                onChange={e => setEditForm(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
+                                className="w-full bg-surface border border-warehouse-500/30 rounded-lg px-2 py-1 text-base font-bold text-white focus:outline-none focus:border-warehouse-500"
+                            />
+                        ) : (
+                            <h1 className="text-base font-bold text-white truncate">{product.name}</h1>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            {isEditing ? (
+                                <div className="flex flex-wrap gap-2">
+                                    <input
+                                        value={editForm?.brand ?? ''}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, brand: e.target.value }) : null)}
+                                        placeholder="Brand"
+                                        className="w-24 bg-surface border border-surface-border rounded px-1.5 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-warehouse-500"
+                                    />
+                                    <select
+                                        value={editForm?.category ?? ''}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, category: e.target.value }) : null)}
+                                        className="w-24 bg-surface border border-surface-border rounded px-1.5 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-warehouse-500"
+                                    >
+                                        <option value="">Category</option>
+                                        {dbCategories.map(cat => (
+                                            <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={editForm?.gender ?? ''}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, gender: e.target.value }) : null)}
+                                        className="w-24 bg-surface border border-surface-border rounded px-1.5 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-warehouse-500"
+                                    >
+                                        {GENDERS.map(g => (
+                                            <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                <p className="text-[10px] text-zinc-500">{product.brand} · {product.category} · {product.gender}</p>
+                            )}
+                        </div>
                     </div>
-                    <span className={clsx('text-[10px] font-bold px-2 py-0.5 rounded-full border', product.is_available ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20')}>
-                        {product.is_available ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
+                    {isEditing ? (
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setIsEditing(false)} 
+                                className="h-9 px-3 rounded-xl bg-zinc-800 text-zinc-400 text-[10px] font-bold uppercase tracking-wider hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSaveEdit}
+                                className="h-9 px-4 rounded-xl bg-emerald-500 text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-emerald-400 transition-colors"
+                            >
+                                <Save size={14} /> Save
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={handleStartEdit}
+                            className="w-9 h-9 rounded-xl bg-warehouse-500/10 border border-warehouse-500/20 flex items-center justify-center text-warehouse-400 hover:bg-warehouse-500 hover:text-black transition-all"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                    )}
                 </div>
 
-                {/* Product Image */}
-                {product.images && product.images[0] && (
-                    <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-surface-card border border-surface-border">
-                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-contain p-4" />
+                {/* Product Image Carousel */}
+                {(isEditing ? editForm?.images : product.images) && (
+                    <div className="relative group w-full aspect-[4/3] rounded-2xl overflow-hidden bg-surface-card border border-surface-border">
+                        <div className="w-full h-full cursor-pointer" onClick={() => !isEditing && setIsLightboxOpen(true)}>
+                            <AnimatePresence mode="wait">
+                                <motion.img
+                                    key={isEditing ? (editForm?.images?.[currentImgIndex] || 'empty') : product.images?.[currentImgIndex]}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    src={isEditing ? editForm?.images?.[currentImgIndex] : product.images?.[currentImgIndex]}
+                                    alt="Product"
+                                    className="w-full h-full object-contain p-4"
+                                />
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Edit Mode Overlays */}
+                        {isEditing && (
+                            <div className="absolute inset-0 bg-black/5 pointer-events-none border-2 border-warehouse-500/20 rounded-2xl" />
+                        )}
+
+                        {isEditing && (
+                            <div className="absolute top-4 left-4 flex gap-2">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploading}
+                                    className="h-8 px-3 rounded-lg bg-warehouse-500 text-black text-[10px] font-bold uppercase flex items-center gap-2 shadow-lg disabled:opacity-50"
+                                >
+                                    {isUploading ? <Loader size={12} className="animate-spin" /> : <Camera size={14} />}
+                                    Add Photo
+                                </button>
+                                {editForm?.images && editForm.images.length > 0 && (
+                                    <button
+                                        onClick={() => handleRemoveImage(currentImgIndex)}
+                                        className="w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center shadow-lg"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleAddImage}
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                        />
+
+                        {/* Navigation Arrows */}
+                        {(isEditing ? (editForm?.images?.length ?? 0) : product.images?.length) > 1 && (
+                            <>
+                                <button 
+                                    onClick={prevImage}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <button 
+                                    onClick={nextImage}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+
+                                {/* Pagination Dots */}
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                    {(isEditing ? editForm?.images : product.images)?.map((_, i) => (
+                                        <div 
+                                            key={i} 
+                                            className={clsx(
+                                                "w-1.5 h-1.5 rounded-full transition-all",
+                                                i === currentImgIndex ? "bg-warehouse-400 w-3" : "bg-white/30"
+                                            )} 
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="absolute top-4 right-4 px-2 py-1 rounded-lg bg-black/40 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
+                            {currentImgIndex + 1} / {isEditing ? editForm?.images?.length : product.images.length}
+                        </div>
                     </div>
                 )}
 
                 {/* Pricing Card */}
                 <div className="bg-surface-card border border-surface-border rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">💰 Pricing</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         <div className="bg-surface rounded-lg p-3">
                             <p className="text-[10px] text-zinc-500">Rental / day</p>
-                            <p className="text-base font-bold text-white">₹{product.rental_price?.toLocaleString() ?? '—'}</p>
-                            {discountedPrice !== null && (
-                                <p className="text-[10px] text-emerald-400 font-semibold">After discount: ₹{discountedPrice.toFixed(0)}</p>
+                            {isEditing ? (
+                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-surface-border">
+                                    <span className="text-zinc-500 text-xs">₹</span>
+                                    <input
+                                        type="number"
+                                        value={editForm?.rental_price ?? 0}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, rental_price: parseFloat(e.target.value) || 0 }) : null)}
+                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-base font-bold text-white">₹{product.rental_price?.toLocaleString() ?? '—'}</p>
+                                    {discountedPrice !== null && (
+                                        <p className="text-[10px] text-emerald-400 font-semibold">After discount: ₹{discountedPrice.toFixed(0)}</p>
+                                    )}
+                                </>
                             )}
                         </div>
-                        <div className="bg-surface rounded-lg p-3">
-                            <p className="text-[10px] text-zinc-500">Deposit</p>
-                            <p className="text-base font-bold text-white">₹{product.deposit_amount?.toLocaleString() ?? '—'}</p>
-                        </div>
-                        <div className="bg-surface rounded-lg p-3">
-                            <p className="text-[10px] text-zinc-500">MRP (Market Value)</p>
-                            <p className="text-base font-bold text-zinc-200">₹{product.mrp?.toLocaleString() ?? '—'}</p>
-                        </div>
-                        {product.mrp && product.rental_price && (
-                            <div className="bg-surface rounded-lg p-3">
-                                <p className="text-[10px] text-zinc-500">Savings vs MRP</p>
-                                <p className="text-base font-bold text-emerald-400">
-                                    {Math.round((1 - product.rental_price / product.mrp) * 100)}% off
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -515,7 +837,7 @@ export function ProductProfilePage() {
                     <div className="space-y-2">
                         <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">📐 Inventory by Size</p>
                         {product.inventory.map(inv => (
-                            <SizeCard key={inv.id} inv={inv} />
+                            <SizeCard key={inv.id} product={product} inv={inv} />
                         ))}
                     </div>
                 )}
@@ -635,6 +957,7 @@ export function ProductProfilePage() {
                             {modal === 'stock' && (
                                 <AddStockModal
                                     productId={product.id}
+                                    category={product.category || ''}
                                     existingInventory={product.inventory}
                                     onClose={() => setModal(null)}
                                     onDone={() => { setModal(null); load(); }}
@@ -649,6 +972,53 @@ export function ProductProfilePage() {
                                 />
                             )}
                         </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* Image Lightbox */}
+            <AnimatePresence>
+                {isLightboxOpen && product.images && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 cursor-zoom-out"
+                        onClick={() => setIsLightboxOpen(false)}
+                    >
+                        <button className="absolute top-6 right-6 text-zinc-400 hover:text-white transition-colors">
+                            <X size={24} />
+                        </button>
+
+                        <div className="relative w-full max-w-4xl h-full flex items-center justify-center pointer-events-none">
+                            <motion.img
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                src={product.images[currentImgIndex]}
+                                className="max-w-full max-h-full object-contain pointer-events-auto"
+                            />
+                            
+                            {/* Lightbox Nav */}
+                            {product.images.length > 1 && (
+                                <>
+                                    <button 
+                                        onClick={prevImage}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition-colors pointer-events-auto"
+                                    >
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                    <button 
+                                        onClick={nextImage}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition-colors pointer-events-auto"
+                                    >
+                                        <ChevronRight size={24} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="mt-6 text-sm font-bold text-zinc-500 uppercase tracking-widest">
+                            {currentImgIndex + 1} of {product.images.length}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

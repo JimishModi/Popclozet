@@ -117,7 +117,7 @@ const CollectionsPage = () => {
             >
               <ShoppingBag className="w-5 h-5 text-zinc-400" />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                   {totalItems > 9 ? '9+' : totalItems}
                 </span>
               )}
@@ -132,7 +132,7 @@ const CollectionsPage = () => {
             className={cn(
               "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
               activeGender === "womens"
-                ? "bg-[#ff4d6d] text-white"
+                ? "bg-[#f2546d] text-white"
                 : "bg-[#1C1C1E] text-zinc-500"
             )}
           >
@@ -143,7 +143,7 @@ const CollectionsPage = () => {
             className={cn(
               "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
               activeGender === "mens"
-                ? "bg-[#ff4d6d] text-white"
+                ? "bg-[#f2546d] text-white"
                 : "bg-[#1C1C1E] text-zinc-500"
             )}
           >

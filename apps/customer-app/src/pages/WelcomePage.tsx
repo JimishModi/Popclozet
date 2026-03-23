@@ -31,14 +31,14 @@ export default function WelcomePage() {
                             {/* Mini Header */}
                             <div className="px-3 py-2 flex items-center justify-between">
                                 <div className="flex items-center gap-1">
-                                    <span className="text-[8px] text-[#ff4d6d] font-bold">DELIVERY IN</span>
+                                    <span className="text-[8px] text-[#f2546d] font-bold">DELIVERY IN</span>
                                     <span className="text-[10px] text-white font-bold">15 Minutes</span>
                                 </div>
                             </div>
 
                             {/* Mini Gender Toggle */}
                             <div className="mx-3 h-6 bg-zinc-800 rounded-lg flex items-center p-0.5 mb-2">
-                                <div className="flex-1 h-full bg-[#ff4d6d] rounded-md flex items-center justify-center">
+                                <div className="flex-1 h-full bg-[#f2546d] rounded-md flex items-center justify-center">
                                     <span className="text-[8px] text-white font-bold">WOMEN</span>
                                 </div>
                                 <div className="flex-1 h-full flex items-center justify-center">
@@ -56,7 +56,7 @@ export default function WelcomePage() {
                             <div className="px-3">
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-[8px] text-white font-bold">Collections</span>
-                                    <span className="text-[6px] text-[#ff4d6d]">See all</span>
+                                    <span className="text-[6px] text-[#f2546d]">See all</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-1">
                                     <div className="h-12 bg-zinc-800 rounded-lg" />
@@ -65,13 +65,13 @@ export default function WelcomePage() {
                             </div>
 
                             {/* Mini Banner */}
-                            <div className="mx-3 mt-3 h-8 bg-[#ff4d6d]/20 border border-[#ff4d6d]/30 rounded-lg flex items-center px-2">
+                            <div className="mx-3 mt-3 h-8 bg-[#f2546d]/20 border border-[#f2546d]/30 rounded-lg flex items-center px-2">
                                 <span className="text-[7px] text-white">Schedule Return</span>
                             </div>
 
                             {/* Mini Nav */}
                             <div className="absolute bottom-0 left-0 right-0 h-10 bg-zinc-900/90 border-t border-zinc-800 flex items-center justify-around px-2">
-                                <div className="w-4 h-4 rounded-full bg-[#ff4d6d]" />
+                                <div className="w-4 h-4 rounded-full bg-[#f2546d]" />
                                 <div className="w-4 h-4 rounded-full bg-zinc-700" />
                                 <div className="w-4 h-4 rounded-full bg-zinc-700" />
                                 <div className="w-4 h-4 rounded-full bg-zinc-700" />
@@ -84,7 +84,7 @@ export default function WelcomePage() {
                 <div className="w-full space-y-3">
                     <button
                         onClick={() => navigate("/onboarding")}
-                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-lg shadow-lg shadow-[#ff4d6d]/30 hover:shadow-[#ff4d6d]/50 transition-all"
+                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-lg shadow-lg shadow-[#f2546d]/30 hover:shadow-[#f2546d]/50 transition-all"
                     >
                         Continue
                     </button>

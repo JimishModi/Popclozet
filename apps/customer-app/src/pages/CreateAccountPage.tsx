@@ -79,7 +79,7 @@ export default function CreateAccountPage() {
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#ff4d6d] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#f2546d] animate-spin" />
       </div>
     );
   }
@@ -126,7 +126,7 @@ export default function CreateAccountPage() {
               onClick={handleSignInInstead}
               className="w-full py-4 rounded-2xl bg-zinc-800 border border-zinc-700 text-white font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
             >
-              <LogIn className="w-5 h-5 text-[#ff4d6d]" />
+              <LogIn className="w-5 h-5 text-[#f2546d]" />
               Sign in with your phone instead
             </button>
           )}
@@ -134,7 +134,7 @@ export default function CreateAccountPage() {
           <button
             onClick={handleSubmit}
             disabled={isLoading || !fullName.trim() || !email.trim()}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#ff4d6d]/30 disabled:opacity-50 transition-all active:scale-[0.98]"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50 transition-all active:scale-[0.98]"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Get Started'}
           </button>
@@ -142,7 +142,7 @@ export default function CreateAccountPage() {
           {/* Always-visible fallback sign-in link */}
           <p className="text-center text-xs text-zinc-500 pb-6">
             Already have an account?{' '}
-            <button onClick={handleSignInInstead} className="text-[#ff4d6d] font-medium">
+            <button onClick={handleSignInInstead} className="text-[#f2546d] font-medium">
               Sign in
             </button>
           </p>

@@ -72,7 +72,7 @@ export default function PickupConfirmationPage() {
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-pink-500 to-[#ff4d6d] rounded-2xl p-4"
+                    className="bg-gradient-to-r from-pink-500 to-[#f2546d] rounded-2xl p-4"
                 >
                     <div className="flex items-start gap-3">
                         <CheckCircle2 className="w-6 h-6 text-white flex-shrink-0 mt-0.5" />
@@ -136,7 +136,7 @@ export default function PickupConfirmationPage() {
                                         className={`
                       w-16 h-16 rounded-lg flex items-center justify-center
                       ${item.selected
-                                                ? "bg-gradient-to-br from-pink-500 to-[#ff4d6d]"
+                                                ? "bg-gradient-to-br from-pink-500 to-[#f2546d]"
                                                 : "bg-zinc-700"
                                             }
                     `}
@@ -203,7 +203,7 @@ export default function PickupConfirmationPage() {
                     className={`
             w-full py-4 rounded-xl font-semibold text-lg transition-all
             ${selectedCount > 0
-                            ? "bg-gradient-to-r from-pink-500 to-[#ff4d6d] text-white hover:shadow-lg hover:shadow-pink-500/50"
+                            ? "bg-gradient-to-r from-pink-500 to-[#f2546d] text-white hover:shadow-lg hover:shadow-pink-500/50"
                             : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                         }
           `}

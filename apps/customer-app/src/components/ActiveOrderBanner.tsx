@@ -152,7 +152,7 @@ export function ActiveOrderBanner() {
                                 initial={{ width: "0%" }}
                                 animate={{ width: "60%" }}
                                 transition={{ duration: 1 }}
-                                className="h-full bg-gradient-to-r from-pink-500 to-[#ff4d6d]"
+                                className="h-full bg-gradient-to-r from-pink-500 to-[#f2546d]"
                             />
                         </div>
                     )}

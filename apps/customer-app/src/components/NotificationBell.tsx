@@ -56,7 +56,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-[#ff4d6d] rounded-full flex items-center justify-center"
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-[#f2546d] rounded-full flex items-center justify-center"
                     >
                         <span className="text-[10px] font-bold text-white">
                             {unreadCount > 9 ? '9+' : unreadCount}
@@ -82,7 +82,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={handleMarkAllRead}
-                                        className="text-xs text-[#ff4d6d] hover:text-[#ff3d5d] font-medium"
+                                        className="text-xs text-[#f2546d] hover:text-[#ff3d5d] font-medium"
                                     >
                                         Mark all read
                                     </button>
@@ -111,12 +111,12 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                                         <button
                                             key={notification.id}
                                             onClick={() => handleNotificationClick(notification.id)}
-                                            className={`w-full px-4 py-3 text-left hover:bg-white/5 transition-colors ${!notification.is_read ? 'bg-[#ff4d6d]/5' : ''
+                                            className={`w-full px-4 py-3 text-left hover:bg-white/5 transition-colors ${!notification.is_read ? 'bg-[#f2546d]/5' : ''
                                                 }`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 {/* Icon */}
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${!notification.is_read ? 'bg-[#ff4d6d]/20' : 'bg-zinc-800'
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${!notification.is_read ? 'bg-[#f2546d]/20' : 'bg-zinc-800'
                                                     }`}>
                                                     {getNotificationIcon(notification.type)}
                                                 </div>
@@ -137,7 +137,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
 
                                                 {/* Unread Indicator */}
                                                 {!notification.is_read && (
-                                                    <div className="w-2 h-2 rounded-full bg-[#ff4d6d] flex-shrink-0 mt-1.5" />
+                                                    <div className="w-2 h-2 rounded-full bg-[#f2546d] flex-shrink-0 mt-1.5" />
                                                 )}
                                             </div>
                                         </button>

@@ -312,12 +312,6 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                             : `₹${data.deliveryFee.toLocaleString("en-IN")}`}
                     </Text>
                 </View>
-                <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Security Deposit</Text>
-                    <Text style={styles.totalValue}>
-                        ₹{data.deposit.toLocaleString("en-IN")}
-                    </Text>
-                </View>
                 <View style={styles.grandTotalRow}>
                     <Text style={styles.grandTotalLabel}>Total</Text>
                     <Text style={styles.grandTotalValue}>

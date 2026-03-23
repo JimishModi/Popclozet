@@ -80,7 +80,7 @@ export default function EmailVerifyCallbackPage() {
       <div className="flex flex-col items-center justify-center min-h-[80vh] px-6 text-center">
         {status === 'loading' && (
           <>
-            <Loader2 className="w-12 h-12 text-[#ff4d6d] animate-spin mb-4" />
+            <Loader2 className="w-12 h-12 text-[#f2546d] animate-spin mb-4" />
             <h1 className="text-xl font-bold mb-2">Verifying...</h1>
             <p className="text-zinc-400">{message}</p>
           </>

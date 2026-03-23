@@ -96,8 +96,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             width: 40,
             height: 40,
             borderRadius: "50%",
-            border: "3px solid rgba(255,77,109,0.2)",
-            borderTopColor: "#ff4d6d",
+            border: "3px solid rgba(242,84,109,0.2)",
+            borderTopColor: "#f2546d",
             animation: "spin 0.7s linear infinite",
           }}
         />
@@ -108,9 +108,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             style={{
               padding: "10px 24px",
               borderRadius: 12,
-              background: "rgba(255,77,109,0.15)",
-              border: "1px solid rgba(255,77,109,0.4)",
-              color: "#ff4d6d",
+              background: "rgba(242,84,109,0.15)",
+              border: "1px solid rgba(242,84,109,0.4)",
+              color: "#f2546d",
               fontSize: 14,
               fontWeight: 600,
               cursor: "pointer",

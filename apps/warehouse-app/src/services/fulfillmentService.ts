@@ -16,7 +16,6 @@ export interface OrderWithItems {
     rental_start_date: string;
     rental_end_date: string;
     total_amount: number;
-    deposit_amount: number;
     status: string;
     delivery_eta: string | null;
     rider_id: string | null;

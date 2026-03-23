@@ -115,7 +115,7 @@ const NotificationsPage: React.FC = () => {
     const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
         <button
             onClick={() => onChange(!value)}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 ${value ? "bg-[#ff4d6d]" : "bg-zinc-700"}`}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 ${value ? "bg-[#f2546d]" : "bg-zinc-700"}`}
         >
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${value ? "translate-x-6" : "translate-x-1"}`} />
         </button>
@@ -169,7 +169,7 @@ const NotificationsPage: React.FC = () => {
                                             <div className="flex items-start justify-between gap-2">
                                                 <p className="text-white text-sm font-semibold">{notif.title}</p>
                                                 {!notif.is_read && (
-                                                    <div className="w-2 h-2 rounded-full bg-[#ff4d6d] shrink-0 mt-1.5" />
+                                                    <div className="w-2 h-2 rounded-full bg-[#f2546d] shrink-0 mt-1.5" />
                                                 )}
                                             </div>
                                             <p className="text-zinc-500 text-xs mt-0.5">{displayBody}</p>
@@ -209,7 +209,7 @@ const NotificationsPage: React.FC = () => {
                                     className={`flex items-center gap-3 px-4 py-4 ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}
                                 >
                                     <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                                        <Icon className="w-5 h-5 text-[#ff4d6d]" />
+                                        <Icon className="w-5 h-5 text-[#f2546d]" />
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-white text-sm font-medium">{item.label}</p>

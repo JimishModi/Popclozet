@@ -89,7 +89,7 @@ export default function OrdersPage() {
                     <button
                         onClick={() => setActiveTab("active")}
                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === "active"
-                            ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
+                            ? "bg-gradient-to-r from-[#f2546d] to-pink-600 text-white shadow-[0_10px_30px_rgba(242,84,109,0.3)]"
                             : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
                             }`}
                     >
@@ -98,7 +98,7 @@ export default function OrdersPage() {
                     <button
                         onClick={() => setActiveTab("past")}
                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === "past"
-                            ? "bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)]"
+                            ? "bg-gradient-to-r from-[#f2546d] to-pink-600 text-white shadow-[0_10px_30px_rgba(242,84,109,0.3)]"
                             : "bg-white/5 border border-white/5 text-zinc-500 hover:text-white hover:bg-white/10"
                             }`}
                     >
@@ -167,7 +167,7 @@ export default function OrdersPage() {
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: index * 0.05 }}
                                     onClick={() => handleOrderClick(order)}
-                                    className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 p-4 hover:border-[#ff4d6d]/30 transition-all cursor-pointer group"
+                                    className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 p-4 hover:border-[#f2546d]/30 transition-all cursor-pointer group"
                                 >
                                     {/* Header */}
                                     <div className="flex items-start justify-between mb-3">
@@ -186,7 +186,7 @@ export default function OrdersPage() {
                                                 {formatDate(order.createdAt)}
                                             </p>
                                         </div>
-                                        <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-[#ff4d6d] group-hover:translate-x-0.5 transition-all" />
+                                        <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-[#f2546d] group-hover:translate-x-0.5 transition-all" />
                                     </div>
 
                                     {/* Details */}
@@ -208,10 +208,10 @@ export default function OrdersPage() {
                                     {/* ETA for active delivery orders */}
                                     {order.etaMinutes !== undefined && order.etaMinutes > 0 && order.status === "out_for_delivery" && (
                                         <div className="flex items-center gap-2 py-2 border-t border-white/5">
-                                            <div className="p-1.5 rounded-lg bg-[#ff4d6d]/20">
-                                                <Clock className="w-4 h-4 text-[#ff4d6d]" />
+                                            <div className="p-1.5 rounded-lg bg-[#f2546d]/20">
+                                                <Clock className="w-4 h-4 text-[#f2546d]" />
                                             </div>
-                                            <span className="text-[#ff4d6d] text-sm font-bold">
+                                            <span className="text-[#f2546d] text-sm font-bold">
                                                 Arriving in {order.etaMinutes} min
                                             </span>
                                         </div>
@@ -230,7 +230,7 @@ export default function OrdersPage() {
                                     {/* Track Button for Active Orders */}
                                     {activeTab === "active" && (
                                         <div className="mt-3 pt-3 border-t border-white/5">
-                                            <button className="w-full py-2.5 rounded-xl bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 text-[#ff4d6d] text-sm font-bold hover:bg-[#ff4d6d]/20 transition-colors">
+                                            <button className="w-full py-2.5 rounded-xl bg-[#f2546d]/10 border border-[#f2546d]/20 text-[#f2546d] text-sm font-bold hover:bg-[#f2546d]/20 transition-colors">
                                                 Track Order
                                             </button>
                                         </div>

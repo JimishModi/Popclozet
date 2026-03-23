@@ -31,7 +31,7 @@ export default function OnboardingPage() {
                                 {[...GRID_ITEMS, ...GRID_ITEMS].map((item, idx) => (
                                     <div
                                         key={`col1-${idx}`}
-                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#ff4d6d]/20"
+                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#f2546d]/20"
                                     />
                                 ))}
                             </motion.div>
@@ -48,7 +48,7 @@ export default function OnboardingPage() {
                                 {[...GRID_ITEMS, ...GRID_ITEMS].map((item, idx) => (
                                     <div
                                         key={`col2-${idx}`}
-                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#ff4d6d]/20"
+                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#f2546d]/20"
                                     />
                                 ))}
                             </motion.div>
@@ -64,7 +64,7 @@ export default function OnboardingPage() {
                                 {[...GRID_ITEMS, ...GRID_ITEMS].map((item, idx) => (
                                     <div
                                         key={`col3-${idx}`}
-                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#ff4d6d]/20"
+                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#f2546d]/20"
                                     />
                                 ))}
                             </motion.div>
@@ -81,7 +81,7 @@ export default function OnboardingPage() {
                                 {[...GRID_ITEMS, ...GRID_ITEMS].map((item, idx) => (
                                     <div
                                         key={`col4-${idx}`}
-                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#ff4d6d]/20"
+                                        className="aspect-[3/4] rounded-xl bg-zinc-800 border border-[#f2546d]/20"
                                     />
                                 ))}
                             </motion.div>
@@ -100,7 +100,7 @@ export default function OnboardingPage() {
                             localStorage.setItem("onboarding_completed", "true");
                             navigate("/home");
                         }}
-                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-lg shadow-lg shadow-[#ff4d6d]/30 hover:shadow-[#ff4d6d]/50 transition-all mb-3"
+                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-lg shadow-lg shadow-[#f2546d]/30 hover:shadow-[#f2546d]/50 transition-all mb-3"
                     >
                         Continue
                     </button>

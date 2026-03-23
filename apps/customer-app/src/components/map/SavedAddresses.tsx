@@ -93,13 +93,13 @@ export function SavedAddresses({
         <div className={cn('', className)}>
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Star className="w-4 h-4 text-[#ff4d6d]" />
+                    <Star className="w-4 h-4 text-[#f2546d]" />
                     Saved Addresses
                 </h3>
                 {showAddButton && onAddNew && (
                     <button
                         onClick={onAddNew}
-                        className="flex items-center gap-1 text-xs text-[#ff4d6d] hover:underline"
+                        className="flex items-center gap-1 text-xs text-[#f2546d] hover:underline"
                     >
                         <Plus className="w-3 h-3" />
                         Add New
@@ -119,7 +119,7 @@ export function SavedAddresses({
                         {showAddButton && onAddNew && (
                             <button
                                 onClick={onAddNew}
-                                className="mt-2 text-xs text-[#ff4d6d] hover:underline"
+                                className="mt-2 text-xs text-[#f2546d] hover:underline"
                             >
                                 Add your first address
                             </button>
@@ -138,7 +138,7 @@ export function SavedAddresses({
                                 className={cn(
                                     'w-full p-3 rounded-xl border text-left transition-all flex items-start gap-3',
                                     selectedAddressId === `${address.lat}-${address.lng}`
-                                        ? 'bg-[#ff4d6d]/10 border-[#ff4d6d]'
+                                        ? 'bg-[#f2546d]/10 border-[#f2546d]'
                                         : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700'
                                 )}
                             >
@@ -146,7 +146,7 @@ export function SavedAddresses({
                                 <div className={cn(
                                     'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
                                     selectedAddressId === `${address.lat}-${address.lng}`
-                                        ? 'bg-[#ff4d6d]/20 text-[#ff4d6d]'
+                                        ? 'bg-[#f2546d]/20 text-[#f2546d]'
                                         : 'bg-zinc-800 text-zinc-400'
                                 )}>
                                     {getIcon(address.label)}
@@ -157,7 +157,7 @@ export function SavedAddresses({
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm font-medium text-white">{address.label || 'Saved Address'}</p>
                                         {selectedAddressId === `${address.lat}-${address.lng}` && (
-                                            <Check className="w-3 h-3 text-[#ff4d6d]" />
+                                            <Check className="w-3 h-3 text-[#f2546d]" />
                                         )}
                                     </div>
                                     <p className="text-xs text-zinc-400 line-clamp-2 mt-0.5">

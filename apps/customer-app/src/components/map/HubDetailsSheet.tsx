@@ -104,7 +104,7 @@ export function HubDetailsSheet({
                                 {/* Distance */}
                                 <div className="p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <MapPin className="w-4 h-4 text-[#ff4d6d]" />
+                                        <MapPin className="w-4 h-4 text-[#f2546d]" />
                                         <span className="text-xs text-zinc-400">Distance</span>
                                     </div>
                                     <p className="text-lg font-bold text-white">{hub.distance_km} km</p>
@@ -113,7 +113,7 @@ export function HubDetailsSheet({
                                 {/* ETA */}
                                 <div className="p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Truck className="w-4 h-4 text-[#ff4d6d]" />
+                                        <Truck className="w-4 h-4 text-[#f2546d]" />
                                         <span className="text-xs text-zinc-400">Delivery</span>
                                     </div>
                                     <p className="text-lg font-bold text-white">{hub.estimated_minutes} mins</p>
@@ -122,7 +122,7 @@ export function HubDetailsSheet({
                                 {/* Hours */}
                                 <div className="p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 col-span-2">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Clock className="w-4 h-4 text-[#ff4d6d]" />
+                                        <Clock className="w-4 h-4 text-[#f2546d]" />
                                         <span className="text-xs text-zinc-400">Today's Hours</span>
                                     </div>
                                     <p className="text-lg font-bold text-white">{getCurrentHours()}</p>
@@ -144,7 +144,7 @@ export function HubDetailsSheet({
                                             ? 'bg-green-500 text-white'
                                             : !hub.is_open || hub.availability_status === 'offline'
                                                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                                                : 'bg-[#ff4d6d] text-white hover:bg-[#ff3d5d]'
+                                                : 'bg-[#f2546d] text-white hover:bg-[#ff3d5d]'
                                         }`}
                                 >
                                     {isSelected ? (

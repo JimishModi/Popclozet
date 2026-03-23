@@ -45,7 +45,7 @@ export default function WelcomeGridPage() {
                 {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                   <div
                     key={`c1-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                    className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
                     style={{ height: i % 3 === 0 ? '160px' : i % 3 === 1 ? '200px' : '140px' }}
                   />
                 ))}
@@ -63,7 +63,7 @@ export default function WelcomeGridPage() {
                 {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                   <div
                     key={`c2-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                    className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
                     style={{ height: i % 3 === 0 ? '200px' : i % 3 === 1 ? '140px' : '180px' }}
                   />
                 ))}
@@ -80,7 +80,7 @@ export default function WelcomeGridPage() {
                 {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                   <div
                     key={`c3-${i}`}
-                    className="rounded-xl border border-[#ff4d6d]/50 bg-[#2a2a2a]"
+                    className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
                     style={{ height: i % 3 === 0 ? '140px' : i % 3 === 1 ? '180px' : '200px' }}
                   />
                 ))}

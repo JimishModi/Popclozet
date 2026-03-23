@@ -126,7 +126,7 @@ const SignUpPage: React.FC = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
                         onClick={() => navigate('/signin')}
-                        className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold shadow-[0_10px_30px_rgba(255,77,109,0.4)] hover:shadow-[0_15px_40px_rgba(255,77,109,0.5)] transition-all active:scale-[0.98]"
+                        className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold shadow-[0_10px_30px_rgba(242,84,109,0.4)] hover:shadow-[0_15px_40px_rgba(242,84,109,0.5)] transition-all active:scale-[0.98]"
                     >
                         Go to Sign In
                     </motion.button>
@@ -155,7 +155,7 @@ const SignUpPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-8"
                 >
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[2px] mx-auto mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[2px] mx-auto mb-4">
                         <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
                             <Sparkles className="w-6 h-6 text-white" />
                         </div>
@@ -196,7 +196,7 @@ const SignUpPage: React.FC = () => {
                                 value={formData.fullName}
                                 onChange={handleChange('fullName')}
                                 placeholder="John Doe"
-                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                         </div>
@@ -212,7 +212,7 @@ const SignUpPage: React.FC = () => {
                                 value={formData.email}
                                 onChange={handleChange('email')}
                                 placeholder="your@email.com"
-                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                         </div>
@@ -228,7 +228,7 @@ const SignUpPage: React.FC = () => {
                                 value={formData.phone}
                                 onChange={handleChange('phone')}
                                 placeholder="+91 98765 43210"
-                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                             />
                         </div>
                     </div>
@@ -243,7 +243,7 @@ const SignUpPage: React.FC = () => {
                                 value={formData.password}
                                 onChange={handleChange('password')}
                                 placeholder="••••••••"
-                                className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                             <button
@@ -271,7 +271,7 @@ const SignUpPage: React.FC = () => {
                                 value={formData.confirmPassword}
                                 onChange={handleChange('confirmPassword')}
                                 placeholder="••••••••"
-                                className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                             <button
@@ -297,15 +297,15 @@ const SignUpPage: React.FC = () => {
                     {/* Terms */}
                     <p className="text-xs text-zinc-600 text-center py-2">
                         By signing up, you agree to our{' '}
-                        <span className="text-[#ff4d6d]">Terms of Service</span> and{' '}
-                        <span className="text-[#ff4d6d]">Privacy Policy</span>
+                        <span className="text-[#f2546d]">Terms of Service</span> and{' '}
+                        <span className="text-[#f2546d]">Privacy Policy</span>
                     </p>
 
                     {/* Sign Up Button */}
                     <button
                         type="submit"
                         disabled={!isFormValid || isLoading}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-lg shadow-[0_10px_30px_rgba(255,77,109,0.4)] hover:shadow-[0_15px_40px_rgba(255,77,109,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-lg shadow-[0_10px_30px_rgba(242,84,109,0.4)] hover:shadow-[0_15px_40px_rgba(242,84,109,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         {isLoading ? (
                             <>
@@ -328,7 +328,7 @@ const SignUpPage: React.FC = () => {
                 >
                     <p className="text-sm text-zinc-500">
                         Already have an account?{' '}
-                        <Link to="/signin" className="text-[#ff4d6d] font-medium hover:underline">
+                        <Link to="/signin" className="text-[#f2546d] font-medium hover:underline">
                             Sign In
                         </Link>
                     </p>

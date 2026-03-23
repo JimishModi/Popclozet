@@ -161,6 +161,7 @@ const CartPage = () => {
       setSelectedHub(hub);
     }
 
+    /*
     const checkSub = async () => {
       const benefits = await getSubscriptionBenefits();
       if (benefits) {
@@ -172,6 +173,9 @@ const CartPage = () => {
       }
     };
     checkSub();
+    */
+    setHasActiveSubscription(false);
+    setSubBenefits(null);
   }, []);
 
   // Check subscription limits
@@ -189,6 +193,7 @@ const CartPage = () => {
   }) : undefined;
   const hasExpensiveItem = !!expensiveItem;
 
+  /*
   const subscriptionError = (() => {
     if (invalidCatalogItem) {
       return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
@@ -203,15 +208,19 @@ const CartPage = () => {
     if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
     return null;
   })();
+  */
+  const subscriptionError = invalidCatalogItem ? "One or more items in your bag are not linked to a live catalog product. Remove them before checkout." : null;
 
   const canCheckout = validCartEntries.length > 0 && !subscriptionError;
 
   // Calculate subtotal
   const subtotal = useMemo(() => {
+    /*
     // If they have a valid active subscription and aren't exceeding limits, their rentals are covered by the plan
     if (hasActiveSubscription && !subscriptionError) {
         return 0;
     }
+    */
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
@@ -408,12 +417,7 @@ const CartPage = () => {
                           </button>
                         </div>
 
-                        {/* Date badge */}
-                        <div className="mt-3 inline-flex px-2 py-1 bg-[#2a2a2a] rounded">
-                          <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                            Dates: 1 Feb - 2 Feb
-                          </span>
-                        </div>
+                        {/* Date badge Removed */}
 
                         {/* Bottom row: Size + Qty + Prices */}
                         <div className="flex items-center mt-3 gap-3">
@@ -576,25 +580,7 @@ const CartPage = () => {
       {validCartEntries.length > 0 && !loadingProducts && (
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
 
-          {/* Subscribe Banner */}
-          {!hasActiveSubscription && (
-            <button
-              onClick={() => navigate('/subscription-plans')}
-              className="w-full text-left"
-            >
-              <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-2xl relative group overflow-hidden">
-                <div className="flex-1 min-w-0 relative z-10">
-                  <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Subscribe to the Future
-                  </p>
-                  <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Pick any 4 items you like each month for just 1799
-                  </p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-white flex-shrink-0 relative z-10" />
-              </div>
-            </button>
-          )}
+          {/* Removed Subscription Banner Block */}
 
           {/* Progress Steps */}
           <div className="flex items-center gap-[11px]">
@@ -603,33 +589,7 @@ const CartPage = () => {
             <div className="flex-1 h-1 bg-[#484848] rounded-sm" />
           </div>
 
-          {subBenefits && (
-            <div className="rounded-2xl border border-white/5 bg-[#171717] px-4 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    {subBenefits.planName} plan active
-                  </p>
-                  <p className="mt-1 text-[11px] text-zinc-500 uppercase tracking-widest font-bold">
-                    Monthly quota and concurrent hold limit
-                  </p>
-                </div>
-                <span className="text-[11px] font-black uppercase tracking-widest text-[#f2546d]">
-                  ₹{subBenefits.maxItemValue} cap
-                </span>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-[#232323] px-3 py-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Monthly left</p>
-                  <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
-                </div>
-                <div className="rounded-xl bg-[#232323] px-3 py-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Concurrent left</p>
-                  <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Removed Plan Active Block */}
 
           {/* Checkout Button */}
           <button

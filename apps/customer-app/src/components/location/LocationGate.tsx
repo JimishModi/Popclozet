@@ -115,7 +115,7 @@ export function LocationGate() {
 
           <button
             onClick={requestLocation}
-            className="w-full py-3 rounded-full bg-[#ff4d6d] font-semibold"
+            className="w-full py-3 rounded-full bg-[#f2546d] font-semibold"
           >
             Allow location
           </button>

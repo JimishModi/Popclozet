@@ -15,7 +15,6 @@ interface RentalItem {
     title: string;
     dateRange: string;
     currentPrice: number;
-    originalPrice: number;
     daysLeft?: number;
     returnToday?: boolean;
     image?: string;
@@ -117,7 +116,6 @@ const ClosetPage: React.FC = () => {
                     title: firstItem?.name || 'Rental Outfit',
                     dateRange,
                     currentPrice: order.total_amount,
-                    originalPrice: order.deposit_amount || 4000, 
                     daysLeft: timeInfo.days,
                     hoursLeft: (timeInfo as any).hours,
                     minutesLeft: (timeInfo as any).minutes,
@@ -283,12 +281,6 @@ const ClosetPage: React.FC = () => {
                                                         style={dmSans}
                                                     >
                                                         ₹ {item.currentPrice}
-                                                    </span>
-                                                    <span
-                                                        className="text-lg font-semibold text-[#5f606a] tracking-[-0.54px] leading-[21.6px] line-through"
-                                                        style={dmSans}
-                                                    >
-                                                        ₹ {item.originalPrice}
                                                     </span>
                                                 </div>
                                             </>

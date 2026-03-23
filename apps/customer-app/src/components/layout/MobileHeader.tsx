@@ -37,7 +37,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                         />
                     </Link>
                     <div className="flex items-center gap-1 text-xs text-zinc-500 mt-1">
-                        <MapPin className="w-3 h-3 text-[#ff4d6d]" />
+                        <MapPin className="w-3 h-3 text-[#f2546d]" />
                         <span className="font-medium">Powai, Mumbai</span>
                     </div>
                 </div>
@@ -66,7 +66,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                     >
                         <ShoppingBag className="w-5 h-5 text-zinc-400" />
                         {cartCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold text-white bg-[#ff4d6d] rounded-full shadow-lg shadow-[#ff4d6d]/30">
+                            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold text-white bg-[#f2546d] rounded-full shadow-lg shadow-[#f2546d]/30">
                                 {cartCount > 9 ? '9+' : cartCount}
                             </span>
                         )}

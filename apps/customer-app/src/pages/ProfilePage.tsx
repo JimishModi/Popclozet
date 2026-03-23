@@ -16,7 +16,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
 
-import { getSubscriptionProfile } from "@/services/subscriptionService";
+// import { getSubscriptionProfile } from "@/services/subscriptionService";
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -81,6 +81,7 @@ const ProfilePage: React.FC = () => {
     ["delivered", "out_for_delivery", "preparing", "confirmed", "pending"].includes(o.status)
   ).length;
 
+  /*
   const [subProfile, setSubProfile] = useState<any>(null);
   
   useEffect(() => {
@@ -92,6 +93,7 @@ const ProfilePage: React.FC = () => {
     }
     initSub();
   }, [user]);
+  */
 
   const quickStats = [
     { label: "Orders", value: ordersLoading ? "…" : String(orders.length), icon: ShoppingBag, href: "/orders" },
@@ -298,7 +300,7 @@ const ProfilePage: React.FC = () => {
           <>
             {/* Hero Profile Section */}
             <div className="relative px-4 pt-8 pb-6 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-[#ff4d6d]/15 via-purple-500/10 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#f2546d]/15 via-purple-500/10 to-transparent pointer-events-none" />
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -307,7 +309,7 @@ const ProfilePage: React.FC = () => {
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px]">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[3px]">
                       <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
                         <User className="w-10 h-10 text-white/80" />
                       </div>
@@ -333,7 +335,7 @@ const ProfilePage: React.FC = () => {
                         Edit Profile
                       </button>
                     ) : (
-                      <button onClick={() => navigate("/auth/login")} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white text-sm font-bold shadow-[0_10px_30px_rgba(255,77,109,0.4)] transition-all active:scale-95">
+                      <button onClick={() => navigate("/auth/login")} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white text-sm font-bold shadow-[0_10px_30px_rgba(242,84,109,0.4)] transition-all active:scale-95">
                         Sign In
                       </button>
                     )}
@@ -391,10 +393,10 @@ const ProfilePage: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 + idx * 0.05 }}
                       onClick={() => navigate(stat.href)}
-                      className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/5 text-center group hover:border-[#ff4d6d]/30 transition-all cursor-pointer"
+                      className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/5 text-center group hover:border-[#f2546d]/30 transition-all cursor-pointer"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-[#ff4d6d]/20 flex items-center justify-center mx-auto mb-2 transition-colors">
-                        <Icon className="w-5 h-5 text-[#ff4d6d]" />
+                      <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-[#f2546d]/20 flex items-center justify-center mx-auto mb-2 transition-colors">
+                        <Icon className="w-5 h-5 text-[#f2546d]" />
                       </div>
                       <div className="text-2xl font-bold text-white">{stat.value}</div>
                       <div className="text-[10px] text-zinc-600 uppercase tracking-wider font-bold">{stat.label}</div>
@@ -404,7 +406,7 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Subscription Card */}
+            {/* Subscription Card - Commented out
             <div className="px-4 mb-6">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -452,6 +454,7 @@ const ProfilePage: React.FC = () => {
                 </div>
               </motion.div>
             </div>
+            */}
 
             {/* Menu Sections */}
             <div className="px-4 space-y-6">
@@ -475,12 +478,12 @@ const ProfilePage: React.FC = () => {
                             index < section.items.length - 1 && "border-b border-white/5"
                           )}
                         >
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-[#ff4d6d]/20 transition-colors">
-                            <Icon className="w-5 h-5 text-zinc-500 group-hover:text-[#ff4d6d] transition-colors" />
+                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-[#f2546d]/20 transition-colors">
+                            <Icon className="w-5 h-5 text-zinc-500 group-hover:text-[#f2546d] transition-colors" />
                           </div>
                           <span className="flex-1 text-white font-medium">{item.label}</span>
                           {item.badge && (
-                            <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">{item.badge}</span>
+                            <span className="px-2.5 py-1 rounded-full bg-[#f2546d]/20 text-[#f2546d] text-xs font-bold">{item.badge}</span>
                           )}
                           <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
                         </button>
@@ -543,7 +546,7 @@ const ProfilePage: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Full Name</label>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#f2546d]/50 transition-colors">
                     <User className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                     <input type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your full name" className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-zinc-600" />
                   </div>
@@ -551,7 +554,7 @@ const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Phone Number</label>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#f2546d]/50 transition-colors">
                     <Phone className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                     <span className="text-zinc-500 text-sm font-medium">+91</span>
                     <input
@@ -570,7 +573,7 @@ const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1.5 block">Email</label>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#ff4d6d]/50 transition-colors">
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus-within:border-[#f2546d]/50 transition-colors">
                     <Mail className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                     <input
                       type="email"
@@ -596,7 +599,7 @@ const ProfilePage: React.FC = () => {
                       }));
                       navigate('/map-location?returnTo=/profile');
                     }}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#ff4d6d]/30 transition-all text-left group"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#f2546d]/30 transition-all text-left group"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
                       <Package className="w-4 h-4 text-zinc-500 flex-shrink-0" />
@@ -616,7 +619,7 @@ const ProfilePage: React.FC = () => {
                 <button
                   onClick={handleSaveProfile}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(255,77,109,0.3)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Check className="w-4 h-4" /> Save Changes</>}
                 </button>

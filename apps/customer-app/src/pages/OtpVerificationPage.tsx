@@ -62,7 +62,7 @@ export default function OtpVerificationPage() {
 
       // Step 2: Edge function
       const res = await fetch(
-        'https://hfcdvcpgpkdgmcakgiuy.supabase.co/functions/v1/verify-otp-token',
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-token`,
         {
           method: 'POST',
           headers: {
@@ -78,7 +78,10 @@ export default function OtpVerificationPage() {
         throw new Error(result.details ? `${result.error}: ${result.details}` : (result.error || 'Server verification failed.'));
       }
 
-      // Step 3: Set session
+      // Step 3: Set session — guard against missing/incomplete session data
+      if (!result.session?.access_token || !result.session?.refresh_token) {
+        throw new Error('Verification succeeded but no session was returned. Please try again.');
+      }
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: result.session.access_token,
         refresh_token: result.session.refresh_token,
@@ -149,12 +152,12 @@ export default function OtpVerificationPage() {
           <div className="flex justify-center">
             <InputOTP maxLength={6} value={otp} onChange={setOtp}>
               <InputOTPGroup className="gap-2">
-                <InputOTPSlot index={0} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
-                <InputOTPSlot index={1} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
-                <InputOTPSlot index={2} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
-                <InputOTPSlot index={3} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
-                <InputOTPSlot index={4} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
-                <InputOTPSlot index={5} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#ff4d6d]" />
+                <InputOTPSlot index={0} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
+                <InputOTPSlot index={1} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
+                <InputOTPSlot index={2} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
+                <InputOTPSlot index={3} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
+                <InputOTPSlot index={4} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
+                <InputOTPSlot index={5} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
               </InputOTPGroup>
             </InputOTP>
           </div>
@@ -165,7 +168,7 @@ export default function OtpVerificationPage() {
             <Button
               onClick={handleVerify}
               disabled={isLoading || otp.length !== 6}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#ff4d6d]/30"
+              className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Continue'}
             </Button>

@@ -67,7 +67,7 @@ export function NearbyHubs({
                     className={cn(
                         'w-full text-left p-4 rounded-2xl border transition-all',
                         selectedHubId === hub.id
-                            ? 'bg-[#ff4d6d]/10 border-[#ff4d6d]/50'
+                            ? 'bg-[#f2546d]/10 border-[#f2546d]/50'
                             : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600'
                     )}
                 >
@@ -77,7 +77,7 @@ export function NearbyHubs({
                             <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-semibold text-white truncate">{hub.name}</h4>
                                 {selectedHubId === hub.id && (
-                                    <span className="px-2 py-0.5 rounded-full bg-[#ff4d6d] text-white text-[10px] font-bold">
+                                    <span className="px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[10px] font-bold">
                                         SELECTED
                                     </span>
                                 )}

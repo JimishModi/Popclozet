@@ -27,7 +27,7 @@ export function PopClozetFloatingNav() {
                 <div className="relative">
                     <IconShoppingBag className="h-4 w-4 text-neutral-500 dark:text-white" />
                     {totalItems > 0 && (
-                        <span className="absolute -top-2 -right-2 min-w-[12px] h-3 flex items-center justify-center text-[7px] font-bold text-white bg-[#ff4d6d] rounded-full px-0.5 shadow-lg shadow-[#ff4d6d]/30">
+                        <span className="absolute -top-2 -right-2 min-w-[12px] h-3 flex items-center justify-center text-[7px] font-bold text-white bg-[#f2546d] rounded-full px-0.5 shadow-lg shadow-[#f2546d]/30">
                             {totalItems > 9 ? '9+' : totalItems}
                         </span>
                     )}

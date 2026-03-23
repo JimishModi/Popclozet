@@ -131,8 +131,8 @@ export default function DeliveryTrackingPage() {
                                     </span>
                                 </div>
                             )}
-                            <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
-                                <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
+                            <div className="bg-[#f2546d]/10 border border-[#f2546d]/20 px-3 py-1 rounded-full">
+                                <span className="text-[#f2546d] text-[10px] font-black uppercase tracking-widest">
                                     Arriving in 45-60 mins
                                 </span>
                             </div>
@@ -167,7 +167,7 @@ export default function DeliveryTrackingPage() {
                                 </div>
                                 <div className="flex justify-between text-lg font-black text-white pt-1">
                                     <span className="tracking-tighter">TOTAL</span>
-                                    <span className="text-[#ff4d6d]">₹{order?.total_amount || 0}</span>
+                                    <span className="text-[#f2546d]">₹{order?.total_amount || 0}</span>
                                 </div>
                             </div>
                         </div>
@@ -195,8 +195,8 @@ export default function DeliveryTrackingPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-[#ff4d6d]/10 flex items-center justify-center border border-[#ff4d6d]/20">
-                                <Truck className="w-7 h-7 text-[#ff4d6d]" />
+                            <div className="w-14 h-14 rounded-2xl bg-[#f2546d]/10 flex items-center justify-center border border-[#f2546d]/20">
+                                <Truck className="w-7 h-7 text-[#f2546d]" />
                             </div>
                             <div className="flex-1">
                                 <p className="text-[15px] font-black text-white uppercase tracking-tight">{tracking?.driver_name || riderProfile?.name || 'Rider Assigned'}</p>
@@ -253,7 +253,7 @@ export default function DeliveryTrackingPage() {
                 <div className="mt-4">
                     <a 
                         href={`mailto:popclozet@gmail.com?subject=Issue with Order #${orderId}`}
-                        className="w-full flex items-center justify-center py-3 rounded-xl bg-zinc-900 border border-[#ff4d6d]/30 text-sm text-[#ff4d6d] hover:bg-[#ff4d6d]/10 transition-colors"
+                        className="w-full flex items-center justify-center py-3 rounded-xl bg-zinc-900 border border-[#f2546d]/30 text-sm text-[#f2546d] hover:bg-[#f2546d]/10 transition-colors"
                     >
                         Report an Issue
                     </a>

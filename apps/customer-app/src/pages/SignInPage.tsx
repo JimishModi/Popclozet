@@ -81,7 +81,7 @@ const SignInPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-10"
                 >
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px] mx-auto mb-6">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[3px] mx-auto mb-6">
                         <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
                             <Sparkles className="w-8 h-8 text-white" />
                         </div>
@@ -110,7 +110,7 @@ const SignInPage: React.FC = () => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="your@email.com"
-                                className="w-full h-14 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-14 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                         </div>
@@ -139,7 +139,7 @@ const SignInPage: React.FC = () => {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full h-14 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff4d6d]/50 focus:ring-2 focus:ring-[#ff4d6d]/20 transition-all"
+                                className="w-full h-14 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                             <button
@@ -154,7 +154,7 @@ const SignInPage: React.FC = () => {
 
                     {/* Forgot Password Link */}
                     <div className="text-right">
-                        <button type="button" className="text-sm text-[#ff4d6d] hover:underline">
+                        <button type="button" className="text-sm text-[#f2546d] hover:underline">
                             Forgot password?
                         </button>
                     </div>
@@ -170,7 +170,7 @@ const SignInPage: React.FC = () => {
                     <button
                         type="submit"
                         disabled={!isValidEmail || password.length < 6 || isLoading || isLocked}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-lg shadow-[0_10px_30px_rgba(255,77,109,0.4)] hover:shadow-[0_15px_40px_rgba(255,77,109,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-lg shadow-[0_10px_30px_rgba(242,84,109,0.4)] hover:shadow-[0_15px_40px_rgba(242,84,109,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         {isLoading ? (
                             <>
@@ -192,7 +192,7 @@ const SignInPage: React.FC = () => {
                 >
                     <p className="text-sm text-zinc-500">
                         Don't have an account?{' '}
-                        <Link to="/signup" className="text-[#ff4d6d] font-medium hover:underline">
+                        <Link to="/signup" className="text-[#f2546d] font-medium hover:underline">
                             Sign Up
                         </Link>
                     </p>

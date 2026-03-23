@@ -99,7 +99,7 @@ export function FilterModal({
                                 className={cn(
                                     "flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300",
                                     activeTab === tab
-                                        ? "bg-[#ff4d6d] text-white shadow-lg shadow-[#ff4d6d]/25 scale-100"
+                                        ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/25 scale-100"
                                         : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
                                 )}
                             >
@@ -111,7 +111,7 @@ export function FilterModal({
                     {/* Inline controls so users never have to scroll */}
                     <div className="flex justify-end gap-2 mb-6">
                         <button
-                            className="px-3 py-1 text-sm font-semibold rounded-lg bg-[#ff4d6d] text-white hover:bg-[#ff3355]"
+                            className="px-3 py-1 text-sm font-semibold rounded-lg bg-[#f2546d] text-white hover:bg-[#ff3355]"
                             onClick={() => {
                                 onApply?.({ sizes: selectedSizes, brands: selectedBrands, priceRange });
                             }}
@@ -146,7 +146,7 @@ export function FilterModal({
                                         className={cn(
                                             "relative group flex items-center justify-center gap-2 px-3 py-3.5 rounded-xl border transition-all duration-200",
                                             isSelected
-                                                ? "bg-white/10 border-[#ff4d6d]/50 shadow-[0_0_15px_rgba(255,77,109,0.15)]"
+                                                ? "bg-white/10 border-[#f2546d]/50 shadow-[0_0_15px_rgba(242,84,109,0.15)]"
                                                 : "bg-[#1a1a1a]/50 border-white/5 hover:border-white/10 hover:bg-white/5"
                                         )}
                                     >
@@ -160,7 +160,7 @@ export function FilterModal({
                                         {isSelected && (
                                             <motion.div
                                                 layoutId="active-check"
-                                                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#ff4d6d]"
+                                                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#f2546d]"
                                             />
                                         )}
                                     </button>
@@ -219,7 +219,7 @@ export function FilterModal({
                     </button>
                     <DialogClose asChild>
                         <button
-                            className="flex-[2] py-3.5 rounded-xl bg-[#ff4d6d] hover:bg-[#ff3355] text-white text-sm font-bold shadow-lg shadow-[#ff4d6d]/25 transition-all active:scale-95"
+                            className="flex-[2] py-3.5 rounded-xl bg-[#f2546d] hover:bg-[#ff3355] text-white text-sm font-bold shadow-lg shadow-[#f2546d]/25 transition-all active:scale-95"
                             onClick={() => {
                                 onApply?.({
                                     sizes: selectedSizes,

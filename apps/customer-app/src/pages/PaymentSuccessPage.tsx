@@ -40,10 +40,13 @@ export default function PaymentSuccessPage() {
                     // Navigate to order confirmed page
                     navigate(`/order-confirmed/${orderId}`, { replace: true });
                     return;
-                } else if (type === "plan") {
+                }
+                /*
+                else if (type === "plan") {
                     await activateSubscription(planId);
                     toast.success(`Welcome to the ${plan.name} Plan!`);
                 }
+                */
                 setActivating(false);
             } catch (error: any) {
                 console.error("Finalization failed:", error);
@@ -83,12 +86,14 @@ export default function PaymentSuccessPage() {
                             >
                                 Go Back
                             </button>
+                            {/* 
                             <button
                                 onClick={() => navigate('/subscription-plans')}
                                 className="h-14 px-8 rounded-full bg-white text-black font-bold active:scale-95 transition-all shadow-xl shadow-white/10"
                             >
                                 Try Again
                             </button>
+                            */}
                         </div>
                     </div>
                 ) : (
@@ -131,62 +136,43 @@ export default function PaymentSuccessPage() {
                         </div>
 
                         {/* Card Summary */}
-                        {plan && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.6 }}
-                                className="bg-[#1A1A1A] border border-white/10 rounded-[40px] p-8 mb-12 relative overflow-hidden"
-                            >
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="w-14 h-14 rounded-2xl bg-[#831a28] flex items-center justify-center">
-                                        {type === 'order' ? <ShoppingBag className="w-8 h-8 text-white" /> : <PlanIcon className="w-8 h-8 text-white" />}
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-black uppercase tracking-widest text-[#f2546d]">
-                                            {type === 'order' ? 'Order Summary' : 'Member Status'}
-                                        </p>
-                                        <p className="text-xl font-bold tracking-tight text-white">
-                                            {type === 'order' ? `Amount Paid: ₹ ${amount}` : `${plan.name} Plan`}
-                                        </p>
-                                    </div>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.6 }}
+                            className="bg-[#1A1A1A] border border-white/10 rounded-[40px] p-8 mb-12 relative overflow-hidden"
+                        >
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-[#831a28] flex items-center justify-center">
+                                    <ShoppingBag className="w-8 h-8 text-white" />
                                 </div>
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-widest text-[#f2546d]">
+                                        Order Summary
+                                    </p>
+                                    <p className="text-xl font-bold tracking-tight text-white">
+                                        Amount Paid: ₹ {amount}
+                                    </p>
+                                </div>
+                            </div>
 
-                                {type === 'order' ? (
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Delivery Status</span>
-                                            <span className="text-emerald-500 font-black uppercase">PREPARING</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Estimated Arrival</span>
-                                            <span className="text-white font-black uppercase">45-60 MINS</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Items Rented</span>
-                                            <span className="text-white font-black uppercase">SECURED</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Monthly Items</span>
-                                            <span className="text-white font-black">{plan.monthly_items} Apparel</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Delivery Fee</span>
-                                            <span className="text-emerald-500 font-black">{plan.free_delivery ? 'ALWAYS FREE' : '₹ 40 FIXED'}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500 font-bold">Insurance Coverage</span>
-                                            <span className="text-white font-black">UP TO ₹ {plan.max_item_value}</span>
-                                        </div>
-                                    </div>
-                                )}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-zinc-500 font-bold">Delivery Status</span>
+                                    <span className="text-emerald-500 font-black uppercase">PREPARING</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-zinc-500 font-bold">Estimated Arrival</span>
+                                    <span className="text-white font-black uppercase">45-60 MINS</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-zinc-500 font-bold">Items Rented</span>
+                                    <span className="text-white font-black uppercase">SECURED</span>
+                                </div>
+                            </div>
 
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-[#f2546d]/5 blur-[40px] -mr-16 -mt-16" />
-                            </motion.div>
-                        )}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#f2546d]/5 blur-[40px] -mr-16 -mt-16" />
+                        </motion.div>
 
                         {/* Final Call to Action */}
                         <motion.div
@@ -196,7 +182,7 @@ export default function PaymentSuccessPage() {
                             className="mt-auto"
                         >
                             <button
-                                onClick={() => navigate(type === 'order' ? `/tracking/${orderId}` : "/subscription-profile")}
+                                onClick={() => navigate(type === 'order' ? `/tracking/${orderId}` : "/home")}
                                 className="w-full h-16 rounded-[24px] bg-white text-black font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-white/10"
                                 style={{ fontFamily: "'DM Sans', sans-serif" }}
                             >

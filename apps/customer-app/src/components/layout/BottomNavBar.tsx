@@ -102,7 +102,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                             className={cn(
                                 "relative flex flex-col items-center gap-1 px-4 py-1.5 transition-all duration-200",
                                 active
-                                    ? "text-[#ff4d6d]"
+                                    ? "text-[#f2546d]"
                                     : "text-zinc-500 hover:text-zinc-300"
                             )}
                         >
@@ -113,20 +113,20 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                 />
                                 {/* Cart badge */}
                                 {item.path === '/cart' && cartCount > 0 && (
-                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                                         {cartCount > 9 ? '9+' : cartCount}
                                     </span>
                                 )}
                                 {/* Closet/Wishlist badge */}
                                 {item.path === '/closet' && wishlistCount > 0 && (
-                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                                         {wishlistCount > 9 ? '9+' : wishlistCount}
                                     </span>
                                 )}
                             </div>
                             <span className={cn(
                                 "text-[10px] font-semibold tracking-wide",
-                                active ? "text-[#ff4d6d]" : "text-zinc-600"
+                                active ? "text-[#f2546d]" : "text-zinc-600"
                             )}>
                                 {item.label}
                             </span>

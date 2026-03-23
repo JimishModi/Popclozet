@@ -49,7 +49,7 @@ export function CitySelectorModal({ open, onClose }: Props) {
         <div className="space-y-3">
           <button
             onClick={() => selectCity("Mumbai")}
-            className="w-full py-3 rounded-full bg-[#ff4d6d] font-semibold"
+            className="w-full py-3 rounded-full bg-[#f2546d] font-semibold"
           >
             Mumbai
           </button>

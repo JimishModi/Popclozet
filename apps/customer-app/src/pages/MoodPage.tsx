@@ -125,7 +125,7 @@ const MoodPage: React.FC = () => {
                                                 className={cn(
                                                     "w-5 h-5",
                                                     isInWishlist(product.id)
-                                                        ? "fill-[#ff4d6d] text-[#ff4d6d]"
+                                                        ? "fill-[#f2546d] text-[#f2546d]"
                                                         : "text-white/70"
                                                 )}
                                             />
@@ -144,7 +144,7 @@ const MoodPage: React.FC = () => {
                                             <span className="font-bold text-white">₹ {Math.round(product.price * 0.15)}</span>
                                             <button
                                                 onClick={(e) => handleRent(product.id, e)}
-                                                className="px-4 py-1.5 rounded-full bg-[#ff4d6d] text-white text-xs font-semibold hover:bg-[#ff3d5d] transition-colors"
+                                                className="px-4 py-1.5 rounded-full bg-[#f2546d] text-white text-xs font-semibold hover:bg-[#ff3d5d] transition-colors"
                                             >
                                                 Rent
                                             </button>

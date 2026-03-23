@@ -129,7 +129,7 @@ export function AddressSearchInput({
                 {/* Search icon */}
                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     {isLoading ? (
-                        <div className="w-5 h-5 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
                     ) : (
                         <Search className="w-5 h-5 text-zinc-400" />
                     )}
@@ -149,7 +149,7 @@ export function AddressSearchInput({
                         'w-full bg-zinc-900 border border-zinc-800 text-white text-sm rounded-2xl',
                         'py-3.5 pl-11 pr-24',
                         'placeholder:text-zinc-500',
-                        'focus:outline-none focus:ring-2 focus:ring-[#ff4d6d]/50 focus:border-[#ff4d6d]/50',
+                        'focus:outline-none focus:ring-2 focus:ring-[#f2546d]/50 focus:border-[#f2546d]/50',
                         'transition-all',
                         disabled && 'opacity-50 cursor-not-allowed'
                     )}
@@ -171,10 +171,10 @@ export function AddressSearchInput({
                     {onLocateMe && (
                         <button
                             onClick={onLocateMe}
-                            className="p-2 rounded-full bg-[#ff4d6d]/20 hover:bg-[#ff4d6d]/30 transition-colors"
+                            className="p-2 rounded-full bg-[#f2546d]/20 hover:bg-[#f2546d]/30 transition-colors"
                             title="Use my location"
                         >
-                            <Navigation className="w-4 h-4 text-[#ff4d6d]" />
+                            <Navigation className="w-4 h-4 text-[#f2546d]" />
                         </button>
                     )}
                 </div>
@@ -224,7 +224,7 @@ export function AddressSearchInput({
                                     onMouseDown={() => handleSelect(addr)}
                                     className="w-full flex items-start gap-3 p-3 hover:bg-zinc-800 transition-colors border-b border-zinc-800/50 last:border-0"
                                 >
-                                    <MapPin className="w-5 h-5 text-[#ff4d6d] flex-shrink-0 mt-0.5" />
+                                    <MapPin className="w-5 h-5 text-[#f2546d] flex-shrink-0 mt-0.5" />
                                     <div className="text-left min-w-0">
                                         <p className="text-sm text-white">{addr.formattedAddress}</p>
                                         <div className="flex items-center gap-2 mt-0.5">

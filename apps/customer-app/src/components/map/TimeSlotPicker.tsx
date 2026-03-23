@@ -97,7 +97,7 @@ export function TimeSlotPicker({
                             className={cn(
                                 'flex flex-col items-center px-3 py-2 rounded-xl min-w-[60px] transition-colors',
                                 selectedDate === d.date
-                                    ? 'bg-[#ff4d6d] text-white'
+                                    ? 'bg-[#f2546d] text-white'
                                     : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800'
                             )}
                         >
@@ -138,7 +138,7 @@ export function TimeSlotPicker({
                                 className={cn(
                                     'p-3 rounded-xl border text-left transition-all',
                                     isSelected(slot)
-                                        ? 'bg-[#ff4d6d]/10 border-[#ff4d6d] text-white'
+                                        ? 'bg-[#f2546d]/10 border-[#f2546d] text-white'
                                         : 'bg-zinc-800/50 border-zinc-700 text-white hover:border-zinc-600'
                                 )}
                             >

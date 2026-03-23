@@ -28,7 +28,7 @@ const loadStr = (key: string, def: string): string =>
 /* ─── Sub-components ──────────────────────────────────────────────────────── */
 
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <div className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[#ff4d6d]/70">{children}</div>
+    <div className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[#f2546d]/70">{children}</div>
 );
 
 const Card = ({ children }: { children: React.ReactNode }) => (
@@ -48,7 +48,7 @@ interface RowProps {
     last?: boolean;
 }
 
-const Row: React.FC<RowProps> = ({ icon: Icon, iconBg = 'bg-[#ff4d6d]/20', label, sub, right, onClick, danger, last }) => (
+const Row: React.FC<RowProps> = ({ icon: Icon, iconBg = 'bg-[#f2546d]/20', label, sub, right, onClick, danger, last }) => (
     <>
         <button
             onClick={onClick}
@@ -58,7 +58,7 @@ const Row: React.FC<RowProps> = ({ icon: Icon, iconBg = 'bg-[#ff4d6d]/20', label
             `}
         >
             <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
-                <Icon className={`w-5 h-5 ${danger ? 'text-red-400' : 'text-[#ff4d6d]'}`} />
+                <Icon className={`w-5 h-5 ${danger ? 'text-red-400' : 'text-[#f2546d]'}`} />
             </div>
             <div className="flex flex-1 flex-col items-start min-w-0">
                 <span className={`text-sm font-medium ${danger ? 'text-red-400' : 'text-white'}`}>{label}</span>
@@ -80,7 +80,7 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ value, onChange, ...rest }) => (
         {...rest}
         onClick={() => onChange(!value)}
         right={
-            <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${value ? 'bg-[#ff4d6d]' : 'bg-zinc-700'}`}>
+            <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${value ? 'bg-[#f2546d]' : 'bg-zinc-700'}`}>
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-300 ${value ? 'translate-x-6' : 'translate-x-1'}`} />
             </div>
         }
@@ -101,12 +101,12 @@ const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon: I
                 onClick={() => setOpen(o => !o)}
                 className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:scale-[0.98] transition-colors"
             >
-                <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg ?? 'bg-[#ff4d6d]/20'}`}>
-                    <Icon className={`w-5 h-5 text-[#ff4d6d]`} />
+                <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg ?? 'bg-[#f2546d]/20'}`}>
+                    <Icon className={`w-5 h-5 text-[#f2546d]`} />
                 </div>
                 <div className="flex flex-1 flex-col items-start min-w-0">
                     <span className="text-sm font-medium text-white">{label}</span>
-                    <span className="text-xs text-[#ff4d6d] font-semibold">{value}</span>
+                    <span className="text-xs text-[#f2546d] font-semibold">{value}</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 text-zinc-700 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
             </button>
@@ -124,7 +124,7 @@ const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon: I
                                     key={opt}
                                     onClick={() => { onChange(opt); setOpen(false); }}
                                     className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${value === opt
-                                        ? 'bg-[#ff4d6d] text-white'
+                                        ? 'bg-[#f2546d] text-white'
                                         : 'bg-white/5 text-zinc-400 hover:bg-white/10'
                                         }`}
                                 >
@@ -174,7 +174,7 @@ const SettingsPage: React.FC = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     /* Fake icon render for SelectRow (can't pass JSX as prop directly) */
-    const makeIconProp = (Icon: React.ElementType) => ({ render: () => <Icon className="w-5 h-5 text-[#ff4d6d]" /> });
+    const makeIconProp = (Icon: React.ElementType) => ({ render: () => <Icon className="w-5 h-5 text-[#f2546d]" /> });
 
     return (
         <MobileShell className="bg-[#0A0A0A] text-white">
@@ -196,10 +196,10 @@ const SettingsPage: React.FC = () => {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={() => navigate('/profile')}
-                    className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#ff4d6d]/20 to-purple-500/10 border border-[#ff4d6d]/20 p-4 cursor-pointer active:scale-[0.98] transition-all"
+                    className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#f2546d]/20 to-purple-500/10 border border-[#f2546d]/20 p-4 cursor-pointer active:scale-[0.98] transition-all"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[2px] shrink-0">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[2px] shrink-0">
                             <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
                                 <User className="w-7 h-7 text-white/80" />
                             </div>

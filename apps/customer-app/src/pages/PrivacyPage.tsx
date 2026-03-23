@@ -57,10 +57,10 @@ const PrivacyPage: React.FC = () => {
                 <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-br from-[#ff4d6d]/15 to-purple-500/10 border border-[#ff4d6d]/20 mb-6"
+                    className="flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-br from-[#f2546d]/15 to-purple-500/10 border border-[#f2546d]/20 mb-6"
                 >
-                    <div className="w-12 h-12 rounded-xl bg-[#ff4d6d]/20 flex items-center justify-center flex-shrink-0">
-                        <Shield className="w-6 h-6 text-[#ff4d6d]" />
+                    <div className="w-12 h-12 rounded-xl bg-[#f2546d]/20 flex items-center justify-center flex-shrink-0">
+                        <Shield className="w-6 h-6 text-[#f2546d]" />
                     </div>
                     <div>
                         <p className="text-white font-bold text-sm">Your Privacy Matters</p>

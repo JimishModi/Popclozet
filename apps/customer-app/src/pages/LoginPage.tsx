@@ -20,7 +20,7 @@ function BackgroundGrid() {
             aspectRatio: '1 / 1.2',
             borderRadius: '10px',
             background: '#2a2a2a',
-            border: '1px solid rgba(255,77,109,0.12)',
+            border: '1px solid rgba(242,84,109,0.12)',
           }}
         />
       );
@@ -66,7 +66,7 @@ export default function LoginPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#ff4d6d] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#f2546d] animate-spin" />
       </div>
     );
   }
@@ -109,7 +109,7 @@ export default function LoginPage() {
             <button
               onClick={handlePhoneLogin}
               disabled={isLoading || phoneNumber.length < 10}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#ff4d6d]/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span className="text-white">Continue</span><ChevronRight className="w-5 h-5 text-white" /></>}
             </button>

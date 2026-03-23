@@ -81,7 +81,7 @@ export default function CollectPhonePage() {
             <div className="flex flex-col min-h-screen px-6 py-12">
                 <div className="mb-12">
                     <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-6 border border-zinc-800">
-                        <Phone className="w-8 h-8 text-[#ff4d6d]" />
+                        <Phone className="w-8 h-8 text-[#f2546d]" />
                     </div>
                     <h1 className="text-3xl font-bold mb-3">Add Phone Number</h1>
                     <p className="text-zinc-400">Please provide your phone number for account security and delivery updates.</p>
@@ -108,7 +108,7 @@ export default function CollectPhonePage() {
                     <Button
                         onClick={handleSubmit}
                         disabled={isLoading || phoneNumber.length < 10}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#ff4d6d]/30"
+                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30"
                     >
                         {isLoading ? (
                             <Loader2 className="w-5 h-5 animate-spin" />

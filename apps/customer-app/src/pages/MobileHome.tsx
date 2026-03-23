@@ -267,7 +267,7 @@ const MobileHome: React.FC = () => {
                             >
                                 <ClosetIcon className="w-4 h-4 text-white/80" />
                                 {wishlistCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                                         {wishlistCount > 9 ? '9+' : wishlistCount}
                                     </span>
                                 )}
@@ -282,7 +282,7 @@ const MobileHome: React.FC = () => {
                                     <path d="M16 10a4 4 0 01-8 0" />
                                 </svg>
                                 {cartCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
                                         {cartCount > 9 ? '9+' : cartCount}
                                     </span>
                                 )}

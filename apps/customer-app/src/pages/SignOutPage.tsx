@@ -57,7 +57,7 @@ const SignOutPage: React.FC = () => {
                                 <motion.div
                                     animate={{ rotate: 360 }}
                                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                    className="absolute inset-0 rounded-full border-t-2 border-[#ff4d6d]"
+                                    className="absolute inset-0 rounded-full border-t-2 border-[#f2546d]"
                                 />
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <LogOut className="w-10 h-10 text-white/20" />
@@ -79,7 +79,7 @@ const SignOutPage: React.FC = () => {
                         >
                             <div className="space-y-4">
                                 <div className="relative mb-8">
-                                    <div className="absolute -inset-4 bg-[#ff4d6d]/20 blur-2xl rounded-full" />
+                                    <div className="absolute -inset-4 bg-[#f2546d]/20 blur-2xl rounded-full" />
                                     <img src={logo} alt="PopClozet" className="h-10 w-auto mx-auto relative" />
                                 </div>
 
@@ -88,14 +88,14 @@ const SignOutPage: React.FC = () => {
                                     <p className="text-zinc-400 text-base max-w-[280px] mx-auto leading-relaxed">
                                         You have been successfully signed out.
                                     </p>
-                                    <p className="text-[#ff4d6d] text-sm font-medium">Redirecting to login...</p>
+                                    <p className="text-[#f2546d] text-sm font-medium">Redirecting to login...</p>
                                 </div>
                             </div>
 
                             <div className="space-y-3 pt-4">
                                 <button
                                     onClick={() => navigate("/auth/login")}
-                                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#ff4d6d] text-white font-bold text-sm shadow-[0_10px_30px_rgba(255,77,109,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
                                     Sign In Now
                                     <ArrowRight className="w-4 h-4" />

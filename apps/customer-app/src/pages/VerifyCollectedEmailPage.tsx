@@ -109,7 +109,7 @@ export default function VerifyCollectedEmailPage() {
 
                 <div className="flex-1 flex flex-col items-center">
                     <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-8 border border-zinc-800">
-                        <Mail className="w-8 h-8 text-[#ff4d6d]" />
+                        <Mail className="w-8 h-8 text-[#f2546d]" />
                     </div>
 
                     <div className="text-center mb-10">
@@ -132,7 +132,7 @@ export default function VerifyCollectedEmailPage() {
 
                     {error && <p className="text-red-500 text-sm mb-6 font-medium text-center">{error}</p>}
 
-                    <Button onClick={handleVerify} disabled={otp.length !== 6 || isLoading} className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#ff4d6d]/30 disabled:opacity-50">
+                    <Button onClick={handleVerify} disabled={otp.length !== 6 || isLoading} className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50">
                         {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Continue"}
                     </Button>
                 </div>

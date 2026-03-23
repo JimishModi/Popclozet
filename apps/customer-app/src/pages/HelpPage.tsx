@@ -21,7 +21,7 @@ const FAQS = [
     },
     {
         q: "Is there a security deposit?",
-        a: "We collect a refundable security deposit at the time of rental which is fully returned when the item is picked up in good condition."
+        a: "No! PopClozet operates on a zero-deposit model. You only pay the rental fee and delivery charges — no upfront security amount required."
     },
     {
         q: "What if something gets damaged?",
@@ -59,9 +59,9 @@ const HelpPage: React.FC = () => {
                 <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#ff4d6d]/20 to-purple-500/10 border border-[#ff4d6d]/20 p-5"
+                    className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#f2546d]/20 to-purple-500/10 border border-[#f2546d]/20 p-5"
                 >
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#ff4d6d]/5 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#f2546d]/5 to-transparent pointer-events-none" />
                     <h2 className="text-white font-bold text-lg mb-1">How can we help?</h2>
                     <p className="text-zinc-400 text-sm">Browse FAQs or reach us directly — we're here for you.</p>
                 </motion.div>
@@ -113,8 +113,8 @@ const HelpPage: React.FC = () => {
                                     onClick={item.action}
                                     className={`w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 transition-colors ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}
                                 >
-                                    <div className="w-10 h-10 rounded-xl bg-[#ff4d6d]/20 flex items-center justify-center">
-                                        <Icon className="w-5 h-5 text-[#ff4d6d]" />
+                                    <div className="w-10 h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                                        <Icon className="w-5 h-5 text-[#f2546d]" />
                                     </div>
                                     <div>
                                         <p className="text-white text-sm font-medium">{item.label}</p>

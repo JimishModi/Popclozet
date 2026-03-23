@@ -202,9 +202,9 @@ export default function MapLocationPage() {
                         className="absolute bottom-4 right-4 p-3 rounded-full bg-zinc-900/90 border border-zinc-800 shadow-lg"
                     >
                         {locationLoading ? (
-                            <div className="w-5 h-5 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                            <div className="w-5 h-5 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
                         ) : (
-                            <Navigation className="w-5 h-5 text-[#ff4d6d]" />
+                            <Navigation className="w-5 h-5 text-[#f2546d]" />
                         )}
                     </button>
                 )}
@@ -215,7 +215,7 @@ export default function MapLocationPage() {
                         onClick={() => setIsSimulationActive(!isSimulationActive)}
                         disabled={isCalculating}
                         className={`absolute bottom-4 left-4 px-4 py-2.5 rounded-full text-sm font-bold shadow-lg transition-colors flex items-center gap-2 ${isSimulationActive
-                            ? 'bg-[#ff4d6d] text-white hover:bg-[#ff3d5d]'
+                            ? 'bg-[#f2546d] text-white hover:bg-[#ff3d5d]'
                             : 'bg-white text-black hover:bg-gray-100'
                             } ${isCalculating ? 'opacity-50 cursor-not-allowed' : ''}`}
                         style={{ zIndex: 1000 }}
@@ -251,8 +251,8 @@ export default function MapLocationPage() {
                             {simulatedVehicle && (
                                 <div className="text-right">
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-2 h-2 bg-[#ff4d6d] rounded-full animate-pulse"></div>
-                                        <p className="text-[#ff4d6d] font-bold">Tracker Mode ON</p>
+                                        <div className="w-2 h-2 bg-[#f2546d] rounded-full animate-pulse"></div>
+                                        <p className="text-[#f2546d] font-bold">Tracker Mode ON</p>
                                     </div>
                                     <p className="text-zinc-400">Following Vehicle</p>
                                 </div>
@@ -282,7 +282,7 @@ export default function MapLocationPage() {
                     <button
                         onClick={() => setViewMode('search')}
                         className={`flex-1 py-2 rounded-full text-sm font-medium transition-colors ${viewMode === 'search'
-                            ? 'bg-[#ff4d6d] text-white'
+                            ? 'bg-[#f2546d] text-white'
                             : 'bg-zinc-800 text-zinc-400'
                             }`}
                     >
@@ -291,7 +291,7 @@ export default function MapLocationPage() {
                     <button
                         onClick={() => setViewMode('hubs')}
                         className={`flex-1 py-2 rounded-full text-sm font-medium transition-colors ${viewMode === 'hubs'
-                            ? 'bg-[#ff4d6d] text-white'
+                            ? 'bg-[#f2546d] text-white'
                             : 'bg-zinc-800 text-zinc-400'
                             }`}
                     >
@@ -322,7 +322,7 @@ export default function MapLocationPage() {
                         onClick={handleConfirm}
                         disabled={!canConfirm}
                         className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-xl ${canConfirm
-                            ? 'bg-[#ff4d6d] text-white shadow-[#ff4d6d]/20'
+                            ? 'bg-[#f2546d] text-white shadow-[#f2546d]/20'
                             : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                             }`}
                     >

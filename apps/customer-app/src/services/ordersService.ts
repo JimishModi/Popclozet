@@ -11,9 +11,8 @@ export interface Order {
   delivery_address_id?: string;
   rental_start_date: string;
   rental_end_date: string;
-  total_amount: number;
-  deposit_amount?: number;
-  status?: string;
+  total_amount: number,
+  status?: string,
   lifecycle_state?: string;
   delivery_eta?: string;
   rider_id?: string | null;
@@ -30,10 +29,8 @@ export interface OrderItem {
   order_id: string;
   product_id: string;
   size?: string;
-  individual_id?: string | null;
-  rental_price: number;
-  deposit_amount?: number;
-  rental_duration_days?: number;
+  rental_price: number,
+  rental_duration_days?: number,
   created_at?: string;
   product?: {
     id: string;
@@ -98,15 +95,7 @@ export async function getOrderById(orderId: string): Promise<(Order & { items?: 
         size,
         individual_id,
         rental_price,
-        deposit_amount,
-        rental_duration_days,
-        product:products (
-          id,
-          name,
-          images,
-          rental_price,
-          deposit_amount
-        )
+        rental_duration_days
       )
     `
     )
@@ -130,7 +119,6 @@ export async function createOrder(
   rentalStartDate: string,
   rentalEndDate: string,
   totalAmount: number,
-  depositAmount: number,
   cartItems: any[]
 ): Promise<Order> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -145,7 +133,6 @@ export async function createOrder(
       rental_start_date: rentalStartDate,
       rental_end_date: rentalEndDate,
       total_amount: totalAmount,
-      deposit_amount: depositAmount,
       status: "pending",
       lifecycle_state: "placed",
     })
@@ -163,7 +150,6 @@ export async function createOrder(
     product_id: item.item_id,
     size: item.size || "One Size",
     rental_price: item.item?.rental_price_per_day || 0,
-    deposit_amount: item.item?.deposit_amount || 0,
     rental_duration_days: item.days || 3,
   }));
 
@@ -278,8 +264,7 @@ export async function getMyActiveRentals() {
           id,
           name,
           images,
-          rental_price,
-          deposit_amount
+          rental_price
         )
       )
     `)

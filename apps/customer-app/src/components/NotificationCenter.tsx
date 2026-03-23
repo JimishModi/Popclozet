@@ -141,7 +141,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                     <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#ff4d6d] text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+                        className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#f2546d] text-white text-[10px] font-bold rounded-full flex items-center justify-center"
                     >
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </motion.span>
@@ -165,7 +165,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={handleMarkAllAsRead}
-                                        className="text-xs text-[#ff4d6d] hover:underline"
+                                        className="text-xs text-[#f2546d] hover:underline"
                                     >
                                         Mark all read
                                     </button>
@@ -183,7 +183,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                         <div className="max-h-[50vh] overflow-y-auto">
                             {isLoading ? (
                                 <div className="flex items-center justify-center py-8">
-                                    <div className="w-6 h-6 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                                    <div className="w-6 h-6 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : notifications.length === 0 ? (
                                 <div className="text-center py-8">
@@ -195,14 +195,14 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                                     <button
                                         key={notif.id}
                                         onClick={() => !notif.is_read && handleMarkAsRead(notif.id)}
-                                        className={`w-full text-left p-4 border-b border-zinc-800/50 hover:bg-zinc-800/50 transition-colors ${!notif.is_read ? 'bg-[#ff4d6d]/5' : ''
+                                        className={`w-full text-left p-4 border-b border-zinc-800/50 hover:bg-zinc-800/50 transition-colors ${!notif.is_read ? 'bg-[#f2546d]/5' : ''
                                             }`}
                                     >
                                         <div className="flex gap-3">
                                             {/* Icon */}
                                             <div
                                                 className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${!notif.is_read
-                                                    ? 'bg-[#ff4d6d] text-white'
+                                                    ? 'bg-[#f2546d] text-white'
                                                     : 'bg-zinc-800 text-zinc-400'
                                                     }`}
                                             >
@@ -224,7 +224,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
 
                                             {/* Unread indicator */}
                                             {!notif.is_read && (
-                                                <div className="w-2 h-2 rounded-full bg-[#ff4d6d] flex-shrink-0 mt-2" />
+                                                <div className="w-2 h-2 rounded-full bg-[#f2546d] flex-shrink-0 mt-2" />
                                             )}
                                         </div>
                                     </button>

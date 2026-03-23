@@ -1,0 +1,89 @@
+# WAREHOUSE IMPROVEMENT TRACKER
+
+Current Task: Product Intake & Dashboard enhancements.
+
+---
+[v1.1] Dashboard Metrics (2026-03-19)
+- Refactored `analyticsService.ts` to derive metrics from `all_products` for ground truth.
+- New Metrics: Items Rented, Items Returned, Items Cleaning, Pending Dispatch.
+- New 6-card layout for better stock overview.
+- Fixed Math: Total Stock = Available + Rented + Cleaning + Returned.
+
+[v1.2] Product Intake Bug Fix (2026-03-19)
+- Fixed `cannot insert non-DEFAULT value into generated column "total_stock"` error.
+- Modified `ProductIntakePage.tsx` upsert to let the database calculate stock automatically.
+
+[v1.3] Product Specification Sheets (2026-03-19)
+- Upgraded PDF generation to include full product details: Name, Brand, Price, Size.
+- Automatically captures the product image for inclusion in the PDF.
+- Professional A4 layout with QR codes and metadata for every individual unit.
+- Implemented `fetch` + `Base64` conversion for reliable image rendering within the PDF.
+
+[v1.4] Dynamic Categories (2026-03-19)
+- Removed hardcoded product categories from `ProductIntakePage.tsx`.
+- Implemented real-time category fetching from the `products` table.
+- Added "+ ADD NEW" feature allowing warehouse staff to create custom categories on the fly.
+
+[v1.5] Category Synchronization (2026-03-19)
+- Fixed issue where the category list didn't update between consecutive intakes.
+- Updated `handleReset` to trigger a re-fetch of categories from Supabase immediately.
+
+[v1.6] Dynamic Size Charts (2026-03-19)
+- Implemented `category_configs` table to store size charts per department.
+- Automated UI switching: Selecting a category instantly loads its unique sizes (e.g. UK sizes for footwear).
+- Added "Size Chart Builder": When adding new categories, staff can define custom sizes (comma-separated) which are saved for future use.
+
+[v1.7] Inventory Synchronization (2026-03-19)
+- Fixed bug where Product Profile page showed 0 stock for newly added items.
+- Refactored `productProfileService.ts` to derive stock counts from individual item records (`all_products`) instead of stale aggregate tables.
+
+[v1.8] Real-time Database Triggers (2026-03-19)
+- Implemented `trg_sync_all_products_to_inventory` in PostgreSQL.
+- Automated the synchronization of `inventory` table counts (Total, Available, Washing) whenever an item in `all_products` is added or changed.
+- Performed a full database backfill to ensure historical data is accurate.
+
+[v1.9] Unified Size Charts (2026-03-19)
+- Fixed bug where the "Add Inventory" modal in Product Profile used hardcoded XS-XXL sizes.
+- Refactored `ProductProfilePage.tsx` to fetch dynamic size charts based on the product's category.
+
+[v1.10] Individual Unit Label Export (2026-03-19)
+- Added "Download Label" feature to every unique item in the Product Profile list.
+- Generates a specialized PDF specification sheet for a single item (useful for re-tagging Damaged or Lost tags).
+- Switched QR rendering to Canvas for high-resolution PDF exports.
+
+[v1.11] Image Upload Fix (2026-03-20)
+- Resolved 403 Forbidden errors by creating RLS policies for the `product-images` storage bucket.
+- Fixed UI race condition: Submit button now correctly disabled while image is uploading.
+- Improved error handling and logging for storage operations.
+
+[v1.12] Database Permission Fix (2026-03-20)
+- Resolved "42501 RLS Policy Violation" error on `all_products` and `inventory` tables.
+- Enabled Row Level Security (RLS) and implemented "Full Access" policies for authenticated warehouse users.
+- Ensured public availability for inventory status to keep customer-facing stock views accurate.
+
+[v1.13] Standardized QR Labels (2026-03-21)
+- Refactored individual unit labels into a 100x100mm square format (sticker-ready).
+- Unified QR encoding across Intake and Profile pages using a shared `generateQrLabelPdf` utility.
+
+[v1.14] QR Scanability Fix (2026-03-21)
+- Removed product ID text from the label PDF entirely to eliminate scan interference.
+- Increased the "Quiet Zone" (white-space margin) around the QR code to 10mm for 100% scan success.
+- Standardized `includeMargin={true}` and `marginSize={4}` for high-resolution renderers.
+
+[v1.15] Multi-Image Gallery Intake (2026-03-21)
+- Upgraded intake system to support unlimited product photos.
+- Implemented concurrent background uploading with per-image progress tracking.
+- Added a gallery preview UI with one-click image removal.
+- Safety Lock: "Complete Intake" button now automatically disables until all background uploads are finished.
+
+[v1.16] Multi-Image Profile Gallery (2026-03-21)
+- Replaced static product photos with a swipeable, high-performance carousel.
+- Added pagination indicators and navigation controls for easy image browsing.
+- Implemented a "Full-Screen Lightbox" modal for high-resolution detail inspection.
+- Synchronized image states between the main view and the lightbox for a seamless transition.
+
+[v1.17] Generated Column Fix (2026-03-21)
+- Resolved database constraint violations by removing manual writes to generated stock columns.
+- Refactored `ProductIntakePage` and `productProfileService` to allow Postgres to autonomously manage `available_stock`, `went_for_wash`, and `total_stock`.
+- This ensures zero-error product creation and size management.
+---

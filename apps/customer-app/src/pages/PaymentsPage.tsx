@@ -147,7 +147,7 @@ const PaymentsPage: React.FC = () => {
                                     onChange={e => setUpiInput(e.target.value)}
                                     onKeyDown={e => e.key === "Enter" && addUPI()}
                                     placeholder="yourname@upi"
-                                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none placeholder:text-zinc-600 focus:border-[#ff4d6d]/50 transition-colors"
+                                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none placeholder:text-zinc-600 focus:border-[#f2546d]/50 transition-colors"
                                 />
                                 <div className="flex gap-2 mt-3">
                                     <button
@@ -158,7 +158,7 @@ const PaymentsPage: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={addUPI}
-                                        className="flex-1 py-2.5 rounded-xl bg-[#ff4d6d] text-white text-sm font-bold"
+                                        className="flex-1 py-2.5 rounded-xl bg-[#f2546d] text-white text-sm font-bold"
                                     >
                                         Add UPI
                                     </button>
@@ -169,7 +169,7 @@ const PaymentsPage: React.FC = () => {
                     {!showAddUPI && (
                         <button
                             onClick={() => setShowAddUPI(true)}
-                            className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-white/15 text-zinc-400 text-sm font-semibold hover:border-[#ff4d6d]/40 hover:text-white transition-all"
+                            className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-white/15 text-zinc-400 text-sm font-semibold hover:border-[#f2546d]/40 hover:text-white transition-all"
                         >
                             <Plus className="w-4 h-4" />
                             Add UPI ID
@@ -186,7 +186,7 @@ const PaymentsPage: React.FC = () => {
                             <p className="text-zinc-500 text-sm">No cards saved yet</p>
                         </div>
                     </div>
-                    <button className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-white/15 text-zinc-400 text-sm font-semibold hover:border-[#ff4d6d]/40 hover:text-white transition-all">
+                    <button className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-white/15 text-zinc-400 text-sm font-semibold hover:border-[#f2546d]/40 hover:text-white transition-all">
                         <Plus className="w-4 h-4" />
                         Add Card
                     </button>

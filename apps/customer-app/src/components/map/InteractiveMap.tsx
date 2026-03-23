@@ -206,7 +206,7 @@ export function InteractiveMap({
             <div ref={containerRef} className="w-full h-full rounded-2xl overflow-hidden" />
             {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] rounded-2xl">
-                    <div className="w-8 h-8 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
                 </div>
             )}
         </div>

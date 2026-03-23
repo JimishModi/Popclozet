@@ -70,7 +70,7 @@ const WishlistPage: React.FC = () => {
                     </h1>
                 </div>
                 {wishlistItems.length > 0 && (
-                    <span className="px-2.5 py-1 rounded-full bg-[#ff4d6d]/20 text-[#ff4d6d] text-xs font-bold">
+                    <span className="px-2.5 py-1 rounded-full bg-[#f2546d]/20 text-[#f2546d] text-xs font-bold">
                         {wishlistItems.length}
                     </span>
                 )}
@@ -80,7 +80,7 @@ const WishlistPage: React.FC = () => {
                 {/* Loading */}
                 {loading && (
                     <div className="flex items-center justify-center py-20">
-                        <Loader2 className="w-6 h-6 text-[#ff4d6d] animate-spin" />
+                        <Loader2 className="w-6 h-6 text-[#f2546d] animate-spin" />
                     </div>
                 )}
 
@@ -94,7 +94,7 @@ const WishlistPage: React.FC = () => {
                         <p className="text-zinc-600 text-sm max-w-[200px]">Tap the heart on any item to save it here</p>
                         <button
                             onClick={() => navigate("/collections")}
-                            className="mt-6 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#ff4d6d] to-pink-600 text-white font-bold text-sm"
+                            className="mt-6 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-sm"
                         >
                             Browse Collections
                         </button>
@@ -151,9 +151,9 @@ const WishlistPage: React.FC = () => {
                                             <span className="text-base font-bold text-white">₹{product.rental_price}</span>
                                             <button
                                                 onClick={e => { e.stopPropagation(); navigate(`/product/${product.id}`); }}
-                                                className="p-1.5 rounded-lg bg-[#ff4d6d]/20 hover:bg-[#ff4d6d]/30 transition-colors"
+                                                className="p-1.5 rounded-lg bg-[#f2546d]/20 hover:bg-[#f2546d]/30 transition-colors"
                                             >
-                                                <ShoppingBag className="w-3.5 h-3.5 text-[#ff4d6d]" />
+                                                <ShoppingBag className="w-3.5 h-3.5 text-[#f2546d]" />
                                             </button>
                                         </div>
                                     </div>

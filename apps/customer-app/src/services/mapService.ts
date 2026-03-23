@@ -117,7 +117,7 @@ export function addMarker(
         const el = createMarkerElement(options.icon);
         markerOptions.element = el;
     } else {
-        markerOptions.color = '#ff4d6d';
+        markerOptions.color = '#f2546d';
     }
 
     const marker = new mapboxgl.Marker(markerOptions)
@@ -174,7 +174,7 @@ export function drawRoute(
             'line-cap': 'round',
         },
         paint: {
-            'line-color': options?.color || '#ff4d6d',
+            'line-color': options?.color || '#f2546d',
             'line-width': options?.weight || 4,
             'line-opacity': options?.opacity || 0.8,
         },

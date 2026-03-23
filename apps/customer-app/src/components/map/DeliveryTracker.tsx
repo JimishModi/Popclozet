@@ -334,7 +334,7 @@ export function DeliveryTracker({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
@@ -349,7 +349,7 @@ export function DeliveryTracker({
                         setIsLoading(true);
                         fetchOrder(controller.signal).finally(() => setIsLoading(false));
                     }}
-                    className="text-sm text-[#ff4d6d] hover:underline"
+                    className="text-sm text-[#f2546d] hover:underline"
                 >
                     Retry
                 </button>
@@ -456,7 +456,7 @@ export function DeliveryTracker({
                 <div className="relative">
                     <div className="absolute left-[18px] top-6 bottom-6 w-0.5 bg-zinc-800" />
                     <motion.div
-                        className="absolute left-[18px] top-6 w-0.5 bg-[#ff4d6d]"
+                        className="absolute left-[18px] top-6 w-0.5 bg-[#f2546d]"
                         style={{ originY: 0 }}
                         initial={{ height: 0 }}
                         animate={{ height: `${progressPct}%` }}
@@ -469,11 +469,11 @@ export function DeliveryTracker({
                             const isCurrent = index === currentStepIndex;
                             return (
                                 <div key={`${step.status}-${index}`} className="flex items-center gap-4">
-                                    <div className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-[#ff4d6d] text-white' : 'bg-zinc-800 text-zinc-500'
+                                    <div className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-[#f2546d] text-white' : 'bg-zinc-800 text-zinc-500'
                                         }`}>
                                         {step.icon}
                                         {isCurrent && (
-                                            <span className="absolute inset-0 rounded-full bg-[#ff4d6d] animate-ping opacity-25" />
+                                            <span className="absolute inset-0 rounded-full bg-[#f2546d] animate-ping opacity-25" />
                                         )}
                                     </div>
                                     <div>
@@ -500,7 +500,7 @@ export function DeliveryTracker({
             {order.delivery_address_snapshot && (
                 <div className="p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50">
                     <div className="flex items-start gap-3">
-                        <MapPin className="w-5 h-5 text-[#ff4d6d] flex-shrink-0 mt-0.5" />
+                        <MapPin className="w-5 h-5 text-[#f2546d] flex-shrink-0 mt-0.5" />
                         <div>
                             <p className="text-sm font-medium text-white">
                                 {isReturnFlow ? 'Pickup Address' : 'Delivery Address'}

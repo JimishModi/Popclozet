@@ -129,11 +129,11 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
                                         <div className="relative pt-2 pb-1">
                                             <div className="relative h-0.5 bg-zinc-700 rounded-full">
                                                 <div
-                                                    className="absolute h-0.5 bg-[#ff4d6d] rounded-full"
+                                                    className="absolute h-0.5 bg-[#f2546d] rounded-full"
                                                     style={{ left: '10%', right: '20%' }}
                                                 />
-                                                <div className="absolute -top-2.5 left-[10%] w-6 h-6 bg-zinc-400 rounded-full border-[3px] border-[#ff4d6d]" />
-                                                <div className="absolute -top-2.5 right-[20%] w-6 h-6 bg-zinc-400 rounded-full border-[3px] border-[#ff4d6d]" />
+                                                <div className="absolute -top-2.5 left-[10%] w-6 h-6 bg-zinc-400 rounded-full border-[3px] border-[#f2546d]" />
+                                                <div className="absolute -top-2.5 right-[20%] w-6 h-6 bg-zinc-400 rounded-full border-[3px] border-[#f2546d]" />
                                             </div>
                                         </div>
                                     </div>
@@ -152,7 +152,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
                                                 </div>
                                             ))}
                                         </div>
-                                        <button className="w-full text-[#ff4d6d] font-semibold text-sm text-center py-1">
+                                        <button className="w-full text-[#f2546d] font-semibold text-sm text-center py-1">
                                             See all
                                         </button>
                                     </div>

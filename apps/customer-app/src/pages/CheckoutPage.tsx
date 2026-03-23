@@ -162,6 +162,7 @@ export default function CheckoutPage() {
     const hub = getSavedHub();
     if (hub) setSelectedHub(hub);
 
+    /*
     const checkSub = async () => {
       const benefits = await getSubscriptionBenefits();
       if (benefits) {
@@ -176,6 +177,10 @@ export default function CheckoutPage() {
       }
     };
     checkSub();
+    */
+    setSubBenefits(null);
+    setHasFreeDeliveryBenefit(false);
+    setHasInsuranceBenefit(false);
   }, []);
 
   useEffect(() => {
@@ -352,27 +357,8 @@ export default function CheckoutPage() {
   }) : undefined;
   const hasExpensiveItem = !!expensiveItem;
 
-  const subscriptionError = (() => {
-    if (buyoutOrderId) return null;
-    if (invalidCatalogItem) {
-      return "One or more items in this checkout are not linked to a live catalog product. Remove them before placing the order.";
-    }
-    if (selectedOrderType === 'home_try_on' && !subBenefits?.hasFreeHomeTryOn) {
-      return "Home try-on is available only on plans that include that feature.";
-    }
-    if (requiresScheduledSlot && !selectedScheduledSlot) {
-      return "Select a time slot for the home try-on booking.";
-    }
-    if (!subBenefits) return null;
-    if (exceedsMonthlyLimit) {
-      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
-    }
-    if (exceedsConcurrentLimit) {
-      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
-    }
-    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your order exceeds this limit.`;
-    return null;
-  })();
+  // Removed subscription error logic
+  const subscriptionError = null;
 
   // Calculate totals
   const subtotal = useMemo(() => {
@@ -380,9 +366,11 @@ export default function CheckoutPage() {
       // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
       return Math.round(buyoutOrderData.total_amount * 0.7);
     }
+    /*
     if (subBenefits && !subscriptionError) {
       return 0; // Rentals covered by subscription
     }
+    */
     return validCartEntries.reduce((total, [id, qty]) => {
       const baseId = id.split('_')[0];
       const product = cartProducts[baseId];
@@ -416,7 +404,7 @@ export default function CheckoutPage() {
       ? 0
       : (deliveryFeeBase + distanceSurcharge);
   const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
-  const insuranceFee = hasInsuranceBenefit ? 0 : (popInsurance ? 200 : 0);
+  const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
   const total = subtotal + deliveryFee + insuranceFee;
 
   /* ---------------------------------- */
@@ -514,24 +502,15 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-      // 2) Create the entitled order via RPC
+      // 2) Prepare items for RPC
       const rentalDays = 4;
       const deliveryEta = new Date(Date.now() + 60 * 60000).toISOString();
 
-      const rpcItems = validCartEntries.map(([id, qty]) => {
-        const rawBaseId = id.includes('_') ? id.split('_')[0] : id;
-        const size = id.includes('_') ? id.split('_')[1] : 'S';
-
-        if (!UUID_PATTERN.test(rawBaseId)) {
-          throw new Error("One or more cart items are not linked to a live product in the database.");
-        }
-
-        return {
-          product_id: rawBaseId,
-          size,
-          quantity: qty,
-        };
-      });
+      const rpcItems = validCartEntries.map(([id, qty]) => ({
+        product_id: id.split('_')[0],
+        size: id.includes('_') ? id.split('_')[1] : 'S',
+        quantity: qty,
+      }));
 
       const orderResult = await createEntitledOrder({
         deliveryAddressId: addressId,
@@ -644,98 +623,7 @@ export default function CheckoutPage() {
             </button>
           )}
 
-          {!buyoutOrderId && subBenefits && (
-            <>
-              <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Plan Access</h3>
-              <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>{subBenefits.planName} plan</p>
-                    <p className="text-[11px] text-zinc-500 mt-1 font-bold uppercase tracking-widest">
-                      Monthly quota and concurrent active-item limit
-                    </p>
-                  </div>
-                  <div className="px-2 py-1 rounded-lg bg-[#f2546d]/10 border border-[#f2546d]/20">
-                    <span className="text-[10px] font-black text-[#f2546d] uppercase tracking-wider">
-                      ₹{subBenefits.maxItemValue} cap
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-[#171717] px-3 py-3">
-                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Monthly left</p>
-                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
-                  </div>
-                  <div className="rounded-xl bg-[#171717] px-3 py-3">
-                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Concurrent left</p>
-                    <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
-                  </div>
-                </div>
-              </div>
-
-              {subBenefits.hasFreeHomeTryOn && (
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrderType('rental')}
-                    className={cn(
-                      "rounded-2xl border px-4 py-4 text-left transition-colors",
-                      selectedOrderType === 'rental'
-                        ? "border-[#f2546d] bg-[#f2546d]/10"
-                        : "border-white/5 bg-[#232323]"
-                    )}
-                  >
-                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Rental</p>
-                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Standard subscription checkout</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrderType('home_try_on')}
-                    className={cn(
-                      "rounded-2xl border px-4 py-4 text-left transition-colors",
-                      selectedOrderType === 'home_try_on'
-                        ? "border-[#f2546d] bg-[#f2546d]/10"
-                        : "border-white/5 bg-[#232323]"
-                    )}
-                  >
-                    <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>Home Try-On</p>
-                    <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Pro-only scheduled booking</p>
-                  </button>
-                </div>
-              )}
-
-              {(subBenefits.hasAdvanceBooking || selectedOrderType === 'home_try_on') && (
-                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-white uppercase tracking-tight" style={dmSans}>
-                        {selectedOrderType === 'home_try_on' ? 'Schedule Home Try-On' : 'Schedule Delivery Slot'}
-                      </p>
-                      <p className="mt-1 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">
-                        {selectedOrderType === 'home_try_on' ? 'Required for try-on bookings' : 'Optional if you want a fixed delivery window'}
-                      </p>
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-black uppercase tracking-widest",
-                      selectedOrderType === 'home_try_on' ? "text-[#f2546d]" : "text-zinc-500"
-                    )}>
-                      {selectedOrderType === 'home_try_on' ? 'Required' : 'Optional'}
-                    </span>
-                  </div>
-                  <TimeSlotPicker
-                    selectedSlot={selectedScheduledSlot}
-                    onSelect={setSelectedScheduledSlot}
-                    className="mt-4"
-                  />
-                  {selectedScheduledSlot && (
-                    <p className="mt-3 text-[11px] text-[#f2546d] font-bold uppercase tracking-widest">
-                      Selected: {selectedScheduledSlot.date} • {selectedScheduledSlot.start} - {selectedScheduledSlot.end}
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* Removed Plan Access UI Block */}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
           <button
@@ -829,21 +717,7 @@ export default function CheckoutPage() {
                 {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
-            <div className="flex justify-between items-center text-lg text-[#b4b4b4]" style={dmSans}>
-              <div className="flex items-center gap-2">
-                <span>Pop Insurance</span>
-                <button
-                  onClick={() => setPopInsurance(!popInsurance)}
-                  className={cn(
-                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                    popInsurance ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent border-zinc-700"
-                  )}
-                >
-                  {popInsurance && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
-                </button>
-              </div>
-              <span>₹ {insuranceFee}</span>
-            </div>
+              {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
               <span>₹ {total}</span>
