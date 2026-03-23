@@ -106,7 +106,10 @@ export function ProductIntakePage() {
     const [brand, setBrand] = useState('');
     const [category, setCategory] = useState('');
     const [gender, setGender] = useState('women');
-    const [rentalPrice, setRentalPrice] = useState('');
+    const [rentalPrice1d, setRentalPrice1d] = useState('');
+    const [rentalPrice2d, setRentalPrice2d] = useState('');
+    const [rentalPrice3d, setRentalPrice3d] = useState('');
+    const [buyPrice, setBuyPrice] = useState('');
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [previews, setPreviews] = useState<{ id: string; url: string; uploading: boolean }[]>([]);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
@@ -237,7 +240,11 @@ export function ProductIntakePage() {
                 description: '',
                 category: finalCategory || 'tops',
                 gender,
-                rental_price: parseFloat(rentalPrice) || 299,
+                rental_price: parseFloat(rentalPrice3d) || 299,
+                rental_price_1d: parseFloat(rentalPrice1d) || null,
+                rental_price_2d: parseFloat(rentalPrice2d) || null,
+                rental_price_3d: parseFloat(rentalPrice3d) || null,
+                buy_price: parseFloat(buyPrice) || null,
                 images: imageUrls,
                 is_available: true,
             };
@@ -370,7 +377,7 @@ export function ProductIntakePage() {
                     ['Size', unit.size],
                     ['Category', category.charAt(0).toUpperCase() + category.slice(1)],
                     ['Target Gender', gender.charAt(0).toUpperCase() + gender.slice(1)],
-                    ['Rental Price', `Rs. ${rentalPrice}/day`],
+                    ['Rental (3D)', `Rs. ${rentalPrice3d}`],
                     ['Registration Date', new Date().toLocaleDateString()],
                 ];
 
@@ -408,7 +415,10 @@ export function ProductIntakePage() {
         setName('');
         setBrand('');
         setCategory('');
-        setRentalPrice('');
+        setRentalPrice1d('');
+        setRentalPrice2d('');
+        setRentalPrice3d('');
+        setBuyPrice('');
         setImageUrls([]);
         setPreviews([]);
         setCustomCategory('');
@@ -647,10 +657,22 @@ export function ProductIntakePage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs text-zinc-400 mb-1 block">Rental ₹/day</label>
-                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} placeholder="299" className="input-field h-10 text-sm" />
+                            <label className="text-xs text-zinc-400 mb-1 block">Rental 1D (₹)</label>
+                            <input type="number" value={rentalPrice1d} onChange={(e) => setRentalPrice1d(e.target.value)} placeholder="199" className="input-field h-10 text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Rental 2D (₹)</label>
+                            <input type="number" value={rentalPrice2d} onChange={(e) => setRentalPrice2d(e.target.value)} placeholder="249" className="input-field h-10 text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Rental 3D (₹) *</label>
+                            <input type="number" value={rentalPrice3d} onChange={(e) => setRentalPrice3d(e.target.value)} placeholder="299" className="input-field h-10 text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Buy Price (₹)</label>
+                            <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} placeholder="999" className="input-field h-10 text-sm" />
                         </div>
                     </div>
 

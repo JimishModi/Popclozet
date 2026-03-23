@@ -46,6 +46,10 @@ export interface FullProductProfile {
     gender: string | null;
     occasion: string[] | null;
     rental_price: number | null;
+    rental_price_1d: number | null;
+    rental_price_2d: number | null;
+    rental_price_3d: number | null;
+    buy_price: number | null;
     images: string[] | null;
     is_available: boolean;
     created_at: string;
@@ -60,6 +64,10 @@ export interface ProductUpdate {
     category?: string;
     gender?: string;
     rental_price?: number;
+    rental_price_1d?: number;
+    rental_price_2d?: number;
+    rental_price_3d?: number;
+    buy_price?: number;
     images?: string[];
     is_available?: boolean;
 }
@@ -132,6 +140,10 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         gender: product.gender,
         occasion: product.occasion,
         rental_price: product.rental_price,
+        rental_price_1d: product.rental_price_1d,
+        rental_price_2d: product.rental_price_2d,
+        rental_price_3d: product.rental_price_3d,
+        buy_price: product.buy_price,
         images: product.images,
         is_available: product.is_available ?? true,
         created_at: product.created_at,
@@ -150,6 +162,10 @@ export async function getAllProductProfiles(): Promise<{
     category: string | null; 
     images: string[] | null; 
     rental_price: number | null; 
+    rental_price_1d: number | null;
+    rental_price_2d: number | null;
+    rental_price_3d: number | null;
+    buy_price: number | null;
     is_available: boolean;
     total_available: number;
     total_wash: number;
@@ -158,7 +174,7 @@ export async function getAllProductProfiles(): Promise<{
     // Fetch products
     const { data: products, error: prodErr } = await supabase
         .from('products')
-        .select('id, name, brand, category, images, rental_price, is_available')
+        .select('id, name, brand, category, images, rental_price, rental_price_1d, rental_price_2d, rental_price_3d, buy_price, is_available')
         .order('name');
 
     if (prodErr) throw prodErr;

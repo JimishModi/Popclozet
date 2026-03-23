@@ -482,6 +482,10 @@ export function ProductProfilePage() {
             category: product.category,
             gender: product.gender,
             rental_price: product.rental_price ?? 0,
+            rental_price_1d: product.rental_price_1d ?? 0,
+            rental_price_2d: product.rental_price_2d ?? 0,
+            rental_price_3d: product.rental_price_3d ?? 0,
+            buy_price: product.buy_price ?? 0,
             images: [...(product.images || [])],
             is_available: product.is_available,
         });
@@ -782,29 +786,83 @@ export function ProductProfilePage() {
                 {/* Pricing Card */}
                 <div className="bg-surface-card border border-surface-border rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">💰 Pricing</p>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         <div className="bg-surface rounded-lg p-3">
-                            <p className="text-[10px] text-zinc-500">Rental / day</p>
+                            <p className="text-[10px] text-zinc-500">Rental 1D</p>
                             {isEditing ? (
                                 <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-surface-border">
-                                    <span className="text-zinc-500 text-xs">₹</span>
+                                    <span className="text-zinc-500 text-xs text-warehouse-400">₹</span>
                                     <input
                                         type="number"
-                                        value={editForm?.rental_price ?? 0}
-                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, rental_price: parseFloat(e.target.value) || 0 }) : null)}
+                                        value={editForm?.rental_price_1d ?? 0}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, rental_price_1d: parseFloat(e.target.value) || 0 }) : null)}
                                         className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
                                     />
                                 </div>
                             ) : (
-                                <>
-                                    <p className="text-base font-bold text-white">₹{product.rental_price?.toLocaleString() ?? '—'}</p>
-                                    {discountedPrice !== null && (
-                                        <p className="text-[10px] text-emerald-400 font-semibold">After discount: ₹{discountedPrice.toFixed(0)}</p>
-                                    )}
-                                </>
+                                <p className="text-sm font-bold text-white">₹{product.rental_price_1d?.toLocaleString() ?? '—'}</p>
+                            )}
+                        </div>
+
+                        <div className="bg-surface rounded-lg p-3">
+                            <p className="text-[10px] text-zinc-500">Rental 2D</p>
+                            {isEditing ? (
+                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-surface-border">
+                                    <span className="text-zinc-500 text-xs text-warehouse-400">₹</span>
+                                    <input
+                                        type="number"
+                                        value={editForm?.rental_price_2d ?? 0}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, rental_price_2d: parseFloat(e.target.value) || 0 }) : null)}
+                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-white">₹{product.rental_price_2d?.toLocaleString() ?? '—'}</p>
+                            )}
+                        </div>
+
+                        <div className="bg-surface rounded-lg p-3">
+                            <p className="text-[10px] text-zinc-500">Rental 3D</p>
+                            {isEditing ? (
+                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-surface-border">
+                                    <span className="text-zinc-500 text-xs text-warehouse-400">₹</span>
+                                    <input
+                                        type="number"
+                                        value={editForm?.rental_price_3d ?? 0}
+                                        onChange={e => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            setEditForm(prev => prev ? ({ ...prev, rental_price_3d: val, rental_price: val }) : null);
+                                        }}
+                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-white">₹{product.rental_price_3d?.toLocaleString() ?? '—'}</p>
+                            )}
+                        </div>
+
+                        <div className="bg-surface rounded-lg p-3 border border-warehouse-500/10">
+                            <p className="text-[10px] text-warehouse-400/70 font-bold">Buy Price</p>
+                            {isEditing ? (
+                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-warehouse-500/20">
+                                    <span className="text-warehouse-400 text-xs">₹</span>
+                                    <input
+                                        type="number"
+                                        value={editForm?.buy_price ?? 0}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, buy_price: parseFloat(e.target.value) || 0 }) : null)}
+                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-white">₹{product.buy_price?.toLocaleString() ?? '—'}</p>
                             )}
                         </div>
                     </div>
+                    {discountedPrice !== null && !isEditing && (
+                        <div className="mt-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Promo Price (3D): ₹{discountedPrice.toFixed(0)}</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Stock Summary */}

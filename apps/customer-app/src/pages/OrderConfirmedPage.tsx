@@ -116,7 +116,7 @@ ${order?.addresses?.full_address || "N/A"}
 
 ITEMS:
 ${order?.order_items?.map((item: any, i: number) =>
-            `${i + 1}. ${item.products?.name || "Premium Item"} (${item.products?.brand || "Brand"}) - Size: ${item.size} - ₹${item.rental_price}`
+            `${i + 1}. ${item.products?.name || "Premium Item"} (${item.products?.brand || "Brand"}) - Size: ${item.size} - Plan: ${item.pricing_plan || (item.rental_duration_days + 'd')} - ₹${item.rental_price}`
         ).join('\n')}
 
 PRICE BREAKDOWN:
@@ -193,7 +193,7 @@ Thank you for renting with PopClozet!
                                             {p?.name || "Premium Item"}
                                         </h3>
                                         <p className="text-[#a1a1a1] mt-1 text-xs font-bold uppercase tracking-widest" style={dmSans}>
-                                            {p?.brand || "Collection"} • Size: {item?.size || 'S'} • Qty: 1
+                                            {p?.brand || "Collection"} • Size: {item?.size || 'S'} • Plan: {item?.pricing_plan || (item?.rental_duration_days + 'd')} • Qty: 1
                                         </p>
                                     </div>
                                     <div className="text-white font-black text-lg" style={dmSans}>

@@ -16,6 +16,7 @@
 export type UserRole = 'customer' | 'rider' | 'warehouse' | 'admin';
 
 export type ActorRole = 'customer' | 'rider' | 'warehouse';
+export type PricingPlan = '1d' | '2d' | '3d' | 'buy';
 
 // ==========================================
 // ORDER STATUS (FROZEN)
@@ -106,6 +107,10 @@ export interface Product {
     gender: 'men' | 'women' | 'unisex';
     occasion: string[];
     rental_price: number;
+    rental_price_1d?: number;
+    rental_price_2d?: number;
+    rental_price_3d?: number;
+    buy_price?: number;
     deposit_amount: number;
     images: string[];
     fabric_details: FabricDetails;
@@ -150,6 +155,7 @@ export interface CartItem {
     product_id: string;
     product: Product;
     size: string;
+    pricing_plan: PricingPlan;
     rental_duration_days: number;
     reservation_expires_at: string;
     added_at: string;
@@ -186,6 +192,7 @@ export interface OrderItem {
     size: string;
     rental_price: number;
     deposit_amount: number;
+    pricing_plan?: PricingPlan;
 }
 
 // ==========================================

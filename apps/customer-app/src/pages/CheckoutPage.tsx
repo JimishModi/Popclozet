@@ -82,15 +82,16 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [popInsurance, setPopInsurance] = useState(true);
 
-  const cartEntries: [string, number][] = Object.entries(cartItems) as [string, number][];
+  const cartEntries = Object.entries(cartItems);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
 
   const validCartEntries = useMemo(() => {
-    return cartEntries.filter(([id]) => {
-      const baseId = id.split('_')[0];
-      return cartProducts[baseId] !== undefined;
+    return cartEntries.filter(([key, data]) => {
+      const parts = key.split('_');
+      const productId = parts[0];
+      return cartProducts[productId] !== undefined;
     });
   }, [cartEntries, cartProducts]);
 
@@ -140,6 +141,10 @@ export default function CheckoutPage() {
         data.forEach((p: any) => {
           productMap[p.id] = {
             ...p,
+            rental_price_1d: p.rental_price_1d,
+            rental_price_2d: p.rental_price_2d,
+            rental_price_3d: p.rental_price_3d,
+            buy_price: p.buy_price,
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
             originalPrice: parseFloat(p.price ?? '0'),
             imageUrl: p.images?.[0] || '',
@@ -167,7 +172,18 @@ export default function CheckoutPage() {
     };
 
     fetchCartProducts();
-  }, [JSON.stringify(cartEntries.map(([id]) => id.split('_')[0]))]);
+  }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
+
+  const getPlanPrice = (product: any, plan: string) => {
+    if (!product) return 0;
+    switch (plan) {
+      case '1d': return product.rental_price_1d;
+      case '2d': return product.rental_price_2d;
+      case '3d': return product.rental_price_3d || product.price;
+      case 'buy': return product.buy_price;
+      default: return product.price;
+    }
+  };
 
   // Load Buyout Order if specified
   useEffect(() => {
@@ -200,20 +216,21 @@ export default function CheckoutPage() {
       // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
       return Math.round(buyoutOrderData.total_amount * 0.7);
     }
-    return validCartEntries.reduce((total, [id, qty]) => {
-      const baseId = id.split('_')[0];
-      const product = cartProducts[baseId];
-      return total + (product?.price || 0) * qty;
+    return validCartEntries.reduce((total, [key, data]) => {
+      const productId = key.split('_')[0];
+      const product = cartProducts[productId];
+      const price = getPlanPrice(product, data.plan);
+      return total + (price || 0) * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData]);
 
   const originalTotal = useMemo(() => {
     if (buyoutOrderData) return buyoutOrderData.total_amount;
-    return validCartEntries.reduce((total, [id, qty]) => {
-      const baseId = id.split('_')[0];
-      const product = cartProducts[baseId];
-      const orig = product?.originalPrice || product?.price || 0;
-      return total + orig * qty;
+    return validCartEntries.reduce((total, [key, data]) => {
+      const productId = key.split('_')[0];
+      const product = cartProducts[productId];
+      const mrp = product?.mrp || (getPlanPrice(product, '3d') * 5);
+      return total + mrp * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData]);
 
@@ -382,28 +399,31 @@ export default function CheckoutPage() {
       const { data: realProducts } = await supabase.from('products').select('id').limit(1);
       const fallbackUuid = realProducts?.[0]?.id;
 
-      const orderItems = validCartEntries.map(([id, qty]) => {
-        // Handle IDs carefully: they might be UUIDs or mocked IDs like "prod1_S"
-        const rawBaseId = id.includes('_') ? id.split('_')[0] : id;
-        const size = id.includes('_') ? id.split('_')[1] : 'S';
-        const product = cartProducts[rawBaseId] || cartProducts[id]; // Also check if it's there without split
+      const orderItems = validCartEntries.map(([key, data]) => {
+        const parts = key.split('_');
+        const rawBaseId = parts[0];
+        const { quantity, size, plan } = data;
+        const product = cartProducts[rawBaseId] || cartProducts[key];
 
-        // Use the real UUID if it exists in the live DB, OTHERWISE use the fallback UUID so the DB doesn't crash on mock data
-        // We'll trust that if rawBaseId has a hyphen and is somewhat long, it's likely a real UUID.
+        // Use the real UUID if it exists in the live DB
         const likelyRealUuid = rawBaseId.includes('-');
         const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
 
         if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", id);
+          console.error("[Checkout] Invalid cart item ID:", key);
           throw new Error("Invalid product ID in cart");
         }
+
+        const planDays = plan === '1d' ? 1 : plan === '2d' ? 2 : plan === '3d' ? 3 : 0;
+        const itemPrice = getPlanPrice(product, plan);
 
         return {
           order_id: order.id,
           product_id: baseId,
           size: size,
-          rental_price: (product?.price || 0) * qty,
-          rental_duration_days: rentalDays,
+          rental_price: itemPrice * quantity,
+          rental_duration_days: planDays || rentalDays,
+          pricing_plan: plan,
         };
       });
 
@@ -429,8 +449,9 @@ export default function CheckoutPage() {
       // 5) Clear cart (if not buyout)
       if (!buyoutOrderId) {
         await clearCartDB().catch(() => { });
-        for (const [id] of validCartEntries) {
-          removeFromCart(id);
+        for (const [key, data] of validCartEntries) {
+          const parts = key.split('_');
+          removeFromCart(parts[0], data.size, data.plan);
         }
       }
 

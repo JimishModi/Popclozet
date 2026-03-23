@@ -20,6 +20,10 @@ export interface Product {
     sizes?: string[];
     brand?: string;
     rental_price?: number;
+    rental_price_1d?: number;
+    rental_price_2d?: number;
+    rental_price_3d?: number;
+    buy_price?: number;
     images?: string[];
     leadTimeMinutes?: number;
     rating: number;
@@ -177,6 +181,10 @@ class ProductService {
             description: dbProduct.description,
             price: parseFloat(dbProduct.rental_price ?? dbProduct.price ?? '0'),
             rentalPrice: dbProduct.rental_price ? parseFloat(dbProduct.rental_price) : undefined,
+            rental_price_1d: dbProduct.rental_price_1d ? parseFloat(dbProduct.rental_price_1d) : undefined,
+            rental_price_2d: dbProduct.rental_price_2d ? parseFloat(dbProduct.rental_price_2d) : undefined,
+            rental_price_3d: dbProduct.rental_price_3d ? parseFloat(dbProduct.rental_price_3d) : undefined,
+            buy_price: dbProduct.buy_price ? parseFloat(dbProduct.buy_price) : undefined,
             mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
             eventCategory: dbProduct.category as EventCategory, // DB uses 'category'

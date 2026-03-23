@@ -24,8 +24,8 @@ const normalizeSrc = (src?: string) => {
 const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { addToCart, removeFromCart, updateQuantity, getItemQuantity } = useCart();
-  const quantity = getItemQuantity(product.id);
+  const { addToCart, updateQuantity, getItemQuantity } = useCart();
+  const quantity = getItemQuantity(product.id, "S", "3d");
 
   const { isPlaying, eventHandlers } = useHoverVideo({
     videoRef,
@@ -97,9 +97,9 @@ const SmartProductCard = ({ product, className }: SmartProductCardProps) => {
 
               <InstantAddButton
                 quantity={quantity}
-                onAdd={() => addToCart(product.id)}
-                onIncrement={() => updateQuantity(product.id, quantity + 1)}
-                onDecrement={() => updateQuantity(product.id, quantity - 1)}
+                onAdd={() => addToCart(product.id, "S", "3d")}
+                onIncrement={() => updateQuantity(product.id, "S", "3d", quantity + 1)}
+                onDecrement={() => updateQuantity(product.id, "S", "3d", quantity - 1)}
                 className="w-full shadow-button"
                 productImage={imgSrc}
               />
