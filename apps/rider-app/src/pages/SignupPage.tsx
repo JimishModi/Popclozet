@@ -26,7 +26,7 @@ interface SignupPageProps {
 
 export function SignupPage({ initialStep = 1 }: SignupPageProps) {
     const navigate = useNavigate();
-    const { signUp, user, profile, refreshProfile } = useAuth();
+    const { signUp, user, profile } = useAuth();
     const [step, setStep] = useState(initialStep);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -147,9 +147,8 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
 
                 if (upgradeError) throw upgradeError;
                 
-                // Wait for profile to refresh
-                await refreshProfile();
-                navigate('/');
+                // Force a full reload to get the new profile
+                window.location.href = '/';
                 return;
             }
 

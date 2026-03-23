@@ -207,7 +207,7 @@ export const DeliveryNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-            await drawRoute(map, riderLocation, destination);
+            await drawRoute(map, [riderLocation, destination]);
             
             // Add native geolocation control for live tracking
             const geolocate = new mapboxgl.GeolocateControl({
