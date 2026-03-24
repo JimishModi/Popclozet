@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -22,9 +22,33 @@ export default function PaymentProcessingPage() {
     const { cartItems, removeFromCart } = useCart();
     const { initiatePayment, isProcessing } = useRazorpayCheckout();
     const hasInitiated = useRef(false);
+    const paymentSettled = useRef(false);
 
     // Add isUpi logic to avoid next IDE errors
     const isUpi = method === "upi";
+
+    const handleCancel = useCallback(() => {
+        if (!paymentSettled.current) {
+            paymentSettled.current = true;
+            navigate(`/payment-failed?orderId=${orderId || ''}`, { replace: true });
+        }
+    }, [navigate, orderId]);
+
+    // Fallback: if user dismisses Razorpay via back button / swipe without ondismiss firing
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && hasInitiated.current && !paymentSettled.current) {
+                // Give ondismiss 500ms to fire first before we force-navigate
+                setTimeout(() => {
+                    if (!paymentSettled.current) {
+                        handleCancel();
+                    }
+                }, 500);
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [handleCancel]);
 
     useEffect(() => {
         // Prevent multiple initiations if the effect runs twice
@@ -35,11 +59,12 @@ export default function PaymentProcessingPage() {
                 const amount = parseFloat(amountStr);
                 if (isNaN(amount)) {
                     console.error("[PaymentProcessing] Invalid amount:", amountStr);
+                    navigate('/checkout', { replace: true });
                     return;
                 }
 
                 hasInitiated.current = true;
-                
+
                 // Call real Razorpay
                 initiatePayment({
                     internalOrderId: orderId,
@@ -48,6 +73,7 @@ export default function PaymentProcessingPage() {
                     userEmail: profile?.email || user?.email || "",
                     userPhone: profile?.phone || user?.phone || "",
                     onSuccess: async () => {
+                        paymentSettled.current = true;
                         // Clear cart on successful payment
                         await clearCartDB().catch(() => { });
                         const cartEntries = Object.entries(cartItems);
@@ -59,9 +85,9 @@ export default function PaymentProcessingPage() {
                         navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
                     onFailure: (error) => {
+                        paymentSettled.current = true;
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
-                        // Redirect back to checkout
-                        navigate(`/checkout`, { replace: true });
+                        navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
                     }
                 });
             } else if (type === "plan") {

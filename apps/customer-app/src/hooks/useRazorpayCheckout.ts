@@ -79,12 +79,13 @@ export function useRazorpayCheckout() {
           hide_topbar: false,
         },
         modal: {
-          confirm_close: true,
           ondismiss: () => {
             setIsProcessing(false);
             toast.info('Payment cancelled');
             if (onFailure) {
-                onFailure(new Error('PAYMENT_CANCELLED'));
+              onFailure(new Error('PAYMENT_CANCELLED'));
+            } else {
+              navigate('/checkout', { replace: true });
             }
           },
         },
