@@ -15,7 +15,7 @@
     "src"
   ],
   "scripts": {
-    "build": "pnpm exec tsc -b --force"
+    "build": "pnpm exec tsc -b"
   },
   "dependencies": {
     "@popclozet/api-client": "workspace:*",

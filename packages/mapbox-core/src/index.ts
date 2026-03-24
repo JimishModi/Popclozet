@@ -219,6 +219,61 @@ export const getDistanceFromWarehouse = (lat: number, lng: number): number => {
 // REVERSE GEOCODING
 // ==========================================
 
+export interface ReverseGeocodeResult {
+    city: string;
+    locality: string;
+    fullAddress: string;
+    state: string;
+    country: string;
+}
+
+/**
+ * Reverse geocode coordinates to get city/locality information from Mapbox.
+ */
+export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseGeocodeResult | null> => {
+    if (!CONFIGURED_TOKEN) {
+        return null;
+    }
+
+    try {
+        const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json`);
+        url.searchParams.set('access_token', CONFIGURED_TOKEN);
+        url.searchParams.set('language', 'en');
+        url.searchParams.set('limit', '5');
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        const features = Array.isArray(data?.features) ? data.features : [];
+        const context = Array.isArray(features[0]?.context) ? features[0].context : [];
+        const allParts = [features[0], ...context].filter(Boolean);
+
+        const findByPrefix = (prefix: string) =>
+            allParts.find((item: any) => typeof item?.id === 'string' && item.id.startsWith(prefix));
+
+        const neighborhood = findByPrefix('neighborhood');
+        const locality = findByPrefix('locality');
+        const place = findByPrefix('place');
+        const region = findByPrefix('region');
+        const country = findByPrefix('country');
+
+        const city = place?.text || locality?.text || region?.text || 'Current location';
+        const localityName = neighborhood?.text || locality?.text || city;
+
+        return {
+            city,
+            locality: localityName,
+            fullAddress: features[0]?.place_name || `${localityName}, ${city}`,
+            state: region?.text || '',
+            country: country?.text || '',
+        };
+    } catch {
+        return null;
+    }
+};
 
 /**
  * Get current GPS position as a Promise
@@ -239,6 +294,34 @@ export const getCurrentPosition = (options?: PositionOptions): Promise<Geolocati
 
         navigator.geolocation.getCurrentPosition(resolve, reject, defaultOptions);
     });
+};
+
+/**
+ * Auto-detect user location, reverse geocode it, and evaluate service coverage.
+ */
+export const autoDetectLocation = async (): Promise<{
+    lat: number;
+    lng: number;
+    city: string;
+    locality: string;
+    isInServiceArea: boolean;
+} | null> => {
+    try {
+        const position = await getCurrentPosition();
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const geocode = await reverseGeocode(lat, lng);
+
+        return {
+            lat,
+            lng,
+            city: geocode?.city || 'Current location',
+            locality: geocode?.locality || geocode?.city || 'Current location',
+            isInServiceArea: isWithinServiceArea(lat, lng),
+        };
+    } catch {
+        return null;
+    }
 };
 
 
