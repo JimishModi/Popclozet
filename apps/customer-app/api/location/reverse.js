@@ -1,28 +1,8 @@
 // Vercel Serverless Function: /api/location/reverse
-// Proxies to Mappls Reverse Geocode API
 
-const https = require('https');
+module.exports = async function handler(req, res) {
+  const { lat, lng } = req.query || {};
 
-function httpsGet(url, headers) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, body: JSON.parse(data) });
-        } catch (e) {
-          resolve({ status: res.statusCode, body: null, raw: data.slice(0, 200) });
-        }
-      });
-    }).on('error', (err) => reject(err));
-  });
-}
-
-module.exports = async (req, res) => {
-  const { lat, lng } = req.query;
-
-  // Always return something so the map page doesn't break
   const fallback = {
     formatted_address: lat && lng ? `${lat}, ${lng}` : 'Unknown location',
     latitude: parseFloat(lat) || 0,
@@ -31,36 +11,60 @@ module.exports = async (req, res) => {
   };
 
   if (!lat || !lng) {
-    return res.status(400).json({ error: 'lat and lng are required' });
+    res.status(200).json(fallback);
+    return;
   }
 
-  const REST_KEY = process.env.MAPPLS_REST_KEY;
-  if (!REST_KEY) {
-    console.error('[reverse] MAPPLS_REST_KEY not set in environment');
-    return res.status(200).json(fallback);
-  }
-
+  // Try Nominatim (OpenStreetMap) - free, no key required
   try {
-    const url = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`;
-    const { status, body, raw } = await httpsGet(url, {
-      Referer: req.headers.referer || 'https://popclozet.vercel.app/',
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+    const response = await fetch(nominatimUrl, {
+      headers: {
+        'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
+        'Accept-Language': 'en',
+      },
     });
 
-    if (!body) {
-      console.error(`[reverse] Mappls non-JSON response (status ${status}):`, raw);
-      return res.status(200).json(fallback);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.display_name) {
+        const addr = data.address || {};
+        res.status(200).json({
+          formatted_address: data.display_name,
+          full_address: data.display_name,
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng),
+          city: addr.city || addr.town || addr.village || addr.county || 'Mumbai',
+          pincode: addr.postcode || '',
+        });
+        return;
+      }
     }
-
-    if (status !== 200) {
-      console.error(`[reverse] Mappls error (status ${status}):`, JSON.stringify(body));
-      return res.status(200).json(fallback);
-    }
-
-    const results = body.results || (Array.isArray(body) ? body : []);
-    const bestResult = results[0];
-    res.status(200).json(bestResult || fallback);
-  } catch (error) {
-    console.error('[reverse] Unexpected error:', error.message);
-    res.status(200).json(fallback);
+  } catch (e) {
+    console.error('[reverse] Nominatim error:', e.message);
   }
+
+  // Try Mappls if key is available
+  const REST_KEY = process.env.MAPPLS_REST_KEY;
+  if (REST_KEY) {
+    try {
+      const mapplsUrl = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`;
+      const response = await fetch(mapplsUrl, {
+        headers: { Referer: 'https://popclozet.vercel.app/' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const results = data.results || (Array.isArray(data) ? data : []);
+        const best = results[0];
+        if (best) {
+          res.status(200).json(best);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[reverse] Mappls error:', e.message);
+    }
+  }
+
+  res.status(200).json(fallback);
 };

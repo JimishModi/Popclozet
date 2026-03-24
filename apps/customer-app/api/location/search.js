@@ -1,61 +1,70 @@
 // Vercel Serverless Function: /api/location/search
-// Proxies to Mappls AutoSuggest API
 
-const https = require('https');
+module.exports = async function handler(req, res) {
+  let { query } = req.query || {};
 
-function httpsGet(url, headers) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, body: JSON.parse(data) });
-        } catch (e) {
-          // Return raw text so caller can log it
-          resolve({ status: res.statusCode, body: null, raw: data.slice(0, 200) });
-        }
-      });
-    }).on('error', (err) => reject(err));
-  });
-}
+  if (!query || query.length < 3) {
+    res.status(200).json([]);
+    return;
+  }
+  if (query.length > 40) query = query.substring(0, 40);
 
-module.exports = async (req, res) => {
+  // Try Mappls if key is available
   const REST_KEY = process.env.MAPPLS_REST_KEY;
-
-  let { query } = req.query;
-  if (!query) {
-    return res.status(200).json([]);
+  if (REST_KEY) {
+    try {
+      const mapplsUrl = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
+      const response = await fetch(mapplsUrl, {
+        headers: { Referer: 'https://popclozet.vercel.app/' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const results = data.suggestedLocations || (Array.isArray(data) ? data : []);
+        if (results.length > 0) {
+          res.status(200).json(results);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[search] Mappls error:', e.message);
+    }
   }
-  if (typeof query === 'string' && query.length > 40) {
-    query = query.substring(0, 40);
-  }
 
-  if (!REST_KEY) {
-    console.error('[search] MAPPLS_REST_KEY not set in environment');
-    return res.status(200).json([]);
-  }
-
+  // Fallback to Nominatim (OpenStreetMap) - free, no key required
   try {
-    const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
-    const { status, body, raw } = await httpsGet(url, {
-      Referer: req.headers.referer || 'https://popclozet.vercel.app/',
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=5`;
+    const response = await fetch(nominatimUrl, {
+      headers: {
+        'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
+        'Accept-Language': 'en',
+      },
     });
 
-    if (!body) {
-      console.error(`[search] Mappls non-JSON response (status ${status}):`, raw);
-      return res.status(200).json([]);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const results = data.map((place) => {
+          const addr = place.address || {};
+          const name = addr.road || addr.neighbourhood || addr.suburb || place.name || '';
+          const city = addr.city || addr.town || addr.village || addr.county || '';
+          const state = addr.state || '';
+          const addressStr = [name, addr.suburb, city, state, addr.postcode].filter(Boolean).join(', ');
+          return {
+            placeName: name || place.display_name.split(',')[0],
+            placeAddress: addressStr || place.display_name,
+            latitude: place.lat,
+            longitude: place.lon,
+            pincode: addr.postcode || '',
+            city,
+          };
+        });
+        res.status(200).json(results);
+        return;
+      }
     }
-
-    if (status !== 200) {
-      console.error(`[search] Mappls error (status ${status}):`, JSON.stringify(body));
-      return res.status(200).json([]);
-    }
-
-    const results = body.suggestedLocations || (Array.isArray(body) ? body : []);
-    res.status(200).json(results);
-  } catch (error) {
-    console.error('[search] Unexpected error:', error.message);
-    res.status(200).json([]);
+  } catch (e) {
+    console.error('[search] Nominatim error:', e.message);
   }
+
+  res.status(200).json([]);
 };
