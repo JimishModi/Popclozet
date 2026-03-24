@@ -45,6 +45,7 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
     });
 
     const [showPassword, setShowPassword] = useState(false);
+    const [magicLinkSent, setMagicLinkSent] = useState(false);
 
     // Sync form data with profile/user when they load
     useEffect(() => {
@@ -172,7 +173,17 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                     });
 
                     if (signInError) {
-                        setError('An account with this email already exists. Please log in first, then complete rider registration.');
+                        // Password auth failed — user may have signed up via phone OTP (no password).
+                        // Send a magic link so they can log in without a password.
+                        const { error: otpError } = await supabase.auth.signInWithOtp({
+                            email: formData.email,
+                            options: { shouldCreateUser: false },
+                        });
+                        if (otpError) {
+                            setError('An account with this email exists. Please log in to the rider app to complete registration.');
+                        } else {
+                            setMagicLinkSent(true);
+                        }
                         return;
                     }
 
@@ -469,7 +480,17 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                     )}
 
                     {/* Error */}
-                    {error && (
+                    {magicLinkSent && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm"
+                        >
+                            <p className="font-semibold mb-1">Check your email!</p>
+                            <p>We've sent a login link to <strong>{formData.email}</strong>. Click it to get logged in — then you'll be guided to complete your rider registration.</p>
+                        </motion.div>
+                    )}
+                    {error && !magicLinkSent && (
                         <motion.div
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
