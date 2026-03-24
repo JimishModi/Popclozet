@@ -125,6 +125,7 @@ export default function CheckoutPage() {
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
+  const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
 
   const [cartProducts, setCartProducts] = useState<Record<string, any>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -162,7 +163,6 @@ export default function CheckoutPage() {
     const hub = getSavedHub();
     if (hub) setSelectedHub(hub);
 
-    /*
     const checkSub = async () => {
       const benefits = await getSubscriptionBenefits();
       if (benefits) {
@@ -177,9 +177,6 @@ export default function CheckoutPage() {
       }
     };
     checkSub();
-    */
-    setSubBenefits(null);
-    setHasFreeDeliveryBenefit(false);
   }, []);
 
   useEffect(() => {

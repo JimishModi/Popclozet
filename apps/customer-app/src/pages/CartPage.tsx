@@ -18,6 +18,7 @@ import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { supabase } from "@popclozet/api-client";
 import SignupModal from "@/components/SignupModal";
 import { Link, useNavigate } from "react-router-dom";
+import { getSubscriptionBenefits, SubscriptionBenefits } from "@/services/subscriptionService";
 import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
@@ -160,14 +161,14 @@ const CartPage = () => {
     fetchAddOns();
   }, []);
 
-  // --- Subscription state (commented out) ---
-  // const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  // const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
+  // --- Subscription state ---
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
 
   // Calculate cart metrics
-  // const totalQty = useMemo(() => {
-  //   return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
-  // }, [validCartEntries]);
+  const totalQty = useMemo(() => {
+    return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
+  }, [validCartEntries]);
 
   // Load saved address and hub on mount
   useEffect(() => {
@@ -180,49 +181,49 @@ const CartPage = () => {
       setSelectedHub(hub);
     }
 
-    // --- Subscription check (commented out) ---
-    // const checkSub = async () => {
-    //   const benefits = await getSubscriptionBenefits();
-    //   if (benefits) {
-    //     setHasActiveSubscription(benefits.hasActiveSubscription);
-    //     setSubBenefits(benefits);
-    //   } else {
-    //     setHasActiveSubscription(false);
-    //     setSubBenefits(null);
-    //   }
-    // };
-    // checkSub();
+    // --- Subscription check ---
+    const checkSub = async () => {
+      const benefits = await getSubscriptionBenefits();
+      if (benefits) {
+        setHasActiveSubscription(benefits.hasActiveSubscription);
+        setSubBenefits(benefits);
+      } else {
+        setHasActiveSubscription(false);
+        setSubBenefits(null);
+      }
+    };
+    checkSub();
   }, []);
 
-  // --- Subscription limit checks (commented out) ---
-  // const invalidCatalogItem = validCartEntries.find(([id]) => {
-  //   const baseId = id.split('_')[0];
-  //   const product = cartProducts[baseId];
-  //   return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
-  // });
-  // const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
-  // const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
-  // const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
-  //   const p = cartProducts[id.split('_')[0]];
-  //   const value = p?.mrp || p?.originalPrice || p?.price || 0;
-  //   return value > subBenefits.maxItemValue;
-  // }) : undefined;
-  // const hasExpensiveItem = !!expensiveItem;
+  // --- Subscription limit checks ---
+  const invalidCatalogItem = validCartEntries.find(([id]) => {
+    const baseId = id.split('_')[0];
+    const product = cartProducts[baseId];
+    return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
+  });
+  const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
+  const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
+  const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
+    const p = cartProducts[id.split('_')[0]];
+    const value = p?.mrp || p?.originalPrice || p?.price || 0;
+    return value > subBenefits.maxItemValue;
+  }) : undefined;
+  const hasExpensiveItem = !!expensiveItem;
 
-  // const subscriptionError = (() => {
-  //   if (invalidCatalogItem) {
-  //     return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
-  //   }
-  //   if (!subBenefits) return null;
-  //   if (exceedsMonthlyLimit) {
-  //     return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
-  //   }
-  //   if (exceedsConcurrentLimit) {
-  //     return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
-  //   }
-  //   if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
-  //   return null;
-  // })();
+  const subscriptionError = (() => {
+    if (invalidCatalogItem) {
+      return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
+    }
+    if (!subBenefits) return null;
+    if (exceedsMonthlyLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalItems - subBenefits.remainingMonthly} item(s).`;
+    }
+    if (exceedsConcurrentLimit) {
+      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalItems - subBenefits.remainingConcurrent} item(s).`;
+    }
+    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
+    return null;
+  })();
 
   const canCheckout = validCartEntries.length > 0;
 
