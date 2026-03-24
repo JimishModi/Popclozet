@@ -246,7 +246,7 @@ const pageTransition = {
 // Persistent layout to keep BottomNav and Shell stable during page transitions
 const GlobalLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
-  const noNavPaths = ['/', '/signin', '/signup', '/auth', '/welcome', '/onboarding', '/checkout', '/qr-scanner', '/product-intake', '/product', '/payment-processing', '/order-confirmed', '/payment-success', '/payment-failed', '/map'];
+  const noNavPaths = ['/', '/signin', '/signup', '/auth', '/welcome', '/onboarding', '/checkout', '/cart', '/qr-scanner', '/product-intake', '/product', '/payment-processing', '/order-confirmed', '/payment-success', '/payment-failed', '/map'];
   const hideBottomNav = noNavPaths.some(p => location.pathname === p || (p !== '/' && location.pathname.startsWith(p)));
 
   return (

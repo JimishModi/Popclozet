@@ -695,7 +695,7 @@ const CartPage = () => {
         </div>
       )}
 
-      <BottomNavBar />
+
 
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />

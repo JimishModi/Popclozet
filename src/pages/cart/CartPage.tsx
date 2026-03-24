@@ -201,38 +201,21 @@ export const CartPage: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-5 border border-white/10"
+                className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl border-t border-white/10 p-5 z-50"
             >
-                <h2 className="text-lg font-semibold text-white mb-4">Order Summary</h2>
-
-                <div className="space-y-3 mb-6">
-                    <div className="flex justify-between text-zinc-300">
-                        <span>Subtotal</span>
-                        <span>{formatCurrency(total)}</span>
+                <div className="max-w-md mx-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="text-zinc-400 text-sm">Total Amount</div>
+                        <div className="text-white text-xl font-bold">{formatCurrency(total)}</div>
                     </div>
-                    <div className="flex justify-between text-zinc-300">
-                        <span>Delivery</span>
-                        <span className="text-green-400">FREE</span>
-                    </div>
-                    <div className="border-t border-white/10 pt-3">
-                        <div className="flex justify-between text-lg font-bold text-white">
-                            <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
-                        </div>
-                    </div>
+                    <Button
+                        onClick={() => navigate('/checkout')}
+                        className="w-full"
+                        size="lg"
+                    >
+                        Proceed to Checkout
+                    </Button>
                 </div>
-
-                <Button
-                    onClick={() => navigate('/checkout')}
-                    className="w-full"
-                    size="lg"
-                >
-                    Proceed to Checkout
-                </Button>
-
-                <p className="text-xs text-zinc-500 text-center mt-4">
-                    Refundable deposit will be added at checkout
-                </p>
             </motion.div>
         </div>
     );
