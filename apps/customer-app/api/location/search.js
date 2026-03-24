@@ -1,6 +1,6 @@
 // Vercel Serverless Function: /api/location/search
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   let { query } = req.query || {};
 
   if (!query || query.length < 3) {
@@ -13,17 +13,14 @@ module.exports = async function handler(req, res) {
   const REST_KEY = process.env.MAPPLS_REST_KEY;
   if (REST_KEY) {
     try {
-      const mapplsUrl = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
-      const response = await fetch(mapplsUrl, {
-        headers: { Referer: 'https://popclozet.vercel.app/' },
-      });
+      const response = await fetch(
+        `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`,
+        { headers: { Referer: 'https://popclozet.vercel.app/' } }
+      );
       if (response.ok) {
         const data = await response.json();
         const results = data.suggestedLocations || (Array.isArray(data) ? data : []);
-        if (results.length > 0) {
-          res.status(200).json(results);
-          return;
-        }
+        if (results.length > 0) { res.status(200).json(results); return; }
       }
     } catch (e) {
       console.error('[search] Mappls error:', e.message);
@@ -32,14 +29,15 @@ module.exports = async function handler(req, res) {
 
   // Fallback to Nominatim (OpenStreetMap) - free, no key required
   try {
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=5`;
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
-        'Accept-Language': 'en',
-      },
-    });
-
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=5`,
+      {
+        headers: {
+          'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
+          'Accept-Language': 'en',
+        },
+      }
+    );
     if (response.ok) {
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -67,4 +65,4 @@ module.exports = async function handler(req, res) {
   }
 
   res.status(200).json([]);
-};
+}

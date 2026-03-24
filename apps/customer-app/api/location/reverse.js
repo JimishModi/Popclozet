@@ -1,6 +1,6 @@
 // Vercel Serverless Function: /api/location/reverse
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const { lat, lng } = req.query || {};
 
   const fallback = {
@@ -17,14 +17,15 @@ module.exports = async function handler(req, res) {
 
   // Try Nominatim (OpenStreetMap) - free, no key required
   try {
-    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
-        'Accept-Language': 'en',
-      },
-    });
-
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)',
+          'Accept-Language': 'en',
+        },
+      }
+    );
     if (response.ok) {
       const data = await response.json();
       if (data && data.display_name) {
@@ -48,18 +49,15 @@ module.exports = async function handler(req, res) {
   const REST_KEY = process.env.MAPPLS_REST_KEY;
   if (REST_KEY) {
     try {
-      const mapplsUrl = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`;
-      const response = await fetch(mapplsUrl, {
-        headers: { Referer: 'https://popclozet.vercel.app/' },
-      });
+      const response = await fetch(
+        `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`,
+        { headers: { Referer: 'https://popclozet.vercel.app/' } }
+      );
       if (response.ok) {
         const data = await response.json();
         const results = data.results || (Array.isArray(data) ? data : []);
         const best = results[0];
-        if (best) {
-          res.status(200).json(best);
-          return;
-        }
+        if (best) { res.status(200).json(best); return; }
       }
     } catch (e) {
       console.error('[reverse] Mappls error:', e.message);
@@ -67,4 +65,4 @@ module.exports = async function handler(req, res) {
   }
 
   res.status(200).json(fallback);
-};
+}
