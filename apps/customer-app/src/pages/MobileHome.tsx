@@ -17,14 +17,14 @@ import popclozetLogo from "@/logo/logo.png";
 const COLLECTIONS = [
     { id: "jackets", title: "Jackets", image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80" },
     { id: "footwear", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
-    { id: "party", title: "Party Wear", image: "https://images.unsplash.com/photo-1596459204919-c8a44421c6ca?w=500&q=80" },
+    { id: "party", title: "Party Wear", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=500&q=80" },
     { id: "accessories", title: "Accessories", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=500&q=80" }
 ];
 
 const FEATURED_SLIDES = [
     { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
     { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80", gender: "womens" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1596459204919-c8a44421c6ca?w=800&q=80", gender: "womens" },
+    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=800&q=80", gender: "womens" },
 
     { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=800&q=80", gender: "mens" },
     { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80", gender: "mens" },
