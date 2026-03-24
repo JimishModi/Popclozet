@@ -1,0 +1,2 @@
+vite.config.ts(2,19): error TS2307: Cannot find module '@vitejs/plugin-react' or its corresponding type declarations.
+vite.config.ts(3,25): error TS2307: Cannot find module 'vite-plugin-pwa' or its corresponding type declarations.

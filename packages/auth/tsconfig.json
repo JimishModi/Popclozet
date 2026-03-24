@@ -12,5 +12,9 @@
 
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../api-client" },
+    { "path": "../domain-contracts" }
+  ]
 }

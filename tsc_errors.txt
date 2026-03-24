@@ -1,0 +1,95 @@
+﻿packages/auth/src/index.tsx(15,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+packages/auth/src/index.tsx(183,79): error TS7006: Parameter 'event' implicitly has an 'any' type.
+packages/auth/src/index.tsx(183,86): error TS7006: Parameter 'session' implicitly has an 'any' type.
+packages/auth/src/mfaService.ts(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+packages/auth/src/mfaService.ts(77,27): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/contexts/AuthContext.tsx(35,52): error TS7031: Binding element 'session' implicitly has an 'any' type.
+src/contexts/AuthContext.tsx(48,46): error TS7006: Parameter '_event' implicitly has an 'any' type.
+src/contexts/AuthContext.tsx(48,54): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/pages/admin/DashboardPage.tsx(60,53): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/admin/DashboardPage.tsx(63,50): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/admin/DashboardPage.tsx(64,51): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/admin/DashboardPage.tsx(68,65): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/pages/checkout/CheckoutPage.tsx(61,45): error TS7006: Parameter 'addr' implicitly has an 'any' type.
+src/pages/orders/ReturnPage.tsx(73,45): error TS7006: Parameter 'addr' implicitly has an 'any' type.
+src/pages/rider/RiderDashboardPage.tsx(66,45): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/rider/RiderDashboardPage.tsx(76,40): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/services/supabase.ts(6,42): error TS6305: Output file 'C:/Users/madha/Desktop/doc popclozet/popclozet/packages/api-client/dist/index.d.ts' has not been built from source file 'C:/Users/madha/Desktop/doc popclozet/popclozet/packages/api-client/src/index.ts'.
+vite.config.ts(2,19): error TS2307: Cannot find module '@vitejs/plugin-react' or its corresponding type declarations.
+vite.config.ts(3,25): error TS2307: Cannot find module 'vite-plugin-pwa' or its corresponding type declarations.
+apps/customer-app/src/components/map/DeliveryTracker.tsx(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/components/map/OrderChat.tsx(3,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/components/ui/synthetic-hero.tsx(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/context/SupabaseAuthContext.tsx(3,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/hooks/useActiveOrder.ts(7,34): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/hooks/useCart.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/hooks/useDeliveryTracking.ts(5,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/hooks/useOrders.ts(3,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/hooks/useRiderLocation.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/integrations/supabase/client.ts(6,39): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CartPage.tsx(18,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CategoryProductsPage.tsx(10,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CheckoutPage.tsx(30,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/ClosetPage.tsx(7,40): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CollectEmailPage.tsx(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CollectPhonePage.tsx(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/CreateAccountPage.tsx(5,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/DeliveryTrackingPage.tsx(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/EmailVerifyCallbackPage.tsx(3,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/MobileProductDetailPage.tsx(10,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/NotificationsPage.tsx(9,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/OrderConfirmedPage.tsx(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/OtpVerificationPage.tsx(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/PaymentSuccessPage.tsx(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/ProfilePage.tsx(16,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/SignInPage.tsx(7,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/SignUpPage.tsx(7,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/VerifyCollectedEmailPage.tsx(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/VerifyEmailPage.tsx(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/VerifyPhonePage.tsx(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/pages/WishlistPage.tsx(9,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/authService.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/cartService.ts(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/deliveryOtpService.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/deliveryService.ts(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/fakeProductMixService.ts(27,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/geofenceSubscription.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/hubService.ts(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/hygieneSopService.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/notificationService.ts(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/ordersService.ts(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/paymentService.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/productImportService.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/products.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/productService.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/profileService.ts(10,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/qrCodeService.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/razorpayService.ts(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/reservationService.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/riderAssignmentService.ts(10,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/riderAssignmentService.ts(209,29): error TS2339: Property 'status' does not exist on type 'unknown'.
+apps/customer-app/src/services/riderAssignmentService.ts(210,38): error TS2339: Property 'max_volume_liters' does not exist on type 'unknown'.
+apps/customer-app/src/services/riderAssignmentService.ts(211,38): error TS2339: Property 'can_carry_hanging' does not exist on type 'unknown'.
+apps/customer-app/src/services/roleService.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/subscriptionService.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/trackingService.ts(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/transactionLogService.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/userMeasurementService.ts(8,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/services/wishlistService.ts(2,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/supabase/client.ts(5,44): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/utils/emailSignup.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/customer-app/src/utils/getSignupCount.ts(1,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/DeliveryNavigationPage.tsx(13,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/HomePage.tsx(40,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/RiderDashboardPage.tsx(16,48): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/SignupPage.tsx(13,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/WarehouseNavigationPage.tsx(12,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/pages/WarehouseNavigationPage.tsx(251,33): error TS2339: Property 'otp' does not exist on type '{ success: boolean; message?: string; otp?: string; status?: string; } | { success: boolean; message: any; }'.
+  Property 'otp' does not exist on type '{ success: boolean; message: any; }'.
+apps/rider-app/src/services/deliveryOtpService.ts(6,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/deliveryService.ts(4,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/notificationsService.ts(7,34): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/riderOrderService.ts(8,56): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/riderProfileService.ts(8,34): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/slotsService.ts(7,26): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
+apps/rider-app/src/services/walletService.ts(6,34): error TS2307: Cannot find module '@popclozet/api-client' or its corresponding type declarations.
