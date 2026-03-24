@@ -2,36 +2,68 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
-
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
-
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@popclozet/ui": [
+        "../../packages/ui/src/index.tsx"
+      ],
+      "@popclozet/mapbox-core": [
+        "../../packages/mapbox-core/src/index.ts"
+      ],
+      "@popclozet/api-client": [
+        "../../packages/api-client/src/index.ts"
+      ],
+      "@popclozet/auth": [
+        "../../packages/auth/src/index.tsx"
+      ],
+      "@popclozet/domain-contracts": [
+        "../../packages/domain-contracts/src/index.ts"
+      ]
     },
-
-    "types": ["vite/client", "node"]
+    "types": [
+      "vite/client",
+      "node"
+    ]
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../../packages/api-client" },
-    { "path": "../../packages/auth" },
-    { "path": "../../packages/domain-contracts" },
-    { "path": "../../packages/mapbox-core" },
-    { "path": "../../packages/ui" }
+    {
+      "path": "../../packages/api-client"
+    },
+    {
+      "path": "../../packages/auth"
+    },
+    {
+      "path": "../../packages/domain-contracts"
+    },
+    {
+      "path": "../../packages/mapbox-core"
+    },
+    {
+      "path": "../../packages/ui"
+    }
   ]
 }

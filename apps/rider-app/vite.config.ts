@@ -23,10 +23,10 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
-            '@popclozet/domain-contracts': path.resolve(__dirname, '../../packages/domain-contracts/src'),
-            '@popclozet/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
+            '@popclozet/domain-contracts': path.resolve(__dirname, '../../packages/domain-contracts/src/index.ts'),
+            '@popclozet/api-client': path.resolve(__dirname, '../../packages/api-client/src/index.ts'),
             '@popclozet/auth': path.resolve(__dirname, '../../packages/auth/src/index.tsx'),
-            '@popclozet/mapbox-core': path.resolve(__dirname, '../../packages/mapbox-core/src'),
+            '@popclozet/mapbox-core': path.resolve(__dirname, '../../packages/mapbox-core/src/index.ts'),
             '@popclozet/ui': path.resolve(__dirname, '../../packages/ui/src/index.tsx'),
         }
     },
