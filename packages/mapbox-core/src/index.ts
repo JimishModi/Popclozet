@@ -216,9 +216,8 @@ export const getDistanceFromWarehouse = (lat: number, lng: number): number => {
 };
 
 // ==========================================
-// REVERSE GEOCODING
+// GEOLOCATION HELPERS
 // ==========================================
-
 
 /**
  * Get current GPS position as a Promise
@@ -241,6 +240,63 @@ export const getCurrentPosition = (options?: PositionOptions): Promise<Geolocati
     });
 };
 
+// ==========================================
+// AUTO-DETECT LOCATION
+// ==========================================
+
+/**
+ * Auto-detect user location using GPS + Mapbox reverse geocoding.
+ * Returns location details including city, locality, and service area status.
+ */
+export const autoDetectLocation = async (): Promise<{
+    lat: number;
+    lng: number;
+    city: string;
+    locality: string;
+    isInServiceArea: boolean;
+} | null> => {
+    try {
+        const position = await getCurrentPosition();
+        const { latitude: lat, longitude: lng } = position.coords;
+
+        const inServiceArea = isWithinServiceArea(lat, lng);
+
+        // Reverse geocode using Mapbox
+        const token = (mapboxgl as any).accessToken || CONFIGURED_TOKEN;
+        let city = 'Unknown';
+        let locality = 'Unknown';
+
+        if (token) {
+            try {
+                const res = await fetch(
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=place,locality,neighborhood`
+                );
+                const data = await res.json();
+                if (data.features && data.features.length > 0) {
+                    for (const feature of data.features) {
+                        if (feature.place_type?.includes('place')) {
+                            city = feature.text || city;
+                        }
+                        if (feature.place_type?.includes('locality') || feature.place_type?.includes('neighborhood')) {
+                            locality = feature.text || locality;
+                        }
+                    }
+                    // If locality wasn't found separately, use the first result's text
+                    if (locality === 'Unknown' && data.features[0]) {
+                        locality = data.features[0].text || locality;
+                    }
+                }
+            } catch (geocodeError) {
+                console.warn('Reverse geocoding failed:', geocodeError);
+            }
+        }
+
+        return { lat, lng, city, locality, isInServiceArea: inServiceArea };
+    } catch (error) {
+        console.error('Auto-detect location failed:', error);
+        return null;
+    }
+};
 
 // Re-export mapboxgl types for convenience
 export { mapboxgl };

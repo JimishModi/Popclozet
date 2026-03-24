@@ -13,6 +13,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../domain-contracts" }
+    { "path": "../domain-contracts" },
+    { "path": "../mapbox-core" }
   ]
 }
