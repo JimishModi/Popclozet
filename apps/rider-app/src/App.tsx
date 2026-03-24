@@ -7,8 +7,10 @@
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
+import { supabase } from '@popclozet/api-client';
 
 // Legacy pages (existing)
 import { RiderDashboardPage } from './pages/RiderDashboardPage';
@@ -37,10 +39,31 @@ if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
 }
 
 function App() {
-    const { profile, loading, user } = useAuth();
+    const { loading, user } = useAuth();
+    const [isRider, setIsRider] = useState<boolean | null>(null);
+    const [riderCheckLoading, setRiderCheckLoading] = useState(false);
 
-    // Show loader while checking auth state
-    if (loading) {
+    // Check riders table directly — independent of profiles.role
+    // This lets a person be a customer on customer-app AND a rider here simultaneously
+    useEffect(() => {
+        if (!user) {
+            setIsRider(null);
+            return;
+        }
+        setRiderCheckLoading(true);
+        supabase
+            .from('riders')
+            .select('id')
+            .eq('id', user.id)
+            .single()
+            .then(({ data }) => {
+                setIsRider(!!data);
+                setRiderCheckLoading(false);
+            });
+    }, [user]);
+
+    // Show loader while checking auth or rider status
+    if (loading || riderCheckLoading) {
         return (
             <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
                 <Loader size="lg" text="Loading..." />
@@ -59,21 +82,15 @@ function App() {
         );
     }
 
-    // ROLE CHECK: Block wrong roles with blocking screen
-    // Skip if profile hasn't loaded yet (let them use the app)
-    // ROLE CHECK: Allow customers to complete rider registration
-    if (profile && profile.role === 'customer') {
+    // Logged in but no rider profile yet → complete registration
+    if (isRider === false) {
         return (
             <Routes>
+                <Route path="/signup" element={<SignupPage />} />
                 <Route path="/complete-rider-registration" element={<SignupPage initialStep={3} />} />
                 <Route path="*" element={<Navigate to="/complete-rider-registration" replace />} />
             </Routes>
         );
-    }
-
-    // Block other wrong roles
-    if (profile && profile.role && profile.role !== 'rider') {
-        return <WrongRoleScreen expectedRole="rider" currentRole={profile.role} />;
     }
 
     return (

@@ -128,26 +128,25 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
         setIsLoading(true);
 
         try {
-            if (user && profile?.role === 'customer') {
-                // Existing user: create rider profile through the view
-                const { error: upgradeError } = await supabase
-                    .from('profiles')
+            if (user) {
+                // Logged-in user completing rider registration (e.g. coming from customer app)
+                // Only create the riders table entry — do NOT touch profiles.role
+                // so their customer app access remains intact
+                const { error: riderInsertError } = await supabase
+                    .from('riders')
                     .insert({
+                        id: user.id,
                         user_id: user.id,
-                        full_name: profile.full_name || user.user_metadata?.full_name || '',
-                        phone: profile.phone || user.user_metadata?.phone || formData.phone,
-                        role: 'rider',
-                        onboarding_completed: true,
+                        name: profile?.full_name || user.user_metadata?.full_name || formData.name,
+                        phone: profile?.phone || user.user_metadata?.phone || formData.phone,
+                        email: user.email,
                         vehicle_type: formData.vehicleType,
                         vehicle_number: formData.vehicleNumber,
-                        license_number: formData.licenseNumber
-                    })
-                    .select()
-                    .single();
+                        license_number: formData.licenseNumber,
+                    });
 
-                if (upgradeError) throw upgradeError;
-                
-                // Force a full reload to get the new profile
+                if (riderInsertError) throw riderInsertError;
+
                 window.location.href = '/';
                 return;
             }
@@ -164,7 +163,51 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
         } catch (err: any) {
             const message = err?.message || 'Failed to create account';
             if (message.toLowerCase().includes('already registered') || message.toLowerCase().includes('already exists')) {
-                setError('An account with this email/phone already exists. Please log in to become a rider.');
+                // Account exists in auth.users (e.g. from customer app) but no rider profile.
+                // Try signing in with the provided credentials and create the rider profile.
+                try {
+                    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                        email: formData.email,
+                        password: formData.password,
+                    });
+
+                    if (signInError) {
+                        setError('An account with this email already exists. Please log in first, then complete rider registration.');
+                        return;
+                    }
+
+                    const existingUser = signInData.user;
+
+                    // Check if rider profile already exists
+                    const { data: existingRider } = await supabase
+                        .from('riders')
+                        .select('id')
+                        .eq('id', existingUser.id)
+                        .single();
+
+                    if (existingRider) {
+                        navigate('/');
+                        return;
+                    }
+
+                    // Create the missing rider profile
+                    const { error: riderError } = await supabase.from('riders').insert({
+                        id: existingUser.id,
+                        user_id: existingUser.id,
+                        name: formData.name || existingUser.user_metadata?.full_name || '',
+                        phone: formData.phone || existingUser.user_metadata?.phone || '',
+                        email: formData.email,
+                        vehicle_type: formData.vehicleType,
+                        vehicle_number: formData.vehicleNumber,
+                        license_number: formData.licenseNumber,
+                    });
+
+                    if (riderError) throw riderError;
+
+                    navigate('/');
+                } catch (upgradeErr: any) {
+                    setError(upgradeErr?.message || 'Failed to complete rider registration. Please contact support.');
+                }
             } else {
                 setError(message);
             }
