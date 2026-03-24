@@ -9,49 +9,58 @@ function httpsGet(url, headers) {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch (e) { reject(new Error('Failed to parse response')); }
+        try {
+          resolve({ status: res.statusCode, body: JSON.parse(data) });
+        } catch (e) {
+          resolve({ status: res.statusCode, body: null, raw: data.slice(0, 200) });
+        }
       });
-    }).on('error', reject);
+    }).on('error', (err) => reject(err));
   });
 }
 
 module.exports = async (req, res) => {
-  const REST_KEY = process.env.MAPPLS_REST_KEY;
-  if (!REST_KEY) {
-    return res.status(500).json({ error: 'MAPPLS_REST_KEY not configured' });
-  }
-
   const { lat, lng } = req.query;
+
+  // Always return something so the map page doesn't break
+  const fallback = {
+    formatted_address: lat && lng ? `${lat}, ${lng}` : 'Unknown location',
+    latitude: parseFloat(lat) || 0,
+    longitude: parseFloat(lng) || 0,
+    city: 'Mumbai',
+  };
+
   if (!lat || !lng) {
     return res.status(400).json({ error: 'lat and lng are required' });
   }
 
+  const REST_KEY = process.env.MAPPLS_REST_KEY;
+  if (!REST_KEY) {
+    console.error('[reverse] MAPPLS_REST_KEY not set in environment');
+    return res.status(200).json(fallback);
+  }
+
   try {
     const url = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`;
-    const { body } = await httpsGet(url, { Referer: req.headers.referer || 'https://popclozet.vercel.app/' });
-
-    const results = body.results || (Array.isArray(body) ? body : [body]);
-    const bestResult = results[0];
-
-    if (bestResult) {
-      res.status(200).json(bestResult);
-    } else {
-      // Fallback with raw coordinates
-      res.status(200).json({
-        formatted_address: `${lat}, ${lng}`,
-        latitude: parseFloat(lat),
-        longitude: parseFloat(lng),
-        city: 'Mumbai'
-      });
-    }
-  } catch (error) {
-    // Graceful fallback so the map page still works
-    res.status(200).json({
-      formatted_address: `${lat}, ${lng}`,
-      latitude: parseFloat(lat),
-      longitude: parseFloat(lng),
-      city: 'Mumbai'
+    const { status, body, raw } = await httpsGet(url, {
+      Referer: req.headers.referer || 'https://popclozet.vercel.app/',
     });
+
+    if (!body) {
+      console.error(`[reverse] Mappls non-JSON response (status ${status}):`, raw);
+      return res.status(200).json(fallback);
+    }
+
+    if (status !== 200) {
+      console.error(`[reverse] Mappls error (status ${status}):`, JSON.stringify(body));
+      return res.status(200).json(fallback);
+    }
+
+    const results = body.results || (Array.isArray(body) ? body : []);
+    const bestResult = results[0];
+    res.status(200).json(bestResult || fallback);
+  } catch (error) {
+    console.error('[reverse] Unexpected error:', error.message);
+    res.status(200).json(fallback);
   }
 };
