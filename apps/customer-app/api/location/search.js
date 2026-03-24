@@ -1,0 +1,90 @@
+// Vercel Serverless Function: /api/location/search
+
+export default async function handler(req, res) {
+  let { query } = req.query || {};
+
+  if (!query || query.length < 3) {
+    res.status(200).json([]);
+    return;
+  }
+  if (query.length > 40) query = query.substring(0, 40);
+
+  const REST_KEY = process.env.MAPPLS_REST_KEY;
+
+  if (REST_KEY) {
+    // Try Mappls v1 REST API (uses key directly in URL — no OAuth needed)
+    try {
+      const v1Url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/place_suggest?query=${encodeURIComponent(query)}&region=IND`;
+      const v1Res = await fetch(v1Url, {
+        headers: { 'Referer': 'https://popclozet.vercel.app/' },
+      });
+      if (v1Res.ok) {
+        const data = await v1Res.json();
+        // v1 returns { suggestedLocations: [...] } or similar
+        const results = data.suggestedLocations || data.results || (Array.isArray(data) ? data : []);
+        if (results.length > 0) {
+          res.status(200).json(results);
+          return;
+        }
+      } else {
+        console.error('[search] Mappls v1 status:', v1Res.status);
+      }
+    } catch (e) {
+      console.error('[search] Mappls v1 error:', e.message);
+    }
+
+    // Try Mappls Atlas API (newer — may need OAuth, worth trying)
+    try {
+      const atlasUrl = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
+      const atlasRes = await fetch(atlasUrl, {
+        headers: { 'Referer': 'https://popclozet.vercel.app/' },
+      });
+      if (atlasRes.ok) {
+        const data = await atlasRes.json();
+        const results = data.suggestedLocations || (Array.isArray(data) ? data : []);
+        if (results.length > 0) {
+          res.status(200).json(results);
+          return;
+        }
+      } else {
+        console.error('[search] Mappls Atlas status:', atlasRes.status, await atlasRes.text().catch(() => ''));
+      }
+    } catch (e) {
+      console.error('[search] Mappls Atlas error:', e.message);
+    }
+  } else {
+    console.warn('[search] MAPPLS_REST_KEY not set');
+  }
+
+  // Fallback: Nominatim (OpenStreetMap) — always works, no key needed
+  try {
+    const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=5`;
+    const nomRes = await fetch(nomUrl, {
+      headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)', 'Accept-Language': 'en' },
+    });
+    if (nomRes.ok) {
+      const data = await nomRes.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const results = data.map((place) => {
+          const addr = place.address || {};
+          const name = addr.road || addr.neighbourhood || addr.suburb || place.name || '';
+          const city = addr.city || addr.town || addr.village || addr.county || '';
+          return {
+            placeName: name || place.display_name.split(',')[0],
+            placeAddress: place.display_name,
+            latitude: place.lat,
+            longitude: place.lon,
+            pincode: addr.postcode || '',
+            city,
+          };
+        });
+        res.status(200).json(results);
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('[search] Nominatim error:', e.message);
+  }
+
+  res.status(200).json([]);
+}

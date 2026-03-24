@@ -17,10 +17,20 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@popclozet/api-client": ["../../packages/api-client/src/index.ts"],
+      "@popclozet/auth": ["../../packages/auth/src/index.tsx"],
+      "@popclozet/domain-contracts": ["../../packages/domain-contracts/src/index.ts"],
+      "@popclozet/mapbox-core": ["../../packages/mapbox-core/src/index.ts"],
+      "@popclozet/ui": ["../../packages/ui/src/index.tsx"]
     },
 
     "types": ["vite/client", "node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/domain-contracts" },
+    { "path": "../../packages/api-client" },
+    { "path": "../../packages/auth" }
+  ]
 }

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"auth\\\\.users\\\\|email\\\\|phone\" 'c:/Users/madha/Desktop/doc popclozet/popclozet/supabase/migrations/' --include=*.sql)"
+    ]
+  }
+}

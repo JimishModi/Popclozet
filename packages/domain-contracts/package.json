@@ -14,7 +14,7 @@
     "src"
   ],
   "scripts": {
-    "build": "pnpm exec tsc -b"
+    "build": "pnpm exec tsc -b --force"
   },
   "dependencies": {
     "react": "18.2.0",

@@ -21,11 +21,17 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@popclozet/domain-contracts": ["../../packages/domain-contracts/src/index.ts"]
+      "@/*": ["src/*"]
     },
 
     "types": ["vite/client", "node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/api-client" },
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/domain-contracts" },
+    { "path": "../../packages/mapbox-core" },
+    { "path": "../../packages/ui" }
+  ]
 }

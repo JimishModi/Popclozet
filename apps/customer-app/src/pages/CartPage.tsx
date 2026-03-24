@@ -30,15 +30,6 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 
 /* ---------------------------------- */
-/* Mock Add-ons                       */
-/* ---------------------------------- */
-const ADD_ONS = [
-  { id: "addon1", title: "Bracelets", price: 699, originalPrice: 4000 },
-  { id: "addon2", title: "Earrings", price: 499, originalPrice: 2500 },
-  { id: "addon3", title: "Clutch Bag", price: 899, originalPrice: 3500 },
-];
-
-/* ---------------------------------- */
 /* Helpers                            */
 /* ---------------------------------- */
 const hasManualCity = () => {
@@ -65,7 +56,7 @@ const getSavedHub = () => {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan, addToCart } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -88,6 +79,7 @@ const CartPage = () => {
   // Coupon state
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
+  const [addOnProducts, setAddOnProducts] = useState<any[]>([]);
 
   const cartEntries = Object.entries(cartItems);
 
@@ -156,6 +148,25 @@ const CartPage = () => {
 
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
+
+  useEffect(() => {
+    const fetchAddOns = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
+          .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
+          .limit(8);
+
+        if (data && !error) {
+          setAddOnProducts(data);
+        }
+      } catch (err) {
+        console.error("Add-ons fetch failed:", err);
+      }
+    };
+    fetchAddOns();
+  }, []);
 
   // --- Subscription state (commented out) ---
   // const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
@@ -387,8 +398,17 @@ const CartPage = () => {
                 </button>
                 <span className="text-[10px] font-black text-white min-w-[12px] text-center">{quantity}</span>
                 <button
-                  onClick={() => updateQuantity(productId, size, plan, quantity + 1)}
-                  className="text-white/60 hover:text-white text-xs font-bold px-1"
+                  onClick={() => {
+                     const currentInv = cartInventory[productId]?.find((i: any) => i.size === size);
+                     const maxQty = currentInv?.available_stock || 0;
+                     if (quantity < maxQty) {
+                        updateQuantity(productId, size, plan, quantity + 1);
+                     } else {
+                        toast.error('Maximum available stock reached');
+                     }
+                  }}
+                  className={cn("text-xs font-bold px-1 transition-colors", quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0) ? "text-white/20 cursor-not-allowed" : "text-white/60 hover:text-white")}
+                  disabled={quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0)}
                 >
                   +
                 </button>
@@ -510,27 +530,62 @@ const CartPage = () => {
         })()}
 
         {/* ─── ADD ONS SECTION ─── */}
-        {validCartEntries.length > 0 && (
+        {validCartEntries.length > 0 && addOnProducts.length > 0 && (
           <section className="mt-10 overflow-hidden">
             <h2 className="px-5 text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               Add ons
             </h2>
             <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 pb-4">
-              {ADD_ONS.map((addon) => (
-                <div key={addon.id} className="w-40 flex-shrink-0 bg-[#1E1E1E] rounded-3xl p-3 border border-white/5">
-                  <div className="w-full aspect-square bg-zinc-800 rounded-2xl mb-3 overflow-hidden" />
-                  <h3 className="text-sm font-bold text-white truncate">{addon.title}</h3>
-                  <div className="mt-2 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-black text-white">₹{addon.price}</p>
-                      <p className="text-[10px] text-zinc-600 line-through">₹{addon.originalPrice}</p>
+              {addOnProducts.map((addon) => {
+                const imageUrl = addon.images?.[0] || '';
+                const price = addon.rental_price_1d || addon.rental_price || 0;
+                const mrp = addon.buy_price || (price * 5);
+                
+                const invData = addon.inventory || [];
+                const defaultInv = invData.find((i: any) => i.available_stock > 0) || invData[0] || { size: 'One Size', available_stock: 0 };
+                const defaultSize = defaultInv.size;
+                const available = defaultInv.available_stock || 0;
+                
+                // We use '1d' by default as requested
+                const currentQty = cartItems[`${addon.id}_${defaultSize}_1d`]?.quantity || 0;
+                const isMaxReached = currentQty >= available;
+                
+                return (
+                  <div 
+                    key={addon.id} 
+                    className="w-40 flex-shrink-0 bg-[#1E1E1E] rounded-3xl p-3 border border-white/5 transition-transform active:scale-95 cursor-pointer"
+                    onClick={() => navigate(`/product/${addon.id}`)}
+                  >
+                    <div className="w-full aspect-square bg-zinc-800 rounded-2xl mb-3 overflow-hidden">
+                      {imageUrl && (
+                        <img src={imageUrl} alt={addon.name} className="w-full h-full object-cover" />
+                      )}
                     </div>
-                    <button className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors">
-                      <Plus className="w-4 h-4 text-white" />
-                    </button>
+                    <h3 className="text-sm font-bold text-white truncate">{addon.name}</h3>
+                    <div className="mt-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-black text-white">₹{price}</p>
+                        <p className="text-[10px] text-zinc-600 line-through">₹{mrp}</p>
+                      </div>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isMaxReached) {
+                            toast.error('Maximum available stock reached for this add-on');
+                            return;
+                          }
+                          // addToCart handles creation or qty update under the hood
+                          addToCart(addon.id, defaultSize, '1d');
+                        }}
+                        className={cn("w-8 h-8 rounded-full flex items-center justify-center transition-colors", isMaxReached ? "bg-white/5 cursor-not-allowed" : "bg-zinc-800 hover:bg-[#E95466]")}
+                        disabled={isMaxReached}
+                      >
+                        <Plus className={cn("w-4 h-4 text-white", isMaxReached && "opacity-30")} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}

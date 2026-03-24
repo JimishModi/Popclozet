@@ -1,3 +1,4 @@
+// Vercel trigger-deploy: ensure latest checkout and bottom nav fixes are live
 import { Toaster } from "@/components/ui/toaster";
 import AuthGate from "@/components/auth/AuthGate";
 import { Toaster as Sonner } from "@/components/ui/sonner";

@@ -83,6 +83,9 @@ export function useRazorpayCheckout() {
           ondismiss: () => {
             setIsProcessing(false);
             toast.info('Payment cancelled');
+            if (onFailure) {
+                onFailure(new Error('PAYMENT_CANCELLED'));
+            }
           },
         },
         handler: async (response: RazorpayPaymentResponse) => {

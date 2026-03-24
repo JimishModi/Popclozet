@@ -57,6 +57,11 @@ export default function PaymentProcessingPage() {
                         }
                         // Navigate to order confirmed
                         navigate(`/order-confirmed/${orderId}`, { replace: true });
+                    },
+                    onFailure: (error) => {
+                        console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
+                        // Redirect back to checkout
+                        navigate(`/checkout`, { replace: true });
                     }
                 });
             } else if (type === "plan") {

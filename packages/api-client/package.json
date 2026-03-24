@@ -2,19 +2,20 @@
   "name": "@popclozet/api-client",
   "version": "1.0.0",
   "private": true,
-  "main": "src/index.js",
-  "types": "src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
     "src"
   ],
   "scripts": {
-    "build": "pnpm exec tsc -b"
+    "build": "pnpm exec tsc -b --force"
   },
   "dependencies": {
     "@popclozet/domain-contracts": "workspace:*",
