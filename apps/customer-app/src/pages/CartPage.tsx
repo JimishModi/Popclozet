@@ -25,12 +25,16 @@ import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryServi
 import { cn } from "@/lib/utils";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
-
+import { BottomNavBar } from "@/components/layout/BottomNavBar";
 
 /* ---------------------------------- */
 /* Mock Add-ons                       */
 /* ---------------------------------- */
-// Mock ADD_ONS removed for dynamic state
+const ADD_ONS = [
+  { id: "addon1", title: "Bracelets", price: 699, originalPrice: 4000 },
+  { id: "addon2", title: "Earrings", price: 499, originalPrice: 2500 },
+  { id: "addon3", title: "Clutch Bag", price: 899, originalPrice: 3500 },
+];
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -59,7 +63,7 @@ const getSavedHub = () => {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CartPage = () => {
-  const { cartItems, addToCart, removeFromCart, updateQuantity, updateSize, updatePlan } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
 
@@ -73,10 +77,9 @@ const CartPage = () => {
   const [cartInventory, setCartInventory] = useState<Record<string, any[]>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
 
+  // Coupon state
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
-  const [addOnProducts, setAddOnProducts] = useState<any[]>([]);
-
 
   const cartEntries = Object.entries(cartItems);
 
@@ -146,35 +149,16 @@ const CartPage = () => {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
 
-  useEffect(() => {
-    const fetchAddOns = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, name, category, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
-          .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .limit(8);
-
-        if (data && !error) {
-          setAddOnProducts(data);
-        }
-      } catch (err) {
-        console.error("Add-ons fetch failed:", err);
-      }
-    };
-    fetchAddOns();
-  }, []);
-
-
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const [subBenefits, setSubBenefits] = useState<any | null>(null);
+  // --- Subscription state (commented out) ---
+  // const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  // const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
 
   // Calculate cart metrics
-  const totalQty = useMemo(() => {
-    return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
-  }, [validCartEntries]);
+  // const totalQty = useMemo(() => {
+  //   return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
+  // }, [validCartEntries]);
 
-  // Load saved address, hub, and subscription benefit on mount
+  // Load saved address and hub on mount
   useEffect(() => {
     const addresses = getLocalAddresses();
     if (addresses.length > 0) {
@@ -185,22 +169,51 @@ const CartPage = () => {
       setSelectedHub(hub);
     }
 
-    /*
-    const checkSub = async () => {
-      const benefits = await getSubscriptionBenefits();
-      if (benefits) {
-        setHasActiveSubscription(benefits.hasActiveSubscription);
-        setSubBenefits(benefits);
-      } else {
-        setHasActiveSubscription(false);
-        setSubBenefits(null);
-      }
-    };
-    checkSub();
-    */
-    setHasActiveSubscription(false);
-    setSubBenefits(null);
+    // --- Subscription check (commented out) ---
+    // const checkSub = async () => {
+    //   const benefits = await getSubscriptionBenefits();
+    //   if (benefits) {
+    //     setHasActiveSubscription(benefits.hasActiveSubscription);
+    //     setSubBenefits(benefits);
+    //   } else {
+    //     setHasActiveSubscription(false);
+    //     setSubBenefits(null);
+    //   }
+    // };
+    // checkSub();
   }, []);
+
+  // --- Subscription limit checks (commented out) ---
+  // const invalidCatalogItem = validCartEntries.find(([id]) => {
+  //   const baseId = id.split('_')[0];
+  //   const product = cartProducts[baseId];
+  //   return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
+  // });
+  // const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
+  // const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
+  // const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
+  //   const p = cartProducts[id.split('_')[0]];
+  //   const value = p?.mrp || p?.originalPrice || p?.price || 0;
+  //   return value > subBenefits.maxItemValue;
+  // }) : undefined;
+  // const hasExpensiveItem = !!expensiveItem;
+
+  // const subscriptionError = (() => {
+  //   if (invalidCatalogItem) {
+  //     return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
+  //   }
+  //   if (!subBenefits) return null;
+  //   if (exceedsMonthlyLimit) {
+  //     return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalQty - subBenefits.remainingMonthly} item(s).`;
+  //   }
+  //   if (exceedsConcurrentLimit) {
+  //     return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalQty - subBenefits.remainingConcurrent} item(s).`;
+  //   }
+  //   if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
+  //   return null;
+  // })();
+
+  const canCheckout = validCartEntries.length > 0;
 
   const getPlanPrice = (product: any, plan: string) => {
     if (!product) return 0;
@@ -213,8 +226,7 @@ const CartPage = () => {
     }
   };
 
-  const canCheckout = validCartEntries.length > 0;
-
+  // Calculate subtotal
   const subtotal = useMemo(() => {
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
@@ -222,7 +234,7 @@ const CartPage = () => {
       const price = getPlanPrice(product, data.plan);
       return total + (price || 0) * data.quantity;
     }, 0);
-  }, [validCartEntries, cartProducts, hasActiveSubscription]);
+  }, [validCartEntries, cartProducts]);
 
   // Original total (using MRP or 5x 3d rental as baseline)
   const originalTotal = useMemo(() => {
@@ -241,13 +253,15 @@ const CartPage = () => {
     if (!selectedHub) {
       return { pricing: null, eta: null };
     }
-    const isFree = subBenefits?.freeDelivery || false;
+    // const isFree = subBenefits?.freeDelivery || false;
+    const isFree = false;
     const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', isFree);
     const eta = calculateETA(selectedHub.distance_km, selectedHub.estimated_minutes);
     return { pricing, eta };
-  }, [selectedHub, subtotal, subBenefits]);
+  }, [selectedHub, subtotal]);
 
-  const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
+  // const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
+  const deliveryFee = deliveryInfo.pricing?.totalFee ?? 40;
 
   // Final math with coupons
   const couponDiscount = useMemo(() => {
@@ -261,7 +275,6 @@ const CartPage = () => {
   const grandTotal = subtotal - couponDiscount;
 
   const handleApplyCoupon = () => {
-    // Mock simple coupon logic
     if (couponCode.toUpperCase() === 'POP20') {
       setAppliedCoupon({ id: 'POP20', discount: 20, type: 'percent' });
       toast.success("Coupon applied! 20% off");
@@ -366,17 +379,8 @@ const CartPage = () => {
                 </button>
                 <span className="text-[10px] font-black text-white min-w-[12px] text-center">{quantity}</span>
                 <button
-                  onClick={() => {
-                     const currentInv = cartInventory[productId]?.find((i: any) => i.size === size);
-                     const maxQty = currentInv?.available_stock || 0;
-                     if (quantity < maxQty) {
-                        updateQuantity(productId, size, plan, quantity + 1);
-                     } else {
-                        toast.error('Maximum available stock reached');
-                     }
-                  }}
-                  className={cn("text-xs font-bold px-1", quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0) ? "text-white/20 cursor-not-allowed" : "text-white/60 hover:text-white")}
-                  disabled={quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0)}
+                  onClick={() => updateQuantity(productId, size, plan, quantity + 1)}
+                  className="text-white/60 hover:text-white text-xs font-bold px-1"
                 >
                   +
                 </button>
@@ -498,63 +502,30 @@ const CartPage = () => {
         })()}
 
         {/* ─── ADD ONS SECTION ─── */}
-        {validCartEntries.length > 0 && addOnProducts.length > 0 && (
+        {validCartEntries.length > 0 && (
           <section className="mt-10 overflow-hidden">
             <h2 className="px-5 text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               Add ons
             </h2>
             <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 pb-4">
-              {addOnProducts.map((addon) => {
-                const imageUrl = addon.images?.[0] || '';
-                const price = addon.rental_price_1d || addon.rental_price || 0;
-                const mrp = addon.buy_price || (price * 5);
-                
-                const invData = addon.inventory || [];
-                const defaultInv = invData.find((i: any) => i.available_stock > 0) || invData[0] || { size: 'One Size', available_stock: 0 };
-                const defaultSize = defaultInv.size;
-                const available = defaultInv.available_stock || 0;
-                const currentQty = cartItems[`${addon.id}_${defaultSize}_1d`]?.quantity || 0;
-                const isMaxReached = currentQty >= available;
-                
-                return (
-                  <div 
-                    key={addon.id} 
-                    className="w-40 flex-shrink-0 bg-[#1E1E1E] rounded-3xl p-3 border border-white/5 transition-transform active:scale-95 cursor-pointer"
-                    onClick={() => navigate(`/product/${addon.id}`)}
-                  >
-                    <div className="w-full aspect-square bg-zinc-800 rounded-2xl mb-3 overflow-hidden">
-                      {imageUrl && (
-                        <img src={imageUrl} alt={addon.name} className="w-full h-full object-cover" />
-                      )}
+              {ADD_ONS.map((addon) => (
+                <div key={addon.id} className="w-40 flex-shrink-0 bg-[#1E1E1E] rounded-3xl p-3 border border-white/5">
+                  <div className="w-full aspect-square bg-zinc-800 rounded-2xl mb-3 overflow-hidden" />
+                  <h3 className="text-sm font-bold text-white truncate">{addon.title}</h3>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-black text-white">₹{addon.price}</p>
+                      <p className="text-[10px] text-zinc-600 line-through">₹{addon.originalPrice}</p>
                     </div>
-                    <h3 className="text-sm font-bold text-white truncate">{addon.name}</h3>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-black text-white">₹{price}</p>
-                        <p className="text-[10px] text-zinc-600 line-through">₹{mrp}</p>
-                      </div>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isMaxReached) {
-                            toast.error('Maximum available stock reached for this add-on');
-                            return;
-                          }
-                          addToCart(addon.id, defaultSize, '1d');
-                        }}
-                        className={cn("w-8 h-8 rounded-full flex items-center justify-center transition-colors", isMaxReached ? "bg-white/5 cursor-not-allowed" : "bg-zinc-800 hover:bg-[#E95466]")}
-                        disabled={isMaxReached}
-                      >
-                        <Plus className={cn("w-4 h-4 text-white", isMaxReached && "opacity-30")} />
-                      </button>
-                    </div>
+                    <button className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                      <Plus className="w-4 h-4 text-white" />
+                    </button>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </section>
         )}
-
 
         {/* ─── COUPON SECTION ─── */}
         {validCartEntries.length > 0 && (
@@ -631,30 +602,45 @@ const CartPage = () => {
 
       {/* ─── FOOTER ─── */}
       {validCartEntries.length > 0 && !loadingProducts && (
-        <div className="fixed bottom-[80px] left-1/2 -translate-x-1/2 w-full max-w-[430px] z-[100] px-0">
-          <div className="bg-black/95 backdrop-blur-3xl border-t border-white/10 px-5 pt-4 pb-5 shadow-[0_-10px_40px_rgba(0,0,0,0.6)]">
-            <div className="space-y-5">
-              {/* Progress Bars */}
-              <div className="flex items-center gap-2 px-1">
-                <div className="flex-1 h-1.5 bg-[#E95466] rounded-full" />
-                <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
-                <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
+        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/5 px-5 py-6 pb-10 z-50">
+          <div className="max-w-[430px] mx-auto space-y-6">
+            {/* --- Subscribe Banner (commented out) --- */}
+            {/* <button
+              onClick={() => navigate('/subscription-plans')}
+              className="w-full text-left"
+            >
+              <div className="flex items-center gap-4 px-5 py-4 bg-[#2D1414] rounded-2xl relative overflow-hidden active:scale-[0.98] transition-all">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-bold text-white tracking-tight">
+                    Subscribe to the Future
+                  </p>
+                  <p className="text-xs text-white/60 mt-0.5 font-medium">
+                    Pick any 4 items you like each month for just 1799
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white/40" />
               </div>
+            </button> */}
 
-              {/* Checkout CTA */}
-              <button
-                onClick={handleCheckout}
-                className="w-full h-14 flex items-center justify-center bg-[#E95466] rounded-2xl font-black text-lg text-white shadow-xl shadow-[#E95466]/20 active:scale-[0.98] transition-all"
-              >
-                Check Out
-              </button>
+            {/* Progress Bars */}
+            <div className="flex items-center gap-2 px-1">
+              <div className="flex-1 h-1.5 bg-[#E95466] rounded-full" />
+              <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
+              <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
             </div>
+
+            {/* Checkout CTA */}
+            <button
+              onClick={handleCheckout}
+              className="w-full h-14 flex items-center justify-center bg-[#E95466] rounded-full font-black text-lg text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98] transition-all"
+            >
+              Check Out
+            </button>
           </div>
         </div>
       )}
 
-
-      {/* Bottom Nav Bar (imported elsewhere perhaps, or just standard in MobileShell) */}
+      <BottomNavBar />
 
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />

@@ -59,9 +59,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Fresh app open (e.g. '/' or '/home') with a stale incomplete session
-      // Sign out cleanly and send to login
-      signOut().then(() => navigate("/auth/login", { replace: true }));
+      // If they somehow landed on a non-auth path while needing onboarding, redirect them to create-account
+      navigate(targetPath, { replace: true });
       return;
     }
 
