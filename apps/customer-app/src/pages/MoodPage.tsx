@@ -3,7 +3,6 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { cn } from "@/lib/utils";
 import SignupModal from "@/components/SignupModal";
 import { useCart } from "@/context/CartContext";
@@ -156,8 +155,6 @@ const MoodPage: React.FC = () => {
                     </div>
                 </div>
             </main>
-
-            <BottomNavBar />
             <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
         </MobileShell>
     );

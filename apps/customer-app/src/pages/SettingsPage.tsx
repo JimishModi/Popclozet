@@ -10,8 +10,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { MobileShell } from '@/components/layout/MobileShell';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
-
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
 const storeBool = (key: string, value: boolean) =>
@@ -53,12 +51,12 @@ const Row: React.FC<RowProps> = ({ icon: Icon, iconBg = 'bg-[#f2546d]/20', label
         <button
             onClick={onClick}
             disabled={!onClick}
-            className={`flex w-full items-center gap-3 px-4 py-4 text-left transition-colors
+            className={`flex w-full items-center gap-3 px-3 md:px-4 py-3 md:py-4 text-left transition-colors
                 ${onClick ? (danger ? 'hover:bg-red-500/10 active:scale-[0.98]' : 'hover:bg-white/5 active:scale-[0.98]') : 'cursor-default'}
             `}
         >
-            <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
-                <Icon className={`w-5 h-5 ${danger ? 'text-red-400' : 'text-[#f2546d]'}`} />
+            <div className={`flex w-8 h-8 md:w-10 md:h-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+                <Icon className={`w-4 h-4 md:w-5 md:h-5 ${danger ? 'text-red-400' : 'text-[#f2546d]'}`} />
             </div>
             <div className="flex flex-1 flex-col items-start min-w-0">
                 <span className={`text-sm font-medium ${danger ? 'text-red-400' : 'text-white'}`}>{label}</span>
@@ -99,10 +97,10 @@ const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon: I
         <>
             <button
                 onClick={() => setOpen(o => !o)}
-                className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:scale-[0.98] transition-colors"
+                className="flex w-full items-center gap-3 px-3 md:px-4 py-3 md:py-4 text-left hover:bg-white/5 active:scale-[0.98] transition-colors"
             >
-                <div className={`flex w-10 h-10 shrink-0 items-center justify-center rounded-xl ${iconBg ?? 'bg-[#f2546d]/20'}`}>
-                    <Icon className={`w-5 h-5 text-[#f2546d]`} />
+                <div className={`flex w-8 h-8 md:w-10 md:h-10 shrink-0 items-center justify-center rounded-xl ${iconBg ?? 'bg-[#f2546d]/20'}`}>
+                    <Icon className={`w-4 h-4 md:w-5 md:h-5 text-[#f2546d]`} />
                 </div>
                 <div className="flex flex-1 flex-col items-start min-w-0">
                     <span className="text-sm font-medium text-white">{label}</span>
@@ -199,9 +197,9 @@ const SettingsPage: React.FC = () => {
                     className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#f2546d]/20 to-purple-500/10 border border-[#f2546d]/20 p-4 cursor-pointer active:scale-[0.98] transition-all"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[2px] shrink-0">
+                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[2px] shrink-0">
                             <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                                <User className="w-7 h-7 text-white/80" />
+                                <User className="w-5 h-5 md:w-7 md:h-7 text-white/80" />
                             </div>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -321,8 +319,6 @@ const SettingsPage: React.FC = () => {
                     </>
                 )}
             </AnimatePresence>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

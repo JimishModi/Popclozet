@@ -22,8 +22,7 @@ import { ReturnsPage } from './pages/ReturnsPage';
 import { DispatchPage } from './pages/DispatchPage';
 import { ProductIntakePage } from './pages/ProductIntakePage';
 import { SettingsPage } from './pages/SettingsPage';
-import { ProductProfilePage } from './pages/ProductProfilePage';
-import { ActivePickupsPage } from './pages/ActivePickupsPage';
+import { OrderTrackingPage } from './pages/OrderTrackingPage';
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -48,32 +47,38 @@ function App() {
         );
     }
 
-    // Role check: Only profiles with role='admin' or 'warehouse'
-    const hasAccess = profile?.role === 'admin' || profile?.role === 'warehouse';
-    if (profile && !hasAccess) {
-        return <WrongRoleScreen expectedRole="warehouse" currentRole={profile.role} />;
+    // Role check: Only profiles with role='admin'
+    const isAdmin = profile?.role === 'admin';
+    if (profile && !isAdmin) {
+        return <WrongRoleScreen expectedRole="admin" currentRole={profile.role} />;
     }
 
     return (
-        <WarehouseShell>
-            <main className="flex-1 overflow-y-auto">
-                <Routes>
-                    <Route path="/" element={<DashboardPage />} />
-                    <Route path="/inventory" element={<InventoryPage />} />
-                    <Route path="/wash" element={<WashCyclePage />} />
-                    <Route path="/orders" element={<OrderFulfillmentPage />} />
-                    <Route path="/returns" element={<ReturnsPage />} />
-                    <Route path="/dispatch" element={<DispatchPage />} />
-                    <Route path="/intake" element={<ProductIntakePage />} />
-                    <Route path="/product/:productId" element={<ProductProfilePage />} />
-                    <Route path="/active-pickups" element={<ActivePickupsPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-            </main>
-            <BottomNavigation />
-        </WarehouseShell>
+        <Routes>
+            {/* Full-screen overlay routes — rendered outside shell so they cover bottom nav */}
+            <Route path="/track/:orderId" element={<OrderTrackingPage />} />
+
+            {/* Standard Dashboard Routes wrapped in Shell */}
+            <Route path="*" element={
+                <WarehouseShell>
+                    <main className="flex-1 overflow-y-auto">
+                        <Routes>
+                            <Route path="/" element={<DashboardPage />} />
+                            <Route path="/inventory" element={<InventoryPage />} />
+                            <Route path="/wash" element={<WashCyclePage />} />
+                            <Route path="/orders" element={<OrderFulfillmentPage />} />
+                            <Route path="/returns" element={<ReturnsPage />} />
+                            <Route path="/dispatch" element={<DispatchPage />} />
+                            <Route path="/intake" element={<ProductIntakePage />} />
+                            <Route path="/settings" element={<SettingsPage />} />
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="*" element={<Navigate to="/" replace />} />
+                        </Routes>
+                    </main>
+                    <BottomNavigation />
+                </WarehouseShell>
+            } />
+        </Routes>
     );
 }
 

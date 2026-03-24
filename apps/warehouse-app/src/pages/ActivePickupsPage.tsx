@@ -118,7 +118,7 @@ export function ActivePickupsPage() {
                                 color: 'text-zinc-400',
                                 bg: 'bg-zinc-500/15',
                             };
-                            const riderName = (order as any).rider?.full_name || 'Unassigned';
+                            const riderName = order.rider_name || (order.rider_id ? 'Rider' : 'Unassigned');
                             const itemCount = order.order_items?.length || 0;
 
                             return (

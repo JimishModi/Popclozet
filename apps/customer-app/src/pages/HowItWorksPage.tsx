@@ -2,7 +2,6 @@
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { MobileHeader } from "@/components/layout/MobileHeader";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ArrowLeft, Package, Truck, RefreshCw, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -155,8 +154,6 @@ const HowItWorksPage = () => {
           </Link>
         </div>
       </main>
-
-      <BottomNavBar />
     </MobileShell>
   );
 };

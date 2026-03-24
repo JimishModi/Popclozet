@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Heart, ChevronLeft, Trash2, ShoppingBag, Loader2 } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useWishlist } from "@/context/WishlistContext";
 import { supabase } from "@popclozet/api-client";
 import { thumbImage } from "@/lib/optimizeImage";
@@ -55,7 +54,7 @@ const WishlistPage: React.FC = () => {
     }, [wishlistItems]);
 
     return (
-        <MobileShell className="bg-black text-white">
+        <div className="flex flex-col min-h-screen bg-black text-white">
             {/* Header */}
             <div className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 flex items-center justify-between border-b border-white/5">
                 <div className="flex items-center gap-3">
@@ -103,7 +102,7 @@ const WishlistPage: React.FC = () => {
 
                 {/* Products Grid */}
                 {!loading && products.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                         <AnimatePresence>
                             {products.map((product, index) => (
                                 <motion.div
@@ -163,9 +162,7 @@ const WishlistPage: React.FC = () => {
                     </div>
                 )}
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

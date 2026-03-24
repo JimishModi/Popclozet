@@ -89,7 +89,7 @@ export function TimeSlotPicker({
                     <ChevronLeft className="w-5 h-5 text-zinc-400" />
                 </button>
 
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
                     {dates.map((d) => (
                         <button
                             key={d.date}

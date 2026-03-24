@@ -3,6 +3,7 @@ export type StoredLocation =
     source: "manual";
     city: string;
     locality?: string;
+    delivery_estimate?: "15min" | "delayed";
   }
   | {
     source: "gps";
@@ -10,6 +11,7 @@ export type StoredLocation =
     lng: number;
     city?: string;
     locality?: string;
+    delivery_estimate?: "15min" | "delayed";
   };
 
 const KEY = "service_availability";

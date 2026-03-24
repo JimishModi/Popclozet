@@ -1,534 +1,460 @@
 /**
  * Delivery Navigation Page
  *
- * 3-step flow:
- *   1. navigating  — map shown, rider drives to customer
- *   2. arrived     — "Location Reached" tapped; OTP input appears inline
- *   3. done        — OTP verified, order marked delivered, navigate home
+ * Bug 1 fix: Google Maps deeplink for turn-by-turn navigation (mirrors warehouse pattern)
+ * Bug 2 fix: OTP-gated "Mark as Delivered" flow
+ * Bug 3 fix: useRef guard so startDeliveryTracking is called only once per session
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
-import { supabase } from '@popclozet/api-client';
+import { supabase, transitionOrderState } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/mapbox-core';
+import {
+  isMapboxAvailable,
+  initializeMap,
+  drawRoute,
+  mapboxgl,
+} from '@popclozet/mapbox-core';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, MapPin, KeyRound, Loader2, CheckCircle, X } from 'lucide-react';
-import { releaseOrder } from '@/services/riderOrderService';
+import { getRiderProfile } from '@/services/riderProfileService';
+import {
+  startDeliveryTracking,
+  pushLocationUpdate,
+  stopDeliveryTracking,
+} from '@/services/trackingService';
+import { verifyDeliveryOtp } from '@/services/deliveryOtpService';
+import {
+  MapPin, Navigation, CheckCircle, X, KeyRound, Loader2,
+} from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DeliveryStep = 'navigating' | 'arrived' | 'done';
-
-interface DeliveryAddress {
-    full_address: string;
-    latitude: number;
-    longitude: number;
-}
-
 interface DeliveryOrder {
-    id: string;
-    status: string;
-    user_id: string;
-    order_type?: string | null;
-    otp_delivery?: string;
-    otp_return?: string;
-    addresses: DeliveryAddress | null;
+  id: string;
+  status: string;
+  otp_delivery?: string;
+  delivery_address_snapshot?: {
+    full_address?: string;
+    lat?: number;
+    lng?: number;
+  } | null;
+  addresses?: {
+    full_address: string;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
 }
-
-// ─── Notification helpers ─────────────────────────────────────────────────────
-
-async function insertNotification(payload: {
-    user_id: string;
-    type: string;
-    title: string;
-    body: string;
-    order_id: string;
-}) {
-    const { error } = await supabase
-        .from('notifications')
-        .insert({ ...payload, is_read: false });
-    if (error) console.error('[DeliveryNav] notification insert failed:', error.message);
-}
-
-async function notifyWarehouse(orderId: string, type: string, title: string, body: string) {
-    const { data: staff } = await supabase
-        .from('warehouse_profiles')
-        .select('user_id');
-
-    if (!staff?.length) return;
-
-    const rows = staff.map((s) => ({
-        user_id: s.user_id,
-        type,
-        title,
-        body,
-        order_id: orderId,
-        is_read: false,
-    }));
-
-    const { error } = await supabase.from('notifications').insert(rows);
-    if (error) console.error('[DeliveryNav] warehouse notification failed:', error.message);
-}
-
-// ─── Style helpers ────────────────────────────────────────────────────────────
-
-const primaryBtn = (gradient: string) =>
-    `w-full py-3.5 rounded-xl bg-gradient-to-r ${gradient} text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const DeliveryNavigationPage: React.FC = () => {
-    const { id }        = useParams<{ id: string }>();
-    const { user, profile } = useAuth();
-    const { showToast } = useToast();
-    const navigate      = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
 
-    // Stable refs so callbacks don't go stale
-    const showToastRef = useRef(showToast);
-    const navigateRef  = useRef(navigate);
-    useEffect(() => { showToastRef.current = showToast; }, [showToast]);
-    useEffect(() => { navigateRef.current  = navigate;  }, [navigate]);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const trackingInitialized = useRef(false);
 
-    // Map
-    const mapRef      = useRef<HTMLDivElement>(null);
-    const mapInstance = useRef<any>(null);
+  const [order, setOrder] = useState<DeliveryOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [riderLocation, setRiderLocation] = useState<[number, number] | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
-    // State
-    const [order, setOrder]               = useState<DeliveryOrder | null>(null);
-    const [loading, setLoading]           = useState(true);
-    const [riderLocation, setRiderLocation] = useState<[number, number] | null>(null);
-    const [mapReady, setMapReady]         = useState(false);
-    const [step, setStep]                 = useState<DeliveryStep>('navigating');
-    const [actionLoading, setActionLoading] = useState(false);
-    const [isCancelling, setIsCancelling] = useState(false);
+  // OTP modal state
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [deliveryCompleting, setDeliveryCompleting] = useState(false);
 
-    // OTP
-    const [otpValue, setOtpValue]       = useState('');
-    const [otpVerifying, setOtpVerifying] = useState(false);
+  // ── Fetch order ──────────────────────────────────────────────────────────────
 
-    const riderName = useMemo(
-        () => (profile as unknown as { full_name?: string } | null)?.full_name,
-        [profile],
-    );
-    const isReturnFlow = useMemo(
-        () => ['return_scheduled', 'return_dispatched', 'return_picked_up', 'returned'].includes(order?.status ?? ''),
-        [order?.status],
-    );
+  useEffect(() => {
+    if (!id) return;
+    const fetchOrder = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id,status,otp_delivery,delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
+          .eq('id', id)
+          .single();
+        if (error || !data) throw error;
+        setOrder(data as unknown as DeliveryOrder);
+      } catch (err) {
+        console.error(err);
+        showToast('Order not found', 'error');
+        navigate('/');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrder();
+  }, [id, navigate, showToast]);
 
-    // ── Fetch order ────────────────────────────────────────────────────────────
+  // ── Cleanup GPS watch on unmount ─────────────────────────────────────────────
 
-    useEffect(() => {
-        if (!id) return;
-        let cancelled = false;
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
-        const fetchOrder = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('orders')
-                    .select('id, status, user_id, order_type, otp_delivery, otp_return, addresses:delivery_address_id(full_address, latitude, longitude)')
-                    .eq('id', id)
-                    .single();
+  // ── Resolve destination ──────────────────────────────────────────────────────
 
-                if (error || !data) throw error ?? new Error('Order not found');
-                if (cancelled) return;
-                setOrder(data as unknown as DeliveryOrder);
-            } catch (err) {
-                if (cancelled) return;
-                console.error('[DeliveryNav] fetchOrder:', err);
-                showToastRef.current('Order not found', 'error');
-                navigateRef.current('/');
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        };
+  const destLat = order?.delivery_address_snapshot?.lat
+    ?? order?.addresses?.latitude
+    ?? null;
+  const destLng = order?.delivery_address_snapshot?.lng
+    ?? order?.addresses?.longitude
+    ?? null;
+  const destAddress = order?.delivery_address_snapshot?.full_address
+    ?? order?.addresses?.full_address
+    ?? 'Delivery address unavailable';
 
-        fetchOrder();
-        return () => { cancelled = true; };
-    }, [id]);
+  // ── Open Google Maps (mirrors warehouse pattern) ─────────────────────────────
 
-    // ── Geolocation (user-triggered) ───────────────────────────────────────────
+  const handleOpenGoogleMaps = useCallback(() => {
+    // Prefer text address — Google geocodes "Hostel 18, IIT Bombay" far more
+    // accurately than raw lat/lng which can snap to nearby POIs.
+    let destination: string;
+    if (destAddress && destAddress !== 'Delivery address unavailable') {
+      destination = encodeURIComponent(destAddress);
+    } else if (destLat != null && destLng != null) {
+      destination = `${destLat},${destLng}`;
+    } else {
+      destination = encodeURIComponent('Delivery address');
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [destLat, destLng, destAddress]);
 
-    const startNavigation = useCallback(() => {
-        if (!navigator.geolocation) {
-            showToastRef.current('GPS not supported', 'error');
-            return;
+  // ── Auto-start GPS + tracking on mount ───────────────────────────────────────
+
+  useEffect(() => {
+    if (!id || !user?.id || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+        setRiderLocation(coords);
+
+        // Only initialize tracking once per session
+        if (!trackingInitialized.current) {
+          trackingInitialized.current = true;
+          const profile = await getRiderProfile(user.id);
+          await startDeliveryTracking(
+            id,
+            pos.coords.latitude,
+            pos.coords.longitude,
+            profile?.name ?? null,
+            profile?.vehicleNumber ?? null,
+            profile?.phone ?? null
+          );
         }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-                setRiderLocation(coords);
-                // High-accuracy follow-up
-                navigator.geolocation.getCurrentPosition(
-                    (high) => setRiderLocation([high.coords.longitude, high.coords.latitude]),
-                    () => {},
-                    { enableHighAccuracy: true, timeout: 15_000 },
-                );
-            },
-            () => showToastRef.current('Failed to get location', 'error'),
-            { enableHighAccuracy: false, timeout: 5_000, maximumAge: 300_000 },
+
+        // Start continuous GPS watch
+        const watchId = navigator.geolocation.watchPosition(
+          (watchPos) => {
+            const newCoords: [number, number] = [
+              watchPos.coords.longitude,
+              watchPos.coords.latitude,
+            ];
+            setRiderLocation(newCoords);
+            pushLocationUpdate(
+              user.id,
+              id,
+              watchPos.coords.latitude,
+              watchPos.coords.longitude,
+              watchPos.coords.heading ?? null,
+              watchPos.coords.speed ?? null
+            );
+          },
+          (err) => console.error('GPS watch error:', err),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
-    }, []);
-
-    useEffect(() => {
-        startNavigation();
-    }, [startNavigation]);
-
-    // ── Derived values ─────────────────────────────────────────────────────────
-
-    const destination = useMemo<[number, number] | null>(() => {
-        const addr = order?.addresses;
-        if (!addr) return null;
-        return [addr.longitude, addr.latitude];
-    }, [order?.addresses]);
-
-    const deliveryAddress = useMemo(
-        () => order?.addresses?.full_address ?? 'Delivery Address',
-        [order?.addresses?.full_address],
+        watchIdRef.current = watchId;
+      },
+      () => showToast('Failed to get location', 'error'),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
     );
+  }, [id, user?.id, showToast]);
 
-    // ── Map init ───────────────────────────────────────────────────────────────
+  // ── Init map ─────────────────────────────────────────────────────────────────
 
-    useEffect(() => {
-        if (!riderLocation || !mapRef.current || !destination) return;
-        if (!isMapboxAvailable() || !import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) return;
-        if (mapInstance.current) return;
+  useEffect(() => {
+    if (!order || !riderLocation || !mapRef.current) return;
+    if (!isMapboxAvailable()) return;
+    if (mapInstance.current) return;
+    if (!destLat || !destLng) return;
 
-        let map: mapboxgl.Map;
-        try {
-            map = initializeMap(mapRef.current, riderLocation, 15);
-        } catch (e) {
-            console.warn('[DeliveryNav] Map init failed, retrying on clean container:', e);
-            if (mapRef.current) mapRef.current.innerHTML = '';
-            map = initializeMap(mapRef.current, riderLocation, 15);
-        }
-
-        mapInstance.current = map;
-        map.on('load', async () => {
-            await drawRoute(map, [riderLocation, destination]);
-            
-            // Add native geolocation control for live tracking
-            const geolocate = new mapboxgl.GeolocateControl({
-                positionOptions: { enableHighAccuracy: true },
-                trackUserLocation: true,
-                showUserHeading: true
-            });
-            map.addControl(geolocate);
-            
-            setMapReady(true);
-        });
-
-        return () => { 
-            if (mapInstance.current) {
-                mapInstance.current.remove();
-                mapInstance.current = null;
-            }
-        };
-    }, [riderLocation?.[0], riderLocation?.[1], destination]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // ── Step 1: Rider arrived at customer location ────────────────────────────
-
-    const handleLocationReached = useCallback(async () => {
-        if (!id || !user?.id || !order) return;
-        
-        if (riderLocation && destination) {
-            const distance = calculateDistance(
-                { lng: riderLocation[0], lat: riderLocation[1] },
-                { lng: destination[0], lat: destination[1] }
-            );
-            if (distance > 0.5) {
-                const proceed = window.confirm('Warning: You appear to be far from the customer location. Are you sure you have arrived?');
-                if (!proceed) return;
-            }
-        }
-        
-        setActionLoading(true);
-
-        try {
-            // Notify customer to have OTP ready
-            await insertNotification({
-                user_id:  order.user_id,
-                type:     'rider_arrived',
-                title:    isReturnFlow ? '🛵 Your pickup rider has arrived!' : '🛵 Your rider has arrived!',
-                body:     isReturnFlow
-                    ? `${riderName ?? 'Your rider'} is at your location. Please share your return pickup code.`
-                    : `${riderName ?? 'Your rider'} is at your location. Please share your delivery code.`,
-                order_id: id,
-            });
-
-            // Notify warehouse
-            await notifyWarehouse(
-                id,
-                isReturnFlow ? 'rider_at_return_pickup' : 'rider_at_customer',
-                isReturnFlow ? '📍 Rider at return pickup location' : '📍 Rider at customer location',
-                isReturnFlow
-                    ? `Rider is at the customer pickup address for return order #${id.slice(0, 8).toUpperCase()}`
-                    : `Rider is at the delivery address for order #${id.slice(0, 8).toUpperCase()}`,
-            );
-
-            setStep('arrived');
-            setOtpValue('');
-            showToastRef.current(
-                isReturnFlow
-                    ? 'Customer notified. Ask for their return pickup code.'
-                    : 'Customer notified! Ask for their 4-digit delivery code.',
-                'success',
-            );
-        } catch (err) {
-            console.error('[DeliveryNav] locationReached:', err);
-            showToastRef.current('Failed to notify customer', 'error');
-        } finally {
-            setActionLoading(false);
-        }
-    }, [id, user?.id, order, riderName, isReturnFlow]);
-
-    // ── Step 2: Verify delivery OTP ───────────────────────────────────────────
-
-    const handleVerifyDeliveryOtp = useCallback(async () => {
-        if (!id || !user?.id || !order) return;
-        if (otpValue.length !== 4) {
-            showToastRef.current('Please enter the 4-digit code from the customer app', 'error');
-            return;
-        }
-
-        setOtpVerifying(true);
-        try {
-            // Use the verify_order_otp RPC which validates + transitions to 'delivered'
-            const { data, error } = await supabase.rpc('verify_order_otp', {
-                p_order_id: id,
-                p_otp_code: otpValue,
-                p_otp_type: isReturnFlow ? 'return' : 'delivery',
-                p_actor_id: user.id,
-            });
-
-            if (error) throw new Error(error.message);
-            if (!(data as any)?.success) throw new Error((data as any)?.message ?? 'Incorrect code');
-
-            // Notify customer of successful delivery
-            await insertNotification({
-                user_id:  order.user_id,
-                type:     isReturnFlow ? 'return_collected' : 'order_delivered',
-                title:    isReturnFlow ? '✅ Return collected!' : '✅ Order delivered!',
-                body:     isReturnFlow
-                    ? `${riderName ?? 'Your rider'} has collected your return and is heading back to the warehouse.`
-                    : `Your order has been delivered by ${riderName ?? 'your rider'}. Enjoy your rental!`,
-                order_id: id,
-            });
-
-            // Notify warehouse
-            await notifyWarehouse(
-                id,
-                isReturnFlow ? 'return_collected' : 'order_delivered',
-                isReturnFlow ? '✅ Return collected from customer' : '✅ Order delivered successfully',
-                isReturnFlow
-                    ? `Return order #${id.slice(0, 8).toUpperCase()} has been collected and is heading back to the warehouse.`
-                    : `Order #${id.slice(0, 8).toUpperCase()} has been delivered to the customer.`,
-            );
-
-            showToastRef.current(
-                isReturnFlow ? 'Return collected. Head back to the warehouse.' : 'Delivery confirmed! Great job.', 
-                'success',
-            );
-            setStep('done');
-
-            setTimeout(() => {
-                navigateRef.current(isReturnFlow ? `/warehouse/${id}` : '/');
-            }, 1_500);
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Failed to verify code';
-            console.error('[DeliveryNav] verifyDeliveryOtp:', err);
-            showToastRef.current(message, 'error');
-        } finally {
-            setOtpVerifying(false);
-        }
-    }, [id, user?.id, order, otpValue, riderName, isReturnFlow]);
-
-    const handleCancelDelivery = useCallback(async () => {
-        if (!id || !user?.id) return;
-        const confirm = window.confirm('Are you sure you want to cancel this delivery? It will be reassigned to another rider.');
-        if (!confirm) return;
-
-        setIsCancelling(true);
-        try {
-            const result = await releaseOrder(id, user.id);
-            if (!result.success) throw new Error(result.message);
-            showToastRef.current('Delivery cancelled. You can now accept other orders.', 'success');
-            navigateRef.current('/');
-        } catch (err: any) {
-            showToastRef.current(err.message || 'Failed to cancel delivery', 'error');
-        } finally {
-            setIsCancelling(false);
-        }
-    }, [id, user?.id]);
-
-    // ── Render ─────────────────────────────────────────────────────────────────
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-black">
-                <Loader size="lg" text="Loading delivery..." />
-            </div>
-        );
+    let map: any;
+    try {
+      map = initializeMap(mapRef.current, riderLocation, 14);
+    } catch (e) {
+      console.warn('[DeliveryNav] Map init failed, retrying:', e);
+      if (mapRef.current) mapRef.current.innerHTML = '';
+      try {
+        map = initializeMap(mapRef.current, riderLocation, 14);
+      } catch (e2) {
+        console.error('[DeliveryNav] Map init failed twice:', e2);
+        return;
+      }
     }
 
-    if (!order) return null;
+    mapInstance.current = map;
+    map.on('load', async () => {
+      const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+      let routeDrawn = false;
 
+      if (token && riderLocation) {
+        try {
+          const [rLng, rLat] = riderLocation;
+          const dirRes = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`
+          );
+          const dirJson = await dirRes.json();
+          const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+          if (routeCoords?.length) {
+            await drawRoute(map, routeCoords);
+            routeDrawn = true;
+          }
+        } catch (err) {
+          console.warn('[DeliveryNav] Directions API failed:', err);
+        }
+      }
+
+      if (!routeDrawn) {
+        await drawRoute(map, [riderLocation, [destLng!, destLat!]]);
+      }
+
+      try {
+        const geolocate = new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserHeading: true,
+        });
+        map.addControl(geolocate);
+      } catch { /* mapboxgl may not have GeolocateControl */ }
+
+      setMapReady(true);
+    });
+
+    return () => {
+      mapInstance.current?.remove();
+      mapInstance.current = null;
+    };
+  }, [order, riderLocation, destLat, destLng]);
+
+  // ── OTP-gated delivery completion ────────────────────────────────────────────
+
+  const handleRequestDelivery = useCallback(() => {
+    setOtpValue('');
+    setOtpError('');
+    setShowOtpModal(true);
+  }, []);
+
+  const handleVerifyAndDeliver = useCallback(async () => {
+    if (!id || !user?.id) return;
+    if (otpValue.length !== 4) {
+      setOtpError('Please enter the 4-digit OTP');
+      return;
+    }
+
+    setOtpVerifying(true);
+    setOtpError('');
+
+    try {
+      // Verify OTP against Supabase / localStorage
+      const result = await verifyDeliveryOtp(id, otpValue);
+      if (!result.success) {
+        setOtpError(result.error || 'Incorrect OTP. Please try again.');
+        setOtpVerifying(false);
+        return;
+      }
+
+      // OTP verified — complete delivery
+      setOtpVerifying(false);
+      setShowOtpModal(false);
+      setDeliveryCompleting(true);
+
+      // Stop GPS watch
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+
+      // Deactivate tracking row
+      await stopDeliveryTracking(id);
+
+      const transition = await transitionOrderState(id, 'delivered', 'rider', user.id);
+      if (!transition.success) throw new Error(transition.message);
+
+      showToast('Delivery completed! ✅', 'success');
+      navigate('/');
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to complete delivery');
+      setOtpVerifying(false);
+      setDeliveryCompleting(false);
+    }
+  }, [id, user?.id, otpValue, showToast, navigate]);
+
+  // ── Render helpers ───────────────────────────────────────────────────────────
+
+  const primaryBtn = (gradient: string) =>
+    `w-full py-3.5 rounded-xl bg-gradient-to-r ${gradient} text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50`;
+
+  if (loading) {
     return (
-        <div className="fixed inset-0 bg-black flex flex-col">
-            {/* Map */}
-            <div ref={mapRef} className="flex-1" />
-
-            {/* Start Navigation overlay — shows if GPS permission is missing or loading */}
-            {!riderLocation && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pb-32">
-                    <div className="text-center space-y-4 px-6">
-                        <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
-                            <MapPin size={28} className="text-zinc-500" />
-                        </div>
-                        <h2 className="text-lg font-bold text-white">Location Access Needed</h2>
-                        <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
-                        <button
-                            onClick={startNavigation}
-                            className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm hover:bg-zinc-200"
-                        >
-                            Enable Location
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Map loading overlay */}
-            {!mapReady && riderLocation && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-                    <Loader size="lg" text="Loading navigation..." />
-                </div>
-            )}
-
-            {/* Bottom panel */}
-            <motion.div
-                initial={{ y: 120 }}
-                animate={{ y: 0 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-0 left-0 right-0 bg-[#0f0f0f] rounded-t-3xl border-t border-zinc-800 shadow-2xl z-20 px-5 pt-4 pb-8"
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-3">
-                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                        Order #{order.id.slice(0, 8).toUpperCase()}
-                    </span>
-                </div>
-
-                <div className="flex items-start gap-2 mb-5">
-                    <MapPin size={14} className="text-indigo-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-zinc-300">{deliveryAddress}</p>
-                </div>
-
-                {/* Step actions */}
-                <AnimatePresence mode="wait">
-
-                    {/* Step 1: navigating — "Arrived at Location" button (enabled once GPS acquired) */}
-                    {step === 'navigating' && (
-                        <motion.div
-                            key="navigating"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                        >
-                            <button
-                                onClick={handleLocationReached}
-                                disabled={actionLoading || !riderLocation}
-                                className={primaryBtn('from-indigo-600 to-indigo-500')}
-                            >
-                                {actionLoading
-                                    ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    : <><MapPin size={18} /> {isReturnFlow ? 'Arrived for Return Pickup' : 'Arrived at Location'}</>
-                                }
-                            </button>
-                            <button
-                                onClick={handleCancelDelivery}
-                                disabled={isCancelling || actionLoading}
-                                className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors mt-2"
-                            >
-                                {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
-                            </button>
-                            {!riderLocation && (
-                                <p className="text-center text-xs text-zinc-500 mt-2">
-                                    Tap "Start Navigation" above to enable GPS first
-                                </p>
-                            )}
-                        </motion.div>
-                    )}
-
-                    {/* Step 2: arrived — OTP input */}
-                    {step === 'arrived' && (
-                        <motion.div
-                            key="otp"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="space-y-4"
-                        >
-                                <div className="flex items-center gap-2">
-                                    <KeyRound size={16} className="text-indigo-400" />
-                                    <p className="text-sm font-semibold text-white">
-                                        {isReturnFlow ? "Enter Customer's Return Code" : "Enter Customer's Delivery Code"}
-                                    </p>
-                                </div>
-                                <p className="text-xs text-zinc-400">
-                                {isReturnFlow
-                                    ? 'Ask the customer for the 4-digit return code shown on their tracking page.'
-                                    : 'Ask the customer for the 4-digit code shown on their tracking page.'}
-                                </p>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="\d*"
-                                maxLength={4}
-                                value={otpValue}
-                                onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
-                                autoFocus
-                                placeholder="0000"
-                                className="w-full text-center text-5xl font-mono font-bold tracking-[0.3em] bg-black border border-zinc-800 rounded-xl py-5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-800"
-                            />
-                                <button
-                                    onClick={handleVerifyDeliveryOtp}
-                                    disabled={otpValue.length !== 4 || otpVerifying}
-                                    className={primaryBtn('from-indigo-600 to-indigo-500')}
-                                >
-                                    {otpVerifying
-                                        ? <><Loader2 size={18} className="animate-spin" /> Verifying...</>
-                                        : (isReturnFlow ? 'Verify & Collect Return' : 'Verify & Mark Delivered')
-                                    }
-                                </button>
-                            </motion.div>
-                    )}
-
-                    {/* Step 3: done */}
-                    {step === 'done' && (
-                        <motion.div
-                            key="done"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="flex flex-col items-center gap-3 py-4"
-                        >
-                            <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                                <CheckCircle size={28} className="text-emerald-400" />
-                            </div>
-                            <p className="text-white font-semibold">
-                                {isReturnFlow ? 'Return Collected!' : 'Delivery Complete!'}
-                            </p>
-                            <p className="text-zinc-400 text-sm">
-                                {isReturnFlow ? 'Navigating back to the warehouse...' : 'Returning to dashboard...'}
-                            </p>
-                        </motion.div>
-                    )}
-
-                </AnimatePresence>
-            </motion.div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <Loader size="lg" text="Loading delivery..." />
+      </div>
     );
-};
+  }
 
-export default DeliveryNavigationPage;
+  if (!order) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black flex flex-col">
+      <div ref={mapRef} className="flex-1" />
+
+      {/* GPS loading overlay */}
+      {!riderLocation && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pb-32">
+          <div className="text-center space-y-4 px-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
+              <MapPin size={28} className="text-zinc-500" />
+            </div>
+            <h2 className="text-lg font-bold text-white">Getting your location...</h2>
+            <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
+            <div className="w-6 h-6 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          </div>
+        </div>
+      )}
+
+      {/* Map loading overlay */}
+      {!mapReady && riderLocation && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+          <Loader size="lg" text="Loading navigation..." />
+        </div>
+      )}
+
+      {/* Bottom card */}
+      <motion.div
+        initial={{ y: 200 }} animate={{ y: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="absolute bottom-6 left-4 right-4 bg-[#0f0f0f] rounded-3xl border border-zinc-800/80 shadow-2xl z-20"
+      >
+        <div className="px-6 pt-5 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+              Delivering
+            </span>
+            <span className="text-[10px] text-zinc-500 ml-auto">
+              Order #{order.id.slice(0, 8).toUpperCase()}
+            </span>
+          </div>
+          <div className="flex items-start gap-2 mb-3">
+            <MapPin size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-zinc-400">{destAddress}</p>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 space-y-2.5">
+          {/* Google Maps deeplink — same pattern as warehouse */}
+          <button
+            onClick={handleOpenGoogleMaps}
+            className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+          >
+            <Navigation size={16} />
+            Open in Google Maps
+          </button>
+
+          {/* OTP-gated delivery button */}
+          <button
+            onClick={handleRequestDelivery}
+            disabled={deliveryCompleting}
+            className={primaryBtn('from-emerald-600 to-emerald-500')}
+          >
+            {deliveryCompleting ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <><CheckCircle size={18} /> Mark as Delivered</>
+            )}
+          </button>
+        </div>
+      </motion.div>
+
+      {/* OTP Verification Modal */}
+      <AnimatePresence>
+        {showOtpModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <KeyRound size={18} className="text-emerald-400" /> Verify Delivery
+                </h3>
+                <button
+                  onClick={() => { if (!otpVerifying) setShowOtpModal(false); }}
+                  disabled={otpVerifying}
+                  className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-5 text-center">
+                <p className="text-sm text-zinc-400">
+                  Ask the customer for the 4-digit delivery OTP shown on their app.
+                </p>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d*"
+                  maxLength={4}
+                  value={otpValue}
+                  onChange={(e) => {
+                    setOtpValue(e.target.value.replace(/\D/g, ''));
+                    setOtpError('');
+                  }}
+                  autoFocus
+                  placeholder="0000"
+                  className="w-full text-center text-4xl font-mono font-bold tracking-[0.3em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-800"
+                />
+
+                {otpError && (
+                  <p className="text-sm text-red-400 font-medium">{otpError}</p>
+                )}
+
+                <button
+                  onClick={handleVerifyAndDeliver}
+                  disabled={otpValue.length !== 4 || otpVerifying}
+                  className={primaryBtn('from-emerald-600 to-emerald-500')}
+                >
+                  {otpVerifying ? (
+                    <><Loader2 size={18} className="animate-spin" /> Verifying...</>
+                  ) : (
+                    'Verify & Complete Delivery'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};

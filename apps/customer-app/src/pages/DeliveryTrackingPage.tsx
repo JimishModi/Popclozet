@@ -4,13 +4,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { DeliveryTracker, TrackingData } from '@/components/map/DeliveryTracker';
 import { OrderChat } from '@/components/map/OrderChat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { supabase } from '@popclozet/api-client';
 import { DeliveryOrder } from '@/services/deliveryService';
+import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
 
 export default function DeliveryTrackingPage() {
     const { orderId } = useParams<{ orderId: string }>();
@@ -20,6 +20,15 @@ export default function DeliveryTrackingPage() {
     const [items, setItems] = useState<any[]>([]);
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
+
+    const userLocation = order?.delivery_address_snapshot
+        ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
+        : null;
+    const riderLocation = tracking ? { lat: tracking.current_lat, lng: tracking.current_lng } : null;
+    const distance = userLocation && riderLocation 
+        ? calculateDistance(userLocation.lat, userLocation.lng, riderLocation.lat, riderLocation.lng)
+        : null;
+    const isDelayed = distance !== null ? distance > 6 : false;
 
     useEffect(() => {
         if (!orderId) return;
@@ -131,9 +140,9 @@ export default function DeliveryTrackingPage() {
                                     </span>
                                 </div>
                             )}
-                            <div className="bg-[#f2546d]/10 border border-[#f2546d]/20 px-3 py-1 rounded-full">
-                                <span className="text-[#f2546d] text-[10px] font-black uppercase tracking-widest">
-                                    Arriving in 45-60 mins
+                            <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
+                                <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
+                                    {isDelayed ? "Delayed Delivery" : "Arriving in 45-60 mins"}
                                 </span>
                             </div>
                         </div>
@@ -259,8 +268,6 @@ export default function DeliveryTrackingPage() {
                     </a>
                 </div>
             </main>
-
-            <BottomNavBar />
 
             {/* Chat Drawer */}
             <AnimatePresence>

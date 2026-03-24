@@ -2,7 +2,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { InteractiveMap } from "@/components/map/InteractiveMap";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -49,33 +48,7 @@ export default function OrderDeliveredPage() {
                     <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Order Details</h1>
                 </header>
 
-                {/* ─── MAP SECTION ─── */}
-                <section className="relative h-[190px] flex-shrink-0">
-                    {/* Gradient Glow Orb */}
-                    <div
-                        className="absolute -top-20 -left-14 w-36 h-36 rounded-full rotate-[23deg] blur-[100px] pointer-events-none z-20"
-                        style={{
-                            background:
-                                "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)",
-                        }}
-                    />
 
-                    {/* Map Display */}
-                    <div className="w-full h-full">
-                        <InteractiveMap
-                            center={{
-                                lat: order.address.lat,
-                                lng: order.address.lng,
-                            }}
-                            zoom={14}
-                            darkMode
-                            userLocation={{
-                                lat: order.address.lat,
-                                lng: order.address.lng,
-                            }}
-                        />
-                    </div>
-                </section>
 
                 {/* ─── ORDER DELIVERED BANNER ─── */}
                 <motion.div

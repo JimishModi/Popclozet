@@ -254,11 +254,10 @@ const GlobalLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
-      <MobileShell hideBottomNav={hideBottomNav}>
+      <MobileShell hideBottomNav={hideBottomNav} isGlobalShell={true}>
         {children}
         <InstallPrompt />
       </MobileShell>
-      {!hideBottomNav && <BottomNavBar />}
     </div>
   );
 };

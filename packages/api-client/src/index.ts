@@ -299,3 +299,6 @@ export * from './notifyCustomerService';
 // Export config
 export * from './config';
 
+// Re-export Mappls distance service
+export * from './mapplsDistanceService';
+

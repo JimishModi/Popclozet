@@ -426,222 +426,281 @@ const CartPage = () => {
     <MobileShell className="bg-black text-white">
 
       {/* Main scrollable area */}
-      <main className="flex-1 overflow-y-auto pb-56">
+      <main className="flex-1 overflow-y-auto pb-56 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">
 
-        {/* ─── HEADER: Black Background + Title + Wishlist ─── */}
-        <section className="px-5 pt-6 pb-4 bg-black border-b border-white/5">
-          <div className="flex items-center justify-between">
-            {/* Left: Back */}
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center justify-center p-1"
-            >
-              <ChevronLeft className="w-6 h-6 text-white" />
-            </button>
+        {/* ─── HEADER: Gradient Glow + Title ─── */}
+        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-4 pt-4 pb-3 md:px-5 md:pt-6 md:pb-4">
+          {/* Error Banner */}
+          {subscriptionError && (
+            <div className="absolute top-20 left-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <p className="leading-tight">{subscriptionError}</p>
+            </div>
+          )}
 
-            {/* Center: Title */}
-            <h1 className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Shopping Bag
-            </h1>
+          {/* Gradient Glow Orb */}
+          <div
+            className="absolute -top-20 -left-12 w-36 h-36 rounded-full rotate-[23deg] blur-[100px] pointer-events-none"
+            style={{
+              background: "linear-gradient(180deg, #f2546d 0%, #ff6078 46%, #611624 88%)",
+            }}
+          />
+
+          <div className="relative flex items-center justify-between">
+            {/* Left: Back + Title */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full border border-white/5 bg-white/5 transition-all active:scale-95"
+              >
+                <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white" />
+              </button>
+              <h1 className="text-lg md:text-2xl font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Shopping Bag
+              </h1>
+            </div>
 
             {/* Right: Wishlist button */}
             <button
               onClick={() => navigate('/closet?tab=wishlist')}
-              className="p-1"
+              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full active:scale-95 transition-all"
             >
               <Heart className="w-6 h-6 text-white" />
             </button>
           </div>
-        </section>
 
-        {/* ─── GROUPING LOGIC ─── */}
-        {(() => {
-          const rentalItems = validCartEntries.filter(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
-          const buyoutItems = validCartEntries.filter(([, data]) => data.plan === 'buy');
+          {/* Subtitle */}
+          {validCartEntries.length > 0 && !loadingProducts && (
+            <p className="mt-2 ml-8 text-base md:text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
+            </p>
+          )}
+        </header>
 
-          if (loadingProducts) {
-            return (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <div className="w-10 h-10 border-4 border-[#E95466] border-t-transparent rounded-full animate-spin mb-4" />
-                <h3 className="text-lg font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  Loading your bag...
-                </h3>
-              </div>
-            );
-          }
+        {/* ─── LOADING & EMPTY STATES ─── */}
+        {loadingProducts ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="w-10 h-10 border-4 border-[#f2546d] border-t-transparent rounded-full animate-spin mb-4" />
+            <h3 className="text-lg font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Loading your bag...
+            </h3>
+          </div>
+        ) : validCartEntries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="w-20 h-20 rounded-full bg-[#232323] flex items-center justify-center mb-4">
+              <ShoppingBag className="w-10 h-10 text-zinc-600" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Your bag is empty
+            </h3>
+            <p className="text-sm text-zinc-400 mb-6">
+              Start exploring and add items to your bag.
+            </p>
+            <Link
+              to="/collections"
+              className="px-6 py-3 rounded-2xl bg-[#f2546d] font-semibold text-white"
+            >
+              Browse Collections
+            </Link>
+          </div>
+        ) : (
+          <div className="lg:flex lg:gap-12 lg:items-start lg:mt-6 w-full flex-1">
+            {/* Left Column */}
+            <div className="lg:w-2/3 lg:pr-4">
+            {/* ─── RENTAL ITEMS ─── */}
+            <section className="px-5 lg:px-0 space-y-4">
+              <AnimatePresence>
+                {validCartEntries.map(([id, qty]) => {
+                  const baseId = id.split('_')[0];
+                  const size = id.split('_')[1] || 'S';
+                  const product = cartProducts[baseId];
+                  if (!product) return null;
 
-          if (validCartEntries.length === 0) {
-            return (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <div className="w-20 h-20 rounded-full bg-[#232323] flex items-center justify-center mb-4">
-                  <ShoppingBag className="w-10 h-10 text-zinc-600" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  Your bag is empty
-                </h3>
-                <p className="text-sm text-zinc-400 mb-6">
-                  Start exploring and add items to your bag.
-                </p>
-                <Link
-                  to="/collections"
-                  className="px-6 py-3 rounded-2xl bg-[#E95466] font-semibold text-white"
-                >
-                  Browse Collections
-                </Link>
-              </div>
-            );
-          }
-
-          return (
-            <>
-              {/* ─── RENTALS SECTION ─── */}
-              {rentalItems.length > 0 && (
-                <section className="px-5 mt-6">
-                  <h2 className="text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Rentals ({rentalItems.length} {rentalItems.length === 1 ? 'Item' : 'Items'})
-                  </h2>
-                  <div className="space-y-4">
-                    {rentalItems.map(([key, data]) => renderCartItem(key, data, '#1E1E1E'))}
-                  </div>
-                </section>
-              )}
-
-              {/* ─── INSTANT BUY SECTION ─── */}
-              {buyoutItems.length > 0 && (
-                <section className="px-5 mt-8">
-                  <h2 className="text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Instant Buy ({buyoutItems.length} {buyoutItems.length === 1 ? 'Item' : 'Items'})
-                  </h2>
-                  <div className="space-y-4">
-                    {buyoutItems.map(([key, data]) => renderCartItem(key, data, '#2D1414'))}
-                  </div>
-                </section>
-              )}
-            </>
-          );
-        })()}
-
-        {/* ─── ADD ONS SECTION ─── */}
-        {validCartEntries.length > 0 && addOnProducts.length > 0 && (
-          <section className="mt-10 overflow-hidden">
-            <h2 className="px-5 text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Add ons
-            </h2>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 pb-4">
-              {addOnProducts.map((addon) => {
-                const imageUrl = addon.images?.[0] || '';
-                const price = addon.rental_price_1d || addon.rental_price || 0;
-                const mrp = addon.buy_price || (price * 5);
-                
-                const invData = addon.inventory || [];
-                const defaultInv = invData.find((i: any) => i.available_stock > 0) || invData[0] || { size: 'One Size', available_stock: 0 };
-                const defaultSize = defaultInv.size;
-                const available = defaultInv.available_stock || 0;
-                
-                // We use '1d' by default as requested
-                const currentQty = cartItems[`${addon.id}_${defaultSize}_1d`]?.quantity || 0;
-                const isMaxReached = currentQty >= available;
-                
-                return (
-                  <div 
-                    key={addon.id} 
-                    className="w-40 flex-shrink-0 bg-[#1E1E1E] rounded-3xl p-3 border border-white/5 transition-transform active:scale-95 cursor-pointer"
-                    onClick={() => navigate(`/product/${addon.id}`)}
-                  >
-                    <div className="w-full aspect-square bg-zinc-800 rounded-2xl mb-3 overflow-hidden">
-                      {imageUrl && (
-                        <img src={imageUrl} alt={addon.name} className="w-full h-full object-cover" />
-                      )}
-                    </div>
-                    <h3 className="text-sm font-bold text-white truncate">{addon.name}</h3>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-black text-white">₹{price}</p>
-                        <p className="text-[10px] text-zinc-600 line-through">₹{mrp}</p>
+                  return (
+                    <motion.div
+                      key={id}
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -100 }}
+                      className="flex items-center gap-3 p-3 bg-[#232323] rounded-2xl"
+                    >
+                      {/* Product Image */}
+                      <div className="w-28 h-28 bg-[#2a2a2a] rounded-lg flex-shrink-0 overflow-hidden">
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isMaxReached) {
-                            toast.error('Maximum available stock reached for this add-on');
-                            return;
-                          }
-                          // addToCart handles creation or qty update under the hood
-                          addToCart(addon.id, defaultSize, '1d');
-                        }}
-                        className={cn("w-8 h-8 rounded-full flex items-center justify-center transition-colors", isMaxReached ? "bg-white/5 cursor-not-allowed" : "bg-zinc-800 hover:bg-[#E95466]")}
-                        disabled={isMaxReached}
-                      >
-                        <Plus className={cn("w-4 h-4 text-white", isMaxReached && "opacity-30")} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
-        {/* ─── COUPON SECTION ─── */}
-        {validCartEntries.length > 0 && (
-          <section className="px-5 mt-8">
-            <h2 className="text-lg font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Coupons
-            </h2>
-            <div className="flex gap-3">
-              <input
-                type="text"
-                placeholder="Enter code (e.g. POP20)"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                className="flex-1 bg-white/5 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-[#E95466]/50 transition-colors"
-              />
-              <button
-                onClick={handleApplyCoupon}
-                className="px-6 py-3 bg-white/10 rounded-2xl text-sm font-bold text-white hover:bg-white/20 transition-colors"
-              >
-                Apply
-              </button>
+                      {/* Product Details */}
+                      <div className="flex-1 min-w-0">
+                        {/* Top row: Brand + Delete */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                              {product.category || "Zara"}
+                            </h3>
+                            <p className="text-sm text-[#7c7c7c] mt-1" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                              {product.name}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => removeFromCart(id)}
+                            className="p-1 hover:bg-white/10 rounded"
+                          >
+                            <X className="w-3 h-3 text-zinc-400" />
+                          </button>
+                        </div>
+
+                        {/* Date badge */}
+                        <div className="mt-3 inline-flex px-2 py-1 bg-[#2a2a2a] rounded">
+                          <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                            Dates: 1 Feb - 2 Feb
+                          </span>
+                        </div>
+
+                        {/* Bottom row: Size + Qty + Prices */}
+                        <div className="flex items-center mt-3 gap-3">
+                          {/* Size Selector */}
+                          <div className="relative">
+                            <select
+                              value={size}
+                              onChange={(e) => updateSize(id, e.target.value)}
+                              className="appearance-none bg-[#2a2a2a] text-white text-[11px] font-bold uppercase px-3 py-1.5 rounded-xl border border-white/5 focus:outline-none"
+                              style={{ fontFamily: "'DM Sans', sans-serif" }}
+                            >
+                              {(cartInventory[baseId] || []).map((inv: any) => (
+                                <option key={inv.size} value={inv.size} disabled={inv.available_stock <= 0}>
+                                  {inv.size} {inv.available_stock <= 0 ? '(OOS)' : ''}
+                                </option>
+                              ))}
+                              {/* Fallback if inventory is loading or empty */}
+                              {!(cartInventory[baseId] || []).some((inv: any) => inv.size === size) && (
+                                <option value={size}>{size}</option>
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Quantity Controls */}
+                          <div className="flex items-center bg-[#2a2a2a] rounded-xl border border-white/5">
+                            <button
+                              onClick={() => updateQuantity(id, qty - 1)}
+                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="text-[11px] font-bold text-white min-w-[20px] text-center">{qty}</span>
+                            <button
+                              onClick={() => updateQuantity(id, qty + 1)}
+                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {/* Prices */}
+                          <div className="ml-auto flex flex-col items-end">
+                            {product.originalPrice && product.originalPrice > product.price && (
+                              <div className="relative">
+                                <span className="text-sm text-[#5f606a]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                  ₹ {product.originalPrice}
+                                </span>
+                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
+                              </div>
+                            )}
+                            <span className="text-lg font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                              ₹ {product.price * qty}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </section>
             </div>
-            {appliedCoupon && (
-              <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-                <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
-                <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
-                  <X className="w-4 h-4" />
+
+            {/* Right Column */}
+            <div className="lg:w-1/3 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
+            {/* ─── COUPON SECTION ─── */}
+            <section className="px-5 lg:px-0">
+              <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Coupons
+              </h2>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter code (e.g. POP20)"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
+                />
+                <button
+                  onClick={handleApplyCoupon}
+                  className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors"
+                >
+                  Apply
                 </button>
               </div>
-            )}
-          </section>
-        )}
-
-        {/* ─── PRICE DETAILS ─── */}
-        {validCartEntries.length > 0 && (
-          <section className="px-5 mt-10">
-            <h2 className="text-lg font-bold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Price details
-            </h2>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-base">
-                <span className="text-zinc-500 font-medium">Order value</span>
-                <span className="text-white font-bold">₹ {originalTotal}</span>
-              </div>
-
-              <div className="flex items-center justify-between text-base">
-                <span className="text-zinc-500 font-medium">Discount</span>
-                <span className="text-[#E95466] font-bold">- ₹ {discount + couponDiscount}</span>
-              </div>
-
               {appliedCoupon && (
-                <div className="flex items-center justify-between text-base">
-                  <span className="text-green-500 font-medium">Coupon ({appliedCoupon.id})</span>
-                  <span className="text-green-500 font-bold">- ₹ {couponDiscount}</span>
+                <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
+                  <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               )}
+            </section>
 
-              <div className="flex items-center justify-between text-base">
-                <span className="text-zinc-500 font-medium">Delivery fee</span>
-                <span className="text-white font-bold">₹ {deliveryFee}</span>
+            {/* ─── PRICE DETAILS ─── */}
+            <section className="px-5 lg:px-0">
+              <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Price details
+              </h2>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Order value
+                  </span>
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    ₹ {originalTotal || 4000}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Discount
+                  </span>
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    -₹ {discount + couponDiscount}
+                  </span>
+                </div>
+
+                {appliedCoupon && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Coupon ({appliedCoupon.id})
+                    </span>
+                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      -₹ {couponDiscount}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Delivery fee
+                  </span>
+                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    ₹ {deliveryFee}
+                  </span>
+                </div>
               </div>
 
               <div className="w-full h-px bg-white/5 mt-6" />
@@ -650,17 +709,70 @@ const CartPage = () => {
                 <span className="text-xl font-black text-white">Total</span>
                 <span className="text-xl font-black text-white">₹ {grandTotal}</span>
               </div>
+            </section>
+
+            {/* Desktop Checkout Footer inside Right Column */}
+            <div className="hidden lg:block bg-[#232323] rounded-2xl px-6 py-6 space-y-5 shadow-2xl">
+              {!hasActiveSubscription && (
+                <button onClick={() => navigate('/subscription-plans')} className="w-full text-left">
+                  <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-xl group overflow-hidden hover:scale-[1.02] transition-transform">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Subscribe to the Future</p>
+                      <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Pick any 4 items you like each month for just 1799</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-white flex-shrink-0" />
+                  </div>
+                </button>
+              )}
+
+              {subBenefits && (
+                <div className="rounded-2xl border border-white/5 bg-[#171717] px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>{subBenefits.planName} plan active</p>
+                      <p className="mt-1 text-[11px] text-zinc-500 uppercase tracking-widest font-bold">Monthly quota and concurrent hold limit</p>
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-[#f2546d]">₹{subBenefits.maxItemValue} cap</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-[#232323] px-3 py-3">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Monthly left</p>
+                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#232323] px-3 py-3">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Concurrent left</p>
+                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={canCheckout ? handleCheckout : undefined}
+                disabled={!canCheckout}
+                className={cn(
+                  "w-full h-14 flex items-center justify-center rounded-2xl font-bold text-lg text-white tracking-tight transition-colors",
+                  canCheckout ? "bg-[#f2546d] hover:bg-[#e04860] shadow-xl shadow-[#f2546d]/20" : "bg-white/10 text-white/40 cursor-not-allowed"
+                )}
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                {subscriptionError ? "Limit Exceeded" : !deliveryAddress ? "Select Address" : "Check Out"}
+              </button>
             </div>
-          </section>
+
+            </div>
+          </div>
         )}
       </main>
 
-      {/* ─── FOOTER ─── */}
+
+      {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {validCartEntries.length > 0 && !loadingProducts && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/5 px-5 py-6 pb-10 z-50">
-          <div className="max-w-[430px] mx-auto space-y-6">
-            {/* --- Subscribe Banner (commented out) --- */}
-            {/* <button
+        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
+
+          {/* Subscribe Banner */}
+          {!hasActiveSubscription && (
+            <button
               onClick={() => navigate('/subscription-plans')}
               className="w-full text-left"
             >
@@ -675,7 +787,8 @@ const CartPage = () => {
                 </div>
                 <ChevronRight className="w-5 h-5 text-white/40" />
               </div>
-            </button> */}
+            </button>
+          )}
 
             {/* Progress Bars */}
             <div className="flex items-center gap-2 px-1">
@@ -691,11 +804,8 @@ const CartPage = () => {
             >
               Check Out
             </button>
-          </div>
         </div>
       )}
-
-
 
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />

@@ -105,8 +105,8 @@ export default function SubscriptionProfilePage() {
                                 <p className="text-white/80 text-sm font-black tracking-widest uppercase mb-1 drop-shadow-sm">Current Plan</p>
                                 <h2 className="text-4xl font-black text-white drop-shadow-md tracking-tighter" style={dmSans}>{plan.name}</h2>
                             </div>
-                            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                                <PlanIcon className="w-7 h-7 text-white drop-shadow-md" />
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+                                <PlanIcon className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
                             </div>
                         </div>
 
@@ -169,7 +169,7 @@ export default function SubscriptionProfilePage() {
                                     )}
                                 >
                                     <div className={cn(
-                                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                                        "w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0",
                                         isIncluded ? "bg-emerald-500/10" : "bg-white/5"
                                     )}>
                                         {isIncluded ? (

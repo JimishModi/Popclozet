@@ -12,32 +12,29 @@ import { NearbyHubs } from '@/components/map/NearbyHubs';
 import { HubDetailsSheet } from '@/components/map/HubDetailsSheet';
 import { useMapLocation } from '@/hooks/useMapLocation';
 import { useNearbyHubs } from '@/hooks/useNearbyHubs';
-import { saveAddressLocally, ValidatedAddress } from '@/services/addressService';
+import { useAuth } from '@/hooks/useAuth';
+import { locationStorage } from '@/lib/locationStorage';
+import { supabase } from '@popclozet/api-client';
+import { saveAddressLocally, ValidatedAddress, getAddressDetail } from '@/services/addressService';
+import { fetchPlaceDetails } from '@/services/mapplsService';
+import { geocodeAddress } from '@/services/mapServices';
 import { HubWithDistance } from '@/services/hubService';
-import { useDriverSimulation } from '@/hooks/useDriverSimulation';
-import { toast } from 'sonner';
 
 type ViewMode = 'search' | 'hubs';
+const WAREHOUSE = { lat: 19.1306, lng: 72.9155 };
 
 export default function MapLocationPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const returnTo = searchParams.get('returnTo') || '/cart';
+    const { user } = useAuth();
+    const returnTo = searchParams.get('returnTo') || '/home';
 
     const [viewMode, setViewMode] = useState<ViewMode>('search');
     const [selectedAddress, setSelectedAddress] = useState<ValidatedAddress | null>(null);
     const [showHubSheet, setShowHubSheet] = useState(false);
     const [detailedHub, setDetailedHub] = useState<HubWithDistance | null>(null);
-    const [isSimulationActive, setIsSimulationActive] = useState(false);
-    
-    // Clear corrupt localStorage on mount
-    useEffect(() => {
-        const saved = localStorage.getItem('user_location');
-        if (saved && (saved.includes('undefined') || saved.includes('null'))) {
-            localStorage.removeItem('user_location');
-            window.location.reload(); // Force refresh to clear internal hook state
-        }
-    }, []);
+    const [resolvingAddress, setResolvingAddress] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const {
         location,
@@ -61,19 +58,6 @@ export default function MapLocationPage() {
         enabled: !!location,
     });
 
-    // Simulation Hook - Use selected hub if available, otherwise use first hub
-    const simulationOrigin = selectedHub
-        ? { lat: selectedHub.lat, lng: selectedHub.lng }
-        : hubs.length > 0
-            ? { lat: hubs[0].lat, lng: hubs[0].lng }
-            : null;
-
-    const { vehicleLocation: simulatedVehicle, routePath, isCalculating } = useDriverSimulation({
-        origin: simulationOrigin,
-        destination: selectedAddress ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : null,
-        isActive: isSimulationActive && !!selectedAddress && !!simulationOrigin
-    });
-
     // Initially sync selected address from current location, but don't yank it back if user manually selected something
     useEffect(() => {
         if (address && !selectedAddress) {
@@ -81,19 +65,106 @@ export default function MapLocationPage() {
         }
     }, [address, selectedAddress]);
 
-    const handleAddressSelect = (addr: ValidatedAddress) => {
-        setSelectedAddress(addr);
-        setViewMode('search');
-        
-        const hasCoords = addr.lat && addr.lng && Math.abs(addr.lat) > 0.01;
-        
-        if (hasCoords) {
-            // Coords already present — sync map
+    const handleAddressSelect = async (addr: ValidatedAddress) => {
+        // Check if address already has valid coordinates (non-zero)
+        const hasValidCoords = (a: ValidatedAddress) =>
+            typeof a.lat === 'number' && typeof a.lng === 'number' &&
+            (Math.abs(a.lat) > 0.01 || Math.abs(a.lng) > 0.01) &&
+            !isNaN(a.lat) && !isNaN(a.lng);
+
+        // If the address already has valid coordinates, use them directly
+        if (hasValidCoords(addr)) {
+            console.log('[MapLocation] Address has valid coords, using directly:', addr.lat, addr.lng);
+            setSelectedAddress(addr);
             setLocationWithAddress(addr.lat, addr.lng, addr);
-        } else {
-            console.warn("[MapLocationPage] Address has no coords:", addr.formattedAddress);
-            toast.error("This address cannot be mapped. Please try another one.");
+            setViewMode('search');
+            return;
         }
+
+        // Mappls AutoSuggest returns eLoc but NO coordinates (lat/lng = 0).
+        // We resolve via multiple fallback strategies.
+        setResolvingAddress(true);
+        console.log('[MapLocation] Resolving coordinates for:', { eLoc: addr.eLoc, address: addr.formattedAddress });
+
+        let resolvedLat = 0;
+        let resolvedLng = 0;
+        let resolved = false;
+
+        try {
+            // Strategy 1: Mappls eLoc → Place Details (most accurate — uses place ID)
+            if (addr.eLoc && !resolved) {
+                try {
+                    const placeDetails = await fetchPlaceDetails(addr.eLoc);
+                    if (placeDetails.latitude && placeDetails.longitude) {
+                        resolvedLat = placeDetails.latitude;
+                        resolvedLng = placeDetails.longitude;
+                        resolved = true;
+                        console.log('[MapLocation] ✓ Strategy 1 — Mappls eLoc:', resolvedLat, resolvedLng);
+                    }
+                } catch (e) {
+                    console.warn('[MapLocation] Strategy 1 failed (Mappls eLoc):', e);
+                }
+            }
+
+            // Strategy 2: MapMyIndia text geocoding (accurate for Indian addresses)
+            if (!resolved && addr.formattedAddress) {
+                try {
+                    const geoResult = await geocodeAddress(addr.formattedAddress);
+                    if (geoResult.status === 'success' && geoResult.lat && geoResult.lng) {
+                        resolvedLat = geoResult.lat;
+                        resolvedLng = geoResult.lng;
+                        resolved = true;
+                        console.log('[MapLocation] ✓ Strategy 2 — MapMyIndia geocode:', resolvedLat, resolvedLng);
+                    }
+                } catch (e) {
+                    console.warn('[MapLocation] Strategy 2 failed (MapMyIndia geocode):', e);
+                }
+            }
+
+            // Strategy 3: Backend proxy (if running)
+            if (addr.eLoc && !resolved) {
+                try {
+                    const detail = await getAddressDetail(addr.eLoc);
+                    if (detail && detail.lat && detail.lng) {
+                        resolvedLat = detail.lat;
+                        resolvedLng = detail.lng;
+                        resolved = true;
+                        console.log('[MapLocation] ✓ Strategy 3 — backend proxy:', resolvedLat, resolvedLng);
+                    }
+                } catch (e) {
+                    console.warn('[MapLocation] Strategy 3 failed (backend proxy):', e);
+                }
+            }
+
+        } finally {
+            setResolvingAddress(false);
+        }
+
+        if (resolved && resolvedLat && resolvedLng) {
+            // Resolution succeeded — update map and address
+            const resolvedAddr = { ...addr, lat: resolvedLat, lng: resolvedLng };
+            setSelectedAddress(resolvedAddr);
+            setLocationWithAddress(resolvedLat, resolvedLng, resolvedAddr);
+            console.log('[MapLocation] ✓ Address resolved successfully — marker will move to:', resolvedLat, resolvedLng);
+        } else {
+            // ALL strategies failed — do NOT overwrite selectedAddress with zero coords.
+            // Keep the old selectedAddress (and thus the old marker position).
+            // Just update the display text so the user sees what they selected.
+            console.error('[MapLocation] ✗ All resolution strategies failed for:', addr.formattedAddress);
+            console.error('[MapLocation] Keeping previous marker position to prevent vanishing');
+
+            // Set the address text but preserve the OLD coordinates (marker stays put)
+            setSelectedAddress((prev) => {
+                if (prev && hasValidCoords(prev)) {
+                    // Keep old coords, just update the display text
+                    return { ...prev, formattedAddress: addr.formattedAddress, full_address: addr.formattedAddress };
+                }
+                // If there was no previous valid address, use what we have (will fall back to GPS in InteractiveMap)
+                return addr;
+            });
+        }
+
+        setViewMode('search');
     };
 
     const handleMapClick = (pos: { lat: number; lng: number }) => {
@@ -106,7 +177,7 @@ export default function MapLocationPage() {
                 lat: pos.lat,
                 lng: pos.lng,
                 formattedAddress: `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`,
-                city: 'Mumbai',
+                city: '',
                 pincode: '',
             };
             setSelectedAddress(clickedAddress);
@@ -127,10 +198,98 @@ export default function MapLocationPage() {
         setShowHubSheet(false);
     };
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         if (selectedAddress) {
-            // Save address locally
-            saveAddressLocally(selectedAddress);
+            // 1. Save address locally for "Recent Addresses"
+            const { saveAddressLocally } = await import("@/services/addressService");
+            saveAddressLocally({ ...selectedAddress, label: 'Delivery Address' });
+
+            setIsSaving(true);
+            let deliveryEstimate: '15min' | 'delayed' = '15min';
+
+            // 2. Calculate road distance via backend proxy (same as CheckoutPage)
+            try {
+                const { getRoadDistance } = await import("@/services/mapServices");
+                const res = await getRoadDistance(WAREHOUSE, {
+                    lat: selectedAddress.lat,
+                    lng: selectedAddress.lng,
+                    eLoc: selectedAddress.eLoc
+                });
+                if (res.status === 'success') {
+                    deliveryEstimate = res.distanceKm > 6 ? 'delayed' : '15min';
+                    console.log(`🛣️ Distance: ${res.distanceKm.toFixed(2)}km -> ${deliveryEstimate}`);
+                } else {
+                    console.warn('Distance API returned error:', res.error);
+                }
+            } catch (err) {
+                console.warn('Distance calculation failed:', err);
+            }
+
+
+
+            // 3. Sync with locationStorage for Home page display
+            locationStorage.set({
+                source: "gps",
+                lat: selectedAddress.lat,
+                lng: selectedAddress.lng,
+                city: selectedAddress.city || selectedAddress.formattedAddress.split(',')[0].trim(),
+                locality: selectedAddress.label || 'Home',
+                delivery_estimate: deliveryEstimate
+            });
+
+            // 4. Save to Supabase if logged in
+            if (user) {
+                try {
+                    // Reset all defaults first
+                    await supabase
+                        .from('addresses')
+                        .update({ is_default: false })
+                        .eq('user_id', user.id);
+
+                    // Check if this address already exists for this user
+                    const { data: existing } = await supabase
+                        .from('addresses')
+                        .select('id')
+                        .eq('user_id', user.id)
+                        .eq('full_address', selectedAddress.formattedAddress)
+                        .maybeSingle();
+
+                    if (existing) {
+                        // Update existing address
+                        await supabase.from('addresses').update({
+                            latitude: selectedAddress.lat,
+                            longitude: selectedAddress.lng,
+                            geohash: `${selectedAddress.lat.toFixed(2)}_${selectedAddress.lng.toFixed(2)}`,
+                            is_default: true,
+                        }).eq('id', existing.id);
+                    } else {
+                        // Insert new address
+                        const { error } = await supabase.from('addresses').insert({
+                            user_id: user.id,
+                            label: selectedAddress.label || 'Home',
+                            full_address: selectedAddress.formattedAddress,
+                            latitude: selectedAddress.lat,
+                            longitude: selectedAddress.lng,
+                            geohash: `${selectedAddress.lat.toFixed(2)}_${selectedAddress.lng.toFixed(2)}`,
+                            is_default: true,
+                        });
+                        if (error) console.error("Error saving address to DB:", error);
+                    }
+
+                    // 5. Update profile with the new estimate (for both new and existing addresses)
+                    const { updateProfile } = await import("@/services/profileService");
+                    try {
+                        await updateProfile({ delivery_estimate: deliveryEstimate });
+                        console.log('👤 Profile updated with estimate:', deliveryEstimate);
+                    } catch (err) {
+                        console.warn('Could not save delivery_estimate to profile:', err);
+                    }
+                } catch (e) {
+                    console.error("Error saving address:", e);
+                }
+            }
+
+            setIsSaving(false);
 
             // Save hub selection if any
             if (selectedHub) {
@@ -142,23 +301,21 @@ export default function MapLocationPage() {
                 }));
             }
 
-            // Navigate back with the specific address in state for immediate reactivity
-            navigate(returnTo, { 
-                state: { selectedAddress } 
-            });
+            // Navigate back
+            navigate(returnTo);
         }
     };
 
     const canConfirm = selectedAddress && (!hubs.length || selectedHubId);
 
     return (
-        <MobileShell className="bg-black text-white" hideBottomNav={true}>
+        <div className="bg-black text-white min-h-screen">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 sticky top-0 z-50 bg-black/90 backdrop-blur-md">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-all active:scale-95"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10"
                     >
                         <ChevronLeft className="w-6 h-6" />
                     </button>
@@ -173,28 +330,66 @@ export default function MapLocationPage() {
                     onAddressSelect={handleAddressSelect}
                     onLocateMe={handleLocateMe}
                     placeholder="Search for delivery address..."
-                    isLoading={false}
+                    isLoading={resolvingAddress}
                 />
+            </div>
+
+            {/* Use Current Location button */}
+            <div className="px-4 py-2">
+                <button
+                    onClick={handleLocateMe}
+                    disabled={locationLoading}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/80 transition-colors"
+                >
+                    <div className="p-2 rounded-full bg-[#ff4d6d]/15">
+                        {locationLoading ? (
+                            <div className="w-5 h-5 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <Navigation className="w-5 h-5 text-[#ff4d6d]" />
+                        )}
+                    </div>
+                    <div className="text-left">
+                        <p className="text-sm font-medium text-white">Use Current Location</p>
+                        <p className="text-[11px] text-zinc-500">Get your GPS location automatically</p>
+                    </div>
+                </button>
             </div>
 
             {/* Map */}
             <div className="relative h-[450px] mx-4 rounded-2xl overflow-hidden border border-zinc-800">
                 <InteractiveMap
-                    center={(selectedAddress && selectedAddress.lat && selectedAddress.lng && Math.abs(selectedAddress.lat) > 0.01) ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : (location || { lat: 19.076, lng: 72.8777 })}
+                    center={
+                        // Only use selectedAddress as center if it has valid coordinates
+                        selectedAddress && selectedAddress.lat && selectedAddress.lng
+                            ? { lat: selectedAddress.lat, lng: selectedAddress.lng }
+                            : (location || { lat: 19.076, lng: 72.8777 })
+                    }
                     zoom={selectedAddress || location ? 14 : 11}
-                    darkMode={false}
-                    userLocation={(selectedAddress && selectedAddress.lat && selectedAddress.lng && Math.abs(selectedAddress.lat) > 0.01) ? { lat: selectedAddress.lat, lng: selectedAddress.lng } : location}
+                    darkMode={true}
+                    userLocation={
+                        // Only pass selectedAddress coordinates if they're valid (non-zero).
+                        // Otherwise fall back to GPS location so the marker doesn't vanish.
+                        selectedAddress && selectedAddress.lat && selectedAddress.lng
+                            ? { lat: selectedAddress.lat, lng: selectedAddress.lng }
+                            : location
+                    }
                     hubs={hubs}
                     selectedHubId={selectedHubId || undefined}
                     onMapClick={handleMapClick}
                     onHubClick={handleHubClick}
-                    // Simulation Props
-                    routePath={routePath}
-                    vehicleLocation={simulatedVehicle}
-                    trackerMode={isSimulationActive && !!simulatedVehicle}
                 />
 
-                {/* GPS Button */}
+                {/* Resolving address overlay */}
+                {resolvingAddress && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] z-10">
+                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 px-4 py-2.5 rounded-full shadow-xl">
+                            <div className="w-4 h-4 border-2 border-[#ff4d6d] border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm text-white">Locating address...</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* GPS Button on map */}
                 {permissionState !== 'unavailable' && (
                     <button
                         onClick={handleLocateMe}
@@ -209,57 +404,6 @@ export default function MapLocationPage() {
                     </button>
                 )}
 
-                {/* Simulation Toggle (Demo) */}
-                {selectedAddress && (selectedHub || hubs.length > 0) && (
-                    <button
-                        onClick={() => setIsSimulationActive(!isSimulationActive)}
-                        disabled={isCalculating}
-                        className={`absolute bottom-4 left-4 px-4 py-2.5 rounded-full text-sm font-bold shadow-lg transition-colors flex items-center gap-2 ${isSimulationActive
-                            ? 'bg-[#f2546d] text-white hover:bg-[#ff3d5d]'
-                            : 'bg-white text-black hover:bg-gray-100'
-                            } ${isCalculating ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        style={{ zIndex: 1000 }}
-                    >
-                        {isCalculating ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                Calculating...
-                            </>
-                        ) : isSimulationActive ? (
-                            'Stop Route'
-                        ) : (
-                            '🚗 Simulate Route'
-                        )}
-                    </button>
-                )}
-
-                {/* Route Info Overlay */}
-                {isSimulationActive && routePath && selectedAddress && (selectedHub || hubs.length > 0) && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="absolute top-4 left-4 right-4 bg-black/90 backdrop-blur-md rounded-xl p-3 border border-zinc-800"
-                        style={{ zIndex: 1000 }}
-                    >
-                        <div className="flex items-center justify-between text-xs">
-                            <div>
-                                <p className="text-zinc-400">Tracking Route</p>
-                                <p className="text-white font-medium">
-                                    {selectedHub?.name || hubs[0]?.name || 'Hub'} → Selected Location
-                                </p>
-                            </div>
-                            {simulatedVehicle && (
-                                <div className="text-right">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-2 h-2 bg-[#f2546d] rounded-full animate-pulse"></div>
-                                        <p className="text-[#f2546d] font-bold">Tracker Mode ON</p>
-                                    </div>
-                                    <p className="text-zinc-400">Following Vehicle</p>
-                                </div>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
             </div>
 
             {/* Selected address display */}
@@ -269,9 +413,7 @@ export default function MapLocationPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800"
                 >
-                    <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-zinc-400">Delivery Address</p>
-                    </div>
+                    <p className="text-xs text-zinc-400 mb-1">Delivery Address</p>
                     <p className="text-sm text-white">{selectedAddress.formattedAddress}</p>
                 </motion.div>
             )}
@@ -320,14 +462,16 @@ export default function MapLocationPage() {
                 <div className="max-w-[430px] mx-auto w-full">
                     <button
                         onClick={handleConfirm}
-                        disabled={!canConfirm}
-                        className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-xl ${canConfirm
-                            ? 'bg-[#f2546d] text-white shadow-[#f2546d]/20'
+                        disabled={!canConfirm || isSaving}
+                        className={`w-full py-3.5 md:py-4 rounded-xl font-bold text-sm md:text-base flex items-center justify-center gap-2 transition-all shadow-xl ${canConfirm && !isSaving
+                            ? 'bg-[#ff4d6d] text-white shadow-[#ff4d6d]/20'
                             : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                             }`}
                     >
-                        <Check className="w-5 h-5" />
-                        Confirm Location
+                        {isSaving ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : <Check className="w-4 h-4 md:w-5 md:h-5" />}
+                        {isSaving ? "SAVING..." : "Confirm Location"}
                     </button>
                 </div>
             </div>
@@ -340,6 +484,6 @@ export default function MapLocationPage() {
                 onSelect={handleHubSelect}
                 isSelected={detailedHub?.id === selectedHubId}
             />
-        </MobileShell>
+        </div>
     );
 }

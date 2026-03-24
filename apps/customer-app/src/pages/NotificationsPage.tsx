@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Bell, Package, Heart, Tag, Info, Truck, MessageCircle, MapPin, CheckCircle } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { useAuth } from "@popclozet/auth";
@@ -144,7 +143,7 @@ const NotificationsPage: React.FC = () => {
                         </div>
                     ) : supaNotifs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-3">
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-3">
                                 <Bell className="w-6 h-6 text-zinc-600" />
                             </div>
                             <p className="text-zinc-500 text-sm">No delivery updates yet</p>
@@ -160,10 +159,10 @@ const NotificationsPage: React.FC = () => {
                                 return (
                                     <div
                                         key={notif.id}
-                                        className={`flex items-start gap-3 px-4 py-4 ${!notif.is_read ? "bg-white/[0.03]" : ""} ${i < supaNotifs.length - 1 ? "border-b border-white/5" : ""}`}
+                                        className={`flex items-start gap-3 px-3 md:px-4 py-3 md:py-4 ${!notif.is_read ? "bg-white/[0.03]" : ""} ${i < supaNotifs.length - 1 ? "border-b border-white/5" : ""}`}
                                     >
-                                        <div className={`w-10 h-10 rounded-xl ${iconConfig.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                                            <Icon className={`w-5 h-5 ${iconConfig.color}`} />
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl ${iconConfig.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                                            <Icon className={`w-4 h-4 md:w-5 md:h-5 ${iconConfig.color}`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
@@ -206,10 +205,10 @@ const NotificationsPage: React.FC = () => {
                             return (
                                 <div
                                     key={item.key}
-                                    className={`flex items-center gap-3 px-4 py-4 ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}
+                                    className={`flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}
                                 >
-                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                                        <Icon className="w-5 h-5 text-[#f2546d]" />
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                        <Icon className="w-4 h-4 md:w-5 md:h-5 text-[#ff4d6d]" />
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-white text-sm font-medium">{item.label}</p>
@@ -227,7 +226,7 @@ const NotificationsPage: React.FC = () => {
                     <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">Order Activity</h2>
                     {orderNotifs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-3">
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-3">
                                 <Info className="w-6 h-6 text-zinc-600" />
                             </div>
                             <p className="text-zinc-500 text-sm">No recent activity yet</p>
@@ -237,9 +236,9 @@ const NotificationsPage: React.FC = () => {
                             {orderNotifs.map((notif, i) => {
                                 const Icon = notif.icon;
                                 return (
-                                    <div key={notif.id} className={`flex items-start gap-3 px-4 py-4 ${i < orderNotifs.length - 1 ? "border-b border-white/5" : ""}`}>
-                                        <div className={`w-10 h-10 rounded-xl ${notif.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                                            <Icon className={`w-5 h-5 ${notif.color}`} />
+                                    <div key={notif.id} className={`flex items-start gap-3 px-3 md:px-4 py-3 md:py-4 ${i < orderNotifs.length - 1 ? "border-b border-white/5" : ""}`}>
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl ${notif.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                                            <Icon className={`w-4 h-4 md:w-5 md:h-5 ${notif.color}`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-white text-sm font-semibold">{notif.title}</p>
@@ -253,8 +252,6 @@ const NotificationsPage: React.FC = () => {
                     )}
                 </motion.div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

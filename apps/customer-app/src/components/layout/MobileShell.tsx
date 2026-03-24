@@ -1,11 +1,13 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { BottomNavBar } from './BottomNavBar';
 
 interface MobileShellProps {
     children: React.ReactNode;
     className?: string;
     hideBottomNav?: boolean;
     hideGlow?: boolean;
+    isGlobalShell?: boolean;
 }
 
 /**
@@ -18,18 +20,26 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     className,
     hideBottomNav = false,
     hideGlow = false,
+    isGlobalShell = false,
 }) => {
     return (
         <div className="min-h-screen bg-black flex justify-center">
-            {/* Mobile container */}
+            {/* Responsive Container */}
             <div
                 className={cn(
-                    "w-full max-w-[430px] min-h-screen relative overflow-clip",
+                    "w-full min-h-screen relative overflow-clip",
+                    // Mobile constraints
+                    "max-w-[430px]",
+                    // Tablet constraints (md+)
+                    "md:max-w-full md:px-6",
+                    // Desktop constraints (lg+)
+                    "lg:max-w-7xl lg:px-8 lg:flex lg:flex-row items-start",
                     "bg-[#0a0a0a]",
-                    "shadow-2xl shadow-black/50",
+                    "shadow-2xl shadow-black/50 md:shadow-none",
                     className
                 )}
             >
+
                 {/* ── Global red glow orb – top-left ── */}
                 {!hideGlow && (
                     <div
@@ -41,10 +51,13 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                     />
                 )}
 
-                {/* Main content area with bottom padding for nav */}
+                {/* Navbar is properly inside the centered flex container, ONLY rendered by the Global layout to prevent duplicates */}
+                {isGlobalShell && !hideBottomNav && <BottomNavBar />}
+
+                {/* Main content area */}
                 <div className={cn(
-                    "flex flex-col min-h-screen relative z-[1]",
-                    !hideBottomNav && "pb-20"
+                    "flex flex-col min-h-screen relative z-[1] flex-1 min-w-0 w-full",
+                    !hideBottomNav && "pb-20 md:pb-0 md:pt-20 lg:pt-0"
                 )}>
                     {children}
                 </div>

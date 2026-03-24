@@ -123,28 +123,36 @@ export function InteractiveMap({
     }, [center.lat, center.lng, zoom, isLoading]);
 
     // User marker (Clean Red Pin)
+    // IMPORTANT: This effect NEVER removes an existing marker. It only creates or repositions.
+    // The marker is only cleaned up when the entire map is destroyed (init effect cleanup).
     useEffect(() => {
         if (!mapRef.current || isLoading) return;
 
-        if (!userLocation || (Math.abs(userLocation.lat) < 0.1)) {
-            const m = markersRef.current.get('user');
-            if (m) {
-                m.remove();
-                markersRef.current.delete('user');
-            }
+        // Determine if we have valid coordinates to show
+        const hasValidLocation = userLocation &&
+            typeof userLocation.lat === 'number' &&
+            typeof userLocation.lng === 'number' &&
+            !isNaN(userLocation.lat) &&
+            !isNaN(userLocation.lng) &&
+            (Math.abs(userLocation.lat) > 0.01 || Math.abs(userLocation.lng) > 0.01);
+
+        // If no valid location, just leave the existing marker where it is (don't remove!)
+        if (!hasValidLocation) {
+            console.log('[InteractiveMap] No valid userLocation — keeping existing marker in place');
             return;
         }
 
         const existing = markersRef.current.get('user');
         if (existing) {
-            existing.setLngLat([userLocation.lng, userLocation.lat]);
+            // Update position of existing marker
+            existing.setLngLat([userLocation!.lng, userLocation!.lat]);
             // Fix for React 18 Strict Mode detaching markers from the DOM
             if (!existing.getElement().parentNode && mapRef.current) {
                 existing.addTo(mapRef.current);
             }
         } else {
-            // Standard red marker
-            const marker = addMarker(mapRef.current, [userLocation.lat, userLocation.lng], {
+            // Create new marker
+            const marker = addMarker(mapRef.current, [userLocation!.lat, userLocation!.lng], {
                 draggable: !!onMarkerDrag,
                 title: 'Selected Location'
             });

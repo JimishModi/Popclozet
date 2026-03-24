@@ -10,6 +10,7 @@ export default defineConfig({
             '@popclozet/api-client',
             '@popclozet/auth',
             '@popclozet/domain-contracts',
+            '@popclozet/mapbox-core',
             '@popclozet/ui'
         ]
     },

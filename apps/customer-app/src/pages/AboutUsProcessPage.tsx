@@ -1,7 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 
@@ -146,8 +145,6 @@ const AboutUsProcessPage: React.FC = () => {
                     </div>
                 </div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

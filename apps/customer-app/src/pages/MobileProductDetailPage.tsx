@@ -385,8 +385,8 @@ const MobileProductDetailPage: React.FC = () => {
 
     if (loading) {
         return (
-            <MobileShell className="bg-[#111111] text-white">
-                {/* Skeleton header */}
+        <div className="bg-[#050505] min-h-screen text-white">
+            {/* Skeleton header */}
                 <div className="flex items-center justify-between px-4 py-3">
                     <div className="w-10 h-10 rounded-full bg-white/5" />
                     <div className="flex gap-2">
@@ -417,13 +417,13 @@ const MobileProductDetailPage: React.FC = () => {
                         <div className="h-32 bg-white/5 rounded-2xl mt-6" />
                     </div>
                 </div>
-            </MobileShell>
+            </div>
         );
     }
 
     if (!product) {
         return (
-            <MobileShell className="bg-[#111111] text-white">
+            <div className="bg-[#111111] text-white min-h-screen">
                 <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
                     <h2 className="text-xl font-bold mb-2">Product Not Found</h2>
                     <p className="text-zinc-400 mb-6">
@@ -436,19 +436,19 @@ const MobileProductDetailPage: React.FC = () => {
                         Back to Home
                     </Link>
                 </div>
-            </MobileShell>
+            </div>
         );
     }
 
     return (
-        <MobileShell className="bg-[#0A0A0A] text-white" hideBottomNav>
+        <div className="bg-[#0A0A0A] text-white min-h-screen" >
             {/* ─── HEADER ─── */}
             <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-50 bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/5">
                 <button
                     onClick={() => navigate(-1)}
                     className="p-2 rounded-full hover:bg-white/10 transition-colors"
                 >
-                    <ChevronLeft className="w-6 h-6 text-white" />
+                    <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </button>
                 <div className="flex items-center gap-2">
                     <button
@@ -466,9 +466,9 @@ const MobileProductDetailPage: React.FC = () => {
                     </button>
                     <button
                         onClick={() => navigate('/cart')}
-                        className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center relative"
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center relative"
                     >
-                        <ShoppingBag className="w-5 h-5 text-white" />
+                        <ShoppingBag className="w-4 h-4 md:w-5 md:h-5 text-white" />
                         {totalItems > 0 && (
                             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#f2546d] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[#050505] px-1">
                                 {totalItems > 9 ? '9+' : totalItems}
@@ -479,16 +479,18 @@ const MobileProductDetailPage: React.FC = () => {
             </div>
 
             {/* ─── MAIN CONTENT ─── */}
-            <main className="flex-1 overflow-y-auto pb-28">
-                {/* Image Gallery Carousel */}
-                <div className="relative group">
-                    <div
+            <main className="flex-1 overflow-y-auto pb-28 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto">
+                <div className="lg:flex lg:gap-12 lg:items-start lg:mt-6">
+                    {/* Left Column: Images */}
+                    <div className="lg:w-1/2 lg:sticky lg:top-24">
+                        <div className="relative group lg:rounded-[32px] lg:overflow-hidden lg:shadow-2xl lg:shadow-black/50">
+                            <div
                         onScroll={(e) => {
                             const scrollLeft = e.currentTarget.scrollLeft;
                             const width = e.currentTarget.offsetWidth;
                             setActiveImageIndex(Math.round(scrollLeft / width));
                         }}
-                        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide bg-[#141414]"
+                        className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar bg-[#141414]"
                     >
                         {(product.images?.length ? product.images : [product.imageUrl]).map((img, idx) => (
                             <div key={idx} className="min-w-full snap-center aspect-[344/360] flex items-center justify-center overflow-hidden">
@@ -547,14 +549,16 @@ const MobileProductDetailPage: React.FC = () => {
                             Edit Outfit
                         </span>
                     </button>
-                </div>
+                        </div>
+                    </div>
 
-                {/* Product Info */}
-                <div className="px-5 mt-6">
-                    {/* Name + Rating */}
+                    {/* Right Column: Product Info */}
+                    <div className="lg:w-1/2 px-4 lg:px-0 mt-4 lg:mt-0 flex flex-col">
+                        <div className="flex-1">
+                            {/* Name + Rating */}
                     <div className="flex items-start justify-between">
                         <h1
-                            className="text-2xl font-semibold text-[#b4b4b4] tracking-[-0.72px]"
+                            className="text-lg md:text-2xl font-semibold text-[#b4b4b4] tracking-[-0.72px]"
                             style={dmSans}
                         >
                             {product.name || "Haldi Outfit"}
@@ -576,9 +580,9 @@ const MobileProductDetailPage: React.FC = () => {
                     </div>
 
                     {/* Pricing */}
-                    <div className="flex items-center gap-3 mt-4">
+                    <div className="flex items-center gap-2 md:gap-3 mt-2 md:mt-4">
                         <span
-                            className="text-2xl font-semibold text-white tracking-[-0.72px]"
+                            className="text-xl md:text-2xl font-semibold text-white tracking-[-0.72px]"
                             style={dmSans}
                         >
                             ₹ {currentPlanPrice}
@@ -587,7 +591,7 @@ const MobileProductDetailPage: React.FC = () => {
                             <>
                                 <span className="relative">
                                     <span
-                                        className="text-2xl font-semibold text-[#5f606a] tracking-[-0.72px]"
+                                        className="text-xl md:text-2xl font-semibold text-[#5f606a] tracking-[-0.72px]"
                                         style={dmSans}
                                     >
                                         ₹ {mrp}
@@ -595,7 +599,7 @@ const MobileProductDetailPage: React.FC = () => {
                                     <span className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#5f606a]" />
                                 </span>
                                 <span
-                                    className="text-lg font-semibold text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
+                                    className="text-base md:text-lg font-semibold text-[#f2546d] tracking-[-0.54px] leading-[21.6px]"
                                     style={dmSans}
                                 >
                                     Save {Math.round(((mrp - currentPlanPrice) / mrp) * 100)}%
@@ -647,9 +651,9 @@ const MobileProductDetailPage: React.FC = () => {
                     </div>
 
                     {/* ─── SELECT SIZE ─── */}
-                    <div className="flex items-center justify-between mt-10">
+                    <div className="flex items-center justify-between mt-6 md:mt-10">
                         <span
-                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
+                            className="text-base md:text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
                             style={dmSans}
                         >
                             Select Size
@@ -669,7 +673,7 @@ const MobileProductDetailPage: React.FC = () => {
                     </div>
 
                     {/* Size buttons — sourced from inventory, only show sizes with stock */}
-                    <div className="flex items-center gap-3 mt-5 relative flex-wrap pb-2">
+                    <div className="flex items-center gap-2 md:gap-3 mt-3 md:mt-5 relative flex-wrap pb-2">
                         {inventory.length === 0 ? (
                             <span className="text-sm text-zinc-500">No sizes available</span>
                         ) : (
@@ -688,8 +692,8 @@ const MobileProductDetailPage: React.FC = () => {
                                             disabled={isDisabled}
                                             title={isDisabled ? 'Out of stock' : `${row.available_stock} available`}
                                             className={cn(
-                                                "w-12 h-12 rounded-2xl flex items-center justify-center",
-                                                "text-lg font-black tracking-tighter transition-all duration-300",
+                                                "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center",
+                                                "text-base md:text-lg font-black tracking-tighter transition-all duration-300",
                                                 isSelected
                                                     ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
                                                     : isDisabled
@@ -715,6 +719,21 @@ const MobileProductDetailPage: React.FC = () => {
                                 );
                             })
                         )}
+                    </div>
+
+                    {/* Desktop Add to Cart */}
+                    <div className="hidden lg:block mt-8 mb-4">
+                        <button
+                            onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
+                            className={cn(
+                                "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
+                                isAdded ? "bg-zinc-800 border border-[#f2546d]/30 text-white" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
+                            )}
+                        >
+                            <span className="text-lg font-bold tracking-tight" style={dmSans}>
+                                {isAdded ? "Go to Cart →" : "Add to Cart"}
+                            </span>
+                        </button>
                     </div>
 
                     {/* ─── PRODUCT DETAILS ─── */}
@@ -869,7 +888,9 @@ const MobileProductDetailPage: React.FC = () => {
                             )}
                         </div>
                     </div>
-                </div>
+                        </div> {/* end right column inner flex */}
+                    </div> {/* end right column */}
+                </div> {/* end lg:flex */}
             </main>
 
             {/* ─── WRITE REVIEW MODAL (Vaul) ─── */}
@@ -877,7 +898,7 @@ const MobileProductDetailPage: React.FC = () => {
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
                     <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 h-[65vh] border-t border-white/5 shadow-2xl">
-                        <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto scrollbar-hide">
+                        <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto no-scrollbar">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-800 mb-8" />
                             <h2 className="text-2xl font-black text-white mb-2 text-center tracking-tighter">Write a Review</h2>
                             <p className="text-zinc-500 text-center text-sm mb-8">Share your experience with the community</p>
@@ -990,8 +1011,8 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#111111] border-t border-[#232323]">
-                <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4">
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#111111] border-t border-[#232323] lg:hidden">
+                <div className="w-full max-w-[430px] md:max-w-full mx-auto flex gap-4 px-5 py-4">
                     {isRented ? (
                         /* Rented-out state — cannot order */
                         <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-800 border border-zinc-700 gap-2">
@@ -1018,7 +1039,7 @@ const MobileProductDetailPage: React.FC = () => {
                     )}
                 </div>
             </div>
-        </MobileShell>
+        </div>
     );
 };
 

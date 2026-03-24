@@ -74,22 +74,34 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
 
     return (
         <nav className={cn(
-            "fixed bottom-0 left-1/2 -translate-x-1/2 z-50",
-            "w-full max-w-[430px]",
-            "px-3 pb-4 pt-2",
-            "pointer-events-none",
+            "fixed z-50 pointer-events-none",
+            // Mobile styling (Bottom Nav)
+            "bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-3 pb-3 pt-1",
+            // Tablet styling (Top Nav)
+            "md:translate-x-0 md:top-0 md:bottom-auto md:left-0 md:w-full md:max-w-full md:px-6 md:py-4 md:flex md:justify-center",
+            // Desktop styling (Left Sidebar) - Now sticky inside MobileShell container
+            "lg:sticky lg:top-0 lg:left-auto lg:bottom-auto lg:h-screen lg:w-64 lg:px-6 lg:py-8 lg:block lg:flex-shrink-0 lg:z-10",
             className
         )}>
             <div className={cn(
-                "pointer-events-auto",
-                "relative flex items-center justify-around",
-                "bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80",
-                "backdrop-blur-3xl",
-                "rounded-[28px] py-3 px-2",
-                "border border-white/10",
-                "shadow-[0_-10px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)_inset]"
+                "pointer-events-auto relative flex items-center shadow-[0_-10px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)_inset]",
+                "backdrop-blur-3xl border border-white/10",
+                // Mobile interior container
+                "justify-around bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80 rounded-[28px] py-2 px-2",
+                // Tablet interior container
+                "md:justify-around md:bg-zinc-950/80 md:rounded-2xl md:py-2 md:px-6 md:shadow-lg md:w-fit md:mx-auto md:gap-8",
+                // Desktop interior container
+                "lg:flex-col lg:items-start lg:justify-start lg:bg-transparent lg:shadow-none lg:border-none lg:h-full lg:gap-6 lg:pt-8"
             )}>
-                <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+                {/* Horizontal top highlight, only visible on mobile/tablet */}
+                <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent lg:hidden" />
+
+                {/* Optional brand logo for Desktop Sidebar */}
+                <div className="hidden lg:block mb-8 px-4">
+                    <span className="text-xl font-bold bg-gradient-to-r from-primary to-[#ff8ba7] bg-clip-text text-transparent">
+                        PopClozet
+                    </span>
+                </div>
 
                 {navItems.map((item) => {
                     const Icon = item.icon;
@@ -100,15 +112,25 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                             key={item.path}
                             to={item.path}
                             className={cn(
-                                "relative flex flex-col items-center gap-1 px-4 py-1.5 transition-all duration-200",
+                                "relative flex items-center transition-all duration-200",
+                                // Mobile link styling
+                                "flex-col gap-0.5 px-4 py-1",
+                                // Tablet link styling
+                                "md:flex-row md:py-2 md:px-4 md:rounded-lg md:hover:bg-white/5",
+                                // Desktop link styling
+                                "lg:w-full lg:px-4 lg:py-3 lg:rounded-xl lg:hover:bg-white/5",
                                 active
-                                    ? "text-[#f2546d]"
-                                    : "text-zinc-500 hover:text-zinc-300"
+                                    ? "text-[#ff4d6d]"
+                                    : "text-zinc-500 hover:text-zinc-300",
+                                active && "md:bg-[#ff4d6d]/10 lg:bg-[#ff4d6d]/10"
                             )}
                         >
                             <div className="relative">
                                 <Icon
-                                    className="w-6 h-6"
+                                    className={cn(
+                                        "w-5 h-5",
+                                        "md:w-5 md:h-5 lg:w-6 lg:h-6"
+                                    )}
                                     active={active}
                                 />
                                 {/* Cart badge */}
@@ -125,8 +147,14 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                 )}
                             </div>
                             <span className={cn(
-                                "text-[10px] font-semibold tracking-wide",
-                                active ? "text-[#f2546d]" : "text-zinc-600"
+                                "font-semibold tracking-wide",
+                                // Mobile label styling
+                                "text-[10px]",
+                                // Tablet label styling
+                                "md:text-[13px] md:ml-2",
+                                // Desktop label styling
+                                "lg:text-sm lg:ml-3",
+                                active ? "text-[#ff4d6d]" : "text-zinc-600 md:text-zinc-400"
                             )}>
                                 {item.label}
                             </span>

@@ -81,7 +81,7 @@ const TrendingNow = () => {
 
                 {/* Stories/Categories */}
                 <motion.div
-                    className="flex gap-4 overflow-x-auto pb-6 mb-12 scrollbar-hide"
+                    className="flex gap-4 overflow-x-auto pb-6 mb-12 no-scrollbar"
                     initial={{ opacity: 0, x: -20 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true }}

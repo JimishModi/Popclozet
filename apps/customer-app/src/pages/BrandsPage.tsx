@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ChevronLeft, Search, ChevronRight, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { productService } from "@/services/productService";
@@ -113,8 +112,6 @@ const BrandsPage: React.FC = () => {
 
                 <div className="h-8" />
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };
