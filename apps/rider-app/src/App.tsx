@@ -20,6 +20,7 @@ import { WarehouseNavigationPage } from './pages/WarehouseNavigationPage';
 // New integrated pages
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { AuthOtpPage } from './pages/AuthOtpPage';
 import { SignupPage } from './pages/SignupPage';
 import { OtpVerificationPage } from './pages/OtpVerificationPage';
 import { OrderCompletePage } from './pages/OrderCompletePage';
@@ -71,12 +72,13 @@ function App() {
         );
     }
 
-    // Not authenticated: show auth routes
+    // Not authenticated: show auth routes (phone OTP flow)
     if (!user) {
         return (
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/auth-otp" element={<AuthOtpPage />} />
+                <Route path="/signup" element={<Navigate to="/login" replace />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
         );

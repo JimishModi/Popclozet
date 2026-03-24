@@ -98,6 +98,10 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
     };
 
     const validateStep3 = () => {
+        if (!formData.name.trim()) {
+            setError('Please enter your name');
+            return false;
+        }
         if (!formData.vehicleNumber.trim()) {
             setError('Please enter your vehicle number');
             return false;
@@ -137,9 +141,8 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                     .from('riders')
                     .insert({
                         id: user.id,
-                        user_id: user.id,
-                        name: profile?.full_name || user.user_metadata?.full_name || formData.name,
-                        phone: profile?.phone || user.user_metadata?.phone || formData.phone,
+                        name: formData.name || profile?.full_name || user.user_metadata?.full_name || '',
+                        phone: profile?.phone || user.user_metadata?.phone || user.phone || '',
                         email: user.email,
                         vehicle_type: formData.vehicleType,
                         vehicle_number: formData.vehicleNumber,
@@ -204,7 +207,6 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                     // Create the missing rider profile
                     const { error: riderError } = await supabase.from('riders').insert({
                         id: existingUser.id,
-                        user_id: existingUser.id,
                         name: formData.name || existingUser.user_metadata?.full_name || '',
                         phone: formData.phone || existingUser.user_metadata?.phone || '',
                         email: formData.email,
@@ -395,12 +397,12 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                         </>
                     )}
 
-                    {/* Step 3: Vehicle Info */}
+                    {/* Step 3: Name + Vehicle Info */}
                     {step === 3 && (
                         <>
                             <div className="mb-6">
-                                <h2 className="text-2xl font-bold text-white">Vehicle Information</h2>
-                                <p className="text-zinc-400 mt-1">Tell us about your vehicle</p>
+                                <h2 className="text-2xl font-bold text-white">Rider Details</h2>
+                                <p className="text-zinc-400 mt-1">Your name and vehicle information</p>
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-4">
@@ -416,6 +418,27 @@ export function SignupPage({ initialStep = 1 }: SignupPageProps) {
                                         />
                                     </label>
                                 </div>
+
+                                {/* Name */}
+                                <div className="space-y-1.5">
+                                    <label className="text-sm text-zinc-400">Full Name</label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                                        <input
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={(e) => updateFormData('name', e.target.value)}
+                                            placeholder="Enter your full name"
+                                            className={clsx(
+                                                "w-full h-12 pl-10 pr-4 rounded-xl",
+                                                "bg-zinc-900 border border-zinc-800",
+                                                "text-white placeholder:text-zinc-600",
+                                                "focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+
                                 {/* Vehicle Type */}
                                 <div className="space-y-1.5">
                                     <label className="text-sm text-zinc-400">Vehicle Type</label>

@@ -35,7 +35,6 @@ import { getUnreadCount } from '../services/notificationsService';
 import {
     claimOrder,
     declineOrderNotification,
-    releaseOrder,
 } from '../services/riderOrderService';
 import { supabase } from '@popclozet/api-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -157,7 +156,6 @@ export function HomePage() {
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [unreadNotifications, setUnread] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [isCancelling, setIsCancelling] = useState(false);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -199,6 +197,17 @@ export function HomePage() {
                 .limit(1);
 
             if (!notifs?.length) {
+                // Get order IDs this rider has already declined (persisted)
+                const { data: declinedNotifs } = await supabase
+                    .from('rider_notifications')
+                    .select('order_id')
+                    .eq('rider_id', user.id)
+                    .eq('status', 'declined');
+
+                const declinedOrderIds = new Set(
+                    (declinedNotifs ?? []).map((n: any) => n.order_id)
+                );
+
                 const { data: availableOrders, error: availableError } = await supabase
                     .from('orders')
                     .select(ORDER_SELECT)
@@ -214,7 +223,9 @@ export function HomePage() {
                 }
 
                 const nextDirectOrder = (availableOrders ?? []).find(
-                    (order: any) => !dismissedDirectOrderIdsRef.current.has(order.id),
+                    (order: any) =>
+                        !dismissedDirectOrderIdsRef.current.has(order.id) &&
+                        !declinedOrderIds.has(order.id),
                 );
 
                 if (nextDirectOrder) {
@@ -432,8 +443,17 @@ export function HomePage() {
 
         try {
             if (notifId.startsWith('direct:')) {
+                // Persist decline in DB so it survives re-login
                 dismissedDirectOrderIdsRef.current.add(pendingOrder.id);
-                showToast('Order hidden for this session.', 'info');
+                const { error: upsertErr } = await supabase.from('rider_notifications').upsert({
+                    order_id: pendingOrder.id,
+                    rider_id: user.id,
+                    status: 'declined',
+                }, { onConflict: 'order_id,rider_id' });
+                if (upsertErr) {
+                    console.error('[HomePage] Failed to persist decline:', upsertErr);
+                }
+                showToast('Order declined.', 'info');
             } else {
                 await declineOrderNotification(notifId);
             }
@@ -445,30 +465,6 @@ export function HomePage() {
             setIsSearching(false);
         }
     }, [pendingOrder, user?.id, fetchPendingOrder, showToast]);
-
-    const handleCancelDelivery = useCallback(async () => {
-        if (!pendingOrder || !user?.id) return;
-
-        const confirm = window.confirm('Are you sure you want to cancel this delivery? You will not be able to accept it again.');
-        if (!confirm) return;
-
-        setIsCancelling(true);
-        try {
-            const result = await releaseOrder(pendingOrder.id, user.id);
-            if (result.success) {
-                showToast('Delivery cancelled successfully', 'success');
-                setPendingOrder(null);
-                void fetchPendingOrder();
-            } else {
-                showToast(result.message ?? 'Failed to cancel delivery', 'error');
-            }
-        } catch (error) {
-            console.error('[HomePage] Cancel delivery error:', error);
-            showToast('An unexpected error occurred', 'error');
-        } finally {
-            setIsCancelling(false);
-        }
-    }, [pendingOrder, user?.id, showToast, fetchPendingOrder]);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
@@ -538,13 +534,6 @@ export function HomePage() {
                                         className="w-full h-14 rounded-2xl bg-blue-500 text-white font-semibold hover:bg-blue-400 transition-colors"
                                     >
                                         {getAssignedActionLabel(pendingOrder)}
-                                    </button>
-                                    <button
-                                        onClick={handleCancelDelivery}
-                                        disabled={isCancelling}
-                                        className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors"
-                                    >
-                                        {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
                                     </button>
                                 </div>
                             ) : (
