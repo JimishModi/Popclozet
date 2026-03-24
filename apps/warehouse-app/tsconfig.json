@@ -29,5 +29,10 @@
     },
     "include": [
         "src"
+    ],
+    "references": [
+        { "path": "../../packages/domain-contracts" },
+        { "path": "../../packages/api-client" },
+        { "path": "../../packages/auth" }
     ]
 }
