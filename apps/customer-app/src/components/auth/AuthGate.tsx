@@ -38,9 +38,35 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       (p) => location.pathname === p || location.pathname.startsWith(p + "/")
     );
 
-    // Not logged in — allow public paths, redirect from protected ones
+    const guestPaths = [
+      "/home",
+      "/collections",
+      "/product",
+      "/shop",
+      "/brands",
+      "/search",
+      "/how-it-works",
+      "/about-us",
+      "/privacy",
+      "/terms",
+      "/cookies",
+      "/closet",
+      "/profile",
+      "/cart",
+      "/wishlist",
+      "/orders",
+      "/settings",
+      "/notifications",
+      "/help",
+      "/payments",
+    ];
+    const isGuestPath = guestPaths.some(
+      (p) => location.pathname === p || location.pathname.startsWith(p + "/")
+    );
+
+    // Not logged in — allow public paths & guest paths, redirect from protected ones
     if (!user) {
-      if (!isPublicPath) {
+      if (!isPublicPath && !isGuestPath) {
         navigate("/auth/login", { replace: true });
       }
       return;

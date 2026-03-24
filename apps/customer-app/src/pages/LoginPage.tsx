@@ -76,7 +76,7 @@ export default function LoginPage() {
       <div className="flex flex-col min-h-screen">
         <div className="relative h-[40vh] overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <img src={logoImage} alt="PopClozet" className="h-12" />
+            <img src={logoImage} alt="PopClozet" className="h-12 mix-blend-screen" />
           </div>
           <div className="absolute inset-0 z-10 overflow-hidden opacity-40">
             <BackgroundGrid />
@@ -112,6 +112,13 @@ export default function LoginPage() {
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span className="text-white">Continue</span><ChevronRight className="w-5 h-5 text-white" /></>}
+            </button>
+
+            <button
+              onClick={() => navigate('/home')}
+              className="w-full py-2 text-zinc-400 text-sm font-semibold hover:text-white transition-colors"
+            >
+              Browse without sign in
             </button>
           </div>
 

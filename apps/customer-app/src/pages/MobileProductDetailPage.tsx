@@ -441,7 +441,7 @@ const MobileProductDetailPage: React.FC = () => {
     }
 
     return (
-        <MobileShell className="bg-[#0A0A0A] text-white" hideBottomNav>
+        <MobileShell className="bg-[#0A0A0A] text-white">
             {/* ─── HEADER ─── */}
             <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-50 bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/5">
                 <button
@@ -479,7 +479,7 @@ const MobileProductDetailPage: React.FC = () => {
             </div>
 
             {/* ─── MAIN CONTENT ─── */}
-            <main className="flex-1 overflow-y-auto pb-28">
+            <main className="flex-1 overflow-y-auto pb-[200px]">
                 {/* Image Gallery Carousel */}
                 <div className="relative group">
                     <div
@@ -876,7 +876,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 h-[65vh] border-t border-white/5 shadow-2xl">
+                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl">
                         <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto scrollbar-hide">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-800 mb-8" />
                             <h2 className="text-2xl font-black text-white mb-2 text-center tracking-tighter">Write a Review</h2>
@@ -942,7 +942,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isSizeGuideOpen} onOpenChange={setIsSizeGuideOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-h-[70vh]">
+                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh]">
                         <div className="p-4 bg-[#191919] rounded-t-[20px] flex-1 overflow-y-auto">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-700 mb-6" />
                             <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
@@ -990,8 +990,8 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#111111] border-t border-[#232323]">
-                <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none">
+                <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented ? (
                         /* Rented-out state — cannot order */
                         <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-800 border border-zinc-700 gap-2">

@@ -7,9 +7,34 @@
  * This package is versioned and treated as immutable within a release cycle.
  * No app may define its own order states, roles, or status strings.
  */
+
 export type UserRole = 'customer' | 'rider' | 'warehouse' | 'admin';
+
 export type ActorRole = 'customer' | 'rider' | 'warehouse';
-export type OrderStatus = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'rider_assigned' | 'driver_arrived_warehouse' | 'order_picked_up' | 'dispatched' | 'out_for_delivery' | 'delivered' | 'in_use' | 'return_requested' | 'return_scheduled' | 'return_dispatched' | 'return_picked_up' | 'return_at_warehouse' | 'returned' | 'return_completed' | 'completed' | 'cancelled';
+export type PricingPlan = '1d' | '2d' | '3d' | 'buy';
+
+export type OrderStatus =
+    | 'pending'
+    | 'confirmed'
+    | 'packed'
+    | 'ready_for_pickup'
+    | 'rider_assigned'
+    | 'driver_arrived_warehouse'
+    | 'order_picked_up'
+    | 'dispatched'
+    | 'out_for_delivery'
+    | 'delivered'
+    | 'in_use'
+    | 'return_requested'
+    | 'return_scheduled'
+    | 'return_dispatched'
+    | 'return_picked_up'
+    | 'return_at_warehouse'
+    | 'returned'
+    | 'return_completed'
+    | 'completed'
+    | 'cancelled';
+
 export interface User {
     id: string;
     email: string;
@@ -17,18 +42,25 @@ export interface User {
     profile?: UserProfile;
     created_at: string;
 }
+
 export interface UserProfile {
     id: string;
     user_id: string;
     full_name: string;
+    email: string;
     phone: string;
     avatar_url?: string;
     email_verified: boolean;
     role: UserRole;
+    onboarding_completed: boolean;
     measurements?: BodyMeasurements;
+    vehicle_type?: 'bike' | 'scooter' | 'car';
+    vehicle_number?: string;
+    license_number?: string;
     created_at: string;
     updated_at: string;
 }
+
 export interface BodyMeasurements {
     bust?: number;
     waist?: number;
@@ -39,6 +71,7 @@ export interface BodyMeasurements {
     inseam?: number;
     preferred_fit?: 'tight' | 'regular' | 'loose';
 }
+
 export interface Address {
     id: string;
     user_id: string;
@@ -51,6 +84,7 @@ export interface Address {
     created_at: string;
     updated_at: string;
 }
+
 export interface Product {
     id: string;
     name: string;
@@ -60,6 +94,10 @@ export interface Product {
     gender: 'men' | 'women' | 'unisex';
     occasion: string[];
     rental_price: number;
+    rental_price_1d?: number;
+    rental_price_2d?: number;
+    rental_price_3d?: number;
+    buy_price?: number;
     deposit_amount: number;
     images: string[];
     fabric_details: FabricDetails;
@@ -68,12 +106,14 @@ export interface Product {
     is_available: boolean;
     created_at: string;
 }
+
 export interface FabricDetails {
     composition: string;
     stretch_percentage: number;
     care_instructions: string[];
     comfort_rating: number;
 }
+
 export interface ProductSize {
     size: string;
     measurements: {
@@ -84,6 +124,7 @@ export interface ProductSize {
     };
     stock_count: number;
 }
+
 export interface HygieneInfo {
     last_sanitized: string;
     hygiene_rating: 'A+' | 'A' | 'B' | 'C';
@@ -91,15 +132,18 @@ export interface HygieneInfo {
     lifecycle_count: number;
     sanitization_method: string;
 }
+
 export interface CartItem {
     id: string;
     product_id: string;
     product: Product;
     size: string;
+    pricing_plan: PricingPlan;
     rental_duration_days: number;
     reservation_expires_at: string;
     added_at: string;
 }
+
 export interface Order {
     id: string;
     user_id: string;
@@ -120,6 +164,7 @@ export interface Order {
     created_at: string;
     updated_at: string;
 }
+
 export interface OrderItem {
     id: string;
     order_id: string;
@@ -129,18 +174,22 @@ export interface OrderItem {
     size: string;
     rental_price: number;
     deposit_amount: number;
+    pricing_plan?: PricingPlan;
 }
+
 export interface RiderLocation {
     rider_id: string;
     latitude: number;
     longitude: number;
     timestamp: string;
 }
+
 export interface ProximityState {
     distance: number;
     status: 'far' | 'near' | 'arrived';
     showMap: boolean;
 }
+
 export interface ReturnRequest {
     id: string;
     order_id: string;
@@ -156,12 +205,14 @@ export interface ReturnRequest {
     completed_at?: string;
     created_at: string;
 }
+
 export interface Toast {
     id: string;
     type: 'success' | 'error' | 'warning' | 'info';
     message: string;
     duration?: number;
 }
+
 export interface SearchFilters {
     gender?: 'men' | 'women' | 'unisex';
     occasion?: string[];
@@ -173,6 +224,7 @@ export interface SearchFilters {
     size?: string[];
     availability?: boolean;
 }
+
 export interface TransitionResult {
     success: boolean;
     from?: OrderStatus;
@@ -182,4 +234,3 @@ export interface TransitionResult {
     actor_role?: ActorRole;
     actor_id?: string;
 }
-//# sourceMappingURL=index.d.ts.map

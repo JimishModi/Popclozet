@@ -2,19 +2,19 @@
   "name": "@popclozet/domain-contracts",
   "version": "1.1.1",
   "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
     }
   },
   "files": [
     "src"
   ],
   "scripts": {
-    "build": "tsc -b"
+    "build": "pnpm exec tsc -b"
   },
   "dependencies": {
     "react": "18.2.0",

@@ -1,6 +1,7 @@
 // src/pages/CartPage.tsx
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Drawer } from "vaul";
 import { useCart } from "@/context/CartContext";
 import { useServiceAvailability } from "@/hooks/useServiceAvailability";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
@@ -66,10 +68,16 @@ const CartPage = () => {
   const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [checkoutBlocked, setCheckoutBlocked] = useState(false);
   const [citySelectorOpen, setCitySelectorOpen] = useState(false);
+  
+  // Drawer states
+  const [sizeDrawerOpen, setSizeDrawerOpen] = useState(false);
+  const [selectedItemForSize, setSelectedItemForSize] = useState<{ productId: string, plan: string, currentSize: string } | null>(null);
+
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<{ name: string; distance_km: number; estimated_minutes: number } | null>(null);
 
@@ -290,6 +298,10 @@ const CartPage = () => {
   /* Checkout handler                   */
   /* ---------------------------------- */
   const handleCheckout = () => {
+    if (!user) {
+        navigate('/auth/login');
+        return;
+    }
     navigate("/checkout/address");
   };
 
@@ -353,20 +365,16 @@ const CartPage = () => {
 
           {/* Pills: Size & Qty */}
           <div className="mt-3 flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5">
+            <button
+              onClick={() => {
+                setSelectedItemForSize({ productId, plan, currentSize: size });
+                setSizeDrawerOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 hover:bg-white/10 transition-colors"
+            >
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Size:</span>
-              <select
-                value={size}
-                onChange={(e) => updateSize(productId, size, e.target.value, plan)}
-                className="bg-transparent text-white text-[10px] font-black focus:outline-none appearance-none"
-              >
-                {(cartInventory[productId] || []).map((inv: any) => (
-                  <option key={inv.size} value={inv.size} disabled={inv.available_stock <= 0}>
-                    {inv.size}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <span className="bg-transparent text-white text-[10px] font-black">{size}</span>
+            </button>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5">
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Qty:</span>
@@ -406,7 +414,7 @@ const CartPage = () => {
     <MobileShell className="bg-black text-white">
 
       {/* Main scrollable area */}
-      <main className="flex-1 overflow-y-auto pb-56">
+      <main className="flex-1 overflow-y-auto pb-[200px]">
 
         {/* ─── HEADER: Black Background + Title + Wishlist ─── */}
         <section className="px-5 pt-6 pb-4 bg-black border-b border-white/5">
@@ -602,8 +610,10 @@ const CartPage = () => {
 
       {/* ─── FOOTER ─── */}
       {validCartEntries.length > 0 && !loadingProducts && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/5 px-5 py-6 pb-10 z-50">
-          <div className="max-w-[430px] mx-auto space-y-6">
+        <div className="fixed bottom-[85px] left-0 right-0 z-40">
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/95 to-transparent pointer-events-none" />
+          <div className="relative border-t border-white/5 bg-black/40 backdrop-blur-xl px-5 py-6 pb-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+            <div className="max-w-[430px] mx-auto space-y-6">
             {/* --- Subscribe Banner (commented out) --- */}
             {/* <button
               onClick={() => navigate('/subscription-plans')}
@@ -638,9 +648,51 @@ const CartPage = () => {
             </button>
           </div>
         </div>
+      </div>
       )}
 
-      <BottomNavBar />
+      {/* Size Selector Drawer */}
+      <Drawer.Root open={sizeDrawerOpen} onOpenChange={setSizeDrawerOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-[#111111] rounded-t-[32px] border-t border-white/10 z-50 focus:outline-none pb-safe">
+            <div className="p-6">
+              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white mb-6 text-center" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Select Size
+              </h3>
+              {selectedItemForSize && (
+                <div className="grid grid-cols-4 gap-3">
+                  {(cartInventory[selectedItemForSize.productId] || []).map((inv: any) => {
+                    const isSelected = inv.size === selectedItemForSize.currentSize;
+                    const isAvailable = inv.available_stock > 0;
+                    return (
+                      <button
+                        key={inv.size}
+                        disabled={!isAvailable}
+                        onClick={() => {
+                          updateSize(selectedItemForSize.productId, selectedItemForSize.currentSize, inv.size, selectedItemForSize.plan as any);
+                          setSizeDrawerOpen(false);
+                        }}
+                        className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${
+                          isSelected
+                            ? "bg-[#E95466] border-[#E95466] text-white"
+                            : isAvailable
+                            ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
+                            : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
+                        }`}
+                      >
+                        <span className="font-bold text-lg">{inv.size}</span>
+                        {!isAvailable && <span className="text-[10px] mt-1">Sold out</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
 
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />

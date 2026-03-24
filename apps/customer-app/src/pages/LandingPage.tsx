@@ -21,7 +21,6 @@ export default function LandingPage() {
 
   const handleContinue = useCallback(() => navigate("/auth/login"), [navigate]);
   const handleStartBrowsing = useCallback(() => {
-    localStorage.setItem("onboarding_completed", "true");
     navigate("/home");
   }, [navigate]);
 
@@ -71,7 +70,7 @@ function SlideHeader() {
       >
         WELCOME TO
       </p>
-      <img src={logoImage} alt="PopClozet" className="h-10 mx-auto" />
+      <img src={logoImage} alt="PopClozet" className="h-10 mx-auto mix-blend-screen" />
     </div>
   );
 }
@@ -108,7 +107,7 @@ function SlideFooter({ activeSlide, onDotClick, onContinue, onStartBrowsing }: S
           className="w-full py-2 text-[#B4B4B4] text-lg font-semibold hover:text-white transition-colors flex items-center justify-center gap-2"
           style={{ letterSpacing: "-0.54px" }}
         >
-          Start browsing
+          Browse without sign in
           <svg width="7" height="11" viewBox="0 0 7 11" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M5.99987e-08 0.686304C0.000207031 0.868786 0.0937613 1.04373 0.260095 1.17269L4.7952 4.69302C4.93247 4.79954 5.04136 4.92602 5.11565 5.06521C5.18994 5.20441 5.22818 5.3536 5.22818 5.50427C5.22818 5.65494 5.18994 5.80413 5.11565 5.94333C5.04136 6.08253 4.93247 6.209 4.7952 6.31553L0.266007 9.83356C0.10449 9.96337 0.0151166 10.1372 0.0171369 10.3177C0.0191572 10.4982 0.112409 10.6708 0.276808 10.7984C0.441207 10.926 0.663599 10.9984 0.896085 11C1.12857 11.0015 1.35255 10.9322 1.51978 10.8068L6.04898 7.29151C6.65797 6.81785 7 6.17599 7 5.50679C7 4.8376 6.65797 4.19574 6.04898 3.72208L1.51387 0.201753C1.39004 0.105569 1.23228 0.0400129 1.0605 0.0133567C0.888726 -0.0133004 0.710625 0.000136925 0.548675 0.051973C0.386725 0.103809 0.248184 0.191721 0.150535 0.304615C0.0528855 0.417508 0.000503862 0.550324 5.99987e-08 0.686304Z"

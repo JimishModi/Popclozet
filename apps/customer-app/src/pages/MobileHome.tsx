@@ -183,7 +183,7 @@ const MobileHome: React.FC = () => {
             <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-3 pb-8 flex items-center justify-between">
                 {/* ─── LOGO ─── */}
                 <div className="px-5 pt-5 pb-1 flex items-center">
-                    <img src={popclozetLogo} alt="PopClozet" className="h-7 object-contain" />
+                    <img src={popclozetLogo} alt="PopClozet" className="h-7 object-contain mix-blend-screen" />
                 </div>
             </header>
 
