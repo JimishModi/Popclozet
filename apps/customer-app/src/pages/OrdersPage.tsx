@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, Package, MapPin, Clock, ChevronRight, Filter, Loader2 } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { useOrders, Order } from "@/hooks/useOrders";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -63,22 +62,22 @@ export default function OrdersPage() {
     };
 
     return (
-        <MobileShell className="bg-black text-white">
+        <div className="bg-black text-white min-h-screen">
             {/* Header - Matches ProfilePage style */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
+                        className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
                     >
-                        <ChevronLeft className="w-5 h-5 text-white" />
+                        <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white" />
                     </button>
-                    <h1 className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    <h1 className="text-lg md:text-xl font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         My Orders
                     </h1>
                     <div className="flex-1" />
                     <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
-                        <Filter className="w-5 h-5 text-zinc-400" />
+                        <Filter className="w-4 h-4 md:w-5 md:h-5 text-zinc-400" />
                     </button>
                 </div>
             </div>
@@ -241,8 +240,6 @@ export default function OrdersPage() {
                     </div>
                 )}
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 }

@@ -279,10 +279,10 @@ const CartPage = () => {
     <div className="bg-[#111111] text-white min-h-screen">
 
       {/* Main scrollable area */}
-      <main className="flex-1 overflow-y-auto pb-56">
+      <main className="flex-1 overflow-y-auto pb-56 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">
 
         {/* ─── HEADER: Gradient Glow + Title ─── */}
-        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 pt-6 pb-4">
+        <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-4 pt-4 pb-3 md:px-5 md:pt-6 md:pb-4">
           {/* Error Banner */}
           {subscriptionError && (
             <div className="absolute top-20 left-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
@@ -304,11 +304,11 @@ const CartPage = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
-                className="w-10 h-10 flex items-center justify-center rounded-full border border-white/5 bg-white/5 transition-all active:scale-95"
+                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full border border-white/5 bg-white/5 transition-all active:scale-95"
               >
-                <ChevronLeft className="w-5 h-5 text-white" />
+                <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white" />
               </button>
-              <h1 className="text-2xl font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              <h1 className="text-lg md:text-2xl font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                 Shopping Bag
               </h1>
             </div>
@@ -316,7 +316,7 @@ const CartPage = () => {
             {/* Right: Wishlist button */}
             <button
               onClick={() => navigate('/closet?tab=wishlist')}
-              className="w-10 h-10 flex items-center justify-center bg-[#303135] rounded-full active:scale-95 transition-all"
+              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full active:scale-95 transition-all"
             >
               <ClosetIcon className="w-4 h-4 text-white/80" />
             </button>
@@ -324,7 +324,7 @@ const CartPage = () => {
 
           {/* Subtitle */}
           {validCartEntries.length > 0 && !loadingProducts && (
-            <p className="mt-3 ml-8 text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            <p className="mt-2 ml-8 text-base md:text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
           )}
@@ -358,9 +358,11 @@ const CartPage = () => {
             </Link>
           </div>
         ) : (
-          <>
+          <div className="lg:flex lg:gap-12 lg:items-start lg:mt-6 w-full flex-1">
+            {/* Left Column */}
+            <div className="lg:w-2/3 lg:pr-4">
             {/* ─── RENTAL ITEMS ─── */}
-            <section className="px-5 space-y-4">
+            <section className="px-5 lg:px-0 space-y-4">
               <AnimatePresence>
                 {validCartEntries.map(([id, qty]) => {
                   const baseId = id.split('_')[0];
@@ -475,10 +477,12 @@ const CartPage = () => {
                 })}
               </AnimatePresence>
             </section>
+            </div>
 
-
+            {/* Right Column */}
+            <div className="lg:w-1/3 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
             {/* ─── COUPON SECTION ─── */}
-            <section className="px-5 mt-8">
+            <section className="px-5 lg:px-0">
               <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                 Coupons
               </h2>
@@ -509,7 +513,7 @@ const CartPage = () => {
 
 
             {/* ─── PRICE DETAILS ─── */}
-            <section className="px-5 mt-8">
+            <section className="px-5 lg:px-0">
               <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                 Price details
               </h2>
@@ -567,14 +571,65 @@ const CartPage = () => {
                 </span>
               </div>
             </section>
-          </>
+
+            {/* Desktop Checkout Footer inside Right Column */}
+            <div className="hidden lg:block bg-[#232323] rounded-2xl px-6 py-6 space-y-5 shadow-2xl">
+              {!hasActiveSubscription && (
+                <button onClick={() => navigate('/subscription-plans')} className="w-full text-left">
+                  <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-xl group overflow-hidden hover:scale-[1.02] transition-transform">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Subscribe to the Future</p>
+                      <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Pick any 4 items you like each month for just 1799</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-white flex-shrink-0" />
+                  </div>
+                </button>
+              )}
+              
+              {subBenefits && (
+                <div className="rounded-2xl border border-white/5 bg-[#171717] px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>{subBenefits.planName} plan active</p>
+                      <p className="mt-1 text-[11px] text-zinc-500 uppercase tracking-widest font-bold">Monthly quota and concurrent hold limit</p>
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-[#f2546d]">₹{subBenefits.maxItemValue} cap</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-[#232323] px-3 py-3">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Monthly left</p>
+                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#232323] px-3 py-3">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Concurrent left</p>
+                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={canCheckout ? handleCheckout : undefined}
+                disabled={!canCheckout}
+                className={cn(
+                  "w-full h-14 flex items-center justify-center rounded-2xl font-bold text-lg text-white tracking-tight transition-colors",
+                  canCheckout ? "bg-[#f2546d] hover:bg-[#e04860] shadow-xl shadow-[#f2546d]/20" : "bg-white/10 text-white/40 cursor-not-allowed"
+                )}
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                {subscriptionError ? "Limit Exceeded" : !deliveryAddress ? "Select Address" : "Check Out"}
+              </button>
+            </div>
+
+            </div>
+          </div>
         )}
       </main>
 
 
-      {/* ─── CHECKOUT FOOTER ─── */}
+      {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {validCartEntries.length > 0 && !loadingProducts && (
-        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4">
+        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
 
           {/* Subscribe Banner */}
           {!hasActiveSubscription && (

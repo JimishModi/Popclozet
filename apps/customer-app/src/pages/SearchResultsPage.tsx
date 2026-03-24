@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ChevronLeft, Search, Heart, X, TrendingUp, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { productService } from "@/services/productService";
@@ -119,7 +118,7 @@ const SearchResultsPage: React.FC = () => {
     };
 
     return (
-        <MobileShell className="bg-[#111111] text-white">
+        <div className="flex flex-col min-h-screen bg-[#111111] text-white">
             <main className="flex-1 overflow-y-auto pb-24">
 
                 {/* ─── Top Bar: Back + Search Input ─── */}
@@ -292,7 +291,7 @@ const SearchResultsPage: React.FC = () => {
                                 <p className="text-zinc-500 text-sm">Searching our closet...</p>
                             </div>
                         ) : results.length > 0 ? (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {results.map((product, index) => (
                                     <motion.div
                                         key={product.id}
@@ -380,9 +379,7 @@ const SearchResultsPage: React.FC = () => {
 
                 <div className="h-8" />
             </main>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

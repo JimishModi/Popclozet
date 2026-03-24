@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { useState, useEffect } from "react";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
@@ -172,17 +171,7 @@ Thank you for renting with PopClozet!
                     </button>
                 </header>
 
-                {/* ─── MAP SECTION ─── */}
-                <section className="relative h-[250px] flex-shrink-0 bg-zinc-900/50">
 
-                    <div className="w-full h-full opacity-60">
-                        <InteractiveMap
-                            center={{ lat: order?.addresses?.latitude || 19.1362, lng: order?.addresses?.longitude || 72.9158 }}
-                            zoom={14}
-                            userLocation={{ lat: order?.addresses?.latitude || 19.1362, lng: order?.addresses?.longitude || 72.9158 }}
-                        />
-                    </div>
-                </section>
 
                 {/* ─── STATUS BANNER ─── */}
                 <div className="w-full py-6 bg-[#f2546d] text-center shadow-[0_4px_30px_rgba(242,84,109,0.3)] z-10">

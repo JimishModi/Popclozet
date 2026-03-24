@@ -1,5 +1,8 @@
 // src/services/addressService.ts
 // Standardized address service using Mappls via Backend Proxy
+import { supabase } from '@popclozet/api-client';
+import { MapplsSuggestion, MapplsGeocodingError, fetchPlaceDetails } from './mapplsService';
+
 
 const ENV_API_URL =
   (typeof import.meta !== 'undefined' &&
@@ -199,4 +202,74 @@ export function getRecentAddresses(): ValidatedAddress[] {
  */
 export function getLocalAddresses(): ValidatedAddress[] {
   return getRecentAddresses();
+}
+
+export interface SaveAddressParams {
+  userId: string;
+  label: string;
+  suggestion: MapplsSuggestion;
+  isDefault?: boolean;
+}
+
+export interface Address {
+  id: string;
+  userId: string;
+  label: string;
+  fullAddress: string;
+  latitude: number;
+  longitude: number;
+  geohash: string;
+  isDefault: boolean;
+  eloc: string | null;
+  googleMapsUrl: string | null;
+}
+
+export async function saveAddress(params: SaveAddressParams): Promise<{ data: Address | null; error: string | null }> {
+  let placeDetails;
+  try {
+    placeDetails = await fetchPlaceDetails(params.suggestion.eLoc);
+  } catch (err: any) {
+    if (err instanceof MapplsGeocodingError) {
+      return { data: null, error: err.message };
+    }
+    return { data: null, error: 'Failed to resolve address coordinates. Please try again.' };
+  }
+
+  // Computing geohash inline since the existing logic inline concatenates it:
+  const computedGeohash = `${placeDetails.latitude.toFixed(2)}_${placeDetails.longitude.toFixed(2)}`;
+
+  const insertObj = {
+    user_id: params.userId,
+    label: params.label,
+    full_address: placeDetails.placeAddress,
+    latitude: placeDetails.latitude,
+    longitude: placeDetails.longitude,
+    geohash: computedGeohash,
+    is_default: params.isDefault ?? false,
+    eloc: params.suggestion.eLoc
+  };
+
+  const { data, error } = await supabase.from('addresses').insert(insertObj).select().single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  if (data) {
+    const mappedAddress: Address = {
+      id: data.id,
+      userId: data.user_id,
+      label: data.label,
+      fullAddress: data.full_address,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      geohash: data.geohash,
+      isDefault: data.is_default,
+      eloc: data.eloc,
+      googleMapsUrl: data.google_maps_url
+    };
+    return { data: mappedAddress, error: null };
+  }
+
+  return { data: null, error: 'Unknown error occurred during save' };
 }

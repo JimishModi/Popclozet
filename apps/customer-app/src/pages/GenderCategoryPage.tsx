@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { MobileHeader } from '@/components/layout/MobileHeader';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { cn } from '@/lib/utils';
 import { usePersistentGender } from '@/hooks/usePersistentGender';
 
@@ -204,8 +203,6 @@ const GenderCategoryPage: React.FC = () => {
                     </motion.div>
                 </div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

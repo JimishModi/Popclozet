@@ -420,13 +420,13 @@ export async function updateRiderLocation(
     heading?: number, speed?: number,
 ): Promise<boolean> {
     const { error } = await supabase.from('rider_locations').upsert(
-        { 
-            rider_id: riderId, 
-            latitude, 
-            longitude, 
-            heading, 
-            speed, 
-            timestamp: new Date().toISOString() 
+        {
+            rider_id: riderId,
+            lat: latitude,          // DB column is 'lat', not 'latitude'
+            lng: longitude,         // DB column is 'lng', not 'longitude'
+            heading: heading ?? null,
+            speed: speed ?? null,
+            updated_at: new Date().toISOString(), // DB column is 'updated_at', not 'timestamp'
         },
         { onConflict: 'rider_id' },
     );

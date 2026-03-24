@@ -17,17 +17,30 @@ import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     markOrderPickedUp,
+    markAsDispatched,
     markAsOutForDelivery,
     riderDropOffReturn,
     sendMessageToCustomer,
     verifyWarehouseOtp,
     releaseOrder,
+    updateRiderLocation,
     PREDEFINED_MESSAGES,
 } from '@/services/riderOrderService';
 import {
     MapPin, Navigation, Package, CheckCircle,
     MessageCircle, Truck, ChevronRight, X, KeyRound, Loader2,
 } from 'lucide-react';
+
+const GPS_BROADCAST_INTERVAL_MS = 5_000;
+const GPS_MOVE_THRESHOLD_M = 50;
+
+function haversineMetres(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+    const R = 6_371_000;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -99,6 +112,12 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [otpVerifying, setOtpVerifying] = useState(false);
     const [returnOtp, setReturnOtp] = useState<string | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
+
+    // GPS broadcast refs (background — no re-render)
+    const gpsWatchRef       = useRef<number | null>(null);
+    const gpsBroadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+    const latestGpsPos      = useRef<GeolocationPosition | null>(null);
+    const lastBroadcastPos  = useRef<{ lat: number; lng: number } | null>(null);
 
     const showToastRef = useRef(showToast);
     const navigateRef = useRef(navigate);
@@ -193,6 +212,43 @@ export const WarehouseNavigationPage: React.FC = () => {
         startNavigation();
     }, [startNavigation]);
 
+    // ── GPS background broadcast → warehouse app can see rider approaching ─────
+
+    useEffect(() => {
+        if (!user?.id || !order) return;
+        const activeStatuses = ['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'];
+        if (!activeStatuses.includes(order.status)) return;
+        if (!navigator.geolocation) return;
+
+        gpsWatchRef.current = navigator.geolocation.watchPosition(
+            (pos) => { latestGpsPos.current = pos; },
+            () => {},
+            { enableHighAccuracy: true, timeout: 10_000, maximumAge: 3_000 }
+        );
+
+        gpsBroadcastTimer.current = setInterval(() => {
+            const pos = latestGpsPos.current;
+            if (!pos || !user?.id) return;
+            const curr = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const last = lastBroadcastPos.current;
+            if (last && haversineMetres(last, curr) < GPS_MOVE_THRESHOLD_M) return;
+            lastBroadcastPos.current = curr;
+            updateRiderLocation(user.id, curr.lat, curr.lng, pos.coords.heading ?? undefined, pos.coords.speed ?? undefined);
+        }, GPS_BROADCAST_INTERVAL_MS);
+
+        return () => {
+            if (gpsWatchRef.current !== null) { navigator.geolocation.clearWatch(gpsWatchRef.current); gpsWatchRef.current = null; }
+            if (gpsBroadcastTimer.current) { clearInterval(gpsBroadcastTimer.current); gpsBroadcastTimer.current = null; }
+        };
+    }, [user?.id, order?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Open in Google Maps (destination = warehouse) ──────────────────────────
+
+    const handleOpenGoogleMaps = useCallback(() => {
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(WAREHOUSE_ADDRESS)}&travelmode=driving`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }, []);
+
     // ── Map ────────────────────────────────────────────────────────────────────
 
     useEffect(() => {
@@ -218,7 +274,32 @@ export const WarehouseNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-            await drawRoute(map, riderLocation, WAREHOUSE_LOCATION);
+            const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+            let routeDrawn = false;
+
+            // Fetch actual road route to warehouse via Mapbox Directions API
+            if (token && riderLocation) {
+                try {
+                    const [rLng, rLat] = riderLocation;
+                    const [wLng, wLat] = WAREHOUSE_LOCATION;
+                    const dirRes = await fetch(
+                        `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${wLng},${wLat}?geometries=geojson&overview=full&access_token=${token}`
+                    );
+                    const dirJson = await dirRes.json();
+                    const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+                    if (routeCoords?.length) {
+                        await drawRoute(map, routeCoords);
+                        routeDrawn = true;
+                    }
+                } catch (err) {
+                    console.warn('[WarehouseNav] Directions API failed:', err);
+                }
+            }
+
+            // Fallback: straight line rider → warehouse
+            if (!routeDrawn) {
+                await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
+            }
 
             const geolocate = new mapboxgl.GeolocateControl({
                 positionOptions: { enableHighAccuracy: true },
@@ -343,8 +424,19 @@ export const WarehouseNavigationPage: React.FC = () => {
         setActionLoading(true);
 
         try {
-            const result = await markAsOutForDelivery(id, user.id);
-            if (!result.success) throw new Error(result.message);
+            // State machine: order_picked_up → dispatched → out_for_delivery
+            // Jumping directly from order_picked_up → out_for_delivery is blocked by the server.
+            // Step through dispatched first if needed.
+            if (order.status === 'order_picked_up') {
+                const dispatchResult = await markAsDispatched(id, user.id);
+                if (!dispatchResult.success) throw new Error(dispatchResult.message);
+            }
+
+            // If already out_for_delivery (e.g. rider re-opens page), skip transition
+            if (order.status !== 'out_for_delivery') {
+                const result = await markAsOutForDelivery(id, user.id);
+                if (!result.success) throw new Error(result.message);
+            }
 
             if (order?.user_id) {
                 const riderName = (profile as any)?.full_name || 'Your rider';
@@ -467,10 +559,17 @@ export const WarehouseNavigationPage: React.FC = () => {
                             </React.Fragment>
                         ))}
                     </div>
-                    <div className="flex items-start gap-2 mb-4">
+                    <div className="flex items-start gap-2 mb-3">
                         <MapPin size={14} className="text-blue-400 mt-0.5 shrink-0" />
                         <p className="text-xs text-zinc-400">{WAREHOUSE_ADDRESS}</p>
                     </div>
+
+                    {['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'].includes(order?.status ?? '') && (
+                        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15 w-fit">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <p className="text-[11px] text-emerald-400">Broadcasting location to warehouse</p>
+                        </div>
+                    )}
                     <p className="text-[10px] font-bold text-zinc-400 mb-3">Order #{order.id.slice(0, 8).toUpperCase()}</p>
                 </div>
 
@@ -492,6 +591,13 @@ export const WarehouseNavigationPage: React.FC = () => {
                         )}
                         {step === 'navigating' && !isReturnFlow && (
                             <motion.div key="navigating" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                                <button
+                                    onClick={handleOpenGoogleMaps}
+                                    className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+                                >
+                                    <Navigation size={16} />
+                                    Open in Google Maps
+                                </button>
                                 <button onClick={handleConfirmArrival} disabled={actionLoading || isCancelling} className={primaryBtn('from-blue-600 to-blue-500')}>
                                     {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> I've Arrived at Warehouse</>}
                                 </button>

@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronDown, MessageCircle, Mail, Phone as PhoneIcon } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
-
 const FAQS = [
     {
         q: "How does renting work?",
@@ -127,8 +125,6 @@ const HelpPage: React.FC = () => {
                     </div>
                 </motion.div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

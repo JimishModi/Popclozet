@@ -60,9 +60,9 @@ export const initializeMap = (
     // Destroy existing instance if any
     const existingMap = (container as any)._mapboxMap;
     if (existingMap) {
-        try { existingMap.remove(); } catch (_) {}
+        try { existingMap.remove(); } catch (_) { }
     }
-    
+
     if (mapInstance) {
         destroyMap();
     }
@@ -241,6 +241,95 @@ export const getCurrentPosition = (options?: PositionOptions): Promise<Geolocati
     });
 };
 
+
+// ==========================================
+// MULTI-INSTANCE MAP (warehouse / multi-rider views)
+// ==========================================
+
+/**
+ * Create an independent Mapbox map instance that does NOT touch the singleton.
+ * Use this when you need a second map on the page (e.g. warehouse live-rider map).
+ */
+export const createMapInstance = (
+    container: HTMLElement,
+    center: [number, number],
+    zoom: number = 13
+): mapboxgl.Map => {
+    if (!CONFIGURED_TOKEN) throw new Error('Mapbox access token is not configured');
+
+    const map = new mapboxgl.Map({
+        container,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center,
+        zoom,
+        attributionControl: false,
+    });
+
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+    return map;
+};
+
+/**
+ * Create a round, color-filled HTML element for use as a Mapbox marker.
+ * Pass the returned element to `new mapboxgl.Marker(el)`.
+ */
+export const createColorMarker = (
+    color: string,
+    size: number = 14,
+    pulse: boolean = false
+): HTMLElement => {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `position:relative;width:${size + 8}px;height:${size + 8}px;display:flex;align-items:center;justify-content:center;`;
+
+    if (pulse) {
+        const ring = document.createElement('div');
+        ring.style.cssText = `position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.25;animation:mapPulse 1.8s ease-out infinite;`;
+        wrapper.appendChild(ring);
+
+        if (!document.getElementById('map-pulse-style')) {
+            const style = document.createElement('style');
+            style.id = 'map-pulse-style';
+            style.textContent = `@keyframes mapPulse{0%{transform:scale(1);opacity:0.25}70%,100%{transform:scale(2.2);opacity:0}}`;
+            document.head.appendChild(style);
+        }
+    }
+
+    const dot = document.createElement('div');
+    dot.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.85);box-shadow:0 2px 6px rgba(0,0,0,0.45);position:relative;z-index:1;`;
+    wrapper.appendChild(dot);
+    return wrapper;
+};
+
+/**
+ * Update or create a GeoJSON LineString source+layer on a map in-place (no flicker).
+ * If the source already exists, calls setData() to update coordinates.
+ */
+export const updateRouteSource = (
+    map: mapboxgl.Map,
+    sourceId: string,
+    layerId: string,
+    coordinates: [number, number][],
+    color: string = '#8855F7'
+): void => {
+    const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates },
+    };
+
+    if (map.getSource(sourceId)) {
+        (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geojson);
+    } else {
+        map.addSource(sourceId, { type: 'geojson', data: geojson });
+        map.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: { 'line-color': color, 'line-width': 3, 'line-opacity': 0.75 },
+        });
+    }
+};
 
 // Re-export mapboxgl types for convenience
 export { mapboxgl };

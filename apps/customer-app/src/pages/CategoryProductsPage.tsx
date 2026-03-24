@@ -3,7 +3,6 @@ import { thumbImage } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { ChevronLeft, SlidersHorizontal, Loader, Search, X, ShoppingBag, Heart } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
@@ -335,7 +334,7 @@ const CategoryProductsPage: React.FC = () => {
     }, [products, category, selectedSizes, selectedBrands, priceRange, nameQuery, genderFromPath]);
 
     return (
-        <MobileShell className="bg-[#050505] text-white">
+        <div className="flex flex-col min-h-screen bg-[#050505] text-white">
             {/* Header */}
             <div className="sticky top-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5">
                 {/* Title row */}
@@ -432,7 +431,7 @@ const CategoryProductsPage: React.FC = () => {
                                 No products available.
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => (
                                     <motion.div
                                         key={product.id}
@@ -728,9 +727,7 @@ const CategoryProductsPage: React.FC = () => {
                     </>
                 )}
             </AnimatePresence>
-
-            <BottomNavBar />
-        </MobileShell>
+        </div>
     );
 };
 

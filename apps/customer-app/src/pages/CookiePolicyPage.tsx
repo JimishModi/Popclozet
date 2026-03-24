@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Cookie } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
-
 const SECTIONS = [
     {
         title: "1. What are cookies?",
@@ -88,8 +86,6 @@ const CookiePolicyPage: React.FC = () => {
                     © 2026 PopClozet Pvt. Ltd. All rights reserved.
                 </p>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

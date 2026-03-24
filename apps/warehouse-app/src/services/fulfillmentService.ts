@@ -20,6 +20,7 @@ export interface OrderWithItems {
     status: string;
     delivery_eta: string | null;
     rider_id: string | null;
+    rider_name?: string | null;
     warehouse_otp?: string | null;
     warehouse_otp_expires_at?: string | null;
     warehouse_otp_used?: boolean;
@@ -50,6 +51,7 @@ function normalizeOrders(rows: any[]): OrderWithItems[] {
     return rows.map(row => ({
         ...row,
         status: row.status || row.lifecycle_state || 'unknown',
+        rider_name: row.rider?.full_name ?? null,
     }));
 }
 
@@ -375,6 +377,31 @@ export async function getActivePickups(): Promise<OrderWithItems[]> {
             return [];
         }
 
+        return normalizeOrders(data || []);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Get dispatched / out-for-delivery orders (active on road)
+ */
+export async function getDispatchedOrders(): Promise<OrderWithItems[]> {
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (*),
+                addresses:delivery_address_id (full_address, latitude, longitude)
+            `)
+            .in('status', ['dispatched', 'out_for_delivery', 'pickup_scheduled', 'picked_up', 'order_picked_up'])
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.warn('getDispatchedOrders:', error.message);
+            return [];
+        }
         return normalizeOrders(data || []);
     } catch {
         return [];

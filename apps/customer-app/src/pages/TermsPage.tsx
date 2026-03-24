@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, FileText, AlertTriangle, ShieldCheck, Scale } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
-
 const SECTIONS = [
     {
         title: "1. Nature of Services",
@@ -110,8 +108,6 @@ const TermsPage: React.FC = () => {
                     </p>
                 </div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

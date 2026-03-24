@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
-import { BottomNavBar } from '@/components/layout/BottomNavBar';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -278,8 +277,6 @@ const LiveClosetPage: React.FC = () => {
                     ))}
                 </div>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

@@ -11,6 +11,7 @@ export interface TrackingRecord {
     order_id: string;
     driver_name: string | null;
     vehicle_number: string | null;
+    rider_phone: string | null;
     current_lat: number;
     current_lng: number;
     heading: number | null;
@@ -27,9 +28,6 @@ export interface TrackingUpdate {
     heading?: number;
     speed?: number;
 }
-
-const isDeliveryLikeOrder = (orderType?: DeliveryOrder['order_type'] | null) =>
-    !orderType || ['delivery', 'rental', 'home_try_on'].includes(orderType);
 
 /**
  * Create a new tracking record for an order
@@ -62,7 +60,7 @@ export async function createTrackingRecord(
     // Determine starting position based on order type
     // For delivery: start at hub
     // For pickup/return: start at user location
-    const startPosition = isDeliveryLikeOrder(order.order_type)
+    const startPosition = order.order_type === 'delivery'
         ? { lat: hub.lat, lng: hub.lng }
         : order.delivery_address_snapshot
             ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
@@ -74,7 +72,7 @@ export async function createTrackingRecord(
     }
 
     // Calculate initial ETA
-    const destination = isDeliveryLikeOrder(order.order_type)
+    const destination = order.order_type === 'delivery'
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 
@@ -144,7 +142,7 @@ export async function updateTrackingPosition(
         .select('*')
         .eq('order_id', orderId)
         .eq('is_active', true)
-        .maybeSingle();
+        .single();
 
     if (!tracking) {
         console.warn('No active tracking record found for order:', orderId);
@@ -165,7 +163,7 @@ export async function updateTrackingPosition(
         return false;
     }
 
-    const destination = isDeliveryLikeOrder(order.order_type)
+    const destination = order.order_type === 'delivery'
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 
@@ -230,7 +228,7 @@ export async function getTrackingRecord(orderId: string): Promise<TrackingRecord
         .select('*')
         .eq('order_id', orderId)
         .eq('is_active', true)
-        .maybeSingle();
+        .single();
 
     if (error) {
         if (error.code !== 'PGRST116') { // Not found error
@@ -310,13 +308,13 @@ export async function simulateVehicleMovement(
     }
 
     // Calculate route
-    const origin = isDeliveryLikeOrder(order.order_type)
+    const origin = order.order_type === 'delivery'
         ? { lat: hub.lat, lng: hub.lng }
         : order.delivery_address_snapshot
             ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
             : null;
 
-    const destination = isDeliveryLikeOrder(order.order_type)
+    const destination = order.order_type === 'delivery'
         ? order.delivery_address_snapshot
         : { lat: hub.lat, lng: hub.lng };
 

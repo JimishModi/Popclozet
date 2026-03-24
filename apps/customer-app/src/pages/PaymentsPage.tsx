@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, CreditCard, Plus, Smartphone, Building2, Check, History, ReceiptText } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { getMyPayments } from "@/services/paymentService";
 import { useEffect } from "react";
 
@@ -207,8 +206,6 @@ const PaymentsPage: React.FC = () => {
                     🔒 Your payment info is encrypted and secure
                 </p>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

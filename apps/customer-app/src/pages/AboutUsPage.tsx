@@ -10,7 +10,6 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { MobileHeader } from "@/components/layout/MobileHeader";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { AboutUsProcess } from "@/components/ui/AboutUsProcess";
 
 export default function AboutUsPage() {
@@ -32,8 +31,6 @@ export default function AboutUsPage() {
                 {/* Full AboutUsProcess component */}
                 <AboutUsProcess />
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 }

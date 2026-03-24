@@ -11,8 +11,8 @@ import { supabase } from '@popclozet/api-client';
 
 const CUSTOMER_PROFILE_TABLE = 'customer_profiles';
 const LEGACY_PROFILE_TABLE = 'profiles';
-const CUSTOMER_OPTIONAL_COLUMNS = ['id', 'phone', 'avatar_url', 'onboarding_completed', 'email', 'gender'] as const;
-const LEGACY_OPTIONAL_COLUMNS = ['id', 'phone', 'avatar_url', 'onboarding_completed', 'email', 'gender', 'measurements'] as const;
+const CUSTOMER_OPTIONAL_COLUMNS = ['id', 'phone', 'avatar_url', 'onboarding_completed', 'email', 'gender', 'delivery_estimate'] as const;
+const LEGACY_OPTIONAL_COLUMNS = ['id', 'phone', 'avatar_url', 'onboarding_completed', 'email', 'gender', 'measurements', 'delivery_estimate'] as const;
 
 // ==========================================
 // TYPES
@@ -32,6 +32,7 @@ export interface ProfileRow {
     role?: string;
     created_at: string;
     updated_at: string;
+    delivery_estimate?: '15min' | 'delayed';
 }
 
 type ProfileWriteFields = Partial<{
@@ -43,6 +44,7 @@ type ProfileWriteFields = Partial<{
     gender: string;
     onboarding_completed: boolean;
     measurements: Record<string, number>;
+    delivery_estimate: '15min' | 'delayed';
 }>;
 
 function hasText(value: unknown): value is string {
@@ -164,6 +166,7 @@ async function writeProfileInsert(
         onboarding_completed: payload.onboarding_completed,
         email: payload.email,
         gender: payload.gender,
+        delivery_estimate: payload.delivery_estimate,
     });
 
     try {
@@ -190,6 +193,7 @@ async function writeProfileInsert(
         gender: payload.gender,
         role: payload.role ?? 'customer',
         measurements: payload.measurements,
+        delivery_estimate: payload.delivery_estimate,
     });
 
     await upsertWithOptionalColumnFallback(
@@ -210,6 +214,7 @@ async function writeProfileUpdate(
         onboarding_completed: payload.onboarding_completed,
         email: payload.email,
         gender: payload.gender,
+        delivery_estimate: payload.delivery_estimate,
     });
 
     try {
@@ -235,6 +240,7 @@ async function writeProfileUpdate(
         gender: payload.gender,
         role: payload.role,
         measurements: payload.measurements,
+        delivery_estimate: payload.delivery_estimate,
     });
 
     await updateWithOptionalColumnFallback(
@@ -281,6 +287,7 @@ export async function createProfile(fields: {
     email_verified?: boolean;
     onboarding_completed?: boolean;
     role?: string;
+    delivery_estimate?: '15min' | 'delayed';
 }): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -292,6 +299,7 @@ export async function createProfile(fields: {
         role: 'customer',
         gender: fields.gender || undefined,
         onboarding_completed: true,
+        delivery_estimate: fields.delivery_estimate || '15min',
     });
 
     try {
@@ -334,6 +342,7 @@ export async function updateProfile(updates: Partial<{
     onboarding_completed: boolean;
     role: string;
     measurements: Record<string, number>;
+    delivery_estimate: '15min' | 'delayed';
 }>): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -346,6 +355,7 @@ export async function updateProfile(updates: Partial<{
         ...(typeof updates.gender === 'string' ? { gender: updates.gender } : {}),
         ...(typeof updates.onboarding_completed === 'boolean' ? { onboarding_completed: updates.onboarding_completed } : {}),
         ...(updates.measurements ? { measurements: updates.measurements } : {}),
+        ...(updates.delivery_estimate ? { delivery_estimate: updates.delivery_estimate } : {}),
     });
 
     try {

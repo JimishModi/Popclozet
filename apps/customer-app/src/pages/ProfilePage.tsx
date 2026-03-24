@@ -272,19 +272,19 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="bg-black text-white min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between lg:hidden">
         <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
         <button onClick={() => navigate("/settings")} className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
           <Settings className="w-5 h-5 text-zinc-400" />
         </button>
       </div>
 
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main className="flex-1 overflow-y-auto pb-24 lg:pb-12 lg:pt-8 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">
         {loading && (
           <div className="px-4 pt-8 space-y-4 animate-pulse">
             <div className="bg-white/5 rounded-3xl p-6 border border-white/10">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-white/10" />
+                <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10" />
                 <div className="flex-1 space-y-2">
                   <div className="h-5 bg-white/10 rounded-lg w-3/4" />
                   <div className="h-3 bg-white/10 rounded-lg w-1/2" />
@@ -295,21 +295,24 @@ const ProfilePage: React.FC = () => {
         )}
 
         {!loading && (
-          <>
+          <div className="lg:grid lg:grid-cols-12 lg:gap-12 lg:items-start flex-1 w-full">
+            {/* Left Column (Hero, Stats, Sub) */}
+            <div className="lg:col-span-5 lg:sticky lg:top-8 flex flex-col gap-6">
+
             {/* Hero Profile Section */}
-            <div className="relative px-4 pt-8 pb-6 overflow-hidden">
+              <div className="relative px-4 lg:px-0 pt-4 md:pt-8 lg:pt-0 pb-4 md:pb-6 lg:pb-0 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-[#ff4d6d]/15 via-purple-500/10 to-transparent pointer-events-none" />
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-4 md:p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px]">
+                    <div className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-[#ff4d6d] via-purple-500 to-blue-500 p-[3px]">
                       <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                        <User className="w-10 h-10 text-white/80" />
+                        <User className="w-7 h-7 md:w-10 md:h-10 text-white/80" />
                       </div>
                     </div>
                     {user && (
@@ -380,7 +383,7 @@ const ProfilePage: React.FC = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="px-4 mb-6">
+            <div className="px-4 lg:px-0">
               <div className="grid grid-cols-3 gap-3">
                 {quickStats.map((stat, idx) => {
                   const Icon = stat.icon;
@@ -405,7 +408,7 @@ const ProfilePage: React.FC = () => {
             </div>
 
             {/* Subscription Card */}
-            <div className="px-4 mb-6">
+            <div className="px-4 lg:px-0">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -452,9 +455,12 @@ const ProfilePage: React.FC = () => {
                 </div>
               </motion.div>
             </div>
+            </div> {/* End Left Column */}
 
+            {/* Right Column (Menus, Log Out) */}
+            <div className="lg:col-span-7 flex flex-col gap-6 mt-6 lg:mt-0 px-4 lg:px-0">
             {/* Menu Sections */}
-            <div className="px-4 space-y-6">
+            <div className="space-y-6">
               {menuSections.map((section, sectionIdx) => (
                 <motion.div
                   key={section.title}
@@ -471,12 +477,12 @@ const ProfilePage: React.FC = () => {
                           key={item.label}
                           onClick={() => navigate(item.href)}
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-4 group text-left hover:bg-white/5 transition-all",
+                            "w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all",
                             index < section.items.length - 1 && "border-b border-white/5"
                           )}
                         >
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-[#ff4d6d]/20 transition-colors">
-                            <Icon className="w-5 h-5 text-zinc-500 group-hover:text-[#ff4d6d] transition-colors" />
+                          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-[#ff4d6d]/20 transition-colors">
+                            <Icon className="w-4 h-4 md:w-5 md:h-5 text-zinc-500 group-hover:text-[#ff4d6d] transition-colors" />
                           </div>
                           <span className="flex-1 text-white font-medium">{item.label}</span>
                           {item.badge && (
@@ -492,7 +498,7 @@ const ProfilePage: React.FC = () => {
             </div>
 
             {user && (
-              <div className="px-4 mt-8">
+              <div className="mt-8">
                 <button
                   onClick={() => navigate("/auth/signout")}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold transition-all active:scale-[0.98]"
@@ -503,11 +509,12 @@ const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            <div className="mt-12 text-center pb-4">
+            <div className="mt-12 text-center pb-4 lg:pb-0">
               <p className="text-xs text-zinc-700 font-medium">PopClozet v1.0.0</p>
               <p className="text-xs text-zinc-800 mt-1">Made with ❤️ in Mumbai</p>
             </div>
-          </>
+            </div>
+          </div>
         )}
       </main>
 

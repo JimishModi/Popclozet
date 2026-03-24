@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { MobileHeader } from "@/components/layout/MobileHeader";
-import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { PRODUCTS } from "@/config/products";
 import { formatPrice } from "@/utils/format";
 import { ArrowLeft } from "lucide-react";
@@ -131,8 +130,6 @@ const ChromaticClosetPage = () => {
                     </motion.div>
                 </AnimatePresence>
             </main>
-
-            <BottomNavBar />
         </MobileShell>
     );
 };

@@ -126,8 +126,8 @@ export function NotificationsPage() {
                     <AnimatePresence>
                         <div className="space-y-3">
                             {notifications.map((notification, index) => {
-                                const Icon = notificationIcons[notification.type];
-                                const colorClass = notificationColors[notification.type];
+                                const Icon = (notificationIcons as any)[notification.type] || AlertCircle;
+                                const colorClass = (notificationColors as Record<string, string>)[notification.type] || 'bg-zinc-500/10 text-zinc-500';
 
                                 return (
                                     <motion.div
