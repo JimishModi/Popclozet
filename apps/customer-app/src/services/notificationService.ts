@@ -191,32 +191,34 @@ export async function updateNotificationPreferences(
 /**
  * Subscribe to real-time notifications
  */
-export function subscribeToNotifications(
-  onNewNotification: (notification: Notification) => void
-): RealtimeChannel {
-  const channel = supabase.auth.getSession().then(({ data }) => {
-    if (!data.session?.user.id) {
-      throw new Error("Not authenticated");
-    }
+export async function subscribeToNotifications(
+  onNewNotification: (notification: Notification) => void,
+  instanceId?: string
+): Promise<RealtimeChannel> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session?.user.id) {
+    throw new Error("Not authenticated");
+  }
 
-    return supabase
-      .channel(`notifications:${data.session.user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${data.session.user.id}`,
-        },
-        (payload) => {
-          onNewNotification(payload.new as Notification);
-        }
-      )
-      .subscribe();
-  });
+  const channelName = instanceId 
+    ? `notifications:${data.session.user.id}:${instanceId}`
+    : `notifications:${data.session.user.id}:${Math.random().toString(36).slice(2, 9)}`;
 
-  return channel as any;
+  return supabase
+    .channel(channelName)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${data.session.user.id}`,
+      },
+      (payload) => {
+        onNewNotification(payload.new as Notification);
+      }
+    )
+    .subscribe();
 }
 
 /**

@@ -27,6 +27,8 @@ export function useNotifications({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const instanceIdRef = useRef(Math.random().toString(36).slice(2, 9));
+
 
     // Fetch notifications (RLS filters by authenticated user automatically)
     const fetchNotifications = useCallback(async () => {
@@ -62,7 +64,7 @@ export function useNotifications({
             const channel = await subscribeToNotifications((newNotif) => {
                 setNotifications((prev) => [newNotif, ...prev].slice(0, limit));
                 setUnreadCount((prev) => prev + 1);
-            });
+            }, instanceIdRef.current);
 
             if (cancelled) {
                 if (channel) unsubscribeFromNotifications(channel);

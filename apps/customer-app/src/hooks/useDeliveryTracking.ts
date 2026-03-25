@@ -43,6 +43,8 @@ export function useDeliveryTracking({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const channelNameRef = useRef(`tracking:${orderId}_${Math.random().toString(36).slice(2, 9)}`);
+
 
     // Fetch order details
     useEffect(() => {
@@ -104,7 +106,7 @@ export function useDeliveryTracking({
 
         // Set up realtime subscription
         const channel = supabase
-            .channel(`tracking:${orderId}`)
+            .channel(channelNameRef.current)
             .on(
                 'postgres_changes',
                 {
