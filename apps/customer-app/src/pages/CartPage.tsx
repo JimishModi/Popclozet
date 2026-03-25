@@ -1,29 +1,28 @@
 // src/pages/CartPage.tsx
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Drawer } from "vaul";
 import { useCart } from "@/context/CartContext";
 import { useServiceAvailability } from "@/hooks/useServiceAvailability";
 import { toast } from "sonner";
 import {
   ChevronLeft,
   ShoppingBag,
-  ChevronRight,
   X,
   Heart,
   Calendar,
-  Info,
   Plus
 } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { supabase } from "@popclozet/api-client";
 import SignupModal from "@/components/SignupModal";
 import { Link, useNavigate } from "react-router-dom";
-import { getSubscriptionBenefits, SubscriptionBenefits } from "@/services/subscriptionService";
 import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
@@ -58,10 +57,16 @@ const CartPage = () => {
   const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan, addToCart } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [checkoutBlocked, setCheckoutBlocked] = useState(false);
   const [citySelectorOpen, setCitySelectorOpen] = useState(false);
+  
+  // Drawer states
+  const [sizeDrawerOpen, setSizeDrawerOpen] = useState(false);
+  const [selectedItemForSize, setSelectedItemForSize] = useState<{ productId: string, plan: string, currentSize: string } | null>(null);
+
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<{ name: string; distance_km: number; estimated_minutes: number } | null>(null);
 
@@ -161,10 +166,6 @@ const CartPage = () => {
     fetchAddOns();
   }, []);
 
-  // --- Subscription state ---
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
-
   // Calculate cart metrics
   const totalQty = useMemo(() => {
     return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
@@ -181,49 +182,7 @@ const CartPage = () => {
       setSelectedHub(hub);
     }
 
-    // --- Subscription check ---
-    const checkSub = async () => {
-      const benefits = await getSubscriptionBenefits();
-      if (benefits) {
-        setHasActiveSubscription(benefits.hasActiveSubscription);
-        setSubBenefits(benefits);
-      } else {
-        setHasActiveSubscription(false);
-        setSubBenefits(null);
-      }
-    };
-    checkSub();
   }, []);
-
-  // --- Subscription limit checks ---
-  const invalidCatalogItem = validCartEntries.find(([id]) => {
-    const baseId = id.split('_')[0];
-    const product = cartProducts[baseId];
-    return !product?.isLiveProduct || !UUID_PATTERN.test(baseId);
-  });
-  const exceedsMonthlyLimit = subBenefits ? totalQty > subBenefits.remainingMonthly : false;
-  const exceedsConcurrentLimit = subBenefits ? totalQty > subBenefits.remainingConcurrent : false;
-  const expensiveItem = subBenefits ? validCartEntries.find(([id]) => {
-    const p = cartProducts[id.split('_')[0]];
-    const value = p?.mrp || p?.originalPrice || p?.price || 0;
-    return value > subBenefits.maxItemValue;
-  }) : undefined;
-  const hasExpensiveItem = !!expensiveItem;
-
-  const subscriptionError = (() => {
-    if (invalidCatalogItem) {
-      return "One or more items in your bag are not linked to a live catalog product. Remove them before checkout.";
-    }
-    if (!subBenefits) return null;
-    if (exceedsMonthlyLimit) {
-      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingMonthly} monthly rental slot(s) left this cycle. Please remove ${totalItems - subBenefits.remainingMonthly} item(s).`;
-    }
-    if (exceedsConcurrentLimit) {
-      return `Your ${subBenefits.planName} plan has ${subBenefits.remainingConcurrent} concurrent item slot(s) left right now. Please remove ${totalItems - subBenefits.remainingConcurrent} item(s).`;
-    }
-    if (hasExpensiveItem) return `Your ${subBenefits.planName} plan covers items up to ₹${subBenefits.maxItemValue} retail value. An item in your cart exceeds this limit.`;
-    return null;
-  })();
 
   const canCheckout = validCartEntries.length > 0;
 
@@ -302,6 +261,10 @@ const CartPage = () => {
   /* Checkout handler                   */
   /* ---------------------------------- */
   const handleCheckout = () => {
+    if (!user) {
+        navigate('/auth/login');
+        return;
+    }
     navigate("/checkout/address");
   };
 
@@ -365,20 +328,16 @@ const CartPage = () => {
 
           {/* Pills: Size & Qty */}
           <div className="mt-3 flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5">
+            <button
+              onClick={() => {
+                setSelectedItemForSize({ productId, plan, currentSize: size });
+                setSizeDrawerOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 hover:bg-white/10 transition-colors"
+            >
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Size:</span>
-              <select
-                value={size}
-                onChange={(e) => updateSize(productId, size, e.target.value, plan)}
-                className="bg-transparent text-white text-[10px] font-black focus:outline-none appearance-none"
-              >
-                {(cartInventory[productId] || []).map((inv: any) => (
-                  <option key={inv.size} value={inv.size} disabled={inv.available_stock <= 0}>
-                    {inv.size}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <span className="bg-transparent text-white text-[10px] font-black">{size}</span>
+            </button>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5">
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Qty:</span>
@@ -431,14 +390,6 @@ const CartPage = () => {
 
         {/* ─── HEADER: Gradient Glow + Title ─── */}
         <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-4 pt-4 pb-3 md:px-5 md:pt-6 md:pb-4">
-          {/* Error Banner */}
-          {subscriptionError && (
-            <div className="absolute top-20 left-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-100 p-4 rounded-xl flex items-start gap-3 text-sm shadow-xl backdrop-blur-md">
-              <span className="shrink-0 mt-0.5">⚠️</span>
-              <p className="leading-tight">{subscriptionError}</p>
-            </div>
-          )}
-
           {/* Gradient Glow Orb */}
           <div
             className="absolute -top-20 -left-12 w-36 h-36 rounded-full rotate-[23deg] blur-[100px] pointer-events-none"
@@ -511,119 +462,47 @@ const CartPage = () => {
             {/* ─── RENTAL ITEMS ─── */}
             <section className="px-5 lg:px-0 space-y-4">
               <AnimatePresence>
-                {validCartEntries.map(([id, qty]) => {
-                  const baseId = id.split('_')[0];
-                  const size = id.split('_')[1] || 'S';
-                  const product = cartProducts[baseId];
-                  if (!product) return null;
-
-                  return (
-                    <motion.div
-                      key={id}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -100 }}
-                      className="flex items-center gap-3 p-3 bg-[#232323] rounded-2xl"
-                    >
-                      {/* Product Image */}
-                      <div className="w-28 h-28 bg-[#2a2a2a] rounded-lg flex-shrink-0 overflow-hidden">
-                        {product.imageUrl && (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                      </div>
-
-                      {/* Product Details */}
-                      <div className="flex-1 min-w-0">
-                        {/* Top row: Brand + Delete */}
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                              {product.category || "Zara"}
-                            </h3>
-                            <p className="text-sm text-[#7c7c7c] mt-1" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                              {product.name}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => removeFromCart(id)}
-                            className="p-1 hover:bg-white/10 rounded"
-                          >
-                            <X className="w-3 h-3 text-zinc-400" />
-                          </button>
-                        </div>
-
-                        {/* Date badge */}
-                        <div className="mt-3 inline-flex px-2 py-1 bg-[#2a2a2a] rounded">
-                          <span className="text-sm text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                            Dates: 1 Feb - 2 Feb
-                          </span>
-                        </div>
-
-                        {/* Bottom row: Size + Qty + Prices */}
-                        <div className="flex items-center mt-3 gap-3">
-                          {/* Size Selector */}
-                          <div className="relative">
-                            <select
-                              value={size}
-                              onChange={(e) => updateSize(id, e.target.value)}
-                              className="appearance-none bg-[#2a2a2a] text-white text-[11px] font-bold uppercase px-3 py-1.5 rounded-xl border border-white/5 focus:outline-none"
-                              style={{ fontFamily: "'DM Sans', sans-serif" }}
-                            >
-                              {(cartInventory[baseId] || []).map((inv: any) => (
-                                <option key={inv.size} value={inv.size} disabled={inv.available_stock <= 0}>
-                                  {inv.size} {inv.available_stock <= 0 ? '(OOS)' : ''}
-                                </option>
-                              ))}
-                              {/* Fallback if inventory is loading or empty */}
-                              {!(cartInventory[baseId] || []).some((inv: any) => inv.size === size) && (
-                                <option value={size}>{size}</option>
-                              )}
-                            </select>
-                          </div>
-
-                          {/* Quantity Controls */}
-                          <div className="flex items-center bg-[#2a2a2a] rounded-xl border border-white/5">
-                            <button
-                              onClick={() => updateQuantity(id, qty - 1)}
-                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="text-[11px] font-bold text-white min-w-[20px] text-center">{qty}</span>
-                            <button
-                              onClick={() => updateQuantity(id, qty + 1)}
-                              className="px-2 py-1.5 text-zinc-400 hover:text-white transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-
-                          {/* Prices */}
-                          <div className="ml-auto flex flex-col items-end">
-                            {product.originalPrice && product.originalPrice > product.price && (
-                              <div className="relative">
-                                <span className="text-sm text-[#5f606a]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                  ₹ {product.originalPrice}
-                                </span>
-                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                              </div>
-                            )}
-                            <span className="text-lg font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                              ₹ {product.price * qty}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
+                {validCartEntries.map(([key, data], i) => {
+                  const bgColors = ['#1A1A1E', '#1C1C20', '#181820'];
+                  return renderCartItem(key, data, bgColors[i % bgColors.length]);
                 })}
               </AnimatePresence>
             </section>
+
+            {/* ─── ADD-ONS ─── */}
+            {addOnProducts.length > 0 && (
+              <section className="px-5 lg:px-0 mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Plus className="w-4 h-4 text-[#f2546d]" />
+                  <h2 className="text-base font-black text-white uppercase tracking-widest" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Add-Ons
+                  </h2>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {addOnProducts.map((product: any) => (
+                    <motion.div
+                      key={product.id}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => addToCart(product.id, product.rental_price || product.rental_price_1d || 0, 'S', '1d')}
+                      className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer"
+                    >
+                      <div className="aspect-square bg-zinc-900 overflow-hidden">
+                        {product.images?.[0] && (
+                          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <div className="p-2.5">
+                        <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                        <p className="text-xs text-[#f2546d] font-black mt-0.5">₹{product.rental_price || product.rental_price_1d}</p>
+                      </div>
+                      <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
+                        <Plus className="w-3.5 h-3.5 text-white" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
             </div>
 
             {/* Right Column */}
@@ -714,40 +593,6 @@ const CartPage = () => {
 
             {/* Desktop Checkout Footer inside Right Column */}
             <div className="hidden lg:block bg-[#232323] rounded-2xl px-6 py-6 space-y-5 shadow-2xl">
-              {!hasActiveSubscription && (
-                <button onClick={() => navigate('/subscription-plans')} className="w-full text-left">
-                  <div className="flex items-center gap-4 px-5 py-5 bg-[#732230] rounded-xl group overflow-hidden hover:scale-[1.02] transition-transform">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Subscribe to the Future</p>
-                      <p className="text-[14px] text-white/90 mt-1 font-medium tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>Pick any 4 items you like each month for just 1799</p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-white flex-shrink-0" />
-                  </div>
-                </button>
-              )}
-
-              {subBenefits && (
-                <div className="rounded-2xl border border-white/5 bg-[#171717] px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>{subBenefits.planName} plan active</p>
-                      <p className="mt-1 text-[11px] text-zinc-500 uppercase tracking-widest font-bold">Monthly quota and concurrent hold limit</p>
-                    </div>
-                    <span className="text-[11px] font-black uppercase tracking-widest text-[#f2546d]">₹{subBenefits.maxItemValue} cap</span>
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="rounded-xl bg-[#232323] px-3 py-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Monthly left</p>
-                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingMonthly}/{subBenefits.monthlyItems}</p>
-                    </div>
-                    <div className="rounded-xl bg-[#232323] px-3 py-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Concurrent left</p>
-                      <p className="mt-1 text-lg font-black text-white">{subBenefits.remainingConcurrent}/{subBenefits.concurrentItems}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <button
                 onClick={canCheckout ? handleCheckout : undefined}
                 disabled={!canCheckout}
@@ -757,7 +602,7 @@ const CartPage = () => {
                 )}
                 style={{ fontFamily: "'DM Sans', sans-serif" }}
               >
-                {subscriptionError ? "Limit Exceeded" : !deliveryAddress ? "Select Address" : "Check Out"}
+                {!deliveryAddress ? "Select Address" : "Check Out"}
               </button>
             </div>
 
@@ -770,44 +615,58 @@ const CartPage = () => {
       {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {validCartEntries.length > 0 && !loadingProducts && (
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
-
-          {/* Subscribe Banner */}
-          {!hasActiveSubscription && (
-            <button
-              onClick={() => navigate('/subscription-plans')}
-              className="w-full text-left"
-            >
-              <div className="flex items-center gap-4 px-5 py-4 bg-[#2D1414] rounded-2xl relative overflow-hidden active:scale-[0.98] transition-all">
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold text-white tracking-tight">
-                    Subscribe to the Future
-                  </p>
-                  <p className="text-xs text-white/60 mt-0.5 font-medium">
-                    Pick any 4 items you like each month for just 1799
-                  </p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-white/40" />
-              </div>
-            </button>
-          )}
-
-            {/* Progress Bars */}
-            <div className="flex items-center gap-2 px-1">
-              <div className="flex-1 h-1.5 bg-[#E95466] rounded-full" />
-              <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
-              <div className="flex-1 h-1.5 bg-white/10 rounded-full" />
-            </div>
-
-            {/* Checkout CTA */}
-            <button
-              onClick={handleCheckout}
-              className="w-full h-14 flex items-center justify-center bg-[#E95466] rounded-full font-black text-lg text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98] transition-all"
-            >
-              Check Out
-            </button>
+          {/* Checkout CTA */}
+          <button
+            onClick={handleCheckout}
+            className="w-full h-14 flex items-center justify-center bg-[#E95466] rounded-full font-black text-lg text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98] transition-all"
+          >
+            Check Out
+          </button>
         </div>
       )}
 
+      {/* Size Selector Drawer */}
+      <Drawer.Root open={sizeDrawerOpen} onOpenChange={setSizeDrawerOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-[#111111] rounded-t-[32px] border-t border-white/10 z-50 focus:outline-none pb-safe">
+            <div className="p-6">
+              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white mb-6 text-center" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Select Size
+              </h3>
+              {selectedItemForSize && (
+                <div className="grid grid-cols-4 gap-3">
+                  {(cartInventory[selectedItemForSize.productId] || []).map((inv: any) => {
+                    const isSelected = inv.size === selectedItemForSize.currentSize;
+                    const isAvailable = inv.available_stock > 0;
+                    return (
+                      <button
+                        key={inv.size}
+                        disabled={!isAvailable}
+                        onClick={() => {
+                          updateSize(selectedItemForSize.productId, selectedItemForSize.currentSize, inv.size, selectedItemForSize.plan as any);
+                          setSizeDrawerOpen(false);
+                        }}
+                        className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${
+                          isSelected
+                            ? "bg-[#E95466] border-[#E95466] text-white"
+                            : isAvailable
+                            ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
+                            : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
+                        }`}
+                      >
+                        <span className="font-bold text-lg">{inv.size}</span>
+                        {!isAvailable && <span className="text-[10px] mt-1">Sold out</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />
       <CitySelectorModal open={citySelectorOpen} onClose={() => setCitySelectorOpen(false)} />

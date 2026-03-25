@@ -163,7 +163,10 @@ const ClosetPage: React.FC = () => {
             {/* ─── HEADER ─── */}
             <div className="sticky top-0 z-50 px-4 py-2 md:px-5 md:py-3 flex items-center justify-end">
                 <div className="flex items-center gap-3">
-                    <button className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#303135] flex items-center justify-center">
+                    <button
+                        onClick={() => navigate('/wishlist')}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#303135] flex items-center justify-center"
+                    >
                         <Heart className="w-4 h-4 md:w-[21px] md:h-[19px] text-white" />
                     </button>
                     <button

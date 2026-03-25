@@ -33,7 +33,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                         <img
                             src={logo}
                             alt="POPCLOZET"
-                            className="h-7 w-auto object-contain"
+                            className="h-7 w-auto object-contain mix-blend-screen"
                         />
                     </Link>
                     <div className="flex items-center gap-1 text-xs text-zinc-500 mt-1">

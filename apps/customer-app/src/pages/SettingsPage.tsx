@@ -219,7 +219,6 @@ const SettingsPage: React.FC = () => {
                     <Card>
                         <Row icon={User} label="Edit Profile" sub="Name, phone, email" onClick={() => navigate('/profile')} />
                         <Row icon={MapPin} label="Delivery Addresses" sub="Manage saved addresses" onClick={() => navigate('/map')} />
-                        <Row icon={CreditCard} label="Payment Methods" sub="UPI, cards & more" onClick={() => navigate('/payments')} />
                         <Row icon={Package} label="My Orders" sub="Active & past rentals" onClick={() => navigate('/orders')} last />
                     </Card>
                 </motion.div>
@@ -246,7 +245,7 @@ const SettingsPage: React.FC = () => {
                         <Row icon={Zap} label="About PopClozet" sub="Our hygiene process & brand" onClick={() => navigate('/about-us')} />
                         <Row icon={Phone} label="Call Support" sub="+91 98765 43210" onClick={() => window.open('tel:+919876543210')} />
                         <Row icon={Shield} label="Privacy Policy" onClick={() => navigate('/privacy')} />
-                        <Row icon={FileText} label="Terms & Conditions" onClick={() => { }} last />
+                        <Row icon={FileText} label="Terms & Conditions" onClick={() => navigate('/terms')} last />
                     </Card>
                 </motion.div>
 

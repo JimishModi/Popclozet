@@ -1,45 +1,45 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/SupabaseAuthContext';
 
 /* ── Navbar icons matching Figma ── */
+// @ts-ignore
+import normalHome from '../../../../../src/logo/Navbar/normal/Home.png';
+// @ts-ignore
+import activeHome from '../../../../../src/logo/Navbar/onclick/Home On Click.png';
+// @ts-ignore
+import normalCollections from '../../../../../src/logo/Navbar/normal/Collections.png';
+// @ts-ignore
+import activeCollections from '../../../../../src/logo/Navbar/onclick/Collections On Click.png';
+// @ts-ignore
+import normalCloset from '../../../../../src/logo/Navbar/normal/Closet.png';
+// @ts-ignore
+import activeCloset from '../../../../../src/logo/Navbar/onclick/Clozet Onclick.png';
+// @ts-ignore
+import normalProfile from '../../../../../src/logo/Navbar/normal/Profile.png';
 
 const HomeIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 10.5L12 3l9 7.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10.5z" fill={active ? "currentColor" : "none"} />
-        <path d="M9 22V14h6v8" stroke={active ? "#0A0A0A" : "currentColor"} />
-    </svg>
+    <img src={active ? activeHome : normalHome} alt="Home" className={className} />
 );
 
 const CollectionsIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="8" cy="8" r={active ? "3.5" : "3"} />
-        <circle cx="16" cy="8" r={active ? "3.5" : "3"} />
-        <circle cx="8" cy="16" r={active ? "3.5" : "3"} />
-        <circle cx="16" cy="16" r={active ? "3.5" : "3"} />
-    </svg>
+    <img src={active ? activeCollections : normalCollections} alt="Collections" className={className} />
 );
 
-const ClosetIcon = ({ className }: { className?: string }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        {/* Hanger hook */}
-        <path d="M12 2c-1.1 0-2 .9-2 2 0 .7.4 1.4 1 1.7" />
-        {/* Hanger body */}
-        <path d="M12 6l-8 6h16l-8-6z" />
-        {/* Bar */}
-        <line x1="4" y1="12" x2="4" y2="22" />
-        <line x1="20" y1="12" x2="20" y2="22" />
-        <line x1="4" y1="22" x2="20" y2="22" />
-    </svg>
+const ClosetIcon = ({ className, active }: { className?: string; active?: boolean }) => (
+    <img src={active ? activeCloset : normalCloset} alt="Closet" className={className} />
 );
 
-const ProfileIcon = ({ className }: { className?: string }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" />
-    </svg>
+const ProfileIcon = ({ className, active }: { className?: string; active?: boolean }) => (
+    <img 
+        src={normalProfile} 
+        alt="Profile" 
+        className={className}
+        style={{ filter: active ? "invert(49%) sepia(87%) saturate(3015%) hue-rotate(320deg) brightness(101%) contrast(101%)" : "none" }}
+    />
 );
 
 interface NavItem {
@@ -63,6 +63,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
     const location = useLocation();
     const { totalItems: cartCount } = useCart();
     const { wishlistItems } = useWishlist();
+    const { user } = useAuth();
+    const navigate = useNavigate();
     const wishlistCount = wishlistItems.length;
 
     const isActive = (path: string) => {
@@ -107,10 +109,15 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                     const Icon = item.icon;
                     const active = isActive(item.path);
 
+                    const handleClick = (e: React.MouseEvent) => {
+                        // All navigation is now open, no redirects here.
+                    };
+
                     return (
                         <Link
                             key={item.path}
                             to={item.path}
+                            onClick={handleClick}
                             className={cn(
                                 "relative flex items-center transition-all duration-200",
                                 // Mobile link styling
@@ -121,43 +128,43 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                 "lg:w-full lg:px-4 lg:py-3 lg:rounded-xl lg:hover:bg-white/5",
                                 active
                                     ? "text-[#ff4d6d]"
-                                    : "text-zinc-500 hover:text-zinc-300",
-                                active && "md:bg-[#ff4d6d]/10 lg:bg-[#ff4d6d]/10"
+                                : "text-zinc-500 hover:text-zinc-300",
+                            active && "md:bg-[#ff4d6d]/10 lg:bg-[#ff4d6d]/10"
                             )}
                         >
                             <div className="relative">
                                 <Icon
-                                    className={cn(
-                                        "w-5 h-5",
-                                        "md:w-5 md:h-5 lg:w-6 lg:h-6"
-                                    )}
+                                className={cn(
+                                    "w-5 h-5",
+                                    "md:w-5 md:h-5 lg:w-6 lg:h-6"
+                                )}
                                     active={active}
                                 />
                                 {/* Cart badge */}
                                 {item.path === '/cart' && cartCount > 0 && (
-                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
                                         {cartCount > 9 ? '9+' : cartCount}
                                     </span>
                                 )}
                                 {/* Closet/Wishlist badge */}
                                 {item.path === '/closet' && wishlistCount > 0 && (
-                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
                                         {wishlistCount > 9 ? '9+' : wishlistCount}
                                     </span>
                                 )}
                             </div>
-                            <span className={cn(
-                                "font-semibold tracking-wide",
-                                // Mobile label styling
-                                "text-[10px]",
-                                // Tablet label styling
-                                "md:text-[13px] md:ml-2",
-                                // Desktop label styling
-                                "lg:text-sm lg:ml-3",
-                                active ? "text-[#ff4d6d]" : "text-zinc-600 md:text-zinc-400"
-                            )}>
-                                {item.label}
-                            </span>
+                        <span className={cn(
+                            "font-semibold tracking-wide",
+                            // Mobile label styling
+                            "text-[10px]",
+                            // Tablet label styling
+                            "md:text-[13px] md:ml-2",
+                            // Desktop label styling
+                            "lg:text-sm lg:ml-3",
+                            active ? "text-[#ff4d6d]" : "text-zinc-600 md:text-zinc-400"
+                        )}>
+                            {item.label}
+                        </span>
                         </Link>
                     );
                 })}

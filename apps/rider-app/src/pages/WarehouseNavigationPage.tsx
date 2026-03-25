@@ -274,9 +274,6 @@ export const WarehouseNavigationPage: React.FC = () => {
 
         mapInstance.current = map;
         map.on('load', async () => {
-<<<<<<< HEAD
-            await drawRoute(map, [riderLocation, WAREHOUSE_LOCATION]);
-=======
             const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
             let routeDrawn = false;
 
@@ -303,7 +300,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             if (!routeDrawn) {
                 await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
             }
->>>>>>> 05698ee55c9833574c7de48b4f6e0bd5fd418de0
 
             const geolocate = new mapboxgl.GeolocateControl({
                 positionOptions: { enableHighAccuracy: true },

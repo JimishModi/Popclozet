@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
-  Bell, CreditCard, HelpCircle, Shield, Sparkles, X,
+  HelpCircle, Shield, Sparkles, X,
   Edit3, Check, Loader2, Phone, Mail, Package, Zap, Trophy, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -105,14 +105,6 @@ const ProfilePage: React.FC = () => {
       items: [
         { icon: Heart, label: "My Wishlist", href: "/wishlist", badge: wishlistItems.length > 0 ? String(wishlistItems.length) : undefined },
         { icon: ShoppingBag, label: "My Orders", href: "/orders" },
-        { icon: CreditCard, label: "Payment Methods", href: "/payments" },
-      ]
-    },
-    {
-      title: "Preferences",
-      items: [
-        { icon: Bell, label: "Notifications", href: "/notifications" },
-        { icon: Settings, label: "Settings", href: "/settings" },
       ]
     },
     {
