@@ -52,7 +52,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                     </button>
 
                     <Link
-                        to="/closet?tab=wishlist"
+                        to="/wishlist"
                         className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all"
                         aria-label="Wishlist"
                     >

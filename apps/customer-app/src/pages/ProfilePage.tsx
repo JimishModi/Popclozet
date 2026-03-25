@@ -92,6 +92,7 @@ const ProfilePage: React.FC = () => {
       items: [
         { icon: Heart, label: "My Wishlist", href: "/wishlist", badge: wishlistItems.length > 0 ? String(wishlistItems.length) : undefined },
         { icon: ShoppingBag, label: "My Orders", href: "/orders" },
+        { icon: Settings, label: "Settings", href: "/settings" },
       ]
     },
     {
