@@ -234,7 +234,7 @@ const ClosetPage: React.FC = () => {
                                     className="relative z-10 rounded-2xl border border-[#484848] bg-[#232323] overflow-hidden"
                                     style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
                                 >
-                                    <div className="relative aspect-[176/255]">
+                                    <div className="relative aspect-square md:aspect-[176/255]">
                                         <img
                                             src={
                                                 item.image ||

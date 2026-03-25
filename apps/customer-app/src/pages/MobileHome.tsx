@@ -707,7 +707,7 @@ const MobileHome: React.FC = () => {
                         {loadingCatalogue ? (
                             // Skeleton loaders
                             [...Array(4)].map((_, i) => (
-                                <div key={`skel-${i}`} className="relative rounded-2xl bg-[#232323] aspect-[3/4] animate-pulse border border-[#484848]" />
+                                <div key={`skel-${i}`} className="relative rounded-2xl bg-[#232323] aspect-square md:aspect-[3/4] animate-pulse border border-[#484848]" />
                             ))
                         ) : catalogueProducts.map((item, index) => {
                             const isFake = (item as any)._isFake === true;
@@ -742,7 +742,7 @@ const MobileHome: React.FC = () => {
                                 )}
 
                                 {/* Product Image */}
-                                <div className="aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
+                                <div className="aspect-square md:aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
                                     {imgSrc ? (
                                         <img
                                             src={imgSrc}

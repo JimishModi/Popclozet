@@ -115,7 +115,7 @@ const WishlistPage: React.FC = () => {
                                 >
                                     {/* Image */}
                                     <div
-                                        className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden"
+                                        className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden"
                                         onClick={() => navigate(`/product/${product.id}`)}
                                     >
                                         {product.images?.[0] ? (

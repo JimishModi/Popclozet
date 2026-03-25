@@ -316,7 +316,7 @@ const SearchResultsPage: React.FC = () => {
                                         </button>
 
                                         {/* Image */}
-                                        <div className="aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] overflow-hidden">
+                                        <div className="aspect-square md:aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] overflow-hidden">
                                             <img
                                                 src={product.imageUrl}
                                                 alt={product.name}

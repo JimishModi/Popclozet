@@ -123,7 +123,7 @@ const LiveClosetPage: React.FC = () => {
                             style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
                         >
                             {/* Image area with gradient overlay */}
-                            <div className="relative aspect-[176/250]">
+                            <div className="relative aspect-square md:aspect-[176/250]">
                                 <img
                                     src={
                                         item.image ||
@@ -227,7 +227,7 @@ const LiveClosetPage: React.FC = () => {
                             style={{ boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.50)' }}
                         >
                             {/* Image area */}
-                            <div className="relative aspect-[176/250]">
+                            <div className="relative aspect-square md:aspect-[176/250]">
                                 <img
                                     src={
                                         item.image ||

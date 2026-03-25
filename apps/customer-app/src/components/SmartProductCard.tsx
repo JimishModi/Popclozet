@@ -26,7 +26,7 @@ export const SmartProductCard = ({ product }: SmartProductCardProps) => {
         whileHover={{ y: -4 }}
         {...bind}
       >
-        <div className="relative aspect-[3/4] overflow-hidden">
+        <div className="relative aspect-square md:aspect-[3/4] overflow-hidden">
           <picture>
             <source srcSet={product.image} />
             <img

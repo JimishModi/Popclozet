@@ -113,7 +113,6 @@ const MobileProductDetailPage: React.FC = () => {
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [isAdded, setIsAdded] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("3d");
 
     const [product, setProduct] = useState<Product | null>(null);
@@ -241,6 +240,9 @@ const MobileProductDetailPage: React.FC = () => {
         fetchProduct();
     }, [productId]);
 
+    const cartKey = product && selectedSize ? `${product.id}_${selectedSize}_${selectedPlan}` : null;
+    const isAdded = cartKey ? !!cartItems[cartKey] : false;
+
     // Calculate final prices based on discount
     // 1. If we have a promotional discount: Current Rental vs Original Rental
     // 2. Otherwise: Current Rental vs MRP (Market Value)
@@ -277,9 +279,6 @@ const MobileProductDetailPage: React.FC = () => {
             const sizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
             if (sizeStock > 0) {
                 addToCart(product.id, selectedSize, selectedPlan);
-                setIsAdded(true);
-                // Reset after 3 seconds or keep it until navigation
-                setTimeout(() => setIsAdded(false), 3000);
             } else {
                 alert("Sorry, this size is currently out of stock.");
             }
@@ -482,7 +481,7 @@ const MobileProductDetailPage: React.FC = () => {
             <main className="flex-1 overflow-y-auto pb-28 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto">
                 <div className="lg:flex lg:gap-12 lg:items-start lg:mt-6">
                     {/* Left Column: Images */}
-                    <div className="lg:w-1/2 lg:sticky lg:top-24">
+                    <div className="lg:w-1/2">
                         <div className="relative group lg:rounded-[32px] lg:overflow-hidden lg:shadow-2xl lg:shadow-black/50">
                             <div
                         onScroll={(e) => {
@@ -542,18 +541,12 @@ const MobileProductDetailPage: React.FC = () => {
                         />
                     </button>
 
-                    {/* Edit Outfit Button */}
-                    <button className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-white/10 bg-[#1A1A1A]/80 backdrop-blur-xl hover:bg-[#252525] transition-all active:scale-95">
-                        <EditIcon />
-                        <span className="text-sm font-bold text-white tracking-tight">
-                            Edit Outfit
-                        </span>
-                    </button>
+                    {/* Edit Outfit Button Removed */}
                         </div>
                     </div>
 
                     {/* Right Column: Product Info */}
-                    <div className="lg:w-1/2 px-4 lg:px-0 mt-4 lg:mt-0 flex flex-col">
+                    <div className="lg:w-1/2 px-4 lg:px-0 mt-4 lg:mt-0 flex flex-col lg:sticky lg:top-24 lg:h-[calc(100vh-120px)] lg:overflow-y-auto no-scrollbar">
                         <div className="flex-1">
                             {/* Name + Rating */}
                     <div className="flex items-start justify-between">
@@ -731,7 +724,7 @@ const MobileProductDetailPage: React.FC = () => {
                             )}
                         >
                             <span className="text-lg font-bold tracking-tight" style={dmSans}>
-                                {isAdded ? "Go to Cart →" : "Add to Cart"}
+                                {isAdded ? "Added to Cart →" : "Add to Cart"}
                             </span>
                         </button>
                     </div>
@@ -774,9 +767,6 @@ const MobileProductDetailPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* ─── RECOMMENDED PRODUCTS ─── */}
-                    <RecommendedProducts currentProduct={product} />
-
                     {/* ─── SERVICE BADGES ─── */}
                     <div className="mt-8 grid grid-cols-3 gap-3 py-6 px-4 rounded-3xl border border-white/5 bg-[#141414]">
                         <div className="flex flex-col items-center gap-3 text-center">
@@ -814,6 +804,9 @@ const MobileProductDetailPage: React.FC = () => {
                             </span>
                         </div>
                     </div>
+
+                    {/* ─── RECOMMENDED PRODUCTS ─── */}
+                    <RecommendedProducts currentProduct={product} />
 
                     {/* ─── REVIEWS ─── */}
                     <div className="mt-8">
@@ -1011,7 +1004,7 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented ? (
                         /* Rented-out state — cannot order */
@@ -1033,7 +1026,7 @@ const MobileProductDetailPage: React.FC = () => {
                                 className="text-lg font-bold text-white tracking-tight"
                                 style={dmSans}
                             >
-                                {isAdded ? "Go to Cart →" : "Add to Cart"}
+                                {isAdded ? "Added to Cart →" : "Add to Cart"}
                             </span>
                         </button>
                     )}
