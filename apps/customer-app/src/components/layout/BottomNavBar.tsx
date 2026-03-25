@@ -34,9 +34,9 @@ const ClosetIcon = ({ className, active }: { className?: string; active?: boolea
 );
 
 const ProfileIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <img 
-        src={normalProfile} 
-        alt="Profile" 
+    <img
+        src={normalProfile}
+        alt="Profile"
         className={className}
         style={{ filter: active ? "invert(49%) sepia(87%) saturate(3015%) hue-rotate(320deg) brightness(101%) contrast(101%)" : "none" }}
     />
@@ -134,10 +134,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                         >
                             <div className="relative">
                                 <Icon
-                                className={cn(
-                                    "w-5 h-5",
-                                    "md:w-5 md:h-5 lg:w-6 lg:h-6"
-                                )}
+                                    className={cn(
+                                        // Mobile: show full PNG (icon + embedded text label)
+                                        "w-12 h-10 object-contain",
+                                        // Tablet/Desktop: crop to icon only, span label handles text
+                                        "md:w-6 md:h-6 md:object-cover md:object-top",
+                                        "lg:w-8 lg:h-8"
+                                    )}
                                     active={active}
                                 />
                                 {/* Cart badge */}
@@ -155,13 +158,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                             </div>
                         <span className={cn(
                             "font-semibold tracking-wide",
-                            // Mobile label styling
-                            "text-[10px]",
-                            // Tablet label styling
-                            "md:text-[13px] md:ml-2",
-                            // Desktop label styling
+                            // Mobile: hidden (PNG already has embedded text label)
+                            "hidden",
+                            // Tablet: show alongside icon
+                            "md:inline md:text-[13px] md:ml-2",
+                            // Desktop: show alongside icon
                             "lg:text-sm lg:ml-3",
-                            active ? "text-[#ff4d6d]" : "text-zinc-600 md:text-zinc-400"
+                            active ? "text-[#ff4d6d]" : "text-zinc-500 md:text-zinc-400"
                         )}>
                             {item.label}
                         </span>

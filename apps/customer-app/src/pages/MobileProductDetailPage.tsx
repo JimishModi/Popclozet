@@ -1011,7 +1011,7 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented ? (
                         /* Rented-out state — cannot order */

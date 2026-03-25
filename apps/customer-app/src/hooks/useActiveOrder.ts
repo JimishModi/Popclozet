@@ -3,7 +3,7 @@
  * Uses real Supabase data + realtime subscription for live status updates.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, config } from '@popclozet/api-client';
 import { useAuth } from '@popclozet/auth';
 
@@ -41,6 +41,7 @@ export function useActiveOrder() {
     const { user } = useAuth();
     const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
     const [loading, setLoading] = useState(true);
+    const channelNameRef = useRef(`active_order_${user?.id}_${Math.random().toString(36).slice(2, 9)}`);
 
     const fetchActiveOrder = useCallback(async () => {
         if (!user?.id) {
@@ -116,11 +117,11 @@ export function useActiveOrder() {
         if (!user?.id || config.USE_MOCK_DATA) return;
 
         const channel = supabase
-            .channel(`active_order_${user.id}`)
+            .channel(channelNameRef.current)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'orders',
                     filter: `user_id=eq.${user.id}`,
