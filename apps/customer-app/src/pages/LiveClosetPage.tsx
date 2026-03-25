@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useCart } from '@/context/CartContext';
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -68,6 +69,7 @@ const CountdownIcon = () => (
 
 const LiveClosetPage: React.FC = () => {
     const navigate = useNavigate();
+    const { totalItems } = useCart();
 
     const currentRentals = MOCK_RENTALS.filter((item) => item.type === 'current');
     const futureRentals = MOCK_RENTALS.filter((item) => item.type === 'future');
@@ -89,9 +91,14 @@ const LiveClosetPage: React.FC = () => {
                     </button>
                     <button
                         onClick={() => navigate('/cart')}
-                        className="p-2 rounded-full bg-[#232323]"
+                        className="relative p-2 rounded-full bg-[#232323]"
                     >
                         <ShoppingBag className="w-5 h-5 text-zinc-400" />
+                        {totalItems > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                {totalItems > 9 ? '9+' : totalItems}
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>

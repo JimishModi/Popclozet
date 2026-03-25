@@ -20,12 +20,12 @@ interface NavItem {
 const mainTabs: NavItem[] = [
     { path: '/', icon: <LayoutDashboard size={22} />, label: 'Home' },
     { path: '/inventory', icon: <Package size={22} />, label: 'Inventory' },
-    { path: '/wash', icon: <Droplets size={22} />, label: 'Wash' },
     { path: '/orders', icon: <ClipboardList size={22} />, label: 'Orders' },
+    { path: '/returns', icon: <RotateCcw size={22} />, label: 'Returns' },
+    { path: '/wash', icon: <Droplets size={22} />, label: 'Wash' },
 ];
 
 const moreTabs: NavItem[] = [
-    { path: '/returns', icon: <RotateCcw size={20} />, label: 'Returns' },
     { path: '/dispatch', icon: <Truck size={20} />, label: 'Dispatch' },
     { path: '/active-pickups', icon: <Eye size={20} />, label: 'Active Pickups' },
     { path: '/intake', icon: <PlusCircle size={20} />, label: 'Product Intake' },

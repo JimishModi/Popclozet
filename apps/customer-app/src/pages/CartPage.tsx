@@ -483,7 +483,7 @@ const CartPage = () => {
                     <motion.div
                       key={product.id}
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => addToCart(product.id, product.rental_price || product.rental_price_1d || 0, 'S', '1d')}
+                      onClick={() => addToCart(product.id, 'One Size', '1d')}
                       className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer"
                     >
                       <div className="aspect-square bg-zinc-900 overflow-hidden">

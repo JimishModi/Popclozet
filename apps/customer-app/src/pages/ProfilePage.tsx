@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
   HelpCircle, Shield, Sparkles, X,
-  Edit3, Check, Loader2, Phone, Mail, Package, Zap, Trophy, Star
+  Edit3, Check, Loader2, Phone, Mail, Package
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
@@ -16,7 +16,6 @@ import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
 
-import { getSubscriptionProfile } from "@/services/subscriptionService";
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,18 +79,6 @@ const ProfilePage: React.FC = () => {
   const inClosetCount = orders.filter(o =>
     ["delivered", "out_for_delivery", "preparing", "confirmed", "pending"].includes(o.status)
   ).length;
-
-  const [subProfile, setSubProfile] = useState<any>(null);
-  
-  useEffect(() => {
-    async function initSub() {
-      if (user) {
-        const data = await getSubscriptionProfile();
-        setSubProfile(data);
-      }
-    }
-    initSub();
-  }, [user]);
 
   const quickStats = [
     { label: "Orders", value: ordersLoading ? "…" : String(orders.length), icon: ShoppingBag, href: "/orders" },
@@ -399,54 +386,6 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Subscription Card */}
-            <div className="px-4 lg:px-0">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                onClick={() => navigate(subProfile ? "/subscription-profile" : "/subscription-plans")}
-                className="relative overflow-hidden rounded-2xl p-4 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)] cursor-pointer group"
-              >
-                {subProfile ? (
-                  <div className={cn(
-                    "absolute inset-0 bg-gradient-to-r opacity-50 group-hover:opacity-70 transition-opacity",
-                    subProfile.plan.id === 'essential' ? "from-amber-600/30 to-orange-500/10" :
-                    subProfile.plan.id === 'standard' ? "from-blue-600/30 to-indigo-500/10" :
-                    "from-[#f2546d]/30 to-purple-600/10"
-                  )} />
-                ) : (
-                  <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                )}
-                
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center shadow-inner",
-                      subProfile ? "bg-white/10" : "bg-white/5"
-                    )}>
-                      {subProfile ? (
-                        subProfile.plan.id === 'pro' ? <Trophy className="w-6 h-6 text-yellow-400" /> :
-                        subProfile.plan.id === 'standard' ? <Sparkles className="w-6 h-6 text-blue-400" /> :
-                        <Zap className="w-6 h-6 text-amber-400" />
-                      ) : (
-                        <Star className="w-6 h-6 text-zinc-400" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-0.5">Membership</p>
-                      <h3 className="text-lg font-bold text-white leading-none">
-                        {subProfile ? subProfile.plan.name : "Join PopClozet Plus"}
-                      </h3>
-                      {!subProfile && (
-                        <p className="text-xs text-zinc-400 mt-1">Unlock exclusive benefits</p>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white group-hover:translate-x-1 transition-all" />
-                </div>
-              </motion.div>
-            </div>
             </div> {/* End Left Column */}
 
             {/* Right Column (Menus, Log Out) */}

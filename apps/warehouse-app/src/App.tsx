@@ -23,6 +23,7 @@ import { DispatchPage } from './pages/DispatchPage';
 import { ProductIntakePage } from './pages/ProductIntakePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
+import { ActivePickupsPage } from './pages/ActivePickupsPage';
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -70,6 +71,7 @@ function App() {
                             <Route path="/returns" element={<ReturnsPage />} />
                             <Route path="/dispatch" element={<DispatchPage />} />
                             <Route path="/intake" element={<ProductIntakePage />} />
+                            <Route path="/active-pickups" element={<ActivePickupsPage />} />
                             <Route path="/settings" element={<SettingsPage />} />
                             <Route path="/login" element={<LoginPage />} />
                             <Route path="*" element={<Navigate to="/" replace />} />

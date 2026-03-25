@@ -110,7 +110,19 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
-    const [returnOtp, setReturnOtp] = useState<string | null>(null);
+    // Persist returnOtp in sessionStorage so a page reload doesn't lose the warehouse OTP
+    const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
+    const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
+        if (!id) return null;
+        return sessionStorage.getItem(`returnOtp_${id}`) ?? null;
+    });
+    const setReturnOtp = (otp: string | null) => {
+        setReturnOtpState(otp);
+        if (returnOtpStorageKey) {
+            if (otp) sessionStorage.setItem(returnOtpStorageKey, otp);
+            else sessionStorage.removeItem(returnOtpStorageKey);
+        }
+    };
     const [isCancelling, setIsCancelling] = useState(false);
 
     // GPS broadcast refs (background — no re-render)
@@ -388,6 +400,7 @@ export const WarehouseNavigationPage: React.FC = () => {
 
             showToast('Arrival verified! Now confirm the pickup.', 'success');
             setStep('arrived');
+            setOrder(prev => prev ? { ...prev, status: 'driver_arrived_warehouse' } : prev);
             setShowOtpModal(false);
         } catch (err: any) {
             console.error('[Rider] Failed to verify OTP:', err);
@@ -404,6 +417,7 @@ export const WarehouseNavigationPage: React.FC = () => {
             const result = await markOrderPickedUp(id, user.id);
             if (!result.success) throw new Error(result.message);
             setStep('picked_up');
+            setOrder(prev => prev ? { ...prev, status: 'order_picked_up' } : prev);
             showToast('Order picked up! Ready to deliver.', 'success');
             await insertNotification({
                 user_id: order.user_id,

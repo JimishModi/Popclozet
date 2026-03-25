@@ -20,12 +20,13 @@ interface UseRealtimeInventoryOptions {
 
 export function useRealtimeInventory({ onChange, includeItems = false, enabled = true }: UseRealtimeInventoryOptions) {
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const channelNameRef = useRef(`warehouse-inventory-changes-${Math.random().toString(36).slice(2)}`);
 
     useEffect(() => {
         if (!enabled || !supabase) return;
 
         const channel = supabase
-            .channel('warehouse-inventory-changes')
+            .channel(channelNameRef.current)
             .on(
                 'postgres_changes',
                 {

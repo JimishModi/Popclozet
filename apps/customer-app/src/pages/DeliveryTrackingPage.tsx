@@ -2,7 +2,7 @@
 // Real-time delivery tracking page
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package } from 'lucide-react';
+import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { DeliveryTracker, TrackingData } from '@/components/map/DeliveryTracker';
 import { OrderChat } from '@/components/map/OrderChat';
@@ -183,8 +183,32 @@ export default function DeliveryTrackingPage() {
                     </div>
                 </div>
 
-                <DeliveryTracker 
-                    orderId={orderId} 
+                {/* Delivery OTP — shown when order is on its way */}
+                {order?.otp_delivery && ['dispatched', 'out_for_delivery', 'order_picked_up', 'driver_arrived_warehouse', 'ready_for_pickup'].includes((order as any).status) && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-[#f2546d]/20 to-pink-900/10 border border-[#f2546d]/30 shadow-xl shadow-[#f2546d]/10"
+                    >
+                        <div className="flex items-center gap-2 mb-3">
+                            <KeyRound className="w-4 h-4 text-[#f2546d]" />
+                            <span className="text-xs font-black text-[#f2546d] uppercase tracking-[0.2em]">Delivery OTP</span>
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                            {order.otp_delivery.split('').map((digit, i) => (
+                                <div key={i} className="flex-1 aspect-square max-w-[56px] flex items-center justify-center rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black shadow-inner">
+                                    {digit}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-zinc-400 text-center font-medium">
+                            Share this code with your rider when they arrive
+                        </p>
+                    </motion.div>
+                )}
+
+                <DeliveryTracker
+                    orderId={orderId}
                     onOrderLoad={setOrder}
                     onTrackingUpdate={setTracking}
                 />

@@ -19,12 +19,15 @@ interface UseRealtimeOrdersOptions {
 export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrdersOptions) {
     const { showToast } = useToast();
     const channelRef = useRef<RealtimeChannel | null>(null);
+    // Unique name per hook instance so navigating between pages doesn't cause one
+    // page's cleanup to remove another page's still-active channel.
+    const channelNameRef = useRef(`warehouse-order-changes-${Math.random().toString(36).slice(2)}`);
 
     useEffect(() => {
         if (!enabled || !supabase) return;
 
         const channel = supabase
-            .channel('warehouse-order-changes')
+            .channel(channelNameRef.current)
             .on(
                 'postgres_changes',
                 {

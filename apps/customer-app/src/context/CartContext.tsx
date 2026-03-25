@@ -67,11 +67,26 @@ export const CartProvider = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  const VALID_PLANS: PricingPlan[] = ['1d', '2d', '3d', 'buy'];
+
+  const isValidCartItem = (item: any) => {
+    if (!item.size || item.size === 'NaN' || item.size === 'undefined') return false;
+    if (!VALID_PLANS.includes(item.plan as PricingPlan)) return false;
+    if (!item.productId || item.productId === 'NaN' || item.productId === 'undefined') return false;
+    return true;
+  };
+
   const loadCartFromDB = async () => {
     try {
       const items = await getCartItemsDB(userId);
       const cartMap: Record<string, CartItemData> = {};
+      const invalidItems: typeof items = [];
+
       items.forEach((item) => {
+        if (!isValidCartItem(item)) {
+          invalidItems.push(item);
+          return;
+        }
         const key = `${item.productId}_${item.size}_${item.plan}`;
         cartMap[key] = {
           quantity: item.quantity,
@@ -79,6 +94,12 @@ export const CartProvider = ({
           plan: item.plan as PricingPlan
         };
       });
+
+      // Purge corrupted entries from IDB silently
+      invalidItems.forEach((item) => {
+        removeFromCartDB(item.productId, item.size, item.plan, userId).catch(() => {});
+      });
+
       setCartItems(cartMap);
     } catch (error) {
       console.error("IndexedDB load failed:", error);
@@ -127,19 +148,20 @@ export const CartProvider = ({
   /* ----------------------------- */
 
   const removeFromCart = async (productId: string, size: string, plan: PricingPlan) => {
+    const key = `${productId}_${size}_${plan}`;
+
+    // Optimistic update — remove from UI immediately regardless of DB result
+    setCartItems((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      setAnnouncement("Item removed from cart.");
+      return next;
+    });
+
     try {
       await removeFromCartDB(productId, size, plan, userId);
-      const key = `${productId}_${size}_${plan}`;
-
-      setCartItems((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        setAnnouncement("Item removed from cart.");
-        return next;
-      });
     } catch (error) {
       console.error("Remove failed:", error);
-      toast.error("Failed to remove item");
     }
   };
 

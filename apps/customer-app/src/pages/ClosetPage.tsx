@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/SupabaseAuthContext';
+import { useCart } from '@/context/CartContext';
 import { getMyActiveRentals, keepItem } from '@/services/ordersService';
 import { getRemainingRentalTime } from '@popclozet/api-client';
 import { format } from 'date-fns';
@@ -39,6 +40,7 @@ const CountdownIcon = () => (
 const ClosetPage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { totalItems } = useCart();
     const [rentals, setRentals] = useState<RentalItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [tick, setTick] = useState(0);
@@ -171,9 +173,14 @@ const ClosetPage: React.FC = () => {
                     </button>
                     <button
                         onClick={() => navigate('/cart')}
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#303135] flex items-center justify-center"
+                        className="relative w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#303135] flex items-center justify-center"
                     >
                         <ShoppingBag className="w-4 h-4 md:w-5 md:h-6 text-white" />
+                        {totalItems > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                {totalItems > 9 ? '9+' : totalItems}
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>
@@ -324,6 +331,20 @@ const ClosetPage: React.FC = () => {
                                             style={dmSans}
                                         >
                                             Schedule Return
+                                        </span>
+                                    </button>
+                                )}
+
+                                {item.isReturnInProgress && (
+                                    <button
+                                        onClick={() => navigate(`/pickup-tracking/${item.id}`)}
+                                        className="w-full mt-4 py-3 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/30 text-center hover:bg-[#f2546d]/20 transition-all"
+                                    >
+                                        <span
+                                            className="text-sm font-semibold text-[#f2546d] tracking-[-0.42px]"
+                                            style={dmSans}
+                                        >
+                                            Track Return Pickup & OTP
                                         </span>
                                     </button>
                                 )}

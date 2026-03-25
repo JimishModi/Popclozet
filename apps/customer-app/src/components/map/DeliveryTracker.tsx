@@ -67,7 +67,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         loadData();
     }, [orderId]);
 
-    // Subscribe to real-time tracking updates
+    // Subscribe to real-time tracking + order status updates
     useEffect(() => {
         if (!supabase || !orderId) return;
 
@@ -85,7 +85,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
             }
         });
 
-        // Set up realtime subscription
+        // Set up realtime subscription for both tracking and order status
         const channel = supabase
             .channel(`tracking:${orderId}`)
             .on(
@@ -108,6 +108,20 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
                             eta_minutes: data.eta_minutes || undefined,
                         });
                     }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `id=eq.${orderId}`,
+                },
+                async () => {
+                    // Re-fetch order so status steps update in real-time
+                    const updated = await getOrderById(orderId);
+                    if (updated) setOrder(updated);
                 }
             )
             .subscribe();

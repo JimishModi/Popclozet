@@ -7,7 +7,7 @@
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
 import { supabase } from '@popclozet/api-client';
@@ -43,14 +43,23 @@ function App() {
     const { loading, user } = useAuth();
     const [isRider, setIsRider] = useState<boolean | null>(null);
     const [riderCheckLoading, setRiderCheckLoading] = useState(false);
+    // Track which user ID we already checked to prevent re-check on token refresh
+    const checkedUserIdRef = useRef<string | null>(null);
 
     // Check riders table directly — independent of profiles.role
-    // This lets a person be a customer on customer-app AND a rider here simultaneously
+    // This lets a person be a customer on customer-app AND a rider here simultaneously.
+    // Dep is user?.id (not user) so a token refresh (new object, same ID) does NOT re-run
+    // this and flash the loading screen, which would unmount active pages mid-flow.
     useEffect(() => {
         if (!user) {
             setIsRider(null);
+            checkedUserIdRef.current = null;
             return;
         }
+        // Already checked for this user — skip to avoid reload on token refresh
+        if (checkedUserIdRef.current === user.id) return;
+        checkedUserIdRef.current = user.id;
+
         setRiderCheckLoading(true);
         supabase
             .from('riders')
@@ -61,7 +70,7 @@ function App() {
                 setIsRider(!!data);
                 setRiderCheckLoading(false);
             });
-    }, [user]);
+    }, [user?.id]);
 
     // Show loader while checking auth or rider status
     if (loading || riderCheckLoading) {

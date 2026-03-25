@@ -87,7 +87,11 @@ function getIncomingOrderCardStatus(order: IncomingOrder): 'pending' | 'accepted
 }
 
 function getAssignedOrderRoute(order: IncomingOrder): string {
-    if (order.orderType === 'return' || ['out_for_delivery', 'return_scheduled', 'return_dispatched', 'return_picked_up'].includes(order.workflowStatus)) {
+    // return_picked_up = rider has collected from customer, next step is warehouse drop-off
+    if (order.workflowStatus === 'return_picked_up') {
+        return `/warehouse/${order.id}`;
+    }
+    if (order.orderType === 'return' || ['out_for_delivery', 'return_scheduled', 'return_dispatched'].includes(order.workflowStatus)) {
         return `/delivery/${order.id}`;
     }
 
@@ -95,6 +99,7 @@ function getAssignedOrderRoute(order: IncomingOrder): string {
 }
 
 function getAssignedActionLabel(order: IncomingOrder): string {
+    if (order.workflowStatus === 'return_picked_up') return 'Drop off at Warehouse';
     if (order.orderType === 'return') return 'Open Return Pickup';
     if (order.workflowStatus === 'out_for_delivery') return 'Open Delivery';
     return 'Open Warehouse Pickup';

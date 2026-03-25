@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Package } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { getOrderById } from "@/services/ordersService";
+import { supabase } from "@popclozet/api-client";
 import deliveryPartnerAvatar from "@/assets/icons/delivery-partner-avatar.svg";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
-/* Inline phone-call icon (from Figma) */
 const PhoneCallIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none">
         <path
@@ -17,49 +18,82 @@ const PhoneCallIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// Statuses where the rider is on the way to pick up
+const RIDER_EN_ROUTE_STATUSES = ['return_dispatched', 'return_picked_up'];
+
 export default function PickupTrackingPage() {
-    const { orderId } = useParams<{ orderId: string }>();
+    // Route is /pickup-tracking/:pickupId
+    const { pickupId } = useParams<{ pickupId: string }>();
     const navigate = useNavigate();
-    const [timeRemaining, setTimeRemaining] = useState(15 * 60);
 
-    // Countdown timer
+    const [order, setOrder] = useState<any>(null);
+    const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string } | null>(null);
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
-        const interval = setInterval(() => {
-            setTimeRemaining((prev) => {
-                if (prev <= 0) {
-                    clearInterval(interval);
-                    return 0;
+        if (!pickupId) return;
+
+        const fetchOrder = async () => {
+            try {
+                const data = await getOrderById(pickupId);
+                setOrder(data);
+                if (data?.rider_id) {
+                    const { data: rp } = await supabase
+                        .from('rider_profiles')
+                        .select('full_name, phone')
+                        .eq('user_id', data.rider_id)
+                        .single();
+                    if (rp) setRiderProfile({ name: rp.full_name || 'Your Rider', phone: rp.phone || '' });
                 }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    const minutes = Math.floor(timeRemaining / 60);
+        fetchOrder();
 
-    // Mock data
-    const pickupData = {
-        orderId: orderId || "ORD123",
-        status: "on_the_way",
-        deliveryPartner: {
-            name: "Mukesh",
-            phone: "+91 98765 43210",
-        },
-        address: {
-            line1: "IIT, Powai",
-            pincode: "400076",
-            cityState: "Mumbai, Maharashtra",
-            country: "India",
-            lat: 19.1362,
-            lng: 72.9158,
-        },
-    };
+        // Subscribe to real-time order status changes
+        const channel = supabase
+            .channel(`pickup_order:${pickupId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `id=eq.${pickupId}`,
+                },
+                async () => {
+                    const updated = await getOrderById(pickupId);
+                    if (updated) setOrder(updated);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [pickupId]);
+
+    const address = order?.delivery_address?.full_address ?? '—';
+    const showOtp = order?.otp_return && RIDER_EN_ROUTE_STATUSES.includes(order?.status);
+
+    if (loading) {
+        return (
+            <MobileShell className="bg-[#111111] text-white" hideBottomNav>
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="w-8 h-8 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
+                </div>
+            </MobileShell>
+        );
+    }
 
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
             <main className="flex-1 overflow-y-auto flex flex-col">
-                {/* Sticky Header */}
+                {/* Header */}
                 <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 border-b border-white/5 flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
@@ -67,135 +101,102 @@ export default function PickupTrackingPage() {
                     >
                         <ChevronLeft className="w-6 h-6 text-white" />
                     </button>
-                    <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Active Tracking</h1>
+                    <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Return Pickup</h1>
                 </header>
 
-                <section className="relative h-[240px] flex-shrink-0 bg-gradient-to-br from-[#1a1a1a] to-black rounded-b-3xl mb-6">
-                    {/* Gradient Glow Orb */}
+                {/* Map placeholder */}
+                <section className="relative h-[200px] flex-shrink-0 bg-gradient-to-br from-[#1a1a1a] to-black rounded-b-3xl mb-6">
                     <div
                         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full blur-[100px] pointer-events-none z-10"
-                        style={{
-                            background:
-                                "radial-gradient(circle, rgba(242,84,109,0.3) 0%, rgba(0,0,0,0) 70%)",
-                        }}
+                        style={{ background: "radial-gradient(circle, rgba(242,84,109,0.3) 0%, rgba(0,0,0,0) 70%)" }}
                     />
-
-                    {/* Information Placeholder */}
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-8">
-                         <div className="w-16 h-1 bg-zinc-800 rounded-full mb-6"></div>
-                         <p className="text-zinc-400 text-sm mt-1">Live location hidden</p>
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
+                        <Package className="w-10 h-10 text-zinc-600 mb-2" />
+                        <p className="text-zinc-500 text-sm">Rider on the way</p>
                     </div>
                 </section>
 
-                {/* ─── PICKUP IN BANNER ─── */}
+                {/* Status banner */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="w-full flex flex-col items-center justify-center py-5 bg-[#f2546d]"
                 >
-                    <span
-                        className="text-2xl font-semibold text-white tracking-[-0.72px]"
-                        style={dmSans}
-                    >
-                        Pickup in
+                    <span className="text-xl font-semibold text-white tracking-tight" style={dmSans}>
+                        {order?.status === 'return_picked_up' ? 'Items Collected' : 'Rider Coming to Pick Up'}
                     </span>
-                    <span
-                        className="text-[32px] font-black text-white tracking-[-0.96px] mt-1"
-                        style={dmSans}
-                    >
-                        {minutes} minutes
+                    <span className="text-sm text-white/80 mt-1" style={dmSans}>
+                        Order #{(pickupId ?? '').slice(0, 8).toUpperCase()}
                     </span>
                 </motion.div>
 
-                {/* ─── DELIVERY STATUS PILL ─── */}
-                <div className="flex justify-center mt-6 px-5">
-                    <div className="bg-[#f2546d] rounded-full px-8 py-2.5">
-                        <span
-                            className="text-sm font-normal text-white tracking-[-0.42px]"
-                            style={dmSans}
-                        >
-                            Delivery partner is on his way
-                        </span>
+                {/* Return OTP card */}
+                {showOtp && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mx-5 mt-6 p-5 rounded-3xl bg-gradient-to-br from-[#f2546d]/20 to-pink-900/10 border border-[#f2546d]/30 shadow-xl"
+                    >
+                        <div className="flex items-center gap-2 mb-3">
+                            <svg className="w-4 h-4 text-[#f2546d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <span className="text-xs font-black text-[#f2546d] uppercase tracking-[0.2em]">Return Pickup OTP</span>
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                            {order.otp_return.split('').map((digit: string, i: number) => (
+                                <div key={i} className="flex-1 aspect-square max-w-[56px] flex items-center justify-center rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black shadow-inner">
+                                    {digit}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-zinc-400 text-center font-medium">
+                            Share this code with the rider when they arrive to collect your items
+                        </p>
+                    </motion.div>
+                )}
+
+                {/* Rider info */}
+                <section className="px-5 mt-6 flex items-center gap-4">
+                    <img src={deliveryPartnerAvatar} alt="Rider" className="w-[64px] h-[64px] flex-shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-xl text-white font-bold tracking-tight" style={dmSans}>
+                            {riderProfile?.name ?? 'Rider Assigned'}
+                        </p>
+                        <p className="text-sm text-zinc-400 mt-0.5">is your pickup rider</p>
                     </div>
-                </div>
-
-                {/* ─── DELIVERY PARTNER INFO ─── */}
-                <section className="px-5 mt-8 flex items-center gap-4">
-                    {/* Avatar */}
-                    <img
-                        src={deliveryPartnerAvatar}
-                        alt="Delivery Partner"
-                        className="w-[72px] h-[72px] flex-shrink-0"
-                    />
-
-                    {/* Name */}
-                    <p
-                        className="text-2xl text-white tracking-[-0.72px] leading-[28.8px] flex-1"
-                        style={dmSans}
-                    >
-                        {pickupData.deliveryPartner.name} is your{"\n"}delivery
-                        partner
-                    </p>
-
-                    {/* Phone Icon */}
-                    <button
-                        onClick={() =>
-                            (window.location.href = `tel:${pickupData.deliveryPartner.phone}`)
-                        }
-                        className="flex-shrink-0"
-                    >
-                        <PhoneCallIcon className="w-6 h-6 text-[#f2546d]" />
-                    </button>
+                    {riderProfile?.phone ? (
+                        <a href={`tel:${riderProfile.phone}`} className="flex-shrink-0">
+                            <PhoneCallIcon className="w-6 h-6 text-[#f2546d]" />
+                        </a>
+                    ) : (
+                        <button onClick={() => window.location.href = 'tel:+918000155299'} className="flex-shrink-0">
+                            <PhoneCallIcon className="w-6 h-6 text-[#f2546d]" />
+                        </button>
+                    )}
                 </section>
 
-                {/* ─── ADDRESS ─── */}
-                <section className="px-5 mt-8">
-                    <h3
-                        className="text-lg font-black text-white tracking-[-0.54px]"
-                        style={dmSans}
-                    >
-                        Address
-                    </h3>
-                    <p
-                        className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-2 leading-relaxed"
-                        style={dmSans}
-                    >
-                        {pickupData.address.line1}
-                        <br />
-                        {pickupData.address.pincode}
-                        <br />
-                        {pickupData.address.cityState}
-                        <br />
-                        {pickupData.address.country}
-                    </p>
+                {/* Address */}
+                <section className="px-5 mt-6">
+                    <h3 className="text-base font-black text-white tracking-tight mb-2" style={dmSans}>Pickup Address</h3>
+                    <p className="text-sm text-[#b4b4b4] leading-relaxed" style={dmSans}>{address}</p>
                 </section>
 
-                {/* Spacer */}
                 <div className="flex-1" />
 
-                {/* ─── BOTTOM BUTTONS ─── */}
+                {/* Bottom buttons */}
                 <div className="flex gap-4 px-5 pb-8 pt-6">
                     <button
                         onClick={() => navigate(-1)}
                         className="flex-1 h-[50px] flex items-center justify-center rounded-2xl border border-[#484848] bg-transparent"
                     >
-                        <span
-                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                            style={dmSans}
-                        >
-                            Cancel Return
-                        </span>
+                        <span className="text-base font-semibold text-white" style={dmSans}>Go Back</span>
                     </button>
                     <button
-                        onClick={() => navigate("/home")}
+                        onClick={() => navigate("/")}
                         className="flex-1 h-[50px] flex items-center justify-center rounded-2xl bg-[#f2546d]"
                     >
-                        <span
-                            className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                            style={dmSans}
-                        >
-                            Okay
-                        </span>
+                        <span className="text-base font-semibold text-white" style={dmSans}>Home</span>
                     </button>
                 </div>
             </main>

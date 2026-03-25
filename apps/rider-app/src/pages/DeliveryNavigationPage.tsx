@@ -32,10 +32,13 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+const RETURN_STATUSES = ['return_dispatched', 'return_picked_up', 'return_at_warehouse'];
+
 interface DeliveryOrder {
   id: string;
   status: string;
   otp_delivery?: string;
+  otp_return?: string;
   delivery_address_snapshot?: {
     full_address?: string;
     lat?: number;
@@ -81,11 +84,21 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,otp_delivery,delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
+          .select('id,status,otp_delivery,otp_return,delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
-        setOrder(data as unknown as DeliveryOrder);
+        const order = data as unknown as DeliveryOrder;
+        setOrder(order);
+        // If already delivered (e.g. rider navigates back), go home
+        if (order.status === 'delivered') {
+          navigate('/');
+          return;
+        }
+        // Auto-open OTP modal on reload — rider is here to deliver/collect, skip the button tap
+        if (['out_for_delivery', 'dispatched', 'return_dispatched'].includes(order.status)) {
+          setShowOtpModal(true);
+        }
       } catch (err) {
         console.error(err);
         showToast('Order not found', 'error');
@@ -271,40 +284,72 @@ export const DeliveryNavigationPage: React.FC = () => {
     setOtpVerifying(true);
     setOtpError('');
 
+    const isReturn = order ? RETURN_STATUSES.includes(order.status) : false;
+
     try {
-      // Verify OTP against Supabase / localStorage
-      const result = await verifyDeliveryOtp(id, otpValue);
-      if (!result.success) {
-        setOtpError(result.error || 'Incorrect OTP. Please try again.');
+      if (isReturn) {
+        // Return pickup: use the atomic verify_order_otp RPC which verifies otp_return
+        // AND transitions return_dispatched → return_picked_up in one server-side call.
+        // We cannot use transitionOrderState here because the transition_order_state RPC
+        // does not include return_dispatched → return_picked_up in its rider transitions.
+        const { data, error } = await supabase.rpc('verify_order_otp', {
+          p_order_id: id,
+          p_otp_code: otpValue,
+          p_otp_type: 'return',
+          p_actor_id: user.id,
+        });
+        if (error || !data?.success) {
+          setOtpError(data?.message || error?.message || 'Incorrect OTP. Please try again.');
+          setOtpVerifying(false);
+          return;
+        }
+      } else {
+        // Regular delivery: verify OTP, stop tracking, then transition via state machine
+        const result = await verifyDeliveryOtp(id, otpValue, 'otp_delivery');
+        if (!result.success) {
+          setOtpError(result.error || 'Incorrect OTP. Please try again.');
+          setOtpVerifying(false);
+          return;
+        }
+
         setOtpVerifying(false);
+        setDeliveryCompleting(true);
+
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+        await stopDeliveryTracking(id);
+
+        const transition = await transitionOrderState(id, 'delivered' as any, 'rider', user.id);
+        if (!transition.success) throw new Error(transition.message);
+
+        setShowOtpModal(false);
+        showToast('Delivery completed! ✅', 'success');
+        navigate('/');
         return;
       }
 
-      // OTP verified — complete delivery
+      // Return flow post-verification cleanup
       setOtpVerifying(false);
-      setShowOtpModal(false);
       setDeliveryCompleting(true);
 
-      // Stop GPS watch
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
-
-      // Deactivate tracking row
       await stopDeliveryTracking(id);
 
-      const transition = await transitionOrderState(id, 'delivered', 'rider', user.id);
-      if (!transition.success) throw new Error(transition.message);
-
-      showToast('Delivery completed! ✅', 'success');
-      navigate('/');
+      setShowOtpModal(false);
+      showToast('Return collected! Head to the warehouse. ✅', 'success');
+      navigate(`/warehouse/${id}`);
     } catch (err: any) {
-      setOtpError(err.message || 'Failed to complete delivery');
-      setOtpVerifying(false);
+      // Modal may or may not be open — use toast so it's always visible
       setDeliveryCompleting(false);
+      setOtpVerifying(false);
+      showToast(err.message || 'Failed to complete. Try again.', 'error');
     }
-  }, [id, user?.id, otpValue, showToast, navigate]);
+  }, [id, user?.id, order, otpValue, showToast, navigate]);
 
   // ── Render helpers ───────────────────────────────────────────────────────────
 
@@ -386,7 +431,7 @@ export const DeliveryNavigationPage: React.FC = () => {
             {deliveryCompleting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <><CheckCircle size={18} /> Mark as Delivered</>
+              <><CheckCircle size={18} /> {order && RETURN_STATUSES.includes(order.status) ? 'Mark as Collected' : 'Mark as Delivered'}</>
             )}
           </button>
         </div>
@@ -405,7 +450,7 @@ export const DeliveryNavigationPage: React.FC = () => {
             >
               <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
                 <h3 className="font-semibold text-white flex items-center gap-2">
-                  <KeyRound size={18} className="text-emerald-400" /> Verify Delivery
+                  <KeyRound size={18} className="text-emerald-400" /> {order && RETURN_STATUSES.includes(order.status) ? 'Verify Return Pickup' : 'Verify Delivery'}
                 </h3>
                 <button
                   onClick={() => { if (!otpVerifying) setShowOtpModal(false); }}
@@ -417,7 +462,9 @@ export const DeliveryNavigationPage: React.FC = () => {
               </div>
               <div className="p-6 space-y-5 text-center">
                 <p className="text-sm text-zinc-400">
-                  Ask the customer for the 4-digit delivery OTP shown on their app.
+                  {order && RETURN_STATUSES.includes(order.status)
+                    ? 'Ask the customer for the 4-digit return pickup OTP shown on their app.'
+                    : 'Ask the customer for the 4-digit delivery OTP shown on their app.'}
                 </p>
 
                 <input
