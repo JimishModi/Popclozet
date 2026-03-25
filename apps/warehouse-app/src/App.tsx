@@ -48,10 +48,10 @@ function App() {
         );
     }
 
-    // Role check: Only profiles with role='admin'
-    const isAdmin = profile?.role === 'admin';
-    if (profile && !isAdmin) {
-        return <WrongRoleScreen expectedRole="admin" currentRole={profile.role} />;
+    // Role check: Allow 'warehouse' and 'admin' roles
+    const isAuthorized = profile?.role === 'warehouse' || profile?.role === 'admin';
+    if (profile && !isAuthorized) {
+        return <WrongRoleScreen expectedRole="warehouse" currentRole={profile.role} />;
     }
 
     return (
