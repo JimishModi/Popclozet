@@ -160,8 +160,11 @@ const MobileHome: React.FC = () => {
                     // Recalculate Road Distance for New Detection
                     try {
                         const { getRoadDistance } = await import("@/services/mapServices");
-                        const WAREHOUSE_LNG_LAT: [number, number] = [72.9135, 19.1305];
-                        const distRes = await getRoadDistance(WAREHOUSE_LNG_LAT, [result.lng, result.lat]);
+                        const WAREHOUSE_COORDS = { lat: 19.1305, lng: 72.9135 };
+                        const distRes = await getRoadDistance(WAREHOUSE_COORDS, {
+                            lat: result.lat,
+                            lng: result.lng
+                        });
                         
                         let estimate: '15min' | 'delayed' = '15min';
                         if (distRes.status === 'success') {

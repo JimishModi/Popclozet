@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@popclozet/api-client";
 import { getUserOrders, DeliveryOrder as DeliveryOrderType } from "@/services/deliveryService";
@@ -63,6 +63,8 @@ export function useOrders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const channelNameRef = useRef(`orders_${user?.id}_${Math.random().toString(36).slice(2, 9)}`);
+
 
     const fetchOrders = useCallback(async () => {
         if (!user) {
@@ -91,7 +93,7 @@ export function useOrders() {
         if (!user) return;
 
         const channel = supabase
-            .channel(`orders_${user.id}`)
+            .channel(channelNameRef.current)
             .on(
                 "postgres_changes",
                 {
@@ -159,6 +161,8 @@ export function useOrder(orderId: string) {
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const channelNameRef = useRef(`order_${orderId}_${Math.random().toString(36).slice(2, 9)}`);
+
 
     const fetchOrder = useCallback(async () => {
         if (!orderId) {
@@ -195,7 +199,7 @@ export function useOrder(orderId: string) {
 
         // Subscribe to real-time updates for this specific order
         const channel = supabase
-            .channel(`order_${orderId}`)
+            .channel(channelNameRef.current)
             .on(
                 "postgres_changes",
                 {
