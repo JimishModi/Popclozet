@@ -1,47 +1,68 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ChevronLeft, Package } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    ChevronLeft, Package, Phone, MessageCircle,
+    MapPin, KeyRound, Truck, Clock, CheckCircle2,
+} from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { getOrderById } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
+import { OrderChat } from "@/components/map/OrderChat";
 import deliveryPartnerAvatar from "@/assets/icons/delivery-partner-avatar.svg";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
-const PhoneCallIcon = ({ className }: { className?: string }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none">
-        <path
-            d="M12.96 1a1 1 0 0 1 1-1c2.65.003 5.19 1.057 7.07 2.932A10.01 10.01 0 0 1 23.96 10a1 1 0 1 1-2 0c0-2.12-.85-4.15-2.35-5.65A7.99 7.99 0 0 0 13.96 2a1 1 0 0 1-1-1ZM13.96 6a4 4 0 0 1 4 4 1 1 0 1 0 2 0 6 6 0 0 0-6-6 1 1 0 1 0 0 2Zm9.09 10.74c.58.58.9 1.37.9 2.19s-.32 1.6-.9 2.19l-.91 1.05c-8.19 7.84-28.12-12.08-20.4-20.3l1.15-1a3.07 3.07 0 0 1 4.33.04l1.88 2.44c.55.58.86 1.35.86 2.14a3.03 3.03 0 0 1-.87 2.14l-1.16 1.46c.64 1.56 1.58 2.97 2.77 4.16a14.8 14.8 0 0 0 4.16 2.78l1.47-1.16a3.04 3.04 0 0 1 4.28-.01l2.44 1.88Z"
-            fill="currentColor"
-        />
-    </svg>
-);
+const STATUS_ORDER = ['return_scheduled', 'return_dispatched', 'return_picked_up', 'returned'];
 
-// Statuses where the rider is on the way to pick up
-const RIDER_EN_ROUTE_STATUSES = ['return_dispatched', 'return_picked_up'];
+const STATUS_STEPS = [
+    { key: 'return_scheduled',  label: 'Return Scheduled',  Icon: Clock },
+    { key: 'return_dispatched', label: 'Rider Assigned',    Icon: Truck },
+    { key: 'return_picked_up',  label: 'Items Collected',   Icon: Package },
+    { key: 'returned',          label: 'Return Complete',   Icon: CheckCircle2 },
+];
+
+const STATUS_LABEL: Record<string, string> = {
+    return_scheduled:  'Pickup Scheduled',
+    return_dispatched: 'Rider On the Way',
+    return_picked_up:  'Items Collected',
+    returned:          'Return Complete',
+};
+
+const RIDER_EN_ROUTE = ['return_dispatched', 'return_picked_up'];
 
 export default function PickupTrackingPage() {
-    // Route is /pickup-tracking/:pickupId
     const { pickupId } = useParams<{ pickupId: string }>();
     const navigate = useNavigate();
 
-    const [order, setOrder] = useState<any>(null);
+    const [order,        setOrder]       = useState<any>(null);
+    const [items,        setItems]       = useState<any[]>([]);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string } | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading,      setLoading]     = useState(true);
+    const [showChat,     setShowChat]    = useState(false);
 
+    // Initial fetch + realtime subscription
     useEffect(() => {
         if (!pickupId) return;
 
-        const fetchOrder = async () => {
+        const fetchAll = async () => {
             try {
-                const data = await getOrderById(pickupId);
-                setOrder(data);
-                if (data?.rider_id) {
+                const [orderData, itemsRes] = await Promise.all([
+                    getOrderById(pickupId),
+                    supabase
+                        .from('order_items')
+                        .select('*, products(*)')
+                        .eq('order_id', pickupId),
+                ]);
+
+                setOrder(orderData);
+                if (itemsRes.data) setItems(itemsRes.data);
+
+                if (orderData?.rider_id) {
                     const { data: rp } = await supabase
                         .from('rider_profiles')
                         .select('full_name, phone')
-                        .eq('user_id', data.rider_id)
+                        .eq('user_id', orderData.rider_id)
                         .single();
                     if (rp) setRiderProfile({ name: rp.full_name || 'Your Rider', phone: rp.phone || '' });
                 }
@@ -52,33 +73,36 @@ export default function PickupTrackingPage() {
             }
         };
 
-        fetchOrder();
+        fetchAll();
 
-        // Subscribe to real-time order status changes
         const channel = supabase
-            .channel(`pickup_order:${pickupId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `id=eq.${pickupId}`,
-                },
-                async () => {
-                    const updated = await getOrderById(pickupId);
-                    if (updated) setOrder(updated);
-                }
-            )
+            .channel(`pickup_tracking:${pickupId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'orders',
+                filter: `id=eq.${pickupId}`,
+            }, async () => {
+                const updated = await getOrderById(pickupId);
+                if (updated) setOrder(updated);
+            })
             .subscribe();
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [pickupId]);
 
-    const address = order?.delivery_address?.full_address ?? '—';
-    const showOtp = order?.otp_return && RIDER_EN_ROUTE_STATUSES.includes(order?.status);
+    // Fetch rider whenever rider_id appears on order
+    useEffect(() => {
+        if (!order?.rider_id || riderProfile) return;
+        supabase
+            .from('rider_profiles')
+            .select('full_name, phone')
+            .eq('user_id', order.rider_id)
+            .single()
+            .then(({ data }) => {
+                if (data) setRiderProfile({ name: data.full_name || 'Your Rider', phone: data.phone || '' });
+            });
+    }, [order?.rider_id]);
 
     if (loading) {
         return (
@@ -90,62 +114,87 @@ export default function PickupTrackingPage() {
         );
     }
 
+    const currentStatusIdx = STATUS_ORDER.indexOf(order?.status ?? '');
+    const showOtp   = order?.otp_return && RIDER_EN_ROUTE.includes(order?.status);
+    const statusLabel = STATUS_LABEL[order?.status] ?? 'Return in Progress';
+    const pickupAddress = order?.delivery_address?.full_address ?? '—';
+    const returnDate    = order?.return_pickup_date ?? null;
+    const returnSlot    = order?.return_time_slot ?? null;
+
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
-            <main className="flex-1 overflow-y-auto flex flex-col">
-                {/* Header */}
-                <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4 border-b border-white/5 flex items-center gap-3">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
-                    >
-                        <ChevronLeft className="w-6 h-6 text-white" />
-                    </button>
+            {/* Header */}
+            <header className="sticky top-0 z-50 bg-[#111111]/90 backdrop-blur-lg px-5 py-4 border-b border-white/5 flex items-center gap-3">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
+                >
+                    <ChevronLeft className="w-6 h-6 text-white" />
+                </button>
+                <div className="flex-1">
                     <h1 className="text-xl font-bold text-white tracking-tight" style={dmSans}>Return Pickup</h1>
-                </header>
+                    <p className="text-xs text-zinc-500 mt-0.5">#{(pickupId ?? '').slice(0, 8).toUpperCase()}</p>
+                </div>
+                <div className="px-3 py-1.5 rounded-full bg-[#f2546d]/10 border border-[#f2546d]/20">
+                    <span className="text-[#f2546d] text-[10px] font-black uppercase tracking-widest">{statusLabel}</span>
+                </div>
+            </header>
 
-                {/* Map placeholder */}
-                <section className="relative h-[200px] flex-shrink-0 bg-gradient-to-br from-[#1a1a1a] to-black rounded-b-3xl mb-6">
-                    <div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full blur-[100px] pointer-events-none z-10"
-                        style={{ background: "radial-gradient(circle, rgba(242,84,109,0.3) 0%, rgba(0,0,0,0) 70%)" }}
-                    />
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
-                        <Package className="w-10 h-10 text-zinc-600 mb-2" />
-                        <p className="text-zinc-500 text-sm">Rider on the way</p>
-                    </div>
+            <main className="flex-1 overflow-y-auto pb-24 no-scrollbar">
+
+                {/* ── Status Timeline ── */}
+                <section className="px-5 pt-6 pb-2">
+                    {STATUS_STEPS.map((step, idx) => {
+                        const stepIdx = STATUS_ORDER.indexOf(step.key);
+                        const isDone    = currentStatusIdx >= stepIdx && currentStatusIdx !== -1;
+                        const isCurrent = currentStatusIdx === stepIdx;
+                        const { Icon } = step;
+                        return (
+                            <div key={step.key} className="flex items-start gap-4">
+                                <div className="flex flex-col items-center">
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
+                                        isDone
+                                            ? 'bg-[#f2546d] border-[#f2546d] text-white'
+                                            : 'bg-[#1a1a1a] border-zinc-700 text-zinc-600'
+                                    } ${isCurrent ? 'shadow-lg shadow-[#f2546d]/30' : ''}`}>
+                                        <Icon className="w-4 h-4" />
+                                    </div>
+                                    {idx < STATUS_STEPS.length - 1 && (
+                                        <div className={`w-0.5 h-8 mt-1 transition-colors ${
+                                            currentStatusIdx > stepIdx ? 'bg-[#f2546d]' : 'bg-zinc-800'
+                                        }`} />
+                                    )}
+                                </div>
+                                <div className="pt-1.5 pb-8">
+                                    <p className={`text-sm font-bold ${isDone ? 'text-white' : 'text-zinc-600'}`} style={dmSans}>
+                                        {step.label}
+                                    </p>
+                                    {isCurrent && (
+                                        <p className="text-xs text-[#f2546d] mt-0.5 font-medium">Current Status</p>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </section>
 
-                {/* Status banner */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="w-full flex flex-col items-center justify-center py-5 bg-[#f2546d]"
-                >
-                    <span className="text-xl font-semibold text-white tracking-tight" style={dmSans}>
-                        {order?.status === 'return_picked_up' ? 'Items Collected' : 'Rider Coming to Pick Up'}
-                    </span>
-                    <span className="text-sm text-white/80 mt-1" style={dmSans}>
-                        Order #{(pickupId ?? '').slice(0, 8).toUpperCase()}
-                    </span>
-                </motion.div>
-
-                {/* Return OTP card */}
+                {/* ── Return OTP ── */}
                 {showOtp && (
-                    <motion.div
+                    <motion.section
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="mx-5 mt-6 p-5 rounded-3xl bg-gradient-to-br from-[#f2546d]/20 to-pink-900/10 border border-[#f2546d]/30 shadow-xl"
+                        className="mx-5 mb-6 p-5 rounded-3xl bg-gradient-to-br from-[#f2546d]/20 to-pink-900/10 border border-[#f2546d]/30 shadow-xl shadow-[#f2546d]/10"
                     >
                         <div className="flex items-center gap-2 mb-3">
-                            <svg className="w-4 h-4 text-[#f2546d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                            </svg>
+                            <KeyRound className="w-4 h-4 text-[#f2546d]" />
                             <span className="text-xs font-black text-[#f2546d] uppercase tracking-[0.2em]">Return Pickup OTP</span>
                         </div>
                         <div className="flex items-center gap-3 mb-3">
-                            {order.otp_return.split('').map((digit: string, i: number) => (
-                                <div key={i} className="flex-1 aspect-square max-w-[56px] flex items-center justify-center rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black shadow-inner">
+                            {(order.otp_return as string).split('').map((digit, i) => (
+                                <div
+                                    key={i}
+                                    className="flex-1 aspect-square max-w-[56px] flex items-center justify-center rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black shadow-inner"
+                                >
                                     {digit}
                                 </div>
                             ))}
@@ -153,53 +202,150 @@ export default function PickupTrackingPage() {
                         <p className="text-xs text-zinc-400 text-center font-medium">
                             Share this code with the rider when they arrive to collect your items
                         </p>
-                    </motion.div>
+                    </motion.section>
                 )}
 
-                {/* Rider info */}
-                <section className="px-5 mt-6 flex items-center gap-4">
-                    <img src={deliveryPartnerAvatar} alt="Rider" className="w-[64px] h-[64px] flex-shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-xl text-white font-bold tracking-tight" style={dmSans}>
-                            {riderProfile?.name ?? 'Rider Assigned'}
-                        </p>
-                        <p className="text-sm text-zinc-400 mt-0.5">is your pickup rider</p>
+                {/* ── Items to Return ── */}
+                {items.length > 0 && (
+                    <section className="mx-5 mb-6">
+                        <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-3">Items to Return</h3>
+                        <div className="rounded-3xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+                            {items.map((item, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`flex gap-4 items-center p-4 ${idx < items.length - 1 ? 'border-b border-zinc-800' : ''}`}
+                                >
+                                    <div className="w-14 h-14 rounded-2xl bg-zinc-800 overflow-hidden flex-shrink-0 border border-white/5">
+                                        {item.products?.images?.[0] ? (
+                                            <img src={item.products.images[0]} alt={item.products.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Package className="w-6 h-6 text-zinc-700" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-black text-white truncate uppercase tracking-tight" style={dmSans}>
+                                            {item.products?.name || 'Item'}
+                                        </p>
+                                        <p className="text-xs text-zinc-500 mt-0.5 font-bold uppercase tracking-widest">
+                                            Size: {item.size}
+                                        </p>
+                                    </div>
+                                    <p className="text-sm font-black text-white">₹{item.rental_price}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* ── Rider Card ── */}
+                {riderProfile && (
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mx-5 mb-6 p-5 rounded-3xl bg-zinc-900 border border-zinc-800"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">Your Rider</span>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-emerald-500 text-[10px] font-black uppercase tracking-widest">Active</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <img src={deliveryPartnerAvatar} alt="Rider" className="w-14 h-14 flex-shrink-0" />
+                            <div className="flex-1">
+                                <p className="text-base font-bold text-white" style={dmSans}>{riderProfile.name}</p>
+                                <p className="text-sm text-zinc-400 mt-0.5">is coming to collect your items</p>
+                            </div>
+                            {riderProfile.phone ? (
+                                <a
+                                    href={`tel:${riderProfile.phone}`}
+                                    className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                                >
+                                    <Phone className="w-5 h-5 text-black" />
+                                </a>
+                            ) : (
+                                <button
+                                    onClick={() => { window.location.href = 'tel:+918000155299'; }}
+                                    className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                                >
+                                    <Phone className="w-5 h-5 text-black" />
+                                </button>
+                            )}
+                        </div>
+                    </motion.section>
+                )}
+
+                {/* ── Pickup Details ── */}
+                <section className="mx-5 mb-6 p-5 rounded-3xl bg-zinc-900 border border-zinc-800">
+                    <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-4">Pickup Details</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                            <MapPin className="w-4 h-4 text-[#f2546d] mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Address</p>
+                                <p className="text-sm text-white mt-1 leading-relaxed">{pickupAddress}</p>
+                            </div>
+                        </div>
+                        {(returnDate || returnSlot) && (
+                            <div className="flex items-start gap-3">
+                                <Clock className="w-4 h-4 text-[#f2546d] mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Scheduled Slot</p>
+                                    <p className="text-sm text-white mt-1">
+                                        {returnDate
+                                            ? new Date(returnDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : ''}
+                                        {returnSlot ? ` • ${returnSlot}` : ''}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    {riderProfile?.phone ? (
-                        <a href={`tel:${riderProfile.phone}`} className="flex-shrink-0">
-                            <PhoneCallIcon className="w-6 h-6 text-[#f2546d]" />
+                </section>
+
+                {/* ── Need Help ── */}
+                <section className="mx-5 mb-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+                    <h3 className="text-sm font-semibold text-white mb-3">Need Help?</h3>
+                    <div className="flex gap-3">
+                        <a
+                            href="tel:+918000155299"
+                            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 text-white text-sm font-medium hover:bg-zinc-700 transition-colors"
+                        >
+                            <Phone className="w-4 h-4" />
+                            Call
                         </a>
-                    ) : (
-                        <button onClick={() => window.location.href = 'tel:+918000155299'} className="flex-shrink-0">
-                            <PhoneCallIcon className="w-6 h-6 text-[#f2546d]" />
+                        <button
+                            onClick={() => setShowChat(true)}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 text-white text-sm font-medium hover:bg-zinc-700 transition-colors"
+                        >
+                            <MessageCircle className="w-4 h-4" />
+                            Chat
                         </button>
-                    )}
+                    </div>
                 </section>
 
-                {/* Address */}
-                <section className="px-5 mt-6">
-                    <h3 className="text-base font-black text-white tracking-tight mb-2" style={dmSans}>Pickup Address</h3>
-                    <p className="text-sm text-[#b4b4b4] leading-relaxed" style={dmSans}>{address}</p>
-                </section>
-
-                <div className="flex-1" />
-
-                {/* Bottom buttons */}
-                <div className="flex gap-4 px-5 pb-8 pt-6">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl border border-[#484848] bg-transparent"
+                <div className="mx-5">
+                    <a
+                        href={`mailto:popclozet@gmail.com?subject=Issue with Return #${pickupId}`}
+                        className="w-full flex items-center justify-center py-3 rounded-xl bg-zinc-900 border border-[#f2546d]/30 text-sm text-[#f2546d] hover:bg-[#f2546d]/10 transition-colors"
                     >
-                        <span className="text-base font-semibold text-white" style={dmSans}>Go Back</span>
-                    </button>
-                    <button
-                        onClick={() => navigate("/")}
-                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl bg-[#f2546d]"
-                    >
-                        <span className="text-base font-semibold text-white" style={dmSans}>Home</span>
-                    </button>
+                        Report an Issue
+                    </a>
                 </div>
             </main>
+
+            {/* Chat Drawer */}
+            <AnimatePresence>
+                {showChat && pickupId && (
+                    <div className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/60 backdrop-blur-sm">
+                        <div className="absolute inset-0" onClick={() => setShowChat(false)} />
+                        <OrderChat orderId={pickupId} onClose={() => setShowChat(false)} />
+                    </div>
+                )}
+            </AnimatePresence>
         </MobileShell>
     );
 }

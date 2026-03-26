@@ -407,7 +407,7 @@ const CategoryProductsPage: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                         {[...Array(6)].map((_, i) => (
                             <div key={i} className="rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 animate-pulse">
-                                <div className="aspect-[3/4] bg-white/5" />
+                                <div className="aspect-square md:aspect-[3/4] bg-white/5" />
                                 <div className="p-3 space-y-2">
                                     <div className="h-3.5 bg-white/5 rounded-lg w-3/4" />
                                     <div className="h-3 bg-white/5 rounded-lg w-1/2" />
@@ -447,7 +447,7 @@ const CategoryProductsPage: React.FC = () => {
                                         }
                                         className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
                                     >
-                                        <div className="aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
+                                        <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
                                             {imgSrc ? (
                                                 <img
                                                     src={thumbImage(imgSrc)}

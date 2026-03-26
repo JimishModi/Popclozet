@@ -297,7 +297,10 @@ const CartPage = () => {
         </button>
 
         {/* Product Image */}
-        <div className="w-24 h-24 rounded-2xl bg-zinc-800 flex-shrink-0 overflow-hidden border border-white/5">
+        <div 
+          onClick={() => navigate(`/product/${productId}`)}
+          className="w-24 h-24 rounded-2xl bg-zinc-800 flex-shrink-0 overflow-hidden border border-white/5 cursor-pointer hover:opacity-80 transition-opacity"
+        >
           {product.imageUrl && (
             <img
               src={product.imageUrl}
@@ -309,12 +312,14 @@ const CartPage = () => {
 
         {/* Content */}
         <div className="flex-1 min-w-0 pr-6">
-          <h3 className="text-base font-bold text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {product.category || "Zara"}
-          </h3>
-          <p className="text-sm text-zinc-500 font-medium truncate mt-0.5" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {product.name}
-          </p>
+          <div onClick={() => navigate(`/product/${productId}`)} className="cursor-pointer group inline-block max-w-full">
+            <h3 className="text-base font-bold text-white tracking-tight group-hover:underline" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              {product.category || "Zara"}
+            </h3>
+            <p className="text-sm text-zinc-500 font-medium truncate mt-0.5 group-hover:text-zinc-300 transition-colors" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              {product.name}
+            </p>
+          </div>
 
           {/* Date Selector (Rentals Only) */}
           {isRental && (

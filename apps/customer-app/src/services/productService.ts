@@ -739,7 +739,7 @@ class ProductService {
         try {
             const { data, error } = await (supabase as any)
                 .from('products')
-                .select('category, images, image_url')
+                .select('category, images')
                 .eq('is_available', true)
                 .not('category', 'is', null);
 
@@ -749,7 +749,7 @@ class ProductService {
             for (const p of data || []) {
                 const cat = p.category as string;
                 if (cat && !seen.has(cat)) {
-                    const img = (Array.isArray(p.images) ? p.images[0] : null) || p.image_url || '';
+                    const img = (Array.isArray(p.images) ? p.images[0] : null) || '';
                     seen.set(cat, img);
                 }
             }
@@ -760,7 +760,7 @@ class ProductService {
                 image: img,
             }));
         } catch (error) {
-            console.error('Error fetching categories:', error);
+            console.error('Error fetching categories:', (error as any)?.message ?? error);
             // Fallback: derive from cached IndexedDB products
             const db = await this.initDB();
             const products = await db.getAll('products');
