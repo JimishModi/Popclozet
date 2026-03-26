@@ -310,7 +310,7 @@ export async function getUserOrders(userId: string): Promise<DeliveryOrder[]> {
         .from('orders')
         .select(`
             *,
-            order_items (id),
+            order_items (id, products(name, images)),
             delivery_address:delivery_address_id!left (full_address, latitude, longitude)
         `)
         .eq('user_id', userId)

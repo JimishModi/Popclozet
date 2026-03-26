@@ -29,6 +29,8 @@ export interface Order {
         rating?: number;
     };
     etaMinutes?: number;
+    firstItemName?: string;
+    firstItemImage?: string;
 }
 
 function mapToOrder(raw: any): Order {
@@ -52,6 +54,8 @@ function mapToOrder(raw: any): Order {
         etaMinutes: (raw.delivery_eta || raw.estimated_delivery_at)
             ? Math.max(0, Math.round((new Date(raw.delivery_eta || raw.estimated_delivery_at).getTime() - Date.now()) / 60000))
             : undefined,
+        firstItemName: raw.order_items?.[0]?.products?.name ?? undefined,
+        firstItemImage: raw.order_items?.[0]?.products?.images?.[0] ?? undefined,
     };
 }
 
