@@ -26,36 +26,52 @@ import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 
 
+// Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
+function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType<unknown> }>) {
+  return lazy(() =>
+    importFn().catch((error) => {
+      const hasReloaded = sessionStorage.getItem("chunk_reload");
+      if (!hasReloaded) {
+        sessionStorage.setItem("chunk_reload", "1");
+        window.location.reload();
+        return new Promise(() => {}); // never resolves — page is reloading
+      }
+      sessionStorage.removeItem("chunk_reload");
+      throw error; // re-throw if reload already attempted
+    })
+  );
+}
+
 // Lazy pages
-const SignInPage = lazy(() => import("./pages/SignInPage"));
-const SignUpPage = lazy(() => import("./pages/SignUpPage"));
-const LoginPage = lazy(() => import("./pages/LoginPage"));
-const OtpVerificationPage = lazy(() => import("./pages/OtpVerificationPage"));
-const EmailVerifyCallbackPage = lazy(() => import("./pages/EmailVerifyCallbackPage"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
-const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
-const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
-const ClosetPage = lazy(() => import("./pages/ClosetPage"));
-const LiveClosetPage = lazy(() => import("./pages/LiveClosetPage"));
-const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage"));
-const CartPage = lazy(() => import("./pages/CartPage"));
-const CreateAccountPage = lazy(() => import("./pages/CreateAccountPage"));
-const AuthCallback = lazy(() => import("./pages/AuthCallback"));
-const MapLocationPage = lazy(() => import("./pages/MapLocationPage"));
-const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
-const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
-const AddressSelectionPage = lazy(() => import("./pages/AddressSelectionPage"));
-const ScheduleReturnPage = lazy(() => import("./pages/ScheduleReturnPage"));
-const WelcomePage = lazy(() => import("./pages/WelcomePage"));
-const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const SignOutPage = lazy(() => import("./pages/SignOutPage"));
-const OrderConfirmedPage = lazy(() => import("./pages/OrderConfirmedPage"));
-// const SubscriptionPlansPage = lazy(() => import("./pages/SubscriptionPlansPage"));
-const PaymentProcessingPage = lazy(() => import("./pages/PaymentProcessingPage"));
-const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
-const PaymentFailedPage = lazy(() => import("./pages/PaymentFailedPage"));
-// const SubscriptionProfilePage = lazy(() => import("./pages/SubscriptionProfilePage"));
+const SignInPage = lazyWithRetry(() => import("./pages/SignInPage"));
+const SignUpPage = lazyWithRetry(() => import("./pages/SignUpPage"));
+const LoginPage = lazyWithRetry(() => import("./pages/LoginPage"));
+const OtpVerificationPage = lazyWithRetry(() => import("./pages/OtpVerificationPage"));
+const EmailVerifyCallbackPage = lazyWithRetry(() => import("./pages/EmailVerifyCallbackPage"));
+const ProfilePage = lazyWithRetry(() => import("./pages/ProfilePage"));
+const CollectionsPage = lazyWithRetry(() => import("./pages/CollectionsPage"));
+const CategoryProductsPage = lazyWithRetry(() => import("./pages/CategoryProductsPage"));
+const ClosetPage = lazyWithRetry(() => import("./pages/ClosetPage"));
+const LiveClosetPage = lazyWithRetry(() => import("./pages/LiveClosetPage"));
+const HowItWorksPage = lazyWithRetry(() => import("./pages/HowItWorksPage"));
+const CartPage = lazyWithRetry(() => import("./pages/CartPage"));
+const CreateAccountPage = lazyWithRetry(() => import("./pages/CreateAccountPage"));
+const AuthCallback = lazyWithRetry(() => import("./pages/AuthCallback"));
+const MapLocationPage = lazyWithRetry(() => import("./pages/MapLocationPage"));
+const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackingPage"));
+const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage"));
+const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
+const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
+const WelcomePage = lazyWithRetry(() => import("./pages/WelcomePage"));
+const OnboardingPage = lazyWithRetry(() => import("./pages/OnboardingPage"));
+const SettingsPage = lazyWithRetry(() => import("./pages/SettingsPage"));
+const SignOutPage = lazyWithRetry(() => import("./pages/SignOutPage"));
+const OrderConfirmedPage = lazyWithRetry(() => import("./pages/OrderConfirmedPage"));
+// const SubscriptionPlansPage = lazyWithRetry(() => import("./pages/SubscriptionPlansPage"));
+const PaymentProcessingPage = lazyWithRetry(() => import("./pages/PaymentProcessingPage"));
+const PaymentSuccessPage = lazyWithRetry(() => import("./pages/PaymentSuccessPage"));
+const PaymentFailedPage = lazyWithRetry(() => import("./pages/PaymentFailedPage"));
+// const SubscriptionProfilePage = lazyWithRetry(() => import("./pages/SubscriptionProfilePage"));
 // Direct imports
 import QRHygienePage from "./pages/QRHygienePage";
 import QRScannerPage from "./pages/QRScannerPage";
