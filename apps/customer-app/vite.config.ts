@@ -83,6 +83,7 @@ export default defineConfig({
         clientsClaim: true,
 
         globPatterns: ["**/*.{js,css,html,ico,svg,woff,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
 
         runtimeCaching: [
           {
