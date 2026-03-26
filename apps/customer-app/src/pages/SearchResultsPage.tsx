@@ -339,7 +339,7 @@ const SearchResultsPage: React.FC = () => {
                                                 {product.name}
                                             </h3>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-white">₹{product.price}</span>
+                                                <span className="text-sm font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
                                             </div>
                                         </div>
                                     </motion.div>

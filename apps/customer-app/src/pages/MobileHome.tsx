@@ -10,17 +10,9 @@ import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { productService, Product } from "@/services/productService";
+import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/logo.png";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
-
-// --- Mock Data ---
-
-const COLLECTIONS = [
-    { id: "jackets", title: "Jackets", image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80" },
-    { id: "footwear", title: "Shoes", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80" },
-    { id: "party", title: "Party Wear", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=500&q=80" },
-    { id: "accessories", title: "Accessories", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=500&q=80" }
-];
 
 const FEATURED_SLIDES = [
     { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
@@ -62,6 +54,7 @@ const MobileHome: React.FC = () => {
     const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
     const [loadingCatalogue, setLoadingCatalogue] = useState(true);
     const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed'>('15min');
+    const [collections, setCollections] = useState<{ id: string; title: string; image: string }[]>([]);
 
     const { selectedHub } = useNearbyHubs({
         lat: userCoords?.lat,
@@ -90,6 +83,11 @@ const MobileHome: React.FC = () => {
     const filteredSlides = React.useMemo(() => {
         return FEATURED_SLIDES.filter(s => s.gender === activeGender || s.gender === "unisex");
     }, [activeGender]);
+
+    // Load categories from the products table
+    useEffect(() => {
+        productService.getCategories().then(setCollections);
+    }, []);
 
     // Auto-rotate featured slides
     useEffect(() => {
@@ -400,6 +398,9 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
+                {/* ─── ACTIVE DELIVERY BANNER ─── */}
+                <ActiveDeliveryBanner />
+
                 {/* ─── FEATURED CAROUSEL: 3-Card Peek ─── */}
                 <section className="mt-5 md:mt-8 overflow-hidden">
                     <div className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px]">
@@ -515,7 +516,7 @@ const MobileHome: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 md:gap-[18px]">
-                        {COLLECTIONS.slice(0, 5).map((collection, index) => (
+                        {collections.slice(0, 5).map((collection, index) => (
                             <motion.div
                                 key={collection.id}
                                 initial={{ opacity: 0, scale: 0.9 }}
@@ -796,7 +797,7 @@ const MobileHome: React.FC = () => {
                                                 )}
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-bold text-white">
-                                                        ₹{item.rentalPrice ?? item.price}
+                                                        ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
                                                     </span>
                                                     {item.price > (item.rentalPrice || item.price) && (
                                                         <span className="text-[10px] font-bold text-[#f2546d]">

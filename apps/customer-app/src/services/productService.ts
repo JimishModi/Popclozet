@@ -733,6 +733,50 @@ class ProductService {
             return [];
         }
     }
+
+    // Get distinct categories with a representative image each
+    async getCategories(): Promise<{ id: string; title: string; image: string }[]> {
+        try {
+            const { data, error } = await (supabase as any)
+                .from('products')
+                .select('category, images, image_url')
+                .eq('is_available', true)
+                .not('category', 'is', null);
+
+            if (error) throw error;
+
+            const seen = new Map<string, string>();
+            for (const p of data || []) {
+                const cat = p.category as string;
+                if (cat && !seen.has(cat)) {
+                    const img = (Array.isArray(p.images) ? p.images[0] : null) || p.image_url || '';
+                    seen.set(cat, img);
+                }
+            }
+
+            return Array.from(seen.entries()).map(([cat, img]) => ({
+                id: cat,
+                title: cat.charAt(0).toUpperCase() + cat.slice(1),
+                image: img,
+            }));
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            // Fallback: derive from cached IndexedDB products
+            const db = await this.initDB();
+            const products = await db.getAll('products');
+            const seen = new Map<string, string>();
+            for (const p of products) {
+                if (p.category && !seen.has(p.category)) {
+                    seen.set(p.category, p.imageUrl);
+                }
+            }
+            return Array.from(seen.entries()).map(([cat, img]) => ({
+                id: cat,
+                title: cat.charAt(0).toUpperCase() + cat.slice(1),
+                image: img,
+            }));
+        }
+    }
 }
 
 // Export singleton instance

@@ -495,7 +495,7 @@ const CategoryProductsPage: React.FC = () => {
                                             {isFake ? (
                                                 <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
                                             ) : (
-                                                <span className="text-base font-bold text-white">₹{product.price ?? product.rental_price}</span>
+                                                <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
                                             )}
                                         </div>
                                     </motion.div>

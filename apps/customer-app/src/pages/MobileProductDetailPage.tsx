@@ -114,7 +114,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [isAdded, setIsAdded] = useState(false);
-    const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("3d");
+    const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("1d");
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
