@@ -24,9 +24,10 @@ if (import.meta.env.DEV) {
 
 // Register PWA Service Worker (only in production)
 if (import.meta.env.PROD) {
-  registerSW({
+  const updateSW = registerSW({
     onNeedRefresh() {
-      console.log("🔄 New version available — refresh recommended");
+      // Auto-reload to apply new assets — prevents blank screen on installed PWA
+      updateSW(true);
     },
     onOfflineReady() {
       console.log("📦 App ready for offline usage");

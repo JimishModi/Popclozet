@@ -82,7 +82,7 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
 
-        globPatterns: ["**/*.{html,ico,svg,woff,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,svg,woff,woff2}"],
 
         runtimeCaching: [
           {
