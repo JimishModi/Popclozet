@@ -100,7 +100,6 @@ const HelpPage: React.FC = () => {
                     <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">Contact Us</h2>
                     <div className="bg-gradient-to-br from-white/8 to-white/3 rounded-2xl border border-white/5 overflow-hidden">
                         {[
-                            { icon: MessageCircle, label: "Live Chat", sub: "Avg. reply time: 5 minutes", action: () => { } },
                             { icon: Mail, label: "Email Support", sub: "businessrep@popclozet.in", action: () => window.open("mailto:businessrep@popclozet.in") },
                             { icon: PhoneIcon, label: "Call Us", sub: "+91 98765 43210", action: () => window.open("tel:+919876543210") },
                         ].map((item, i, arr) => {

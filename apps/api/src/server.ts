@@ -174,6 +174,84 @@ app.get('/api/location/directions', async (req, res) => {
 });
 
 /**
+ * GET /api/location/geocode
+ * Proxies to Mappls Geocode API (text address → lat/lng/eLoc)
+ * Avoids CORS since the old MapMyIndia REST endpoint blocks browser calls.
+ */
+app.get("/api/location/geocode", async (req, res) => {
+    const { address } = req.query;
+
+    if (!address) {
+        return res.status(400).json({ error: "address query param is required" });
+    }
+
+    try {
+        // Nominatim (OpenStreetMap) — free, no key, no domain restrictions.
+        // Problem: full addresses like "Pizza By The Bay, Churchgate, Ground Floor, 143, ..."
+        // include establishment names that Nominatim doesn't recognise.
+        // Fix: retry with progressively shorter address tails (drop leading components).
+        const fullAddress = address as string;
+        const parts = fullAddress.split(',').map((p: string) => p.trim()).filter(Boolean);
+
+        // Build candidate queries from most-specific to least-specific.
+        // Skipping 0 (full), 1, 2 leading parts gives: "Marine Drive, Church Gate, Mumbai..."
+        // We stop as soon as we get a result.
+        const candidates: string[] = [
+            fullAddress,
+            parts.slice(1).join(', '),   // skip establishment name
+            parts.slice(2).join(', '),   // skip establishment + floor/unit
+            parts.slice(3).join(', '),   // skip establishment + floor + house no
+        ].filter(q => q.length > 5);
+
+        let best: any = null;
+        let usedQuery = '';
+
+        for (const query of candidates) {
+            const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=in`;
+            console.log(`[GeoAPI] Nominatim trying: "${query}"`);
+
+            const response = await axios.get(nominatimUrl, {
+                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+            });
+
+            const results = response.data;
+            if (Array.isArray(results) && results.length > 0) {
+                best = results[0];
+                usedQuery = query;
+                break;
+            }
+            console.log(`[GeoAPI] No results for: "${query}", trying shorter form...`);
+        }
+
+        if (!best) {
+            console.warn(`[GeoAPI] All candidate queries exhausted for: ${fullAddress}`);
+            return res.status(404).json({ error: "No geocoding results found" });
+        }
+
+        const lat = parseFloat(best.lat);
+        const lng = parseFloat(best.lon);
+
+        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+            return res.status(404).json({ error: "Geocoding returned invalid coordinates" });
+        }
+
+        console.log(`[GeoAPI] ✓ Resolved via "${usedQuery}": lat=${lat} lng=${lng}`);
+        res.json({
+            lat,
+            lng,
+            eLoc: null,
+            displayAddress: best.display_name ?? fullAddress
+        });
+    } catch (error: any) {
+        console.error("[GeoAPI] Geocode error:", error.response?.data || error.message);
+        res.status(500).json({
+            error: "Geocoding failed",
+            detail: error.response?.data || error.message
+        });
+    }
+});
+
+/**
  * GET /api/location/distance
  * Proxies to MapmyIndia Distance Matrix API (on-road distance)
  */

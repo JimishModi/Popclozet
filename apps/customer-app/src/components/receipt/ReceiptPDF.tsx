@@ -1,6 +1,6 @@
 /**
  * ReceiptPDF — Client-side PDF receipt template
- * 
+ *
  * Uses @react-pdf/renderer to generate a branded PopClozet receipt
  * entirely in the browser. Works offline when order data is in IndexedDB.
  */
@@ -10,25 +10,18 @@ import {
     Page,
     Text,
     View,
+    Image,
     StyleSheet,
-    Font,
 } from "@react-pdf/renderer";
 import type { ReceiptData } from "@/lib/db";
+import { POPCLOZET_LOGO_BASE64 } from "./logoData";
 
-// Register a clean sans-serif font
-Font.register({
-    family: "Inter",
-    fonts: [
-        { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hjQ.woff2", fontWeight: 400 },
-        { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fAZ9hjQ.woff2", fontWeight: 600 },
-        { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYAZ9hjQ.woff2", fontWeight: 700 },
-    ],
-});
+// Use Helvetica (built-in PDF font) — no external fetch needed, avoids CSP issues
 
 const styles = StyleSheet.create({
     page: {
         padding: 40,
-        fontFamily: "Inter",
+        fontFamily: "Helvetica",
         fontSize: 10,
         color: "#1a1a1a",
         backgroundColor: "#ffffff",
@@ -38,14 +31,27 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "flex-start",
+        alignItems: "center",
         marginBottom: 30,
         borderBottomWidth: 2,
         borderBottomColor: "#f2546d",
         paddingBottom: 20,
     },
+    headerLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    logo: {
+        width: 48,
+        height: 48,
+        objectFit: "contain" as any,
+    },
+    brandTextBlock: {
+        justifyContent: "center",
+    },
     brandName: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: 700,
         color: "#f2546d",
         letterSpacing: -0.5,
@@ -53,7 +59,7 @@ const styles = StyleSheet.create({
     brandTagline: {
         fontSize: 9,
         color: "#666",
-        marginTop: 4,
+        marginTop: 2,
     },
     companyInfo: {
         textAlign: "right",
@@ -222,6 +228,10 @@ function formatDate(dateStr: string): string {
     }
 }
 
+function formatRupees(amount: number): string {
+    return `Rs. ${amount.toLocaleString("en-IN")}`;
+}
+
 interface ReceiptPDFProps {
     data: ReceiptData;
 }
@@ -231,11 +241,12 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
         <Page size="A4" style={styles.page}>
             {/* Header */}
             <View style={styles.header}>
-                <View>
-                    <Text style={styles.brandName}>PopClozet</Text>
-                    <Text style={styles.brandTagline}>
-                        Rent the Trend • Delivered in 60 Minutes
-                    </Text>
+                <View style={styles.headerLeft}>
+                    <Image src={POPCLOZET_LOGO_BASE64} style={styles.logo} />
+                    <View style={styles.brandTextBlock}>
+                        <Text style={styles.brandName}>PopClozet</Text>
+                        <Text style={styles.brandTagline}>Rent the Trend</Text>
+                    </View>
                 </View>
                 <View style={styles.companyInfo}>
                     <Text>PopClozet Fashion Pvt. Ltd.</Text>
@@ -280,7 +291,14 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
 
             {data.items.map((item, index) => (
                 <View key={index} style={styles.tableRow}>
-                    <Text style={styles.colName}>{item.name}</Text>
+                    <View style={styles.colName}>
+                        <Text>{item.name}</Text>
+                        {item.brand ? (
+                            <Text style={{ fontSize: 8, color: "#999", marginTop: 2 }}>
+                                {item.brand}
+                            </Text>
+                        ) : null}
+                    </View>
                     <Text style={[styles.colSize, { textAlign: "center" }]}>
                         {item.size}
                     </Text>
@@ -291,7 +309,7 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                         {item.days}
                     </Text>
                     <Text style={[styles.colPrice, { textAlign: "right" }]}>
-                        ₹{(item.rentalPrice * item.quantity).toLocaleString("en-IN")}
+                        {formatRupees(item.rentalPrice * item.quantity)}
                     </Text>
                 </View>
             ))}
@@ -301,36 +319,57 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                 <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Subtotal</Text>
                     <Text style={styles.totalValue}>
-                        ₹{data.subtotal.toLocaleString("en-IN")}
+                        {formatRupees(data.subtotal)}
                     </Text>
                 </View>
+                {(data.discount ?? 0) > 0 && (
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Discount</Text>
+                        <Text style={[styles.totalValue, { color: "#22c55e" }]}>
+                            -{formatRupees(data.discount ?? 0)}
+                        </Text>
+                    </View>
+                )}
                 <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Delivery Fee</Text>
                     <Text style={styles.totalValue}>
                         {data.deliveryFee === 0
                             ? "FREE"
-                            : `₹${data.deliveryFee.toLocaleString("en-IN")}`}
+                            : formatRupees(data.deliveryFee)}
                     </Text>
                 </View>
                 <View style={styles.grandTotalRow}>
-                    <Text style={styles.grandTotalLabel}>Total</Text>
+                    <Text style={styles.grandTotalLabel}>Total Paid</Text>
                     <Text style={styles.grandTotalValue}>
-                        ₹{data.total.toLocaleString("en-IN")}
+                        {formatRupees(data.total)}
                     </Text>
                 </View>
             </View>
 
-            {/* Delivery Address */}
-            <View style={styles.addressSection}>
-                <Text style={styles.addressLabel}>Delivery Address</Text>
-                <Text style={styles.addressText}>{data.deliveryAddress}</Text>
+            {/* Payment Method & Delivery Address */}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
+                {data.paymentMethod ? (
+                    <View style={[styles.addressSection, { flex: 1, marginTop: 0 }]}>
+                        <Text style={styles.addressLabel}>Payment Method</Text>
+                        <Text style={[styles.addressText, { fontWeight: 600 }]}>
+                            {data.paymentMethod.toUpperCase() === 'COD'
+                                ? 'Cash on Delivery'
+                                : data.paymentMethod.toUpperCase() === 'UPI'
+                                    ? 'UPI (Online)'
+                                    : data.paymentMethod.toUpperCase()}
+                        </Text>
+                    </View>
+                ) : null}
+                <View style={[styles.addressSection, { flex: 2, marginTop: 0 }]}>
+                    <Text style={styles.addressLabel}>Delivery Address</Text>
+                    <Text style={styles.addressText}>{data.deliveryAddress}</Text>
+                </View>
             </View>
 
             {/* Footer */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                    Thank you for renting with PopClozet! This receipt was generated
-                    on your device.
+                    Thank you for renting with PopClozet!
                 </Text>
                 <Text style={styles.footerBrand}>popclozet.com</Text>
             </View>

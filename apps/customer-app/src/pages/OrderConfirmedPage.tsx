@@ -6,6 +6,7 @@ import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
 import { useCart } from "@/context/CartContext";
 import { clearCartDB } from "@/lib/db";
+import type { ReceiptData } from "@/lib/db";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -14,6 +15,7 @@ export default function OrderConfirmedPage() {
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const { cartItems, removeFromCart } = useCart();
 
     // 0. Safety cart clear fallback on entry
@@ -120,45 +122,56 @@ export default function OrderConfirmedPage() {
     const orderValue = subtotal;
     const discount = estimatedDiscount;
 
-    const handleDownloadInvoice = () => {
+    const handleDownloadInvoice = async () => {
         if (!order) return toast.error("Invoice not ready");
 
-        const invoiceContent = `
-POPCLOZET - RENTAL INVOICE
-==========================
-Order ID: ${order.id}
-Date: ${new Date(order.created_at || Date.now()).toLocaleDateString()}
+        setIsGeneratingPdf(true);
+        try {
+            const { pdf } = await import("@react-pdf/renderer");
+            const { ReceiptPDF } = await import("@/components/receipt/ReceiptPDF");
 
-DELIVERY ADDRESS:
-${order?.addresses?.full_address || "N/A"}
+            const rentalDays = order.order_items?.[0]?.rental_duration_days || 3;
+            const startDate = order.rental_start_date || order.created_at || new Date().toISOString();
+            const endDate = order.rental_end_date || new Date(new Date(startDate).getTime() + rentalDays * 86400000).toISOString();
 
-ITEMS:
-${order?.order_items?.map((item: any, i: number) =>
-            `${i + 1}. ${item.products?.name || "Premium Item"} (${item.products?.brand || "Brand"}) - Size: ${item.size} - Plan: ${item.pricing_plan || (item.rental_duration_days + 'd')} - ₹${item.rental_price}`
-        ).join('\n')}
+            const receiptData: ReceiptData = {
+                orderId: order.id,
+                placedAt: order.created_at || new Date().toISOString(),
+                subtotal: Math.round(orderValue),
+                discount: Math.round(discount),
+                deliveryFee: Math.round(deliveryFee),
+                total: Math.round(totalAmount),
+                paymentMethod: order.payment_method || 'cod',
+                deliveryAddress: order.addresses?.full_address || "N/A",
+                rentalStartDate: startDate,
+                rentalEndDate: endDate,
+                items: (order.order_items || []).map((item: any) => ({
+                    name: item.products?.name || "Premium Item",
+                    brand: item.products?.brand || "",
+                    size: item.size || "Free",
+                    quantity: item.quantity || 1,
+                    days: item.rental_duration_days || rentalDays,
+                    rentalPrice: Number(item.rental_price) || 0,
+                })),
+            };
 
-PRICE BREAKDOWN:
-Order Value: ₹${Math.round(orderValue)}
-Discount: -₹${Math.round(discount)}
-Delivery Fee: ₹${Math.round(deliveryFee)}
---------------------------
-TOTAL PAID: ₹${Math.round(totalAmount)}
-PAYMENT METHOD: ${String(order?.payment_method || 'COD').toUpperCase()}
+            const blob = await pdf(<ReceiptPDF data={receiptData} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `PopClozet_Invoice_${order.id.slice(0, 8).toUpperCase()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
 
-Thank you for renting with PopClozet!
-        `.trim();
-
-        const blob = new Blob([invoiceContent], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `PopClozet_Invoice_${order.id || 'receipt'}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast.success("Invoice downloaded!");
+            toast.success("Invoice downloaded!");
+        } catch (err) {
+            console.error("PDF generation failed:", err);
+            toast.error("Failed to generate invoice. Please try again.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
     };
 
     return (
@@ -257,10 +270,11 @@ Thank you for renting with PopClozet!
                         <div className="flex gap-4">
                             <button
                                 onClick={handleDownloadInvoice}
-                                className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                                disabled={isGeneratingPdf}
+                                className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50"
                                 style={dmSans}
                             >
-                                Invoice
+                                {isGeneratingPdf ? "Generating..." : "Invoice"}
                             </button>
                             <button
                                 onClick={() => navigate("/home")}

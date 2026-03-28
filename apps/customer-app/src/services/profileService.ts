@@ -33,6 +33,8 @@ export interface ProfileRow {
     created_at: string;
     updated_at: string;
     delivery_estimate?: '15min' | 'delayed';
+    delivery_fee?: number;
+    delivery_distance_km?: number;
 }
 
 type ProfileWriteFields = Partial<{
@@ -45,6 +47,8 @@ type ProfileWriteFields = Partial<{
     onboarding_completed: boolean;
     measurements: Record<string, number>;
     delivery_estimate: '15min' | 'delayed';
+    delivery_fee: number;
+    delivery_distance_km: number;
 }>;
 
 function hasText(value: unknown): value is string {
@@ -167,6 +171,8 @@ async function writeProfileInsert(
         email: payload.email,
         gender: payload.gender,
         delivery_estimate: payload.delivery_estimate,
+        delivery_fee: payload.delivery_fee,
+        delivery_distance_km: payload.delivery_distance_km,
     });
 
     try {
@@ -194,6 +200,8 @@ async function writeProfileInsert(
         role: payload.role ?? 'customer',
         measurements: payload.measurements,
         delivery_estimate: payload.delivery_estimate,
+        delivery_fee: payload.delivery_fee,
+        delivery_distance_km: payload.delivery_distance_km,
     });
 
     await upsertWithOptionalColumnFallback(
@@ -215,6 +223,8 @@ async function writeProfileUpdate(
         email: payload.email,
         gender: payload.gender,
         delivery_estimate: payload.delivery_estimate,
+        delivery_fee: payload.delivery_fee,
+        delivery_distance_km: payload.delivery_distance_km,
     });
 
     try {
@@ -241,6 +251,8 @@ async function writeProfileUpdate(
         role: payload.role,
         measurements: payload.measurements,
         delivery_estimate: payload.delivery_estimate,
+        delivery_fee: payload.delivery_fee,
+        delivery_distance_km: payload.delivery_distance_km,
     });
 
     await updateWithOptionalColumnFallback(
@@ -288,6 +300,8 @@ export async function createProfile(fields: {
     onboarding_completed?: boolean;
     role?: string;
     delivery_estimate?: '15min' | 'delayed';
+    delivery_fee?: number;
+    delivery_distance_km?: number;
 }): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -300,6 +314,8 @@ export async function createProfile(fields: {
         gender: fields.gender || undefined,
         onboarding_completed: true,
         delivery_estimate: fields.delivery_estimate || '15min',
+        delivery_fee: fields.delivery_fee ?? 40,
+        delivery_distance_km: fields.delivery_distance_km ?? 0,
     });
 
     try {
@@ -343,6 +359,8 @@ export async function updateProfile(updates: Partial<{
     role: string;
     measurements: Record<string, number>;
     delivery_estimate: '15min' | 'delayed';
+    delivery_fee: number;
+    delivery_distance_km: number;
 }>): Promise<ProfileRow> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
@@ -356,6 +374,8 @@ export async function updateProfile(updates: Partial<{
         ...(typeof updates.onboarding_completed === 'boolean' ? { onboarding_completed: updates.onboarding_completed } : {}),
         ...(updates.measurements ? { measurements: updates.measurements } : {}),
         ...(updates.delivery_estimate ? { delivery_estimate: updates.delivery_estimate } : {}),
+        ...(updates.delivery_fee !== undefined ? { delivery_fee: updates.delivery_fee } : {}),
+        ...(updates.delivery_distance_km !== undefined ? { delivery_distance_km: updates.delivery_distance_km } : {}),
     });
 
     try {

@@ -17,6 +17,7 @@ export interface DistanceResult {
 export interface GeocodeResult {
     lat: number;
     lng: number;
+    eLoc?: string | null;
     status: 'success' | 'error';
     error?: string;
 }
@@ -75,29 +76,44 @@ export async function getRoadDistance(
 }
 
 /**
- * Geocode text address to coordinates using the backend proxy
+ * Geocode text address to coordinates via the backend proxy.
+ *
+ * The old approach (calling apis.mapmyindia.com directly from the browser) is
+ * blocked by CORS and returns 412 Precondition Failed.
+ * We route through /api/location/geocode which uses the server-side REST key.
  */
 export async function geocodeAddress(address: string): Promise<GeocodeResult> {
     try {
-        const url = `${API_BASE_URL}/api/location/search?query=${encodeURIComponent(address)}`;
+        const proxyUrl = `${API_BASE_URL}/api/location/geocode?address=${encodeURIComponent(address)}`;
+        console.log('[Geocode] Calling backend proxy:', proxyUrl);
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const res = await fetch(proxyUrl);
 
-        const results = await response.json();
-        const first = Array.isArray(results) ? results[0] : null;
+        // Log the raw response for debugging every time
+        const data = await res.json();
+        console.log('[Geocode] Raw backend geocode response:', JSON.stringify(data));
 
-        if (first && (first.latitude || first.lat)) {
-            return {
-                lat: parseFloat(first.latitude || first.lat),
-                lng: parseFloat(first.longitude || first.lng),
-                status: 'success'
-            };
+        if (!res.ok) {
+            console.error('[Geocode] Backend returned error:', res.status, data);
+            throw new Error(data?.error ?? `Backend returned HTTP ${res.status}`);
         }
 
-        throw new Error('No geocoding results');
+        const lat = typeof data.lat === 'number' ? data.lat : parseFloat(data.lat ?? '0');
+        const lng = typeof data.lng === 'number' ? data.lng : parseFloat(data.lng ?? '0');
+
+        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+            throw new Error('Geocoding returned invalid coordinates');
+        }
+
+        console.log(`[Geocode] ✓ Resolved: lat=${lat} lng=${lng} eLoc=${data.eLoc ?? 'none'}`);
+        return {
+            lat,
+            lng,
+            eLoc: data.eLoc ?? null,
+            status: 'success'
+        };
     } catch (err) {
-        console.error('Geocode error:', err);
+        console.error('[Geocode] ✗ Failed for address:', address, err);
         return {
             lat: 0,
             lng: 0,
@@ -105,4 +121,19 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult> {
             error: err instanceof Error ? err.message : 'Unknown error'
         };
     }
+}
+
+/**
+ * Sanity-check: are origin and destination suspiciously close?
+ * If both are within 0.1° (~11km) of each other AND we have no eLoc,
+ * coordinates may be stale/wrong.
+ */
+export function coordinatesAreSuspiciouslyClose(
+    origin: { lat: number; lng: number },
+    dest: { lat: number; lng: number }
+): boolean {
+    return (
+        Math.abs(origin.lat - dest.lat) < 0.1 &&
+        Math.abs(origin.lng - dest.lng) < 0.1
+    );
 }

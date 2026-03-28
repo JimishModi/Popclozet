@@ -206,6 +206,8 @@ export default function MapLocationPage() {
 
             setIsSaving(true);
             let deliveryEstimate: '15min' | 'delayed' = '15min';
+            let deliveryFee = 40;
+            let distanceKm = 0;
 
             // 2. Calculate road distance via backend proxy (same as CheckoutPage)
             try {
@@ -216,8 +218,11 @@ export default function MapLocationPage() {
                     eLoc: selectedAddress.eLoc
                 });
                 if (res.status === 'success') {
-                    deliveryEstimate = res.distanceKm > 6 ? 'delayed' : '15min';
-                    console.log(`🛣️ Distance: ${res.distanceKm.toFixed(2)}km -> ${deliveryEstimate}`);
+                    distanceKm = res.distanceKm;
+                    deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
+                    const { calculateDeliveryFee } = await import("@/services/deliveryService");
+                    deliveryFee = calculateDeliveryFee(distanceKm);
+                    console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
                 } else {
                     console.warn('Distance API returned error:', res.error);
                 }
@@ -260,6 +265,7 @@ export default function MapLocationPage() {
                             latitude: selectedAddress.lat,
                             longitude: selectedAddress.lng,
                             geohash: `${selectedAddress.lat.toFixed(2)}_${selectedAddress.lng.toFixed(2)}`,
+                            eloc: selectedAddress.eLoc || null,
                             is_default: true,
                         }).eq('id', existing.id);
                     } else {
@@ -271,18 +277,23 @@ export default function MapLocationPage() {
                             latitude: selectedAddress.lat,
                             longitude: selectedAddress.lng,
                             geohash: `${selectedAddress.lat.toFixed(2)}_${selectedAddress.lng.toFixed(2)}`,
+                            eloc: selectedAddress.eLoc || null,
                             is_default: true,
                         });
                         if (error) console.error("Error saving address to DB:", error);
                     }
 
-                    // 5. Update profile with the new estimate (for both new and existing addresses)
+                    // 5. Update profile with the new estimate, distance and fee
                     const { updateProfile } = await import("@/services/profileService");
                     try {
-                        await updateProfile({ delivery_estimate: deliveryEstimate });
-                        console.log('👤 Profile updated with estimate:', deliveryEstimate);
+                        await updateProfile({ 
+                            delivery_estimate: deliveryEstimate,
+                            delivery_distance_km: distanceKm,
+                            delivery_fee: deliveryFee
+                        });
+                        console.log('👤 Profile updated with delivery data:', { deliveryEstimate, distanceKm, deliveryFee });
                     } catch (err) {
-                        console.warn('Could not save delivery_estimate to profile:', err);
+                        console.warn('Could not save delivery data to profile:', err);
                     }
                 } catch (e) {
                     console.error("Error saving address:", e);

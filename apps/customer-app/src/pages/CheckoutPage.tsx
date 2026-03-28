@@ -209,10 +209,6 @@ export default function CheckoutPage() {
 
           console.log("[DistanceCheck] API verified distance:", distance);
           setActualDistance(distance);
-
-          if (distance > MAX_DELIVERY_DISTANCE_KM) {
-            // Distance warning popup removed
-          }
         } else {
           throw new Error("MapmyIndia API service error");
         }
@@ -225,6 +221,42 @@ export default function CheckoutPage() {
       }
     };
 
+    const reGeocodeAndFetch = async (addressText: string, reason: string) => {
+      console.warn(`[Checkout] Re-geocoding address (${reason}):`, addressText);
+      setIsResolvingAddress(true);
+      setDistanceError(null);
+
+      try {
+        const { geocodeAddress } = await import("@/services/mapServices");
+        const res = await geocodeAddress(addressText);
+
+        if (res.status === 'success' && (res.eLoc || (res.lat && res.lng))) {
+          const dest = res.eLoc ? res.eLoc : `${res.lng},${res.lat}`;
+          console.log(`[Checkout] Re-geocoded ✓  dest="${dest}" (lat=${res.lat} lng=${res.lng} eLoc=${res.eLoc ?? 'none'})`);
+
+          // Update deliveryAddress with fresh coords so the order record is correct
+          setDeliveryAddress(prev => prev ? {
+            ...prev,
+            lat: res.lat,
+            lng: res.lng,
+            eLoc: res.eLoc ?? prev.eLoc,
+          } : prev);
+
+          await fetchDistance(dest);
+        } else {
+          console.error('[Checkout] Re-geocoding returned no usable result for:', addressText);
+          setDistanceError("Could not verify delivery address. Please re-select your address.");
+          setActualDistance(null);
+        }
+      } catch (err) {
+        console.error('[Checkout] Re-geocoding threw:', err);
+        setDistanceError("Could not resolve address location");
+        setActualDistance(null);
+      } finally {
+        setIsResolvingAddress(false);
+      }
+    };
+
     if (deliveryAddress) {
       console.log("[Checkout] Starting distance check for:", deliveryAddress.formattedAddress);
 
@@ -234,37 +266,35 @@ export default function CheckoutPage() {
 
       console.log("[Checkout] Address Data:", { eLoc: deliveryAddress.eLoc, lat, lng, hasCoords });
 
+      // Sanity check: if stored coords are suspiciously close to the warehouse,
+      // the coordinates are likely stale from a previous address save.
+      const suspiciouslyCloseToWarehouse =
+        hasCoords &&
+        Math.abs(lat - WAREHOUSE_LOCATION.lat) < 0.1 &&
+        Math.abs(lng - WAREHOUSE_LOCATION.lng) < 0.1;
+
       if (deliveryAddress.eLoc) {
+        // Preferred path: use the eLoc directly (most accurate with MapMyIndia)
+        console.log("[Checkout] Using eLoc for distance:", deliveryAddress.eLoc);
         fetchDistance(deliveryAddress.eLoc);
-      } else if (hasCoords) {
-        fetchDistance(`${lng},${lat}`);
       } else if (deliveryAddress.formattedAddress) {
-        console.warn("[Checkout] No eLoc/coords — resolving via searchLocations");
-        setIsResolvingAddress(true);
-        setDistanceError(null);
-        searchLocations(deliveryAddress.formattedAddress)
-          .then((results) => {
-            const first = results?.[0];
-            if (first?.eLoc) {
-              fetchDistance(first.eLoc);
-            } else if (first?.lat && first?.lng) {
-              fetchDistance(`${first.lng},${first.lat}`);
-            } else {
-              setDistanceError("Could not resolve address coordinates");
-              setActualDistance(null);
-            }
-          })
-          .catch(() => {
-            setDistanceError("Could not resolve address coordinates");
-            setActualDistance(null);
-          })
-          .finally(() => setIsResolvingAddress(false));
+        // No eLoc — ALWAYS re-geocode the address text to get fresh coords + eLoc.
+        // Stored lat/lng may be stale from a previous address save (e.g. GPS location
+        // was used as fallback when geocoding failed on the map page).
+        if (suspiciouslyCloseToWarehouse) {
+          console.warn(
+            `[Checkout] ⚠️  Coords (${lat},${lng}) suspiciously close to warehouse ` +
+            `(${WAREHOUSE_LOCATION.lat},${WAREHOUSE_LOCATION.lng}) — likely stale.`
+          );
+        }
+        reGeocodeAndFetch(deliveryAddress.formattedAddress, !hasCoords ? 'no coordinates stored' : 'no eLoc — re-geocoding for accuracy');
       } else {
         setDistanceError("Location coordinates not found");
         setActualDistance(null);
       }
     }
   }, [deliveryAddress]);
+
 
   // Fetch cart products dynamically
   useEffect(() => {
@@ -393,7 +423,16 @@ export default function CheckoutPage() {
 
   const discount = originalTotal - subtotal;
 
-  const deliveryFeeBase = 40;
+  // Compute delivery fee from the LIVE distance check, not stale profile data.
+  // If the distance API hasn't responded yet, fall back to profile value.
+  const deliveryFeeBase = useMemo(() => {
+    if (actualDistance !== null && actualDistance > 0) {
+      // Import inline to avoid circular deps — same formula as deliveryService
+      const fee = actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
+      return fee;
+    }
+    return profile?.delivery_fee ?? 40;
+  }, [actualDistance, profile?.delivery_fee]);
 
   // FIX 5: Single source of truth for distance surcharge — removed as per request
   const distanceSurcharge = 0;
@@ -402,7 +441,7 @@ export default function CheckoutPage() {
     ? 0
     : hasFreeDeliveryBenefit
       ? 0
-      : (deliveryFeeBase + distanceSurcharge);
+      : deliveryFeeBase;
   const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
   const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
   const total = subtotal + deliveryFee + insuranceFee;
@@ -496,6 +535,7 @@ export default function CheckoutPage() {
             latitude: addrLat,
             longitude: addrLng,
             geohash: `${addrLat.toFixed(2)}_${addrLng.toFixed(2)}`,
+            eloc: deliveryAddress?.eLoc || null,
             is_default: true,
           })
           .select("id")
@@ -529,6 +569,7 @@ export default function CheckoutPage() {
           status: orderStatus,
           payment_method: paymentMethod,
           delivery_fee: deliveryFee,
+          route_distance_km: actualDistance || profile?.delivery_distance_km || 0,
         })
         .select("id")
         .single();
@@ -660,6 +701,10 @@ export default function CheckoutPage() {
                 ) : distanceLoading ? (
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
+                  </div>
+                ) : distanceError ? (
+                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-red-900/30 border border-red-500/20">
+                    <span className="text-[10px] text-red-400 font-bold">{distanceError}</span>
                   </div>
                 ) : null}
               </div>

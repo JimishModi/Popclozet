@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { loadAndInitMsg91, sendOtp } from '@/services/msg91OtpService';
@@ -123,7 +123,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-[10px] text-zinc-500 mt-10 leading-relaxed">
-            By signing in, you agree to our <button className="text-zinc-300 font-medium hover:underline">Terms of Service</button> and <button className="text-zinc-300 font-medium hover:underline">Privacy Policy</button>
+            By signing in, you agree to our <Link to="/terms" className="text-zinc-300 font-medium hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-zinc-300 font-medium hover:underline">Privacy Policy</Link>
           </p>
         </div>
       </div>
