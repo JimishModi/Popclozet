@@ -8,6 +8,7 @@ import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
 import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
+import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
 
 
@@ -210,6 +211,27 @@ const CategoryProductsPage: React.FC = () => {
                 // Update local cache for next time (non-blocking, real products only)
                 if (mapped.length > 0) {
                     cacheProductsBatchDB(mapped);
+                }
+
+                // Non-blocking: fetch fake "currently rented" products and mix in
+                if (filters.category) {
+                    fetchRotatedFakeProducts(filters.category, undefined, 2).then(fakes => {
+                        if (fakes.length > 0) {
+                            setProducts(prev => {
+                                // Avoid duplicates if called multiple times
+                                const existingIds = new Set(prev.map(p => p.id));
+                                const newFakes = fakes.filter(f => !existingIds.has(f.id));
+                                if (newFakes.length === 0) return prev;
+                                // Shuffle fakes into the list at random positions
+                                const merged = [...prev];
+                                for (const fake of newFakes) {
+                                    const pos = Math.floor(Math.random() * (merged.length + 1));
+                                    merged.splice(pos, 0, fake);
+                                }
+                                return merged;
+                            });
+                        }
+                    }).catch(() => { /* silent degradation */ });
                 }
             }
         } catch (err) {

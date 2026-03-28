@@ -11,7 +11,8 @@ import {
   X,
   Heart,
   Calendar,
-  Plus
+  Plus,
+  Info
 } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { supabase } from "@popclozet/api-client";
@@ -78,6 +79,14 @@ const CartPage = () => {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
   const [addOnProducts, setAddOnProducts] = useState<any[]>([]);
+  const [activeInfoTooltip, setActiveInfoTooltip] = useState<string | null>(null);
+
+  const planDays = (plan: string) => {
+    if (plan === '1d') return 1;
+    if (plan === '2d') return 2;
+    if (plan === '3d') return 3;
+    return 1;
+  };
 
   const cartEntries = Object.entries(cartItems);
 
@@ -169,6 +178,11 @@ const CartPage = () => {
   // Calculate cart metrics
   const totalQty = useMemo(() => {
     return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
+  }, [validCartEntries]);
+
+  const primaryRentalDays = useMemo(() => {
+    const rentalEntry = validCartEntries.find(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+    return rentalEntry ? planDays(rentalEntry[1].plan) : 1;
   }, [validCartEntries]);
 
   // Load saved address and hub on mount
@@ -323,11 +337,28 @@ const CartPage = () => {
 
           {/* Date Selector (Rentals Only) */}
           {isRental && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
-              <Calendar className="w-3.5 h-3.5 text-white/60" />
-              <span className="text-xs font-medium text-white/90" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                1 Feb - 2 Feb
-              </span>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
+                <Calendar className="w-3.5 h-3.5 text-white/60" />
+                <span className="text-xs font-medium text-white/90" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  1 Feb - 2 Feb
+                </span>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setActiveInfoTooltip(activeInfoTooltip === key ? null : key)}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+                {activeInfoTooltip === key && (
+                  <div className="absolute left-0 top-6 z-50 w-52 bg-[#2a2a2e] border border-white/10 rounded-xl px-3 py-2.5 shadow-xl">
+                    <p className="text-[11px] text-white/80 leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      <span className="text-white font-bold">{planDays(plan)} {planDays(plan) === 1 ? 'day' : 'days'}</span> will be counted from the time your order is delivered.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -483,28 +514,38 @@ const CartPage = () => {
                     Add-Ons
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {addOnProducts.map((product: any) => (
-                    <motion.div
-                      key={product.id}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => addToCart(product.id, 'One Size', '1d')}
-                      className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer"
-                    >
-                      <div className="aspect-square bg-zinc-900 overflow-hidden">
-                        {product.images?.[0] && (
-                          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div className="p-2.5">
-                        <p className="text-xs font-semibold text-white truncate">{product.name}</p>
-                        <p className="text-xs text-[#f2546d] font-black mt-0.5">₹{product.rental_price || product.rental_price_1d}</p>
-                      </div>
-                      <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
-                        <Plus className="w-3.5 h-3.5 text-white" />
-                      </button>
-                    </motion.div>
-                  ))}
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-none" style={{ scrollSnapType: 'x mandatory' }}>
+                  {addOnProducts.map((product: any) => {
+                    const basePrice = product.rental_price_1d || product.rental_price || 0;
+                    const displayPrice = basePrice * primaryRentalDays;
+                    return (
+                      <motion.div
+                        key={product.id}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => addToCart(product.id, 'One Size', '1d')}
+                        className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
+                        style={{ width: '140px', scrollSnapAlign: 'start' }}
+                      >
+                        <div className="bg-zinc-900 overflow-hidden" style={{ height: '140px' }}>
+                          {product.images?.[0] && (
+                            <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                          )}
+                        </div>
+                        <div className="p-2.5">
+                          <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                          <p className="text-xs text-[#f2546d] font-black mt-0.5">
+                            ₹{displayPrice}
+                            {primaryRentalDays > 1 && (
+                              <span className="text-white/30 font-normal ml-1">({primaryRentalDays}d)</span>
+                            )}
+                          </p>
+                        </div>
+                        <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
+                          <Plus className="w-3.5 h-3.5 text-white" />
+                        </button>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </section>
             )}

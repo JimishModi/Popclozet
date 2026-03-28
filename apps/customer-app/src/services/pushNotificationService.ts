@@ -323,29 +323,21 @@ export async function sendTestPush(): Promise<boolean> {
 
 /** Status changes that should trigger a push notification */
 const PUSH_WORTHY_STATUSES: Record<string, { title: string; body: string }> = {
-  rider_assigned: {
-    title: "🚗 Rider Assigned!",
-    body: "A rider is heading to pick up your order.",
+  confirmed: {
+    title: "✅ Order Confirmed!",
+    body: "Your order has been confirmed and is being prepared.",
   },
-  dispatched: {
-    title: "📦 Package Dispatched!",
-    body: "Your package is on its way to you.",
+  ready_for_pickup: {
+    title: "🚗 Driver Assigned!",
+    body: "A driver has been assigned and is heading to pick up your order.",
   },
   out_for_delivery: {
     title: "🛵 Out for Delivery!",
-    body: "Your rider is heading to your location now.",
-  },
-  delivered: {
-    title: "🎉 Package Delivered!",
-    body: "Your order has been delivered. Enjoy!",
+    body: "Your order is out for delivery and heading your way.",
   },
   return_scheduled: {
     title: "📅 Return Pickup Scheduled",
     body: "Your return pickup has been scheduled.",
-  },
-  pickup_scheduled: {
-    title: "📅 Pickup Scheduled",
-    body: "Your pickup has been scheduled.",
   },
 };
 

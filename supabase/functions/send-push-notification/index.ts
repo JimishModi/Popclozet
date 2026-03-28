@@ -172,7 +172,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Push notifications not configured on server" }, 500);
   }
 
-  // ── Auth: require a valid Supabase session ──
+  const PUSH_INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET");
+
+  // ── Auth ──
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return jsonResponse({ error: "Missing Authorization header" }, 401);
@@ -183,26 +185,23 @@ Deno.serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Verify the caller's JWT to get the calling user
-  const anonClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-  const { data: { user: callerUser }, error: authError } = await anonClient.auth.getUser();
-  if (authError || !callerUser) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const token = authHeader.replace("Bearer ", "");
+  const isInternalCall = req.headers.get("x-internal-call") === "true" &&
+    PUSH_INTERNAL_SECRET &&
+    token === PUSH_INTERNAL_SECRET;
 
-  // ── Parse body ──
+  let targetUserId: string;
+
+  // ── Parse body (needed for both paths) ──
   let body: {
     test?: boolean;
     user_id?: string;
-    title: string;
-    body: string;
+    title?: string;
+    body?: string;
     type?: string;
     order_id?: string;
     url?: string;
+    status?: string;
   };
 
   try {
@@ -211,14 +210,54 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const { title, body: notifBody, type = "general", url = "/notifications", order_id } = body;
+  if (isInternalCall) {
+    // Called from DB trigger — trust user_id from body
+    if (!body.user_id) {
+      return jsonResponse({ error: "Missing user_id for internal call" }, 400);
+    }
+    targetUserId = body.user_id;
+    console.log(`[Push] Internal call for user ${targetUserId}, status: ${body.status}`);
+  } else {
+    // Called from browser — verify JWT
+    const { data: { user: callerUser }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !callerUser) {
+      console.error("[Push] JWT verification failed:", authError?.message);
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+    targetUserId = body.user_id || callerUser.id;
+  }
+
+  // ── Build title/body from status if internal call ──
+  const STATUS_MESSAGES: Record<string, { title: string; body: string; type: string }> = {
+    confirmed:        { title: "✅ Order Confirmed!", body: "Your order has been confirmed and is being prepared.", type: "order_update" },
+    ready_for_pickup: { title: "🚗 Driver Assigned!", body: "A driver has been assigned and is heading to pick up your order.", type: "order_update" },
+    out_for_delivery: { title: "🛵 Out for Delivery!", body: "Your order is out for delivery and heading your way.", type: "order_update" },
+    return_scheduled: { title: "📅 Return Pickup Scheduled", body: "Your return pickup has been scheduled.", type: "order_update" },
+  };
+
+  let title: string;
+  let notifBody: string;
+  let type: string;
+  let url: string;
+
+  if (body.status && STATUS_MESSAGES[body.status]) {
+    const cfg = STATUS_MESSAGES[body.status];
+    title = cfg.title;
+    notifBody = cfg.body;
+    type = cfg.type;
+    url = "/orders";
+  } else {
+    title = body.title || "";
+    notifBody = body.body || "";
+    type = body.type || "general";
+    url = body.url || "/notifications";
+  }
 
   if (!title || !notifBody) {
     return jsonResponse({ error: "Missing required fields: title, body" }, 400);
   }
 
-  // Target user: explicit user_id (admin/server call) or the caller themselves (test)
-  const targetUserId = body.user_id || callerUser.id;
+  const order_id = body.order_id;
 
   // ── Fetch subscriptions for target user ──
   const { data: subscriptions, error: fetchError } = await supabase
