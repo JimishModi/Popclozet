@@ -46,13 +46,46 @@ export interface ProductWithMixMeta extends Product {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** fake / (real + fake) must not exceed this ratio. */
-const FAKE_RATIO_CAP = 0.30;
+const FAKE_RATIO_CAP = 0.75;
 
 /**
  * Hard ceiling regardless of how many real products are returned.
  * Keeps the page from being dominated by fake items even at high real counts.
  */
-const MAX_FAKE_ABSOLUTE = 5;
+const MAX_FAKE_ABSOLUTE = 20;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stable-cache helpers (localStorage, 24-hour TTL)
+// Prevents fake products from rotating on every page reload.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FAKE_CACHE_KEY = 'pclz_fake_cache';
+const FAKE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function getCachedFakes(cacheKey: string): ProductWithMixMeta[] | null {
+  try {
+    const raw = localStorage.getItem(FAKE_CACHE_KEY);
+    if (!raw) return null;
+    const store = JSON.parse(raw);
+    const entry = store[cacheKey];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > FAKE_CACHE_TTL) return null;
+    return entry.products as ProductWithMixMeta[];
+  } catch {
+    return null;
+  }
+}
+
+function setCachedFakes(cacheKey: string, products: ProductWithMixMeta[]): void {
+  try {
+    const raw = localStorage.getItem(FAKE_CACHE_KEY);
+    const store = raw ? JSON.parse(raw) : {};
+    store[cacheKey] = { ts: Date.now(), products };
+    localStorage.setItem(FAKE_CACHE_KEY, JSON.stringify(store));
+  } catch {
+    // ignore — storage quota or private mode
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Private helpers
@@ -72,9 +105,10 @@ const MAX_FAKE_ABSOLUTE = 5;
  *   real=10 → floor(4.28)  = 2  (capped by MAX_FAKE_ABSOLUTE)
  */
 function computeFakeSlots(realCount: number): number {
-  if (realCount === 0) return 0;
+  // Always show at least 3 fakes even with very few real products
+  const minFakes = 3;
   const maxByRatio = Math.floor(realCount * (FAKE_RATIO_CAP / (1 - FAKE_RATIO_CAP)));
-  return Math.min(maxByRatio, MAX_FAKE_ABSOLUTE);
+  return Math.min(Math.max(maxByRatio, minFakes), MAX_FAKE_ABSOLUTE);
 }
 
 /**
@@ -150,6 +184,10 @@ export async function fetchRotatedFakeProducts(
   brand?: string,
   limit: number = 2,
 ): Promise<ProductWithMixMeta[]> {
+  const cacheKey = `${category}|${brand ?? ''}|${limit}`;
+  const cached = getCachedFakes(cacheKey);
+  if (cached) return cached;
+
   const { data, error } = await supabase.rpc('get_and_rotate_fake_products', {
     p_category: category,
     p_brand:    brand ?? null,
@@ -161,10 +199,13 @@ export async function fetchRotatedFakeProducts(
     return [];
   }
 
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  const result = (data ?? []).map((row: Record<string, unknown>) => ({
     ...mapFakeRow(row),
     _isFake: true,
   }));
+
+  setCachedFakes(cacheKey, result);
+  return result;
 }
 
 export async function getProductsWithFakeMix(
@@ -228,26 +269,33 @@ export async function getProductsWithFakeMix(
     return realProducts;
   }
 
-  // ── 3. Atomic LRU select + rotate via RPC ─────────────────────────────────
-  const { data: fakeData, error: fakeError } = await supabase.rpc(
-    'get_and_rotate_fake_products',
-    {
-      p_category: category,
-      p_brand:    brand ?? null,
-      p_limit:    fakeSlots,
-    },
-  );
+  // ── 3. Atomic LRU select + rotate via RPC (cached per session) ───────────
+  const fakeRpcKey = `mix|${category}|${brand ?? ''}|${gender ?? ''}|${fakeSlots}`;
+  let fakeProducts: ProductWithMixMeta[] = getCachedFakes(fakeRpcKey) ?? [];
 
-  if (fakeError) {
-    // Non-fatal: degrade gracefully rather than breaking the product page.
-    console.warn('[fakeProductMixService] RPC failed, skipping fakes:', fakeError.message);
-    return realProducts;
+  if (fakeProducts.length === 0) {
+    const { data: fakeData, error: fakeError } = await supabase.rpc(
+      'get_and_rotate_fake_products',
+      {
+        p_category: category,
+        p_brand:    brand ?? null,
+        p_limit:    fakeSlots,
+      },
+    );
+
+    if (fakeError) {
+      // Non-fatal: degrade gracefully rather than breaking the product page.
+      console.warn('[fakeProductMixService] RPC failed, skipping fakes:', fakeError.message);
+      return realProducts;
+    }
+
+    fakeProducts = (fakeData ?? []).map((row: Record<string, unknown>) => ({
+      ...mapFakeRow(row),
+      _isFake: true,
+    }));
+
+    setCachedFakes(fakeRpcKey, fakeProducts);
   }
-
-  const fakeProducts: ProductWithMixMeta[] = (fakeData ?? []).map((row: Record<string, unknown>) => ({
-    ...mapFakeRow(row),
-    _isFake: true,
-  }));
 
   // ── 4. Merge + shuffle ────────────────────────────────────────────────────
   // Fisher-Yates ensures fake items don't cluster at a predictable position.

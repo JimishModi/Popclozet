@@ -80,6 +80,7 @@ const CartPage = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
   const [addOnProducts, setAddOnProducts] = useState<any[]>([]);
   const [activeInfoTooltip, setActiveInfoTooltip] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const planDays = (plan: string) => {
     if (plan === '1d') return 1;
@@ -346,18 +347,21 @@ const CartPage = () => {
               </div>
               <div className="relative">
                 <button
-                  onClick={() => setActiveInfoTooltip(activeInfoTooltip === key ? null : key)}
+                  onClick={(e) => {
+                    if (activeInfoTooltip === key) {
+                      setActiveInfoTooltip(null);
+                    } else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const tooltipWidth = 200;
+                      const left = Math.min(rect.left, window.innerWidth - tooltipWidth - 16);
+                      setTooltipPos({ top: rect.bottom + 8, left: Math.max(16, left) });
+                      setActiveInfoTooltip(key);
+                    }
+                  }}
                   className="text-white/40 hover:text-white/70 transition-colors"
                 >
                   <Info className="w-3.5 h-3.5" />
                 </button>
-                {activeInfoTooltip === key && (
-                  <div className="absolute left-0 top-6 z-50 w-52 bg-[#2a2a2e] border border-white/10 rounded-xl px-3 py-2.5 shadow-xl">
-                    <p className="text-[11px] text-white/80 leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      <span className="text-white font-bold">{planDays(plan)} {planDays(plan) === 1 ? 'day' : 'days'}</span> will be counted from the time your order is delivered.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -713,6 +717,30 @@ const CartPage = () => {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+      {/* ─── INFO TOOLTIP (global, always in-bounds) ─── */}
+      {activeInfoTooltip && (() => {
+        const entry = validCartEntries.find(([k]) => k === activeInfoTooltip);
+        const days = entry ? planDays(entry[1].plan) : 1;
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setActiveInfoTooltip(null)} />
+            <div
+              className="fixed z-50 w-[200px] bg-[#2a2a2e] border border-white/10 rounded-xl px-3 py-2.5 shadow-xl"
+              style={{ top: tooltipPos.top, left: tooltipPos.left }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[11px] text-white/80 leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  <span className="text-white font-bold">{days} {days === 1 ? 'day' : 'days'}</span> will be counted from the time your order is delivered.
+                </p>
+                <button onClick={() => setActiveInfoTooltip(null)} className="text-white/30 hover:text-white/60 flex-shrink-0 mt-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />
       <CitySelectorModal open={citySelectorOpen} onClose={() => setCitySelectorOpen(false)} />
