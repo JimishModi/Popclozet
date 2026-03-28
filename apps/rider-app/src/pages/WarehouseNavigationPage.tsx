@@ -77,6 +77,7 @@ interface WarehouseOrder {
     status: string;
     user_id: string;
     total_amount?: number;
+    warehouse_otp?: string | null;
     addresses?: { full_address: string; latitude: number; longitude: number };
     order_items?: Array<{ id: string; product_id: string; size?: string; rental_price?: number }>;
 }
@@ -178,7 +179,7 @@ export const WarehouseNavigationPage: React.FC = () => {
             try {
                 const { data, error } = await supabase
                     .from('orders')
-                    .select('id, status, user_id, total_amount, addresses:delivery_address_id(full_address, latitude, longitude), order_items(*)')
+                    .select('id, status, user_id, total_amount, warehouse_otp, addresses:delivery_address_id(full_address, latitude, longitude), order_items(*)')
                     .eq('id', id)
                     .single();
                 if (error || !data) throw error ?? new Error('Order not found');
@@ -663,13 +664,13 @@ export const WarehouseNavigationPage: React.FC = () => {
                         )}
                         {step === 'picked_up' && isReturnFlow && (
                             <motion.div key="return-dropoff" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
-                                {returnOtp ? (
+                                {(returnOtp ?? order?.warehouse_otp) ? (
                                     <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5 text-center">
                                         <KeyRound size={24} className="mx-auto text-blue-400 mb-2" />
                                         <p className="text-white font-semibold text-sm mb-1">Warehouse Verification OTP</p>
                                         <p className="text-zinc-400 text-xs mb-3">Show this code to warehouse staff</p>
                                         <div className="text-4xl font-mono font-bold text-white tracking-[0.3em] bg-black/50 rounded-xl py-3 px-4 border border-zinc-800">
-                                            {returnOtp}
+                                            {returnOtp ?? order?.warehouse_otp}
                                         </div>
                                         <p className="text-zinc-500 text-xs mt-3">Expires in 15 minutes</p>
                                     </div>

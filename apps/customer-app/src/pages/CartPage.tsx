@@ -419,7 +419,7 @@ const CartPage = () => {
 
             {/* Right: Wishlist button */}
             <button
-              onClick={() => navigate('/closet?tab=wishlist')}
+              onClick={() => navigate('/wishlist')}
               className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full active:scale-95 transition-all"
             >
               <Heart className="w-6 h-6 text-white" />

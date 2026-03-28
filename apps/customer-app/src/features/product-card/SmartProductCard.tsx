@@ -36,7 +36,7 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [selectedSize, setSelectedSize] = useState("S");
-  const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("3d");
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("1d");
   const { addToCart, updateQuantity, getItemQuantity } = useCart();
   const quantity = getItemQuantity(product.id, selectedSize, selectedPlan);
   const maxQty = product.stockQuantity ?? Infinity;
@@ -210,8 +210,16 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
         </div>
 
         {/* Product Info */}
-        <div className="p-4">
-          <h3 className="text-sm font-medium text-headline truncate">{product.name}</h3>
+        <div className="p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium text-headline truncate">{product.name}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-headline">
+              ₹ { (product as any).rental_price_1d ?? (product as any).rentalPrice ?? product.price }
+            </span>
+            <span className="text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">1 Day</span>
+          </div>
         </div>
       </div>
 

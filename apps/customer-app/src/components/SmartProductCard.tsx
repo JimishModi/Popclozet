@@ -98,7 +98,7 @@ export const SmartProductCard = ({ product }: SmartProductCardProps) => {
                     )}
                   </>
                 ) : (
-                  <div className="text-sm font-semibold">{formatPrice(product.price)}</div>
+                  <div className="text-sm font-semibold">₹ { (product as any).rental_price_1d ?? product.price }</div>
                 )}
               </div>
             </div>

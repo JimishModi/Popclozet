@@ -51,14 +51,23 @@ export default function OrdersPage() {
         return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
     };
 
+    const RETURN_STATUSES = ["return_scheduled", "return_dispatched", "return_picked_up"];
+    const DELIVERED_STATUSES = ["delivered", "in_use", "picked_up"];
+
     const handleOrderClick = (order: Order) => {
-        if (order.status === "delivered" || order.status === "picked_up") {
+        if (RETURN_STATUSES.includes(order.status)) {
+            navigate(`/pickup-tracking/${order.id}`);
+        } else if (DELIVERED_STATUSES.includes(order.status)) {
             navigate(`/order/${order.id}/delivered`);
-        } else if (order.status === "pickup_scheduled") {
-            navigate(`/pickup/${order.id}`);
         } else {
             navigate(`/tracking/${order.id}`);
         }
+    };
+
+    const getActionLabel = (order: Order) => {
+        if (RETURN_STATUSES.includes(order.status)) return "Track Return";
+        if (DELIVERED_STATUSES.includes(order.status)) return "View Order";
+        return "Track Order";
     };
 
     return (
@@ -169,10 +178,21 @@ export default function OrdersPage() {
                                     className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 p-4 hover:border-[#f2546d]/30 transition-all cursor-pointer group"
                                 >
                                     {/* Header */}
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-white font-bold">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        {/* Product thumbnail */}
+                                        <div className="w-14 h-14 rounded-2xl bg-zinc-800 border border-white/5 overflow-hidden flex-shrink-0">
+                                            {order.firstItemImage ? (
+                                                <img src={order.firstItemImage} alt={order.firstItemName} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <Package className="w-6 h-6 text-zinc-600" />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <span className="text-white font-bold text-sm">
                                                     #{order.id.slice(-6).toUpperCase()}
                                                 </span>
                                                 <div
@@ -181,27 +201,14 @@ export default function OrdersPage() {
                                                     {statusConfig.label}
                                                 </div>
                                             </div>
-                                            <p className="text-zinc-600 text-xs font-medium">
-                                                {formatDate(order.createdAt)}
+                                            {order.firstItemName && (
+                                                <p className="text-zinc-300 text-xs font-medium truncate">{order.firstItemName}{order.itemCount > 1 ? ` +${order.itemCount - 1} more` : ''}</p>
+                                            )}
+                                            <p className="text-zinc-600 text-xs mt-0.5">
+                                                {formatDate(order.createdAt)} · ₹{order.totalAmount.toLocaleString()}
                                             </p>
                                         </div>
-                                        <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-[#f2546d] group-hover:translate-x-0.5 transition-all" />
-                                    </div>
-
-                                    {/* Details */}
-                                    <div className="space-y-2 mb-3">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500">Items</span>
-                                            <span className="text-white font-medium">
-                                                {order.itemCount} item{order.itemCount > 1 ? "s" : ""}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-zinc-500">Total</span>
-                                            <span className="text-white font-bold">
-                                                ₹{order.totalAmount.toLocaleString()}
-                                            </span>
-                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-[#f2546d] group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
                                     </div>
 
                                     {/* ETA for active delivery orders */}
@@ -226,14 +233,12 @@ export default function OrdersPage() {
                                         </div>
                                     )}
 
-                                    {/* Track Button for Active Orders */}
-                                    {activeTab === "active" && (
-                                        <div className="mt-3 pt-3 border-t border-white/5">
-                                            <button className="w-full py-2.5 rounded-xl bg-[#f2546d]/10 border border-[#f2546d]/20 text-[#f2546d] text-sm font-bold hover:bg-[#f2546d]/20 transition-colors">
-                                                Track Order
-                                            </button>
-                                        </div>
-                                    )}
+                                    {/* Action Button */}
+                                    <div className="mt-3 pt-3 border-t border-white/5">
+                                        <button className="w-full py-2.5 rounded-xl bg-[#f2546d]/10 border border-[#f2546d]/20 text-[#f2546d] text-sm font-bold hover:bg-[#f2546d]/20 transition-colors">
+                                            {getActionLabel(order)}
+                                        </button>
+                                    </div>
                                 </motion.div>
                             );
                         })}

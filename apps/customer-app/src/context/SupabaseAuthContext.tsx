@@ -195,6 +195,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         initialized.current = true;
         setLoading(true);
         fetchProfile(session.user);
+        // fetchProfile calls setLoading(false) in its finally block — don't call it here
+      } else {
+        setLoading(false);
       }
 
       // Check for email verification on multiple events for robustness
@@ -204,8 +207,6 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           handleEmailConfirmed(session.user);
         }
       }
-
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

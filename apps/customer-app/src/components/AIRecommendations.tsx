@@ -71,34 +71,34 @@ const AIRecommendations = () => {
     // Mock recommendations with rental prices
     const mockRecommendations: Record<string, Recommendation[]> = {
         casual: [
-            { id: "1", title: "Cozy Cardigan Set", image: casualImg1, occasion: "Weekend vibes", confidence: 93, price: "₹5,999", rentalPrice: "₹899" },
-            { id: "2", title: "Wide Leg Jeans Look", image: casualImg2, occasion: "Effortlessly cool", confidence: 91, price: "₹4,999", rentalPrice: "₹749" },
-            { id: "3", title: "Knit & Denim Combo", image: casualImg3, occasion: "Coffee date ready", confidence: 87, price: "₹4,299", rentalPrice: "₹649" },
+            { id: "1", title: "Cozy Cardigan Set", image: casualImg1, occasion: "Weekend vibes", confidence: 93, price: "₹5,999", rentalPrice: "₹299" },
+            { id: "2", title: "Wide Leg Jeans Look", image: casualImg2, occasion: "Effortlessly cool", confidence: 91, price: "₹4,999", rentalPrice: "₹249" },
+            { id: "3", title: "Knit & Denim Combo", image: casualImg3, occasion: "Coffee date ready", confidence: 87, price: "₹4,299", rentalPrice: "₹219" },
         ],
         party: [
-            { id: "4", title: "Leather & Lace", image: partyImg1, occasion: "Night out glam", confidence: 94, price: "₹8,999", rentalPrice: "₹1,299" },
-            { id: "5", title: "Bold Mini Set", image: partyImg2, occasion: "Party queen", confidence: 90, price: "₹9,999", rentalPrice: "₹1,499" },
-            { id: "6", title: "Edgy Chic Look", image: partyImg3, occasion: "Club ready", confidence: 88, price: "₹7,999", rentalPrice: "₹1,199" },
+            { id: "4", title: "Leather & Lace", image: partyImg1, occasion: "Night out glam", confidence: 94, price: "₹8,999", rentalPrice: "₹429" },
+            { id: "5", title: "Bold Mini Set", image: partyImg2, occasion: "Party queen", confidence: 90, price: "₹9,999", rentalPrice: "₹499" },
+            { id: "6", title: "Edgy Chic Look", image: partyImg3, occasion: "Club ready", confidence: 88, price: "₹7,999", rentalPrice: "₹399" },
         ],
         cocktail: [
-            { id: "7", title: "Burgundy Corset Dress", image: cocktailImg1, occasion: "Elegant evening", confidence: 96, price: "₹12,999", rentalPrice: "₹1,899" },
-            { id: "8", title: "Satin Midi Elegance", image: cocktailImg2, occasion: "Sophisticated charm", confidence: 92, price: "₹11,499", rentalPrice: "₹1,699" },
-            { id: "9", title: "Classic LBD", image: cocktailImg3, occasion: "Timeless beauty", confidence: 89, price: "₹9,999", rentalPrice: "₹1,499" },
+            { id: "7", title: "Burgundy Corset Dress", image: cocktailImg1, occasion: "Elegant evening", confidence: 96, price: "₹12,999", rentalPrice: "₹629" },
+            { id: "8", title: "Satin Midi Elegance", image: cocktailImg2, occasion: "Sophisticated charm", confidence: 92, price: "₹11,499", rentalPrice: "₹559" },
+            { id: "9", title: "Classic LBD", image: cocktailImg3, occasion: "Timeless beauty", confidence: 89, price: "₹9,999", rentalPrice: "₹499" },
         ],
         formal: [
-            { id: "10", title: "Power Blazer Set", image: formalImg1, occasion: "Boardroom boss", confidence: 97, price: "₹14,999", rentalPrice: "₹2,199" },
-            { id: "11", title: "Wide Leg Suit", image: formalImg2, occasion: "Professional chic", confidence: 94, price: "₹13,499", rentalPrice: "₹1,999" },
-            { id: "12", title: "Executive Look", image: formalImg3, occasion: "Meeting ready", confidence: 90, price: "₹11,999", rentalPrice: "₹1,799" },
+            { id: "10", title: "Power Blazer Set", image: formalImg1, occasion: "Boardroom boss", confidence: 97, price: "₹14,999", rentalPrice: "₹729" },
+            { id: "11", title: "Wide Leg Suit", image: formalImg2, occasion: "Professional chic", confidence: 94, price: "₹13,499", rentalPrice: "₹659" },
+            { id: "12", title: "Executive Look", image: formalImg3, occasion: "Meeting ready", confidence: 90, price: "₹11,999", rentalPrice: "₹599" },
         ],
         street: [
-            { id: "13", title: "Vintage Leather Set", image: streetImg1, occasion: "Urban explorer", confidence: 95, price: "₹7,499", rentalPrice: "₹1,099" },
-            { id: "14", title: "Baggy Denim Look", image: streetImg2, occasion: "Street style", confidence: 91, price: "₹5,999", rentalPrice: "₹899" },
-            { id: "15", title: "Retro Vibes", image: streetImg3, occasion: "90s comeback", confidence: 88, price: "₹5,299", rentalPrice: "₹799" },
+            { id: "13", title: "Vintage Leather Set", image: streetImg1, occasion: "Urban explorer", confidence: 95, price: "₹7,499", rentalPrice: "₹369" },
+            { id: "14", title: "Baggy Denim Look", image: streetImg2, occasion: "Street style", confidence: 91, price: "₹5,999", rentalPrice: "₹299" },
+            { id: "15", title: "Retro Vibes", image: streetImg3, occasion: "90s comeback", confidence: 88, price: "₹5,299", rentalPrice: "₹259" },
         ],
         vacation: [
-            { id: "16", title: "Beach Resort Look", image: vacationImg1, occasion: "Tropical vibes", confidence: 95, price: "₹7,999", rentalPrice: "₹1,199" },
-            { id: "17", title: "Linen Set", image: vacationImg2, occasion: "Island hopping", confidence: 92, price: "₹6,699", rentalPrice: "₹999" },
-            { id: "18", title: "Poolside Chic", image: vacationImg3, occasion: "Resort ready", confidence: 89, price: "₹7,299", rentalPrice: "₹1,099" },
+            { id: "16", title: "Beach Resort Look", image: vacationImg1, occasion: "Tropical vibes", confidence: 95, price: "₹7,999", rentalPrice: "₹399" },
+            { id: "17", title: "Linen Set", image: vacationImg2, occasion: "Island hopping", confidence: 92, price: "₹6,699", rentalPrice: "₹329" },
+            { id: "18", title: "Poolside Chic", image: vacationImg3, occasion: "Resort ready", confidence: 89, price: "₹7,299", rentalPrice: "₹359" },
         ],
     };
 

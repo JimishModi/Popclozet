@@ -8,6 +8,7 @@
 DROP FUNCTION IF EXISTS public.schedule_order_return(UUID, UUID, TIMESTAMPTZ, TEXT);
 DROP FUNCTION IF EXISTS public.approve_return_request(UUID, UUID);
 DROP FUNCTION IF EXISTS public.receive_return_at_warehouse(UUID, UUID);
+DROP FUNCTION IF EXISTS public.receive_return_at_warehouse(UUID, UUID, TEXT);
 
 DO $$
 BEGIN
@@ -768,7 +769,8 @@ EXECUTE FUNCTION public.handle_all_products_return_completion();
 
 CREATE OR REPLACE FUNCTION public.receive_return_at_warehouse(
     p_order_id UUID,
-    p_actor_id UUID
+    p_actor_id UUID,
+    p_otp TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -780,6 +782,7 @@ DECLARE
     v_request RECORD;
     v_rider_earning NUMERIC := 0;
 BEGIN
+    -- Only warehouse/admin can receive returns
     IF p_actor_id IS NULL OR NOT EXISTS (
         SELECT 1
         FROM public.profiles
@@ -801,11 +804,46 @@ BEGIN
             USING ERRCODE = 'P0002';
     END IF;
 
-    IF v_order.status <> 'return_picked_up' THEN
-        RAISE EXCEPTION 'Only picked-up returns can be received at the warehouse'
+    -- Must be in return_at_warehouse status (rider must have dropped off first)
+    IF v_order.status <> 'return_at_warehouse' THEN
+        RAISE EXCEPTION 'Rider must drop off the return first (current status: %)', v_order.status
             USING ERRCODE = '23514';
     END IF;
 
+    -- OTP verification
+    IF p_otp IS NULL OR TRIM(p_otp) = '' THEN
+        RAISE EXCEPTION 'OTP is required to receive returns'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF v_order.warehouse_otp_used = TRUE THEN
+        RAISE EXCEPTION 'OTP has already been used'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF v_order.warehouse_otp_expires_at < NOW() THEN
+        RAISE EXCEPTION 'OTP has expired. Ask the rider to regenerate.'
+            USING ERRCODE = '23514';
+    END IF;
+
+    -- Increment attempts
+    UPDATE public.orders
+    SET warehouse_otp_attempts = COALESCE(warehouse_otp_attempts, 0) + 1
+    WHERE id = p_order_id;
+
+    IF COALESCE(v_order.warehouse_otp_attempts, 0) >= 5 THEN
+        RAISE EXCEPTION 'Too many OTP attempts. Ask the rider to regenerate.'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF v_order.warehouse_otp IS NULL OR v_order.warehouse_otp <> p_otp THEN
+        RETURN jsonb_build_object(
+            'success', FALSE,
+            'message', 'Invalid OTP code'
+        );
+    END IF;
+
+    -- OTP is valid — proceed with receiving the return
     SELECT *
     INTO v_request
     FROM public.return_requests
@@ -814,6 +852,7 @@ BEGIN
 
     UPDATE public.orders
     SET status = 'returned',
+        warehouse_otp_used = TRUE,
         updated_at = NOW()
     WHERE id = p_order_id;
 
@@ -825,21 +864,18 @@ BEGIN
         WHERE id = v_request.id;
     END IF;
 
+    -- Credit rider earnings
     IF to_regclass('public.wallets') IS NOT NULL
-       AND to_regclass('public.payments') IS NOT NULL
+       AND to_regclass('public.rider_transactions') IS NOT NULL
        AND v_order.rider_id IS NOT NULL THEN
         v_rider_earning := GREATEST(COALESCE(v_order.delivery_fee, 0), 40);
 
-        INSERT INTO public.wallets (rider_id)
-        VALUES (v_order.rider_id)
-        ON CONFLICT (rider_id) DO NOTHING;
+        INSERT INTO public.wallets (user_id, rider_id)
+        VALUES (v_order.rider_id, v_order.rider_id)
+        ON CONFLICT (user_id) DO NOTHING;
 
-        INSERT INTO public.payments (
-            rider_id,
-            order_id,
-            type,
-            amount,
-            description
+        INSERT INTO public.rider_transactions (
+            rider_id, order_id, type, amount, description
         ) VALUES (
             v_order.rider_id,
             p_order_id,
@@ -849,18 +885,13 @@ BEGIN
         );
 
         UPDATE public.wallets
-        SET balance = COALESCE(balance, 0) + v_rider_earning,
-            updated_at = NOW()
-        WHERE rider_id = v_order.rider_id;
+        SET balance = COALESCE(balance, 0) + v_rider_earning
+        WHERE user_id = v_order.rider_id;
     END IF;
 
     IF to_regclass('public.warehouse_activity_log') IS NOT NULL THEN
         INSERT INTO public.warehouse_activity_log (
-            action,
-            entity_type,
-            entity_id,
-            actor_id,
-            details
+            action, entity_type, entity_id, actor_id, details
         ) VALUES (
             'receive_return_at_warehouse',
             'order',
@@ -884,7 +915,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.receive_return_at_warehouse(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.receive_return_at_warehouse(UUID, UUID, TEXT) TO authenticated;
 
 -- 6) Reuse OTP infrastructure for return pickup, not warehouse receipt
 DROP FUNCTION IF EXISTS public.verify_order_otp(UUID, TEXT, TEXT);

@@ -13,6 +13,7 @@ interface Product {
     name: string;
     brand: string;
     rental_price: number;
+    rental_price_1d?: number;
     images: string[];
     category: string;
 }
@@ -35,7 +36,7 @@ const WishlistPage: React.FC = () => {
             try {
                 const { data, error } = await supabase
                     .from("products")
-                    .select("id, name, brand, rental_price, images, category")
+                    .select("id, name, brand, rental_price, rental_price_1d, images, category")
                     .in("id", wishlistItems);
                 if (error) throw error;
                 // Preserve wishlist order
@@ -147,7 +148,7 @@ const WishlistPage: React.FC = () => {
                                         <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{product.name}</h3>
                                         <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-base font-bold text-white">₹{product.rental_price}</span>
+                                            <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rental_price}</span>
                                             <button
                                                 onClick={e => { e.stopPropagation(); navigate(`/product/${product.id}`); }}
                                                 className="p-1.5 rounded-lg bg-[#f2546d]/20 hover:bg-[#f2546d]/30 transition-colors"

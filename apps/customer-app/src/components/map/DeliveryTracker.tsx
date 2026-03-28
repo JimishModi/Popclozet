@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Clock, MapPin, Phone, CheckCircle } from 'lucide-react';
+import { Package, Clock, MapPin, Phone, CheckCircle, Truck, Warehouse } from 'lucide-react';
 import { InteractiveMap } from './InteractiveMap';
 import { supabase } from '@popclozet/api-client';
 import { getOrderById, DeliveryOrder, OrderStatus } from '@/services/deliveryService';
@@ -30,10 +30,27 @@ export interface TrackingData {
 
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ReactNode }[] = [
     { status: 'confirmed', label: 'Order Confirmed', icon: <CheckCircle className="w-4 h-4" /> },
-    { status: 'preparing', label: 'Preparing', icon: <Package className="w-4 h-4" /> },
+    { status: 'packed', label: 'Packed & Ready', icon: <Package className="w-4 h-4" /> },
+    { status: 'rider_assigned', label: 'Rider Assigned', icon: <Truck className="w-4 h-4" /> },
+    { status: 'order_picked_up', label: 'Picked Up from Hub', icon: <Warehouse className="w-4 h-4" /> },
     { status: 'out_for_delivery', label: 'On the Way', icon: <MapPin className="w-4 h-4" /> },
     { status: 'delivered', label: 'Delivered', icon: <CheckCircle className="w-4 h-4" /> },
 ];
+
+// Map intermediate statuses to their display step
+const STATUS_TO_STEP: Record<string, OrderStatus> = {
+    pending: 'confirmed',
+    confirmed: 'confirmed',
+    preparing: 'packed',
+    packed: 'packed',
+    ready_for_pickup: 'packed',
+    rider_assigned: 'rider_assigned',
+    driver_arrived_warehouse: 'rider_assigned',
+    order_picked_up: 'order_picked_up',
+    dispatched: 'out_for_delivery',
+    out_for_delivery: 'out_for_delivery',
+    delivered: 'delivered',
+};
 
 export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpdate }: DeliveryTrackerProps) {
     const [order, setOrder] = useState<DeliveryOrder | null>(null);
@@ -41,6 +58,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const channelNameRef = useRef(`tracking:${orderId}_${Math.random().toString(36).slice(2, 9)}`);
 
     useEffect(() => {
         if (order && onOrderLoad) onOrderLoad(order);
@@ -87,7 +105,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
 
         // Set up realtime subscription for both tracking and order status
         const channel = supabase
-            .channel(`tracking:${orderId}`)
+            .channel(channelNameRef.current)
             .on(
                 'postgres_changes',
                 {
@@ -135,7 +153,8 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         };
     }, [orderId]);
 
-    const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order?.status);
+    const mappedStatus = order?.status ? (STATUS_TO_STEP[order.status] || order.status) : undefined;
+    const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === mappedStatus);
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;

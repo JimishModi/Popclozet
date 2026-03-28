@@ -82,7 +82,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
 
-        globPatterns: ["**/*.{html,ico,svg,woff,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,svg,woff,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
 
         runtimeCaching: [
           {

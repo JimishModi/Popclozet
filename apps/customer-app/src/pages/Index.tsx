@@ -14,14 +14,30 @@ import heroBusiness from "@/assets/hero-business.png";
 import heroVacation from "@/assets/hero-vacation.png";
 import heroWedding from "@/assets/hero-wedding.png";
 
-const AIRecommendations = lazy(() => import("@/components/AIRecommendations"));
-const SustainabilityImpact = lazy(() => import("@/components/SustainabilityImpact"));
-const HowItWorks = lazy(() => import("@/components/HowItWorks"));
-const RentalReviews = lazy(() => import("@/components/RentalReviews"));
-const HassleReturn = lazy(() => import("@/components/HassleReturn"));
-const FAQ = lazy(() => import("@/components/FAQ"));
-const FounderNote = lazy(() => import("@/components/FounderNote"));
-const Footer = lazy(() => import("@/components/Footer"));
+// Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
+function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType<unknown> }>) {
+  return lazy(() =>
+    importFn().catch((error) => {
+      const hasReloaded = sessionStorage.getItem("chunk_reload");
+      if (!hasReloaded) {
+        sessionStorage.setItem("chunk_reload", "1");
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem("chunk_reload");
+      throw error;
+    })
+  );
+}
+
+const AIRecommendations = lazyWithRetry(() => import("@/components/AIRecommendations"));
+const SustainabilityImpact = lazyWithRetry(() => import("@/components/SustainabilityImpact"));
+const HowItWorks = lazyWithRetry(() => import("@/components/HowItWorks"));
+const RentalReviews = lazyWithRetry(() => import("@/components/RentalReviews"));
+const HassleReturn = lazyWithRetry(() => import("@/components/HassleReturn"));
+const FAQ = lazyWithRetry(() => import("@/components/FAQ"));
+const FounderNote = lazyWithRetry(() => import("@/components/FounderNote"));
+const Footer = lazyWithRetry(() => import("@/components/Footer"));
 
 const heroImages = [
   { src: heroParty, label: "Party" },

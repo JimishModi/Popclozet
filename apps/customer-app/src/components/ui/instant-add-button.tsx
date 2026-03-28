@@ -33,7 +33,7 @@ const InstantAddButton: React.FC<InstantAddButtonProps> = ({
   disabled = false,
   showLabel = false,
   size = "S",
-  plan = "3d",
+  plan = "1d",
   productImage,
 }) => {
   const { getItemQuantity, addToCart, updateQuantity } = useCart();

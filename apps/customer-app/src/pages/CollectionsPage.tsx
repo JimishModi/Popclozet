@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ShoppingBag, Tag } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { useCart } from "@/context/CartContext";
+import { productService } from "@/services/productService";
 
 /* ── Line-art SVG icons matching Figma ── */
 
@@ -77,17 +78,31 @@ const AccessoriesIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-/* ── Categories ── */
-const CATEGORIES = [
-  { id: "footwear", label: "SHOES", Icon: ShoesIcon },
-  { id: "jackets", label: "JACKETS", Icon: JacketIcon },
-  { id: "accessories", label: "ACCESSORIES", Icon: AccessoriesIcon },
-];
+/* ── Icon map for known categories ── */
+type IconComponent = ({ className }: { className?: string }) => React.JSX.Element;
+
+const ICON_MAP: Record<string, IconComponent> = {
+  footwear: ShoesIcon,
+  shoes: ShoesIcon,
+  jackets: JacketIcon,
+  jacket: JacketIcon,
+  accessories: AccessoriesIcon,
+  accessory: AccessoriesIcon,
+};
+
+const FallbackIcon = ({ className }: { className?: string }) => (
+  <Tag className={className} strokeWidth={1.5} />
+);
 
 const CollectionsPage = () => {
   const navigate = useNavigate();
   const { totalItems } = useCart();
   const [activeGender, setActiveGender] = usePersistentGender("womens");
+  const [categories, setCategories] = useState<{ id: string; title: string; image: string }[]>([]);
+
+  useEffect(() => {
+    productService.getCategories().then(setCategories);
+  }, []);
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-screen">
@@ -163,22 +178,25 @@ const CollectionsPage = () => {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25 }}
           >
-            {CATEGORIES.map((cat, index) => (
-              <motion.button
-                key={cat.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.08 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.label}`)}
-                className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3"
-              >
-                <cat.Icon className="w-20 h-20 text-white/80" />
-                <span className="text-lg font-bold text-white tracking-[0.2em]">
-                  {cat.label}
-                </span>
-              </motion.button>
-            ))}
+            {categories.map((cat, index) => {
+              const Icon = ICON_MAP[cat.id.toLowerCase()] ?? FallbackIcon;
+              return (
+                <motion.button
+                  key={cat.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.08 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
+                  className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3"
+                >
+                  <Icon className="w-20 h-20 text-white/80" />
+                  <span className="text-lg font-bold text-white tracking-[0.2em]">
+                    {cat.title.toUpperCase()}
+                  </span>
+                </motion.button>
+              );
+            })}
           </motion.div>
         </AnimatePresence>
       </div>

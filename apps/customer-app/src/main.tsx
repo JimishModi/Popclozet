@@ -26,7 +26,8 @@ if (import.meta.env.DEV) {
 if (import.meta.env.PROD) {
   registerSW({
     onNeedRefresh() {
-      console.log("🔄 New version available — refresh recommended");
+      // Auto-reload to apply new assets — prevents blank screen on installed PWA
+      window.location.reload();
     },
     onOfflineReady() {
       console.log("📦 App ready for offline usage");

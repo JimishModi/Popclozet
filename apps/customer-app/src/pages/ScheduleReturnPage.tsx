@@ -110,7 +110,7 @@ const ScheduleReturnPage: React.FC = () => {
             setSubmitting(true);
             await scheduleReturn(orderId, selectedAddressId, selectedSlotIso);
             toast.success('Return pickup scheduled');
-            navigate(`/tracking/${orderId}`);
+            navigate(`/pickup-tracking/${orderId}`);
         } catch (error: any) {
             console.error('Schedule return error:', error);
             toast.error(error?.message || 'Failed to schedule return');

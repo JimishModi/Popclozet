@@ -22,6 +22,7 @@ export interface Product {
   videoUrl?: string;
   description?: string;
   stockQuantity?: number;
+  rental_price_1d?: string | number;
 }
 
 interface QuickViewModalProps {
@@ -43,7 +44,7 @@ const normalizeSrc = (src: string) => {
 
 const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) => {
   const { addToCart, updateQuantity, getItemQuantity } = useCart();
-  const quantity = getItemQuantity(product.id, "S", "3d");
+  const quantity = getItemQuantity(product.id, "S", "1d");
 
   // Debug log so you can see the exact image path the component is trying to load
   // (Remove or comment out this line in production if desired)
@@ -114,9 +115,9 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
             <div className="mt-8 space-y-3">
               <InstantAddButton
                 quantity={quantity}
-                onAdd={() => addToCart(product.id, "S", "3d")}
-                onIncrement={() => updateQuantity(product.id, "S", "3d", quantity + 1)}
-                onDecrement={() => updateQuantity(product.id, "S", "3d", quantity - 1)}
+                onAdd={() => addToCart(product.id, "S", "1d")}
+                onIncrement={() => updateQuantity(product.id, "S", "1d", quantity + 1)}
+                onDecrement={() => updateQuantity(product.id, "S", "1d", quantity - 1)}
                 className="w-full text-lg h-12"
                 productImage={normalizeSrc(product.image)}
               />
