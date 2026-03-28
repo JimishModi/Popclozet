@@ -241,7 +241,7 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                     <Text>PopClozet Fashion Pvt. Ltd.</Text>
                     <Text>IIT Bombay, Powai</Text>
                     <Text>Mumbai, Maharashtra 400076</Text>
-                    <Text>support@popclozet.com</Text>
+                    <Text>businessrep@popclozet.in</Text>
                 </View>
             </View>
 

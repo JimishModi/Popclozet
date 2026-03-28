@@ -31,6 +31,7 @@ BEGIN
   -- Rules: Ensure Rider pickup/delivery works
   v_allowed_transitions := '{
     "rider": {
+      "rider_assigned": ["driver_arrived_warehouse", "order_picked_up"],
       "confirmed": ["driver_arrived_warehouse"],
       "ready_for_pickup": ["driver_arrived_warehouse", "order_picked_up"],
       "driver_arrived_warehouse": ["order_picked_up"],
