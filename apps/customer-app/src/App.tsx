@@ -4,7 +4,7 @@ import AuthGate from "@/components/auth/AuthGate";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import PageTransition from "./components/PageTransition";
 import ScrollProgress from "./components/ScrollProgress";
@@ -143,6 +143,7 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
+                  <PushNotificationListener />
 
                   {/* LOCATION */}
                   <LocationGate />
@@ -249,6 +250,30 @@ function App() {
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );
+}
+
+// Internal component to listen for Push Notification clicks from the Service Worker
+function PushNotificationListener() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "NOTIFICATION_CLICK") {
+        console.log("🔔 Handling push notification click navigation to:", event.data.url);
+        const urlToNavigate = event.data.url || "/";
+        navigate(urlToNavigate);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleMessage);
+    };
+  }, [navigate]);
+
+  return null;
 }
 
 const pageVariants = {
