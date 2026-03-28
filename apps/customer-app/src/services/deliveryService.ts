@@ -138,12 +138,12 @@ export function calculateETA(
     return { minutes, displayText };
 }
 
-// Generate available time slots for next 7 days
-export function getAvailableTimeSlots(): { date: string; slots: TimeSlot[] }[] {
+// Generate available time slots for next 7 days starting from startDayOffset
+export function getAvailableTimeSlots(startDayOffset = 0): { date: string; slots: TimeSlot[] }[] {
     const result: { date: string; slots: TimeSlot[] }[] = [];
     const now = new Date();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = startDayOffset; i < startDayOffset + 7; i++) {
         const date = new Date(now);
         date.setDate(date.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];

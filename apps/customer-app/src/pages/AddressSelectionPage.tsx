@@ -126,11 +126,11 @@ const AddressSelectionPage = () => {
 
       setIsSaving(false);
       
-      // 3. Redirect back to returnTo or checkout
+      // 3. Redirect back to returnTo or return-schedule step
       if (returnTo) {
         navigate(returnTo);
       } else {
-        navigate("/checkout", { state: { selectedAddress: addr } });
+        navigate("/checkout/return-schedule", { state: { selectedAddress: addr } });
       }
     }
   };

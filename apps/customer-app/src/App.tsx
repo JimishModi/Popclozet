@@ -62,6 +62,7 @@ const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackin
 const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage"));
 const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
 const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
+const CheckoutReturnSchedulePage = lazyWithRetry(() => import("./pages/CheckoutReturnSchedulePage"));
 const WelcomePage = lazyWithRetry(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazyWithRetry(() => import("./pages/OnboardingPage"));
 const SettingsPage = lazyWithRetry(() => import("./pages/SettingsPage"));
@@ -183,6 +184,7 @@ function App() {
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
                           <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                           <Route path="/checkout/address" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressSelectionPage /></Suspense></PageTransition>} />
+                          <Route path="/checkout/return-schedule" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutReturnSchedulePage /></Suspense></PageTransition>} />
                           <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                           <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
                           <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
