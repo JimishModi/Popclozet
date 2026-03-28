@@ -84,12 +84,15 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         }
         return true;
       } else {
-        setError(result.error || "Failed to subscribe");
+        const errorMsg = result.error || "Failed to subscribe";
+        setError(errorMsg);
+        alert("Push Error: " + errorMsg);
         return false;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to subscribe";
       setError(msg);
+      alert("Push Exception: " + msg);
       return false;
     } finally {
       setIsLoading(false);

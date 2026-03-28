@@ -160,8 +160,13 @@ const SettingsPage: React.FC = () => {
             await push.unsubscribe();
         } else {
             const success = await push.subscribe();
-            if (!success && push.permission === 'denied') {
-                alert('Notifications are blocked in your browser settings. Please enable them in your browser/device settings and try again.');
+            if (!success) {
+                if (push.permission === 'denied') {
+                    alert('Notifications are blocked in your browser settings. Please enable them in your browser/device settings and try again.');
+                } else {
+                    // We need to wait a tick for push.error state to update, or just use the hook
+                    setTimeout(() => alert("Failed to turn on push: " + (push.error || "Unknown error")), 100);
+                }
             }
         }
     };
