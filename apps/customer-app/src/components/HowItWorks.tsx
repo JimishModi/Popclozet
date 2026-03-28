@@ -58,7 +58,7 @@ const HowItWorks: React.FC = () => {
     {
       id: 2,
       phase: "THE DISCOVERY",
-      title: "Pop Open PopClozet",
+      title: "Pop Open popclozet",
       description: "Make it event based curated outfits according to person's aesthetics.",
       icon: Compass,
       iconColor: "text-sky-600",
@@ -113,7 +113,7 @@ const HowItWorks: React.FC = () => {
   return (
     <section
       id="how-it-works-section"
-      aria-label="How PopClozet works"
+      aria-label="How popclozet works"
       ref={containerRef}
       className="py-24 md:py-32 bg-[#F6F0E0] dark:bg-[#1A1A1A] relative overflow-hidden"
     >
@@ -148,7 +148,7 @@ const HowItWorks: React.FC = () => {
           >
             <Sparkles className="w-5 h-5 text-black" />
             <span className="text-black">
-              The PopClozet Experience
+              The popclozet Experience
             </span>
           </motion.div>
 
@@ -387,7 +387,7 @@ const HowItWorks: React.FC = () => {
             href="/#collections-section"
             className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-full font-bold text-lg shadow-2xl hover:shadow-primary/30 transition-all hover:scale-105"
           >
-            Start Your PopClozet Story
+            Start Your popclozet Story
             <ChevronRight className="w-5 h-5" />
           </a>
         </motion.div>

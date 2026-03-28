@@ -185,7 +185,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         return [{
             id: 'order-123', orderId: 'order-123', customerId: 'cust-1',
             customerName: 'Alice Smith', orderType: 'delivery', status: 'confirmed',
-            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
+            pickupAddress: { fullAddress: 'popclozet Warehouse', lat: 19.1234, lng: 72.8567 },
             deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
             items: [{ name: 'Designer Dress', qty: 1 }],
             totalAmount: 1500, deliveryFee: 150, etaMinutes: 15, distanceKm: 2.5,
@@ -219,13 +219,13 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
                 lng: addr?.longitude ?? 0,
             }
             : {
-                fullAddress: 'PopClozet Warehouse, Powai',
+                fullAddress: 'popclozet Warehouse, Powai',
                 lat: 19.1234,
                 lng: 72.8567,
             };
         const deliveryAddress = isReturn
             ? {
-                fullAddress: 'PopClozet Warehouse, Powai',
+                fullAddress: 'popclozet Warehouse, Powai',
                 lat: 19.1234,
                 lng: 72.8567,
             }
@@ -257,7 +257,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         return {
             id: orderId, orderId, customerId: 'cust-1', customerName: 'Alice Smith',
             orderType: 'delivery', status: 'out_for_delivery',
-            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
+            pickupAddress: { fullAddress: 'popclozet Warehouse', lat: 19.1234, lng: 72.8567 },
             deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
             items: [{ name: 'Designer Dress', qty: 1 }],
             totalAmount: 1500, deliveryFee: 150, etaMinutes: 10, distanceKm: 1.2,
@@ -291,11 +291,11 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
                 lng: addr?.longitude ?? 0,
             }
             : {
-                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+                fullAddress: 'popclozet Warehouse', lat: 19.1234, lng: 72.8567,
             },
         deliveryAddress: isReturn
             ? {
-                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+                fullAddress: 'popclozet Warehouse', lat: 19.1234, lng: 72.8567,
             }
             : {
                 fullAddress: addr?.full_address ?? 'Customer Address',

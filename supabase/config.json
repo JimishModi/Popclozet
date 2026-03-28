@@ -1,6 +1,6 @@
 {
     "projectId": "your-project-id",
-    "name": "PopClozet Customer App",
+    "name": "popclozet Customer App",
     "db": {
         "host": "db.your-project.supabase.co",
         "port": 5432,

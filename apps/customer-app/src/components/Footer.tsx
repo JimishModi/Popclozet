@@ -47,7 +47,7 @@ export default function Footer() {
     <footer className="py-12 sm:py-16 md:py-32 bg-[#F6F0E0] dark:bg-[#1A1A1A] border-t border-black/10 dark:border-[#FAFAFA]/10">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 text-center">
         <a href="/" aria-label="go home" className="mx-auto block w-fit">
-          <img src={Logo} alt="PopClozet" className="h-12 sm:h-14 w-auto mx-auto" />
+          <img src={Logo} alt="popclozet" className="h-12 sm:h-14 w-auto mx-auto" />
         </a>
 
         <div className="my-6 sm:my-8 flex flex-wrap justify-center gap-4 sm:gap-6 text-sm sm:text-base font-medium">
@@ -82,26 +82,26 @@ export default function Footer() {
           <div className="flex flex-wrap justify-center gap-4 mt-4">
             <IconCircle
               href="https://www.instagram.com/popclozet.in?utm_source=qr&igsh=MWhncmMwNW42Nzdsdw=="
-              label="PopClozet on Instagram"
+              label="popclozet on Instagram"
             >
               <Instagram className="w-4 h-4" />
             </IconCircle>
 
             <IconCircle
               href="https://www.linkedin.com/company/popclozet/?viewAsMember=true"
-              label="PopClozet on LinkedIn"
+              label="popclozet on LinkedIn"
             >
               <Linkedin className="w-4 h-4" />
             </IconCircle>
 
-            <IconCircle href="https://x.com/popclozet?s=09" label="PopClozet on X">
+            <IconCircle href="https://x.com/popclozet?s=09" label="popclozet on X">
               <XIcon className="w-4 h-4" />
             </IconCircle>
           </div>
         </div>
 
         <span className="text-muted-foreground block text-center text-sm">
-          © {new Date().getFullYear()} PopClozet. All rights reserved.
+          © {new Date().getFullYear()} popclozet. All rights reserved.
         </span>
       </div>
     </footer>

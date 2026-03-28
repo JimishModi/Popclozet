@@ -78,8 +78,10 @@ export function AddressSearchInput({
         }
 
         setIsLoadingInternal(true);
+        console.log('[AddressSearch] Searching for:', searchQuery);
         try {
             const results = await searchAddresses(searchQuery);
+            console.log('[AddressSearch] Got', results.length, 'results:', results.map(r => ({ addr: r.formattedAddress, lat: r.lat, lng: r.lng, eLoc: r.eLoc })));
             setSuggestions(results);
         } catch (error) {
             console.error('Search failed:', error);
@@ -107,6 +109,7 @@ export function AddressSearchInput({
     }, [query, handleSearch]);
 
     const handleSelect = (address: ValidatedAddress) => {
+        console.log('[AddressSearch] Selected:', { formattedAddress: address.formattedAddress, lat: address.lat, lng: address.lng, eLoc: address.eLoc });
         setQuery(address.formattedAddress);
         setSuggestions([]);
         setIsFocused(false);

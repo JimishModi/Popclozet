@@ -70,7 +70,7 @@ function SlideHeader() {
       >
         WELCOME TO
       </p>
-      <img src={logoImage} alt="PopClozet" className="h-10 mx-auto mix-blend-screen" />
+      <img src={logoImage} alt="popclozet" className="h-10 mx-auto mix-blend-screen" />
     </div>
   );
 }

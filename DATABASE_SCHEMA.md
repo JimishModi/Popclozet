@@ -1,6 +1,6 @@
-# PopClozet Customer PWA - Database Schema
+# popclozet Customer PWA - Database Schema
 
-This document outlines the required Supabase database schema for the PopClozet customer application.
+This document outlines the required Supabase database schema for the popclozet customer application.
 
 ## Tables
 

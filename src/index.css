@@ -7,14 +7,14 @@
 @layer base {
   :root {
     color-scheme: dark;
-    /* PopClozet Dark Theme - Premium Glassmorphism */
+    /* popclozet Dark Theme - Premium Glassmorphism */
     --background: 0 0% 4%;
     /* #0a0a0a - Pure black */
     --foreground: 0 0% 98%;
     /* White text */
     --headline: 0 0% 100%;
 
-    /* Primary - Coral Pink (PopClozet Brand) */
+    /* Primary - Coral Pink (popclozet Brand) */
     --primary: 349 100% 60%;
     /* #ff4d6d - Coral Pink */
     --primary-foreground: 0 0% 100%;

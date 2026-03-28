@@ -87,7 +87,7 @@ export default function DeliveryTrackingPage() {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Track my PopClozet order',
+                    title: 'Track my popclozet order',
                     url,
                 });
             } catch {

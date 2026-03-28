@@ -351,7 +351,7 @@ const Index = () => {
           >
             <img
               src={popclozetManaca}
-              alt="Popclozet x Manaca – Your Infinite Closet"
+              alt="popclozet x Manaca – Your Infinite Closet"
               className="
                 w-full h-auto object-cover
                 rounded-2xl

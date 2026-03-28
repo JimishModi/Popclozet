@@ -12,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 const REST_KEY = process.env.MAPPLS_REST_KEY;
+const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
 if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
     console.warn('WARNING: MAPPLS_REST_KEY is not configured or using placeholder value.');
@@ -67,16 +68,16 @@ app.get("/api/location/detail/:eloc", async (req, res) => {
     const { eloc } = req.params;
 
     try {
-        // Updated to use the correct Mappls Atlas Detail API URL
-        const url = `https://atlas.mappls.com/api/places/eloc/${eloc}?access_token=${REST_KEY}`;
+        // Updated to use the correct Mappls Atlas Geocode API URL
+        const url = `https://atlas.mappls.com/api/places/geocode?eLoc=${eloc}&access_token=${REST_KEY}`;
         console.log(`[BACKEND] eLoc Detail lookup: ${eloc}`);
-        console.log(`[BACKEND] API URL: ${url}`);
+        console.log(`[BACKEND] API URL: ${url.replace(REST_KEY || '', 'REDACTED')}`);
         
         const response = await axios.get(url, {
             headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
 
-        console.log(`[BACKEND] Detail API Response:`, JSON.stringify(response.data));
+        console.log(`[BACKEND] Detail API Response Status:`, response.status);
 
         const result = response.data;
         // Mappls results often wrap data in a results array or return directly
@@ -139,7 +140,36 @@ app.get("/api/location/reverse", async (req, res) => {
             });
         }
     } catch (error: any) {
-        console.error("Mappls Reverse Error:", error.response?.data || error.message);
+        console.warn("[BACKEND] Mappls Reverse Error (Likely Expired Key), attempting Mapbox Fallback:", error.response?.data?.error_description || error.message);
+        
+        // Fallback to Mapbox Reverse Geocoding
+        if (MAPBOX_TOKEN) {
+            try {
+                const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=poi,address,place,locality&limit=1`;
+                const mbResponse = await axios.get(mapboxUrl);
+                const feature = mbResponse.data.features?.[0];
+                
+                if (feature) {
+                    // Extract city from context if available
+                    let city = "Mumbai"; 
+                    const placeContext = feature.context?.find((c: any) => c.id.startsWith('place'));
+                    if (placeContext) city = placeContext.text;
+
+                    console.log(`[BACKEND] Mapbox Reverse Geocode Success: ${feature.place_name}`);
+                    return res.json({
+                        formatted_address: feature.place_name,
+                        latitude: parseFloat(lat as string),
+                        longitude: parseFloat(lng as string),
+                        city: city
+                    });
+                }
+            } catch (mbError: any) {
+                console.error("[BACKEND] Mapbox Reverse Geocode Fallback also failed:", mbError.message);
+            }
+        }
+
+        // Ultimate hard fallback if BOTH fail
+        console.warn(`[BACKEND] Both Mappls and Mapbox failed. Sending raw coords.`);
         res.json({
             formatted_address: `${lat}, ${lng}`,
             latitude: parseFloat(lat as string),

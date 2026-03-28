@@ -23,7 +23,38 @@ export default async function handler(req, res) {
         // v1 returns { suggestedLocations: [...] } or similar
         const results = data.suggestedLocations || data.results || (Array.isArray(data) ? data : []);
         if (results.length > 0) {
-          res.status(200).json(results);
+          // Mappls AutoSuggest returns eLoc but often NO coordinates.
+          // Resolve coordinates for the first few results so the frontend can use them directly.
+          const enriched = await Promise.all(
+            results.slice(0, 5).map(async (place) => {
+              // If already has valid coordinates, keep as-is
+              const lat = parseFloat(place.latitude || place.lat || 0);
+              const lng = parseFloat(place.longitude || place.lng || 0);
+              if (Math.abs(lat) > 0.01 || Math.abs(lng) > 0.01) return place;
+
+              // Try to resolve via eLoc → place_detail
+              const eLoc = place.eLoc || place.eloc || place.placeId;
+              if (!eLoc) return place;
+
+              try {
+                const detailUrl = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/place_detail?eLoc=${encodeURIComponent(eLoc)}`;
+                const detailRes = await fetch(detailUrl, {
+                  headers: { 'Referer': 'https://popclozet.vercel.app/' },
+                });
+                if (detailRes.ok) {
+                  const detail = await detailRes.json();
+                  const dLat = parseFloat(detail.latitude || detail.lat || 0);
+                  const dLng = parseFloat(detail.longitude || detail.lng || 0);
+                  if (Math.abs(dLat) > 0.01 || Math.abs(dLng) > 0.01) {
+                    return { ...place, latitude: dLat, longitude: dLng };
+                  }
+                }
+              } catch (_) { /* ignore — will be resolved client-side */ }
+
+              return place;
+            })
+          );
+          res.status(200).json(enriched);
           return;
         }
       } else {
@@ -60,7 +91,7 @@ export default async function handler(req, res) {
   try {
     const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=5`;
     const nomRes = await fetch(nomUrl, {
-      headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)', 'Accept-Language': 'en' },
+      headers: { 'User-Agent': 'popclozet/1.0 (popclozet.vercel.app)', 'Accept-Language': 'en' },
     });
     if (nomRes.ok) {
       const data = await nomRes.json();

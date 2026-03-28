@@ -10,30 +10,23 @@ initTheme();
 // Restore Supabase session BEFORE React mounts
 // (Now handled natively by Supabase persistSession: true)
 
-// Forcefully unregister service workers in development to prevent "Offline Mode" bugs
-if (import.meta.env.DEV) {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
-        console.log("🧹 Unregistered stale service worker in DEV mode");
-      }
-    });
-  }
-}
-
-// Register PWA Service Worker (only in production)
-if (import.meta.env.PROD) {
-  registerSW({
-    onNeedRefresh() {
+// Register PWA Service Worker (both dev and prod — needed for push notifications)
+registerSW({
+  onNeedRefresh() {
+    if (import.meta.env.PROD) {
       // Auto-reload to apply new assets — prevents blank screen on installed PWA
       window.location.reload();
-    },
-    onOfflineReady() {
-      console.log("📦 App ready for offline usage");
-    },
-  });
-}
+    } else {
+      console.log("🔄 New service worker available (dev mode — manual reload if needed)");
+    }
+  },
+  onOfflineReady() {
+    console.log("📦 App ready for offline usage");
+  },
+  onRegisterError(error) {
+    console.error("❌ SW registration error:", error);
+  },
+});
 
 const container = document.getElementById("root");
 

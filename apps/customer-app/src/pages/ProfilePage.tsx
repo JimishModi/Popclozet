@@ -99,7 +99,7 @@ const ProfilePage: React.FC = () => {
       title: "Support",
       items: [
         { icon: HelpCircle, label: "Help Center", href: "/help" },
-        { icon: Sparkles, label: "About PopClozet", href: "/about-us" },
+        { icon: Sparkles, label: "About popclozet", href: "/about-us" },
         { icon: Shield, label: "Privacy Policy", href: "/privacy" },
       ]
     },
@@ -253,7 +253,7 @@ const ProfilePage: React.FC = () => {
     <div className="bg-black text-white min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between lg:hidden">
-        <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
+        <img src={logo} alt="popclozet" className="h-6 w-auto object-contain" />
         <button onClick={() => navigate("/settings")} className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
           <Settings className="w-5 h-5 text-zinc-400" />
         </button>
@@ -442,7 +442,7 @@ const ProfilePage: React.FC = () => {
             )}
 
             <div className="mt-12 text-center pb-4 lg:pb-0">
-              <p className="text-xs text-zinc-700 font-medium">PopClozet v1.0.0</p>
+              <p className="text-xs text-zinc-700 font-medium">popclozet v1.0.0</p>
               <p className="text-xs text-zinc-800 mt-1">Made with ❤️ in Mumbai</p>
             </div>
             </div>

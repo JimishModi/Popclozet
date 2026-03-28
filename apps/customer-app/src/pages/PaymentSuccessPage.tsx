@@ -190,7 +190,7 @@ export default function PaymentSuccessPage() {
                                 <ArrowRight className="w-5 h-5" />
                             </button>
                             <p className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 mt-6">
-                                {type === 'order' ? `Order #PC-${orderId?.slice(0, 6).toUpperCase()}` : `Order #PC-${Math.floor(100000 + Math.random() * 900000)}`} • POPCLOZET SECURE
+                                {type === 'order' ? `Order #PC-${orderId?.slice(0, 6).toUpperCase()}` : `Order #PC-${Math.floor(100000 + Math.random() * 900000)}`} • popclozet SECURE
                             </p>
                         </motion.div>
                     </>

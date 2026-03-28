@@ -1,6 +1,6 @@
 {
-    "name": "PopClozet - Rental Fashion",
-    "short_name": "PopClozet",
+    "name": "popclozet - Rental Fashion",
+    "short_name": "popclozet",
     "description": "Premium rental fashion platform with seamless delivery experience",
     "start_url": "/",
     "display": "standalone",

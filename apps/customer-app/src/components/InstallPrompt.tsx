@@ -53,7 +53,7 @@ export function InstallPrompt() {
                 
                 <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-lg leading-tight mb-1 truncate">
-                        Install PopClozet
+                        Install popclozet
                     </h3>
                     <p className="text-sm text-white/90 mb-4 line-clamp-2">
                         Add to your home screen for a faster, app-like experience.

@@ -53,9 +53,16 @@ export async function createMap(
         trackResize: true,
     });
 
-    // Navigation controls removed per user request (the "white box")
+    // Wait for the map to be fully loaded before returning
+    // This ensures flyTo and marker operations work reliably
+    await new Promise<void>((resolve) => {
+        if (map.loaded()) {
+            resolve();
+        } else {
+            map.once('load', () => resolve());
+        }
+    });
 
-    // Return immediately so UI can show the container/loading state
     return map;
 }
 

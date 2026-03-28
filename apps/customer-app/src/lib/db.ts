@@ -1,7 +1,7 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 // Define the unified database schema for offline-first architecture
-interface PopClozetDB extends DBSchema {
+interface popclozetDB extends DBSchema {
     cart: {
         key: string;
         value: {
@@ -73,18 +73,18 @@ export interface ReceiptData {
     items: ReceiptItem[];
 }
 
-const DB_NAME = 'PopClozet';
+const DB_NAME = 'popclozet';
 const DB_VERSION = 4; // Incremented for receipts store
 
-let dbPromise: Promise<IDBPDatabase<PopClozetDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<popclozetDB>> | null = null;
 
 // Initialize the database
-export function initDB(): Promise<IDBPDatabase<PopClozetDB>> {
+export function initDB(): Promise<IDBPDatabase<popclozetDB>> {
     if (dbPromise) {
         return dbPromise;
     }
 
-    dbPromise = openDB<PopClozetDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<popclozetDB>(DB_NAME, DB_VERSION, {
         upgrade(db, oldVersion, newVersion, transaction) {
             // Create cart store
             if (!db.objectStoreNames.contains('cart')) {

@@ -13,7 +13,7 @@ const StatsBento = () => {
                     viewport={{ once: true }}
                 >
                     <h2 className="text-3xl md:text-4xl font-playfair font-bold mb-3">
-                        Why Choose <span className="text-gradient-brand">PopClozet</span>
+                        Why Choose <span className="text-gradient-brand">popclozet</span>
                     </h2>
                     <p className="text-muted-foreground max-w-lg mx-auto">
                         Join thousands who've discovered a smarter way to dress

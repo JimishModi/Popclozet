@@ -8,7 +8,7 @@ const SECTIONS = [
     {
         title: "1. Nature of Services",
         icon: <FileText className="w-5 h-5 text-blue-400" />,
-        content: "Popclozet is a hyperlocal fashion rental utility providing 60-minute delivery of sneakers, jackets, and more. All products remain the exclusive property of Popclozet unless legally sold. Rental constitute temporary bailment, not ownership."
+        content: "popclozet is a hyperlocal fashion rental utility providing 60-minute delivery of sneakers, jackets, and more. All products remain the exclusive property of popclozet unless legally sold. Rental constitute temporary bailment, not ownership."
     },
     {
         title: "2. Payment Authorization",
@@ -23,7 +23,7 @@ const SECTIONS = [
     {
         title: "4. Criminal Liability Warning",
         icon: <Scale className="w-5 h-5 text-red-400" />,
-        content: "Unauthorized retention or concealment may constitute criminal offenses under Sections 403 & 405 of the IPC. Popclozet reserves the right to initiate FIR proceedings, file criminal complaints, and engage recovery agencies."
+        content: "Unauthorized retention or concealment may constitute criminal offenses under Sections 403 & 405 of the IPC. popclozet reserves the right to initiate FIR proceedings, file criminal complaints, and engage recovery agencies."
     },
     {
         title: "5. Cleaning Policy",
@@ -99,12 +99,12 @@ const TermsPage: React.FC = () => {
 
                 <div className="mt-8 p-5 rounded-2xl bg-white/5 border border-white/5 text-center">
                     <p className="text-zinc-500 text-[10px] leading-relaxed mb-4">
-                        Popclozet Fashion Pvt Ltd<br />
+                        popclozet Fashion Pvt Ltd<br />
                         SANE Colony, Haveli Pimpri Chikhali, Pune, Maharashtra 411062<br />
                         Email: businessrep@popclozet.in
                     </p>
                     <p className="text-zinc-700 text-[10px]">
-                        © 2026 PopClozet. All rights reserved.
+                        © 2026 popclozet. All rights reserved.
                     </p>
                 </div>
             </main>

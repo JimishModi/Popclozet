@@ -69,7 +69,7 @@ const FAQ = () => {
             <span className="text-[#EB76C2]">We've Got Answers.</span>
           </h2>
           <p className="text-black/60 dark:text-[#FAFAFA]/60 text-base md:text-lg max-w-2xl mx-auto">
-            Everything you need to know about Popclozet
+            Everything you need to know about popclozet
           </p>
         </motion.div>
 

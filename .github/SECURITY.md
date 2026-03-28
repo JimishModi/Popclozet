@@ -1,4 +1,4 @@
-# Security Policy — PopClozet
+# Security Policy — popclozet
 
 If you discover a security vulnerability, please report it responsibly.
 

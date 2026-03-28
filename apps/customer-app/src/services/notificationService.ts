@@ -5,6 +5,7 @@
 
 import { supabase } from "@popclozet/api-client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { triggerPushForOrderStatus } from "./pushNotificationService";
 
 export type NotificationType =
   | "general"
@@ -365,6 +366,12 @@ export async function notifyOrderStatusChange(
         if (error) {
             console.error('Failed to create order status notification:', error);
         }
+
+        // Trigger push notification for key order statuses
+        // (fires only for important ones like delivery, pickup, etc.)
+        triggerPushForOrderStatus(userId, orderId, status).catch((err) =>
+            console.warn('Push notification trigger failed (non-blocking):', err)
+        );
     } catch (error) {
         console.error('Failed to create order status notification:', error);
     }

@@ -12,7 +12,7 @@ export const Footer: React.FC = () => {
                             <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center">
                                 <span className="text-white font-bold text-xl">P</span>
                             </div>
-                            <span className="text-xl font-display font-bold text-gradient">PopClozet</span>
+                            <span className="text-xl font-display font-bold text-gradient">popclozet</span>
                         </div>
                         <p className="text-gray-600 text-sm max-w-md">
                             Premium rental fashion platform with seamless delivery experience.
@@ -67,7 +67,7 @@ export const Footer: React.FC = () => {
 
                 <div className="border-t border-gray-200 mt-8 pt-8 text-center">
                     <p className="text-sm text-gray-600">
-                        © {new Date().getFullYear()} PopClozet. All rights reserved.
+                        © {new Date().getFullYear()} popclozet. All rights reserved.
                     </p>
                 </div>
             </div>

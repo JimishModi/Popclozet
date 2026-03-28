@@ -70,7 +70,7 @@ const MOCK_DELIVERY_ORDERS: RiderDeliveryOrder[] = [
         orderType: 'delivery',
         status: 'packed',
         pickupLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,
@@ -95,7 +95,7 @@ const MOCK_DELIVERY_ORDERS: RiderDeliveryOrder[] = [
         orderType: 'delivery',
         status: 'packed',
         pickupLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,
@@ -129,7 +129,7 @@ const MOCK_PICKUP_ORDERS: RiderDeliveryOrder[] = [
             lng: 72.9145,
         },
         dropoffLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,

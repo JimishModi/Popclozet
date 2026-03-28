@@ -80,7 +80,7 @@ const SignOutPage: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="relative mb-8">
                                     <div className="absolute -inset-4 bg-[#f2546d]/20 blur-2xl rounded-full" />
-                                    <img src={logo} alt="PopClozet" className="h-10 w-auto mx-auto relative" />
+                                    <img src={logo} alt="popclozet" className="h-10 w-auto mx-auto relative" />
                                 </div>
 
                                 <h2 className="text-3xl font-bold tracking-tight">Come back soon!</h2>
@@ -104,7 +104,7 @@ const SignOutPage: React.FC = () => {
 
                             <div className="pt-8 flex items-center justify-center gap-2 text-zinc-600">
                                 <Sparkles className="w-4 h-4" />
-                                <span className="text-xs font-medium uppercase tracking-[0.2em]">PopClozet Premium</span>
+                                <span className="text-xs font-medium uppercase tracking-[0.2em]">popclozet Premium</span>
                             </div>
                         </motion.div>
                     )}

@@ -37,8 +37,8 @@ export default defineConfig({
       ],
 
       manifest: {
-        name: "Pop Clozet - Rent the Trend",
-        short_name: "Pop Clozet",
+        name: "popclozet - Rent the Trend",
+        short_name: "popclozet",
         description:
           "Rent designer fashion for every occasion. Delivered in 60 minutes.",
         start_url: "/",
@@ -77,97 +77,18 @@ export default defineConfig({
         ],
       },
 
-      workbox: {
-        cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
 
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,svg,woff,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
-
-        runtimeCaching: [
-          {
-            urlPattern: ({ request }) =>
-              request.destination === "document",
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "pages-cache",
-            },
-          },
-          {
-            urlPattern: ({ request }) =>
-              request.destination === "style",
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "css-cache",
-            },
-          },
-          {
-            urlPattern: ({ request }) =>
-              request.destination === "script",
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "js-cache",
-            },
-          },
-          {
-            urlPattern: ({ request }) =>
-              request.destination === "image",
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images-cache",
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-api-cache",
-              networkTimeoutSeconds: 3,
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "supabase-storage-cache",
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "google-fonts-stylesheets",
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts-webfonts",
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 365 * 24 * 60 * 60,
-              },
-            },
-          },
-        ],
-
-        navigateFallback: "/offline.html",
-        navigateFallbackDenylist: [/^\/api/, /^\/admin/],
       },
 
       devOptions: {
-        enabled: false,
+        enabled: true,
+        type: "module",
       },
 
     }),

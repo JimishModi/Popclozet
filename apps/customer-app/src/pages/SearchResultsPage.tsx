@@ -370,7 +370,7 @@ const SearchResultsPage: React.FC = () => {
                         <div className="w-20 h-20 rounded-full bg-[#232323] flex items-center justify-center mb-4">
                             <Search className="w-8 h-8 text-zinc-600" />
                         </div>
-                        <h3 className="text-lg font-bold text-white mb-2">Search PopClozet</h3>
+                        <h3 className="text-lg font-bold text-white mb-2">Search popclozet</h3>
                         <p className="text-sm text-zinc-500 text-center">
                             Find dresses, jackets, brands, and more. Start typing to see suggestions!
                         </p>

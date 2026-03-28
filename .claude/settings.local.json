@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(grep -r \"auth\\\\.users\\\\|email\\\\|phone\" 'c:/Users/madha/Desktop/doc popclozet/popclozet/supabase/migrations/' --include=*.sql)",
-      "Bash(grep -r \"already registered\\\\|already exists\" --include=*.ts* --include=*.sql .)"
+      "Bash(grep -r \"already registered\\\\|already exists\" --include=*.ts* --include=*.sql .)",
+      "Read(//c/Users/madha/Desktop/doc/ popclozet/popclozet/apps/customer-app/src/components/location/**)",
+      "Read(//c/Users/madha/Desktop/doc/ popclozet/popclozet/apps/customer-app/src/pages/**)",
+      "Read(//c/Users/madha/Desktop/**)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

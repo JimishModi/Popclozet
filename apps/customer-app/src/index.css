@@ -23,7 +23,7 @@
     /* Near black text */
     --headline: 0 0% 8%;
 
-    /* Primary - Coral Pink (PopClozet Brand) */
+    /* Primary - Coral Pink (popclozet Brand) */
     --primary: 0 84% 70%;
     /* #F87171 - Coral Pink */
     --primary-foreground: 0 0% 100%;
@@ -93,7 +93,7 @@
 
   [data-theme="dark"] {
     color-scheme: dark;
-    /* PopClozet Mobile Dark Theme */
+    /* popclozet Mobile Dark Theme */
     --background: 0 0% 4%;
     /* #0a0a0a - Pure black */
     --foreground: 0 0% 98%;

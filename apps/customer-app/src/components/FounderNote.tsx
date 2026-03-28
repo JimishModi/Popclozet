@@ -18,13 +18,13 @@ const FounderNote = () => {
               Why we built <span className="text-gradient-brand">an endless closet</span>
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              "I started Popclozet from a simple, recurring panic: 'I have a closet full of clothes, but nothing to wear.' I was tired of spending money on trendy outfits I'd wear once... Popclozet is the solution I always wanted an endless, sustainable closet that gives you the freedom to wear a new outfit for every new plan. Why limit your style?".
+              "I started popclozet from a simple, recurring panic: 'I have a closet full of clothes, but nothing to wear.' I was tired of spending money on trendy outfits I'd wear once... popclozet is the solution I always wanted an endless, sustainable closet that gives you the freedom to wear a new outfit for every new plan. Why limit your style?".
             </p>
             <div className="flex items-center gap-4">
               <div className="h-px w-16 bg-primary" />
               <div>
                 <p className="font-semibold text-foreground">Viraj Pondkule & Vraj Shah</p>
-                <p className="text-sm text-muted-foreground">Co-founders, Popclozet</p>
+                <p className="text-sm text-muted-foreground">Co-founders, popclozet</p>
               </div>
             </div>
 
@@ -47,7 +47,7 @@ const FounderNote = () => {
                 <div className="relative h-80">
                   <img
                     src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop"
-                    alt="Popclozet Team"
+                    alt="popclozet Team"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
@@ -55,7 +55,7 @@ const FounderNote = () => {
 
                 {/* Content */}
                 <div className="p-6 -mt-16 relative">
-                  <h3 className="text-xl font-bold text-white mb-1">Popclozet Collective</h3>
+                  <h3 className="text-xl font-bold text-white mb-1">popclozet Collective</h3>
                   <p className="text-slate-400 text-sm mb-4">Team of stylists & ops</p>
 
                   {/* Info Bar */}

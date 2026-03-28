@@ -67,10 +67,10 @@ export const SignupPage: React.FC = () => {
                 >
                     <div className="text-center mb-6">
                         <div className="inline-flex items-center gap-2 mb-4">
-                            <img src={logo} alt="PopClozet" className="h-10 w-auto" />
+                            <img src={logo} alt="popclozet" className="h-10 w-auto" />
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Create Account</h1>
-                        <p className="text-zinc-400 text-sm">Join PopClozet and start renting</p>
+                        <p className="text-zinc-400 text-sm">Join popclozet and start renting</p>
                     </div>
 
                     <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-5 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">

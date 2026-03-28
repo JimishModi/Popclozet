@@ -124,7 +124,7 @@ export default function OrderConfirmedPage() {
         if (!order) return toast.error("Invoice not ready");
 
         const invoiceContent = `
-POPCLOZET - RENTAL INVOICE
+popclozet - RENTAL INVOICE
 ==========================
 Order ID: ${order.id}
 Date: ${new Date(order.created_at || Date.now()).toLocaleDateString()}
@@ -145,14 +145,14 @@ Delivery Fee: ₹${Math.round(deliveryFee)}
 TOTAL PAID: ₹${Math.round(totalAmount)}
 PAYMENT METHOD: ${String(order?.payment_method || 'COD').toUpperCase()}
 
-Thank you for renting with PopClozet!
+Thank you for renting with popclozet!
         `.trim();
 
         const blob = new Blob([invoiceContent], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `PopClozet_Invoice_${order.id || 'receipt'}.txt`;
+        a.download = `popclozet_Invoice_${order.id || 'receipt'}.txt`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

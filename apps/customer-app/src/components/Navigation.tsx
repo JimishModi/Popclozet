@@ -202,12 +202,12 @@ const Navigation = () => {
                 handleHomeClick();
               }}
               className="flex items-center gap-3 select-none mr-2"
-              aria-label="PopClozet home"
+              aria-label="popclozet home"
             >
               <div className="h-10 w-auto flex items-center">
                 <img
                   src={logoSrc}
-                  alt="PopClozet logo"
+                  alt="popclozet logo"
                   className="h-12 w-auto object-contain"
                   loading="lazy"
                 />
@@ -385,10 +385,10 @@ const Navigation = () => {
             <button
               onClick={(e) => { e.preventDefault(); handleHomeClick(); }}
               className="flex items-center"
-              aria-label="PopClozet home"
+              aria-label="popclozet home"
               type="button"
             >
-              <img src={logoSrc} alt="PopClozet logo" className="h-10 w-auto object-contain" loading="lazy" />
+              <img src={logoSrc} alt="popclozet logo" className="h-10 w-auto object-contain" loading="lazy" />
             </button>
 
             <div className="flex items-center gap-2">

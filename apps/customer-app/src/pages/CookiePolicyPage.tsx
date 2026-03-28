@@ -31,7 +31,7 @@ const SECTIONS = [
     },
     {
         title: "7. Contact Us",
-        content: "If you have any questions about our use of cookies or other technologies, please email us at businessrep@popclozet.in or post to: Popclozet Fashion Pvt Ltd, SANE Colony, haveli Pimpri chikhali, Pune, Maharashtra 411062, India. Phone: +91 77559 02716"
+        content: "If you have any questions about our use of cookies or other technologies, please email us at businessrep@popclozet.in or post to: popclozet Fashion Pvt Ltd, SANE Colony, haveli Pimpri chikhali, Pune, Maharashtra 411062, India. Phone: +91 77559 02716"
     },
 ];
 
@@ -83,7 +83,7 @@ const CookiePolicyPage: React.FC = () => {
                 </div>
 
                 <p className="text-center text-xs text-zinc-700 mt-8 pb-2">
-                    © 2026 PopClozet Pvt. Ltd. All rights reserved.
+                    © 2026 popclozet Pvt. Ltd. All rights reserved.
                 </p>
             </main>
         </MobileShell>

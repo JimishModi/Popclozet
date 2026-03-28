@@ -36,7 +36,7 @@ export async function getNotifications(
                 id: 'notif-1',
                 riderId,
                 type: 'system',
-                title: 'Welcome to PopClozet!',
+                title: 'Welcome to popclozet!',
                 message: 'Your account has been verified. You can now start accepting orders.',
                 isRead: false,
                 createdAt: new Date().toISOString(),

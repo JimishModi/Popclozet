@@ -400,7 +400,7 @@ export function ProductIntakePage() {
                 // Footer
                 doc.setFontSize(9);
                 doc.setTextColor(180, 180, 180);
-                doc.text('Authenticated Warehouse Intake Document • PopClozet', 105, 285, { align: 'center' });
+                doc.text('Authenticated Warehouse Intake Document • popclozet', 105, 285, { align: 'center' });
             });
 
             doc.save(`${name.replace(/\s+/g, '_')}_SpecSheet.pdf`);

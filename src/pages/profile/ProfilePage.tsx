@@ -129,7 +129,7 @@ export const ProfilePage: React.FC = () => {
         <MobileShell className="bg-black text-white">
             {/* Header - Premium Glassmorphism */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
-                <img src={logo} alt="POPCLOZET" className="h-6 w-auto object-contain" />
+                <img src={logo} alt="popclozet" className="h-6 w-auto object-contain" />
                 <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
                     <SettingsIcon className="w-5 h-5 text-zinc-400" />
                 </button>
@@ -263,7 +263,7 @@ export const ProfilePage: React.FC = () => {
                 {/* App Info Footer */}
                 <div className="mt-12 text-center pb-4">
                     <p className="text-xs text-zinc-700 font-medium">
-                        PopClozet v1.0.0
+                        popclozet v1.0.0
                     </p>
                     <p className="text-xs text-zinc-800 mt-1">
                         Made with ❤️ in Mumbai

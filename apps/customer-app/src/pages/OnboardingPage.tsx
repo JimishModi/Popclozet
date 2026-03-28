@@ -15,7 +15,7 @@ export default function OnboardingPage() {
                 {/* Title */}
                 <div className="text-center pt-10 pb-4 relative z-10">
                     <p className="text-zinc-400 text-sm font-medium tracking-widest uppercase mb-2">Welcome to</p>
-                    <img src={logoImage} alt="PopClozet" className="h-10 mx-auto" />
+                    <img src={logoImage} alt="popclozet" className="h-10 mx-auto" />
                 </div>
 
                 {/* Animated Grid Container */}

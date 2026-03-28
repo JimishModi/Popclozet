@@ -19,7 +19,7 @@ const FAQS = [
     },
     {
         q: "Is there a security deposit?",
-        a: "No! PopClozet operates on a zero-deposit model. You only pay the rental fee and delivery charges — no upfront security amount required."
+        a: "No! popclozet operates on a zero-deposit model. You only pay the rental fee and delivery charges — no upfront security amount required."
     },
     {
         q: "What if something gets damaged?",

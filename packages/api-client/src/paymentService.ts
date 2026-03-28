@@ -119,7 +119,7 @@ export async function processPayment(
             key: getRazorpayKeyId(),
             amount: paymentOrder.amount,
             currency: paymentOrder.currency,
-            name: 'PopClozet',
+            name: 'popclozet',
             description: `Order ${paymentOrder.receipt}`,
             order_id: paymentOrder.orderId,
             prefill: {

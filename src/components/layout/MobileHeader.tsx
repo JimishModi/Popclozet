@@ -38,7 +38,7 @@ interface MobileHeaderProps {
 }
 
 /**
- * Mobile header with PopClozet branding, location, and action icons.
+ * Mobile header with popclozet branding, location, and action icons.
  * Dark theme only - premium glassmorphism design.
  */
 export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
@@ -58,7 +58,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                     <Link to="/" className="flex items-center">
                         <img
                             src={logo}
-                            alt="POPCLOZET"
+                            alt="popclozet"
                             className="h-7 w-auto object-contain"
                         />
                     </Link>

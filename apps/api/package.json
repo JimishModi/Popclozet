@@ -1,7 +1,7 @@
 {
   "name": "@popclozet/api",
   "version": "1.0.0",
-  "description": "Backend API for PopClozet",
+  "description": "Backend API for popclozet",
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts"

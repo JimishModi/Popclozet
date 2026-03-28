@@ -29,7 +29,7 @@ export interface MFAEnrollResult {
  * Enroll a new TOTP factor for the current user.
  * Returns a QR code that the user scans with Google Authenticator / Authy.
  */
-export async function enrollMFA(friendlyName = 'PopClozet App'): Promise<MFAEnrollResult> {
+export async function enrollMFA(friendlyName = 'popclozet App'): Promise<MFAEnrollResult> {
     const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
         friendlyName,

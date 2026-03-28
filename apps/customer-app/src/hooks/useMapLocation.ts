@@ -71,11 +71,14 @@ export function useMapLocation() {
                     permissionState: 'granted'
                 }));
 
-                // Try to get address for first fix
-                try {
-                    const address = await reverseGeocode(latitude, longitude);
-                    setState((prev) => ({ ...prev, address }));
-                } catch (e) { }
+                // Try to get address for first fix without blocking Phase 2
+                reverseGeocode(latitude, longitude)
+                    .then((address) => {
+                        if (address) {
+                            setState((prev) => ({ ...prev, address }));
+                        }
+                    })
+                    .catch(() => {});
 
                 // Phase 2: ACCURATE (High Accuracy) - Background GPS fix
                 navigator.geolocation.getCurrentPosition(
@@ -201,6 +204,12 @@ export function useMapLocation() {
         );
     }, []);
 
+    // Set location coordinates only — no reverse geocode, no address change.
+    // Use this when updating coords for hub queries without polluting the GPS address.
+    const setLocationCoords = useCallback((lat: number, lng: number) => {
+        setState((prev) => ({ ...prev, location: { lat, lng } }));
+    }, []);
+
     // Clear location
     const clearLocation = useCallback(() => {
         localStorage.removeItem('user_location');
@@ -242,6 +251,7 @@ export function useMapLocation() {
         watchPosition,
         setLocation,
         setLocationWithAddress,
+        setLocationCoords,
         clearLocation,
         isAvailable: state.permissionState !== 'unavailable',
         canRequest: state.permissionState === 'prompt' || state.permissionState === 'granted',

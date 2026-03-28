@@ -11,7 +11,7 @@ interface Message {
 }
 
 const BASE_CONTEXT = `
-You are the PopClozet Style Assistant. You help users pick outfits from our rental collection.
+You are the popclozet Style Assistant. You help users pick outfits from our rental collection.
 We offer premium fashion rentals delivered in 60 minutes.
 Our collection includes:
 - Elegant Black Dress (Date Night, ₹499)
@@ -28,7 +28,7 @@ When recommending, be helpful, stylish, and concise. Always suggest specific ite
 
 const getContextForRoute = (pathname: string) => {
     if (pathname === "/") {
-        return `${BASE_CONTEXT}\nYou are currently on the Home Page. Welcome the user warmly to PopClozet.`;
+        return `${BASE_CONTEXT}\nYou are currently on the Home Page. Welcome the user warmly to popclozet.`;
     } else if (pathname.includes("/shop")) {
         return `${BASE_CONTEXT}\nYou are currently on the Shopping Page. Focus on helping the user choose an outfit from the list.`;
     } else if (pathname.includes("/cart")) {
@@ -43,7 +43,7 @@ const getContextForRoute = (pathname: string) => {
 
 const getWelcomeMessageForRoute = (pathname: string) => {
     if (pathname === "/") {
-        return "Hi! Greetings from PopClozet. How can I help you today?";
+        return "Hi! Greetings from popclozet. How can I help you today?";
     } else if (pathname.includes("/shop")) {
         return "Looking for something specific? Ask me what outfit you can choose!";
     } else if (pathname.includes("/cart")) {
@@ -51,7 +51,7 @@ const getWelcomeMessageForRoute = (pathname: string) => {
     } else if (pathname.includes("/profile")) {
         return "Hi! Need help with your account or recent orders?";
     } else if (pathname.includes("/how-it-works")) {
-        return "Hi! Have questions about how PopClozet works?";
+        return "Hi! Have questions about how popclozet works?";
     }
     return "Hi! I'm your personal stylist. Need help finding the perfect look?";
 };
@@ -156,7 +156,7 @@ export const StyleAssistant = () => {
                                     <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm">PopClozet Stylist</h3>
+                                    <h3 className="font-bold text-sm">popclozet Stylist</h3>
                                     <p className="text-xs text-white/90">AI Fashion Assistant</p>
                                 </div>
                             </div>

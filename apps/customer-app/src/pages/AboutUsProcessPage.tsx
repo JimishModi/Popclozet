@@ -139,7 +139,7 @@ const AboutUsProcessPage: React.FC = () => {
                             </div>
 
                             <p className="text-[15px] font-medium text-zinc-400 leading-relaxed text-center max-w-[320px] mx-auto">
-                                PopClozet is built on a foundation of premium care. We believe that every garment tells a story, and our mission is to preserve those stories through meticulous cleaning, sanitization, and artisanal attention to detail.
+                                popclozet is built on a foundation of premium care. We believe that every garment tells a story, and our mission is to preserve those stories through meticulous cleaning, sanitization, and artisanal attention to detail.
                             </p>
                         </div>
                     </div>

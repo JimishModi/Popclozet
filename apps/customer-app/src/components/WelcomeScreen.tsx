@@ -29,7 +29,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
             <div className="text-center">
                 <h1 className="text-4xl md:text-6xl font-bold">
                     <EncryptedText
-                        text="Welcome to Popclozet"
+                        text="Welcome to popclozet"
                         encryptedClassName="text-neutral-600"
                         revealedClassName="text-white"
                         revealDelayMs={50}
