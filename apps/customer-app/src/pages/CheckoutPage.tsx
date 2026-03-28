@@ -146,6 +146,9 @@ export default function CheckoutPage() {
   const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
+  // Read return schedule from state (set by CheckoutReturnSchedulePage)
+  const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
+
   // Load subscription benefit and handle passed address
   useEffect(() => {
     const passedAddress = location.state?.selectedAddress;
@@ -517,6 +520,20 @@ export default function CheckoutPage() {
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
 
+      // Parse pre-scheduled return slot if provided
+      let returnPickupDate: string | null = null;
+      let returnTimeSlot: string | null = null;
+      if (returnSchedule?.pickupSlotIso) {
+        const slotDate = new Date(returnSchedule.pickupSlotIso);
+        // Convert to IST date string (YYYY-MM-DD)
+        returnPickupDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' })
+          .format(slotDate); // yields "YYYY-MM-DD"
+        // Format as "HH:MM AM/PM"
+        returnTimeSlot = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
+        }).format(slotDate);
+      }
+
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
@@ -529,6 +546,7 @@ export default function CheckoutPage() {
           status: orderStatus,
           payment_method: paymentMethod,
           delivery_fee: deliveryFee,
+          ...(returnPickupDate ? { return_pickup_date: returnPickupDate, return_time_slot: returnTimeSlot } : {}),
         })
         .select("id")
         .single();
@@ -672,6 +690,38 @@ export default function CheckoutPage() {
           )}
 
           {/* Removed Plan Access UI Block */}
+
+          {/* Scheduled Return Info */}
+          {returnSchedule?.pickupSlotIso && (() => {
+            const slotDate = new Date(returnSchedule.pickupSlotIso);
+            const dateStr = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short' }).format(slotDate);
+            const timeStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(slotDate);
+            return (
+              <div className="mt-9">
+                <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
+                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+                  <div className="flex items-center gap-3 relative z-10">
+                    <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-[#f2546d]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white" style={dmSans}>{dateStr}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">{timeStr} • Return pickup</p>
+                    </div>
+                  </div>
+                  {deliveryAddress?.formattedAddress && (
+                    <div className="mt-4 pt-4 border-t border-white/5 relative z-10">
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
+                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
+                        {deliveryAddress.formattedAddress}
+                      </p>
+                    </div>
+                  )}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+                </div>
+              </div>
+            );
+          })()}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
           <button

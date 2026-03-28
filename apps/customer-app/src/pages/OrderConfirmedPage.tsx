@@ -221,6 +221,33 @@ Thank you for renting with PopClozet!
                         {order?.addresses?.full_address || "Delivery address loading or unavailable"}
                     </div>
 
+                    {/* Scheduled Return Pickup */}
+                    {order?.return_pickup_date && (
+                        <div className="mt-8">
+                            <h3 className="text-xl font-black text-white mb-3" style={dmSans}>Scheduled Return</h3>
+                            <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
+                                        <span className="text-lg">📦</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-white" style={dmSans}>
+                                            {new Date(order.return_pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                        <p className="text-xs text-[#8e8e93] mt-0.5 font-medium">
+                                            {order.return_time_slot || 'Scheduled'} • Return pickup
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5">
+                                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
+                                    <p className="text-xs text-[#8e8e93] leading-relaxed line-clamp-2" style={dmSans}>
+                                        {order?.addresses?.full_address || "Delivery address loading or unavailable"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <h2 className="text-2xl font-black text-white mt-14 mb-8" style={dmSans}>Price details</h2>
 
                     <div className="space-y-5">
