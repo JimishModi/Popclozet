@@ -55,6 +55,7 @@ interface popclozetDB extends DBSchema {
 
 export interface ReceiptItem {
     name: string;
+    brand?: string;
     size: string;
     quantity: number;
     days: number;
@@ -65,8 +66,10 @@ export interface ReceiptData {
     orderId: string;
     placedAt: string;
     subtotal: number;
+    discount?: number;
     deliveryFee: number;
     total: number;
+    paymentMethod?: string;
     deliveryAddress: string;
     rentalStartDate: string;
     rentalEndDate: string;

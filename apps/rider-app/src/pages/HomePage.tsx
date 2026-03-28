@@ -351,6 +351,32 @@ export function HomePage() {
             )
             .subscribe();
 
+        const globalOrdersChannel = supabase
+            .channel(`global-orders-[${user.id}]`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                },
+                (payload) => {
+                    const n = payload.new as any;
+                    // If an order gets a rider_id and it's someone else, 
+                    // instantly hide it from this rider's screen!
+                    if (n.rider_id && n.rider_id !== user.id) {
+                        setPendingOrder((curr) => {
+                            if (curr?.id === n.id) {
+                                void fetchPendingOrder();
+                                return null;
+                            }
+                            return curr;
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
         channelRef.current = channel;
 
         // Fix 2: polling uses the stable fetchPendingOrder callback.
@@ -366,6 +392,7 @@ export function HomePage() {
                 channelRef.current = null;
             }
             supabase.removeChannel(assignedOrdersChannel);
+            supabase.removeChannel(globalOrdersChannel);
             if (pollingRef.current) {
                 clearInterval(pollingRef.current);
                 pollingRef.current = null;

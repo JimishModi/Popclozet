@@ -70,6 +70,9 @@ export interface UserProfile {
     vehicle_type?: 'bike' | 'scooter' | 'car';
     vehicle_number?: string;
     license_number?: string;
+    delivery_estimate?: '15min' | 'delayed';
+    delivery_fee?: number;
+    delivery_distance_km?: number;
     created_at: string;
     updated_at: string;
 }

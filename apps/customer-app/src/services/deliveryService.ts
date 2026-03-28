@@ -85,6 +85,18 @@ const PRICING_CONFIG = {
     pickupDiscount: 0.5, // 50% off for pickup/return
 };
 
+/**
+ * Calculates delivery fee dynamically based on the road distance.
+ * Rules:
+ * - distance ≤ 6km  → flat fee of ₹40
+ * - distance > 6km  → ₹40 + (distance - 6) × ₹10 per km
+ * Partial kilometers are rounded up using Math.ceil()
+ */
+export function calculateDeliveryFee(distanceKm: number): number {
+    if (distanceKm <= 6) return 40;
+    return 40 + Math.ceil(distanceKm - 6) * 10;
+}
+
 // Calculate delivery pricing based on distance
 export function calculateDeliveryPricing(
     distanceKm: number,

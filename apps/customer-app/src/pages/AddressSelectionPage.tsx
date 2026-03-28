@@ -69,6 +69,8 @@ const AddressSelectionPage = () => {
       const addr = addresses[selectedIdx];
       
       let deliveryEstimate: '15min' | 'delayed' = '15min';
+      let deliveryFee = 40;
+      let distanceKm = 0;
       const WAREHOUSE = { lat: 19.1306, lng: 72.9155 };
 
       // Calculate road distance via backend proxy (same as CheckoutPage)
@@ -80,8 +82,11 @@ const AddressSelectionPage = () => {
           eLoc: addr.eLoc
         });
         if (res.status === 'success') {
-          deliveryEstimate = res.distanceKm > 6 ? 'delayed' : '15min';
-          console.log(`🛣️ Distance: ${res.distanceKm.toFixed(2)}km -> ${deliveryEstimate}`);
+          distanceKm = res.distanceKm;
+          deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
+          const { calculateDeliveryFee } = await import("@/services/deliveryService");
+          deliveryFee = calculateDeliveryFee(distanceKm);
+          console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
         } else {
           console.warn('Distance API returned error:', res.error);
         }
@@ -114,13 +119,17 @@ const AddressSelectionPage = () => {
           .eq('user_id', user.id)
           .eq('full_address', addr.formattedAddress);
 
-        // Update profile with the new estimate
+        // Update profile with the new estimate, distance and fee
         const { updateProfile } = await import("@/services/profileService");
         try {
-          await updateProfile({ delivery_estimate: deliveryEstimate });
+          await updateProfile({ 
+            delivery_estimate: deliveryEstimate,
+            delivery_distance_km: distanceKm,
+            delivery_fee: deliveryFee
+          });
         } catch (err) {
           // Gracefully handle if column missing
-          console.warn('Could not save delivery_estimate to profile:', err);
+          console.warn('Could not save delivery data to profile:', err);
         }
       }
 
