@@ -61,6 +61,6 @@ export const SERVICE_AREAS: ServiceArea[] = [
 export const WAREHOUSE_LOCATION = {
   lat: 19.1334,
   lng: 72.9133,
-  address: "popclozet Warehouse, Near IIT Main Gate, Powai",
+  address: "Popclozet Warehouse, Near IIT Main Gate, Powai",
 };
 

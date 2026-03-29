@@ -61,8 +61,8 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Fallback logic: prefer explicit deliveryEstimate state, then hub distance
-    const isDelayed = deliveryEstimate === 'delayed' || (selectedHub ? selectedHub.distance_km > 6 : false);
+    // Show delayed delivery only when delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
+    const isDelayed = selectedHub ? selectedHub.distance_km > 6 : false;
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
@@ -143,7 +143,7 @@ const MobileHome: React.FC = () => {
                 }
 
                 // Only hit Mapbox if we have no location at all
-                const { autoDetectLocation } = await import("@popclozet/mapbox-core");
+                const { autoDetectLocation } = await import("@popclozet/map-core");
                 const result = await autoDetectLocation();
 
                 if (result) {
@@ -252,7 +252,7 @@ const MobileHome: React.FC = () => {
             <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 pb-2 md:py-3 md:pb-8 flex items-center justify-between">
                 {/* ─── LOGO ─── */}
                 <div className="px-3 pt-2 pb-0.5 md:px-5 md:pt-5 md:pb-1 flex items-center">
-                    <img src={popclozetLogo} alt="popclozet" className="h-5 md:h-7 object-contain" />
+                    <img src={popclozetLogo} alt="Popclozet" className="h-5 md:h-7 object-contain" />
                 </div>
             </header>
 
@@ -290,7 +290,7 @@ const MobileHome: React.FC = () => {
                                     ) : (
                                         <>
                                             <span className="text-[#f2546d]">⚡</span>
-                                            <span>15 Minutes</span>
+                                            <span>60 Minutes</span>
                                         </>
                                     )}
                                 </h1>

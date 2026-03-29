@@ -71,7 +71,7 @@ const SignInPage: React.FC = () => {
                 >
                     <ArrowLeft className="w-5 h-5 text-white" />
                 </button>
-                <img src={logo} alt="popclozet" className="h-5 w-auto object-contain ml-3" />
+                <img src={logo} alt="Popclozet" className="h-5 w-auto object-contain ml-3" />
             </div>
 
             <main className="flex-1 overflow-y-auto px-4 py-8">

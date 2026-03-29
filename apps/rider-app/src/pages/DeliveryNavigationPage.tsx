@@ -16,7 +16,7 @@ import {
   initializeMap,
   drawRoute,
   mapboxgl,
-} from '@popclozet/mapbox-core';
+} from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRiderProfile } from '@/services/riderProfileService';
@@ -208,59 +208,67 @@ export const DeliveryNavigationPage: React.FC = () => {
     if (mapInstance.current) return;
     if (!destLat || !destLng) return;
 
-    let map: any;
-    try {
-      map = initializeMap(mapRef.current, riderLocation, 14);
-    } catch (e) {
-      console.warn('[DeliveryNav] Map init failed, retrying:', e);
-      if (mapRef.current) mapRef.current.innerHTML = '';
+    let mounted = true;
+
+    (async () => {
       try {
-        map = initializeMap(mapRef.current, riderLocation, 14);
-      } catch (e2) {
-        console.error('[DeliveryNav] Map init failed twice:', e2);
-        return;
-      }
-    }
-
-    mapInstance.current = map;
-    map.on('load', async () => {
-      const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
-      let routeDrawn = false;
-
-      if (token && riderLocation) {
-        try {
-          const [rLng, rLat] = riderLocation;
-          const dirRes = await fetch(
-            `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`
-          );
-          const dirJson = await dirRes.json();
-          const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
-          if (routeCoords?.length) {
-            await drawRoute(map, routeCoords);
-            routeDrawn = true;
-          }
-        } catch (err) {
-          console.warn('[DeliveryNav] Directions API failed:', err);
+        const map = await initializeMap(mapRef.current!, riderLocation, 14);
+        
+        if (!mounted) {
+          map.remove();
+          return;
         }
+        mapInstance.current = map;
+
+        const setupMap = async () => {
+          const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+          let routeDrawn = false;
+
+          if (token && riderLocation) {
+            try {
+              const [rLng, rLat] = riderLocation;
+              const dirRes = await fetch(
+                `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`
+              );
+              const dirJson = await dirRes.json();
+              const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+              if (routeCoords?.length) {
+                await drawRoute(map, routeCoords);
+                routeDrawn = true;
+              }
+            } catch (err) {
+              console.warn('[DeliveryNav] Directions API failed:', err);
+            }
+          }
+
+          if (!routeDrawn) {
+            await drawRoute(map, [riderLocation, [destLng!, destLat!]]);
+          }
+
+          try {
+            const geolocate = new (mapboxgl.GeolocateControl as any)({
+              positionOptions: { enableHighAccuracy: true },
+              trackUserLocation: true,
+              showUserHeading: true,
+            });
+            map.addControl(geolocate);
+          } catch { /* mapboxgl may not have GeolocateControl */ }
+
+          setMapReady(true);
+        };
+
+        if (map.loaded && map.loaded()) {
+          setupMap();
+        } else if (map.on) {
+          map.on('load', setupMap);
+        }
+      } catch (e) {
+        console.error('[DeliveryNav] Map init failed:', e);
       }
-
-      if (!routeDrawn) {
-        await drawRoute(map, [riderLocation, [destLng!, destLat!]]);
-      }
-
-      try {
-        const geolocate = new mapboxgl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
-          trackUserLocation: true,
-          showUserHeading: true,
-        });
-        map.addControl(geolocate);
-      } catch { /* mapboxgl may not have GeolocateControl */ }
-
-      setMapReady(true);
-    });
+    })();
 
     return () => {
+      mounted = false;
       mapInstance.current?.remove();
       mapInstance.current = null;
     };

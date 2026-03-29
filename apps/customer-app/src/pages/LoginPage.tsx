@@ -115,7 +115,7 @@ export default function LoginPage() {
       <div className="flex flex-col min-h-screen">
         <div className="relative h-[45vh] overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <img src={logoImage} alt="popclozet" className="h-14 drop-shadow-2xl" style={{ filter: 'drop-shadow(0 0 20px rgba(242,84,109,0.4))' }} />
+            <img src={logoImage} alt="Popclozet" className="h-14 drop-shadow-2xl" style={{ filter: 'drop-shadow(0 0 20px rgba(242,84,109,0.4))' }} />
           </div>
           <div className="absolute inset-0 z-10 overflow-hidden opacity-50">
             <ScrollingPhotoGrid />
@@ -128,7 +128,7 @@ export default function LoginPage() {
         <div className="relative z-30 px-6 flex-1 flex flex-col justify-end pb-12">
           <div className="mb-8">
             <p className="text-sm font-medium text-[#f2546d] tracking-widest uppercase mb-2">Welcome to</p>
-            <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-white to-zinc-300 bg-clip-text text-transparent">popclozet</h1>
+            <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-white to-zinc-300 bg-clip-text text-transparent">Popclozet</h1>
             <p className="text-zinc-400 text-[15px]">Rent stunning outfits for every occasion</p>
           </div>
 

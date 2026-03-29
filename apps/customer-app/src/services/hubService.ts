@@ -194,7 +194,7 @@ function getMockHubs(): RentalHub[] {
     return [
         {
             id: 'mock-1',
-            name: 'popclozet Mumbai Central',
+            name: 'Popclozet Mumbai Central',
             address: 'Kamala Mills Compound, Lower Parel, Mumbai 400013',
             city: 'Mumbai',
             lat: 19.0048,
@@ -217,7 +217,7 @@ function getMockHubs(): RentalHub[] {
         },
         {
             id: 'mock-2',
-            name: 'popclozet Bandra',
+            name: 'Popclozet Bandra',
             address: 'Turner Road, Bandra West, Mumbai 400050',
             city: 'Mumbai',
             lat: 19.0596,
@@ -240,7 +240,7 @@ function getMockHubs(): RentalHub[] {
         },
         {
             id: 'mock-3',
-            name: 'popclozet Andheri',
+            name: 'Popclozet Andheri',
             address: 'Lokhandwala Complex, Andheri West, Mumbai 400053',
             city: 'Mumbai',
             lat: 19.1384,

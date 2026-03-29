@@ -173,9 +173,9 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         ? { lat: tracking.current_lat, lng: tracking.current_lng }
         : null;
 
-    // Calculate distance for delayed delivery logic
-    const distance = userLocation && displayVehicle 
-        ? calculateDistance(userLocation.lat, userLocation.lng, displayVehicle.lat, displayVehicle.lng)
+    // Delayed if delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
+    const distance = userLocation && hub
+        ? calculateDistance(userLocation.lat, userLocation.lng, hub.lat, hub.lng)
         : null;
     const isDelayed = distance !== null ? distance > 6 : false;
 
@@ -215,11 +215,11 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
                                     {isDelayed ? "⚠️ Expected" : "⚡ Arriving in"}
                                 </p>
                                 <p className="text-4xl font-black text-white tracking-tighter">
-                                    {isDelayed ? "Delayed" : `${tracking?.eta_minutes ?? '—'} mins`}
+                                    {isDelayed ? "Delayed Delivery" : "60 mins"}
                                 </p>
                                 {isDelayed && (
                                     <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest max-w-[200px]">
-                                        Rider is currently {distance?.toFixed(1)}km away. Potential delay due to distance.
+                                        Your address is {distance?.toFixed(1)}km from our warehouse. Delivery may take longer.
                                     </p>
                                 )}
                             </div>

@@ -34,8 +34,8 @@
             "@popclozet/auth": [
                 "./packages/auth/src/index.tsx"
             ],
-            "@popclozet/mapbox-core": [
-                "./packages/mapbox-core/src/index.ts"
+            "@popclozet/map-core": [
+                "./packages/map-core/src/index.ts"
             ],
             "@popclozet/ui": [
                 "./packages/ui/src/index.tsx"
@@ -56,7 +56,7 @@
             "path": "./packages/auth"
         },
         {
-            "path": "./packages/mapbox-core"
+            "path": "./packages/map-core"
         },
         {
             "path": "./packages/ui"

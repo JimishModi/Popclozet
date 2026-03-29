@@ -11,7 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/mapbox-core';
+import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/map-core';
 import { Button } from '@/components/Button';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -98,7 +98,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const navigate = useNavigate();
 
     const mapRef = useRef<HTMLDivElement>(null);
-    const mapInstance = useRef<mapboxgl.Map | null>(null);
+    const mapInstance = useRef<any>(null);
 
     const [order, setOrder] = useState<WarehouseOrder | null>(null);
     const [loading, setLoading] = useState(true);
@@ -269,61 +269,73 @@ export const WarehouseNavigationPage: React.FC = () => {
         if (!isMapboxAvailable() || !import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) return;
         if (mapInstance.current) return;
 
-        let map: any;
-        try {
-            map = initializeMap(mapRef.current, riderLocation, 13);
-        } catch (e) {
-            console.warn('[WarehouseNav] Map init failed, retrying on clean container:', e);
-            if (mapRef.current) {
-                mapRef.current.innerHTML = '';
-            }
+        let mounted = true;
+
+        (async () => {
             try {
-                map = initializeMap(mapRef.current, riderLocation, 13);
-            } catch (e2) {
-                console.error('[WarehouseNav] Map init failed twice:', e2);
-                return;
-            }
-        }
-
-        mapInstance.current = map;
-        map.on('load', async () => {
-            const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
-            let routeDrawn = false;
-
-            // Fetch actual road route to warehouse via Mapbox Directions API
-            if (token && riderLocation) {
-                try {
-                    const [rLng, rLat] = riderLocation;
-                    const [wLng, wLat] = WAREHOUSE_LOCATION;
-                    const dirRes = await fetch(
-                        `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${wLng},${wLat}?geometries=geojson&overview=full&access_token=${token}`
-                    );
-                    const dirJson = await dirRes.json();
-                    const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
-                    if (routeCoords?.length) {
-                        await drawRoute(map, routeCoords);
-                        routeDrawn = true;
-                    }
-                } catch (err) {
-                    console.warn('[WarehouseNav] Directions API failed:', err);
+                const map = await initializeMap(mapRef.current!, riderLocation, 13);
+                
+                if (!mounted) {
+                    map.remove();
+                    return;
                 }
+                mapInstance.current = map;
+
+                const setupMap = async () => {
+                    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+                    let routeDrawn = false;
+
+                    // Fetch actual road route to warehouse via Mapbox Directions API
+                    if (token && riderLocation) {
+                        try {
+                            const [rLng, rLat] = riderLocation;
+                            const [wLng, wLat] = WAREHOUSE_LOCATION;
+                            const dirRes = await fetch(
+                                `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${wLng},${wLat}?geometries=geojson&overview=full&access_token=${token}`
+                            );
+                            const dirJson = await dirRes.json();
+                            const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+                            if (routeCoords?.length) {
+                                await drawRoute(map, routeCoords);
+                                routeDrawn = true;
+                            }
+                        } catch (err) {
+                            console.warn('[WarehouseNav] Directions API failed:', err);
+                        }
+                    }
+
+                    // Fallback: straight line rider → warehouse
+                    if (!routeDrawn) {
+                        await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
+                    }
+
+                    try {
+                        const geolocate = new (mapboxgl.GeolocateControl as any)({
+                            positionOptions: { enableHighAccuracy: true },
+                            trackUserLocation: true,
+                            showUserHeading: true
+                        });
+                        map.addControl(geolocate);
+                    } catch { /* mapboxgl may not have GeolocateControl */ }
+
+                    setMapReady(true);
+                };
+
+                if (map.loaded && map.loaded()) {
+                    setupMap();
+                } else if (map.on) {
+                    map.on('load', setupMap);
+                }
+            } catch (e) {
+                console.error('[WarehouseNav] Map init failed:', e);
             }
+        })();
 
-            // Fallback: straight line rider → warehouse
-            if (!routeDrawn) {
-                await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
-            }
-
-            const geolocate = new mapboxgl.GeolocateControl({
-                positionOptions: { enableHighAccuracy: true },
-                trackUserLocation: true,
-                showUserHeading: true
-            });
-            map.addControl(geolocate);
-
-            setMapReady(true);
-        });
-        return () => { mapInstance.current?.remove(); mapInstance.current = null; };
+        return () => { 
+            mounted = false;
+            mapInstance.current?.remove(); 
+            mapInstance.current = null; 
+        };
     }, [riderLocation?.[0], riderLocation?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Actions ────────────────────────────────────────────────────────────────

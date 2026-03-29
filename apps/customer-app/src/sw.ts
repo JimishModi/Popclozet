@@ -249,14 +249,14 @@ self.addEventListener('push', (event) => {
     } catch {
         // Fallback: treat as plain text
         payload = {
-            title: 'popclozet',
+            title: 'Popclozet',
             body: event.data.text(),
         };
     }
 
     console.log('🔔 Push payload:', JSON.stringify(payload));
 
-    const title = payload.title || 'popclozet';
+    const title = payload.title || 'Popclozet';
     const options = {
         body: payload.body || '',
         icon: payload.icon || '/icons/icon-192x192.png',

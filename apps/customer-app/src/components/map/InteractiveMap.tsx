@@ -2,7 +2,7 @@
 // Interactive Mapbox GL map with clean UI and Red marker
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
+import { mapboxgl } from '@popclozet/map-core';
 import { createMap, addMarker, drawRoute, removeRoute, destroyMap } from '@/services/mapService';
 import { RentalHub } from '@/services/hubService';
 import { cn } from '@/lib/utils';
@@ -46,8 +46,8 @@ export function InteractiveMap({
     onMarkerDrag,
 }: InteractiveMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+    const mapRef = useRef<any>(null);
+    const markersRef = useRef<Map<string, any>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -137,7 +137,7 @@ export function InteractiveMap({
         lastFlyToRef.current = { lat: center.lat, lng: center.lng };
         mapRef.current.flyTo({
             center: [center.lng, center.lat],
-            zoom: Math.max(mapRef.current.getZoom(), zoom),
+            zoom: Math.max(mapRef.current.getZoom(), zoom || 16),
             duration: 1000,
         });
     }, [center?.lat, center?.lng, zoom, isLoading]);
@@ -167,8 +167,8 @@ export function InteractiveMap({
         if (existing) {
             // Update position of existing marker
             existing.setLngLat([userLocation!.lng, userLocation!.lat]);
-            // Fix for React 18 Strict Mode detaching markers from the DOM
-            if (!existing.getElement().parentNode && mapRef.current) {
+            const element = existing.getElement();
+            if (element && !element.parentNode && mapRef.current) {
                 existing.addTo(mapRef.current);
             }
         } else {
@@ -236,6 +236,17 @@ export function InteractiveMap({
             {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] rounded-2xl">
                     <div className="w-8 h-8 border-2 border-[#f2546d] border-t-transparent rounded-full animate-spin" />
+                </div>
+            )}
+            {error && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/90 text-center px-6 rounded-2xl border border-zinc-800">
+                    <p className="text-zinc-400 text-sm mb-3">{error}</p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
+                    >
+                        Retry
+                    </button>
                 </div>
             )}
         </div>

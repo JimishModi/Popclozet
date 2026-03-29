@@ -86,7 +86,7 @@ export function useOrderTracking(orderId: string | undefined): UseOrderTrackingR
             if ((!destLat || needsFallback) && destAddress) {
                 console.warn('Coordinates seem incorrect or missing. Applying runtime geocoding fallback for address:', destAddress);
                 try {
-                    const { mapboxgl } = await import('@popclozet/mapbox-core');
+                    const { mapboxgl } = await import('@popclozet/map-core');
                     const token = (mapboxgl as any).accessToken;
                     if (token) {
                         const encoded = encodeURIComponent(destAddress);

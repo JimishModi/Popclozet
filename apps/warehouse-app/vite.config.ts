@@ -10,7 +10,7 @@ export default defineConfig({
             '@popclozet/api-client',
             '@popclozet/auth',
             '@popclozet/domain-contracts',
-            '@popclozet/mapbox-core',
+            '@popclozet/map-core',
             '@popclozet/ui'
         ]
     },
@@ -24,7 +24,7 @@ export default defineConfig({
             '@popclozet/domain-contracts': path.resolve(__dirname, '../../packages/domain-contracts/src/index.ts'),
             '@popclozet/api-client': path.resolve(__dirname, '../../packages/api-client/src/index.ts'),
             '@popclozet/auth': path.resolve(__dirname, '../../packages/auth/src/index.tsx'),
-            '@popclozet/mapbox-core': path.resolve(__dirname, '../../packages/mapbox-core/src/index.ts'),
+            '@popclozet/map-core': path.resolve(__dirname, '../../packages/map-core/src/index.ts'),
             '@popclozet/ui': path.resolve(__dirname, '../../packages/ui/src/index.tsx'),
         }
     },

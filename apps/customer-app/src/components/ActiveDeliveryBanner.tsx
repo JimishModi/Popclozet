@@ -84,29 +84,29 @@ export function ActiveDeliveryBanner() {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="px-4 mt-3"
+            className="fixed bottom-[60px] left-0 right-0 z-50 px-0 pb-1 md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:mt-3 md:pb-0 md:px-4"
         >
             <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleClick}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border ${border} ${bg} backdrop-blur-sm`}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-none border-t border-[#f2546d]/60 bg-black shadow-[0_0_18px_rgba(242,84,109,0.25)]"
             >
-                {/* Icon with pulse ring */}
+                {/* Icon */}
                 <div className="relative flex-shrink-0">
                     {pulse && (
-                        <span className="absolute inset-0 rounded-full animate-ping opacity-40 bg-current" style={{ color: "inherit" }} />
+                        <span className="absolute inset-0 rounded-full animate-ping opacity-30 bg-[#f2546d]" />
                     )}
-                    <div className={`w-10 h-10 rounded-full bg-black/30 flex items-center justify-center ${color}`}>
+                    <div className="w-10 h-10 rounded-full bg-[#f2546d]/10 border border-[#f2546d]/30 flex items-center justify-center text-[#f2546d]">
                         <Icon className="w-5 h-5" />
                     </div>
                 </div>
 
                 {/* Text */}
                 <div className="flex-1 text-left min-w-0">
-                    <p className={`text-sm font-bold leading-tight ${color}`}>{label}</p>
+                    <p className="text-sm font-bold leading-tight text-white">{label}</p>
                     <p className="text-xs text-zinc-400 mt-0.5 truncate">
                         {order.estimatedDeliveryAt && pulse
                             ? `ETA ${formatEta(order.estimatedDeliveryAt)}`
@@ -117,11 +117,11 @@ export function ActiveDeliveryBanner() {
                 {/* Right side */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                     {activeOrders.length > 1 && (
-                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-white bg-[#f2546d]/20 border border-[#f2546d]/30 px-1.5 py-0.5 rounded-full">
                             +{activeOrders.length - 1}
                         </span>
                     )}
-                    <ChevronRight className="w-4 h-4 text-zinc-500" />
+                    <ChevronRight className="w-4 h-4 text-[#f2546d]" />
                 </div>
             </motion.button>
         </motion.div>

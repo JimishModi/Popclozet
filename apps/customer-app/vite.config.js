@@ -30,8 +30,8 @@ export default defineConfig({
                 "icons/icon-maskable-512x512.png",
             ],
             manifest: {
-                name: "popclozet - Rent the Trend",
-                short_name: "popclozet",
+                name: "Popclozet - Rent the Trend",
+                short_name: "Popclozet",
                 description: "Rent designer fashion for every occasion. Delivered in 60 minutes.",
                 start_url: "/",
                 scope: "/",
@@ -90,7 +90,7 @@ export default defineConfig({
             "@popclozet/domain-contracts": path.resolve(__dirname, "../../packages/domain-contracts/src/index.ts"),
             "@popclozet/api-client": path.resolve(__dirname, "../../packages/api-client/src/index.ts"),
             "@popclozet/auth": path.resolve(__dirname, "../../packages/auth/src/index.tsx"),
-            "@popclozet/mapbox-core": path.resolve(__dirname, "../../packages/mapbox-core/src/index.ts"),
+            "@popclozet/map-core": path.resolve(__dirname, "../../packages/map-core/src/index.ts"),
             "@popclozet/ui": path.resolve(__dirname, "../../packages/ui/src/index.tsx"),
         },
     },
@@ -102,7 +102,7 @@ export default defineConfig({
         exclude: [
             "@popclozet/api-client",
             "@popclozet/auth",
-            "@popclozet/mapbox-core",
+            "@popclozet/map-core",
         ],
     },
     build: {

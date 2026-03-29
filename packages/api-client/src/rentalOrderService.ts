@@ -9,7 +9,7 @@
 // @ts-ignore - used when switching from mock to real Supabase
 import { supabase } from './index';
 import type { Order, OrderStatus, Address } from '@popclozet/domain-contracts';
-import { SERVICE_CONFIG, calculateDistance, isWithinServiceArea } from '@popclozet/mapbox-core';
+import { SERVICE_CONFIG, calculateDistance, isWithinServiceArea } from '@popclozet/map-core';
 // @ts-ignore - used when switching from mock to real Supabase
 import { config } from './config';
 

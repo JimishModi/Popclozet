@@ -62,7 +62,7 @@ export function useRazorpayCheckout() {
         key: rzpOrder.key_id,
         amount: rzpOrder.amount,
         currency: rzpOrder.currency,
-        name: 'PopCLozet',
+        name: 'Popclozet',
         description: 'Fashion Rental Payment',
         image: popclozet_LOGO,
         order_id: rzpOrder.id,

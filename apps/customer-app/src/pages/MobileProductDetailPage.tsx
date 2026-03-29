@@ -86,13 +86,13 @@ const MobileProductDetailPage: React.FC = () => {
 
     const handleShare = async () => {
         const url = window.location.href;
-        const title = product?.name || 'popclozet Fashion';
+        const title = product?.name || 'Popclozet Fashion';
         
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: title,
-                    text: `Check out this ${title} on popclozet!`,
+                    text: `Check out this ${title} on Popclozet!`,
                     url: url,
                 });
             } catch (err) {

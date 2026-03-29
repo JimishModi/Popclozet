@@ -109,7 +109,7 @@ const SignUpPage: React.FC = () => {
                         transition={{ delay: 0.2 }}
                         className="text-3xl font-bold text-white mb-3 text-center"
                     >
-                        Welcome to popclozet!
+                        Welcome to Popclozet!
                     </motion.h1>
 
                     <motion.p
@@ -145,7 +145,7 @@ const SignUpPage: React.FC = () => {
                 >
                     <ArrowLeft className="w-5 h-5 text-white" />
                 </button>
-                <img src={logo} alt="popclozet" className="h-5 w-auto object-contain ml-3" />
+                <img src={logo} alt="Popclozet" className="h-5 w-auto object-contain ml-3" />
             </div>
 
             <main className="flex-1 overflow-y-auto px-4 py-6">
@@ -163,7 +163,7 @@ const SignUpPage: React.FC = () => {
                     <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-1">
                         Create Account
                     </h1>
-                    <p className="text-sm text-zinc-500">Join popclozet and rent the trend</p>
+                    <p className="text-sm text-zinc-500">Join Popclozet and rent the trend</p>
                 </motion.div>
 
                 {/* Sign Up Form */}

@@ -131,7 +131,7 @@ function mapDbOrderToIncoming(
             : (dbOrder.order_type === 'pickup' || dbOrder.order_type === 'return' ? 'pickup' : 'delivery'),
         pickup: isReturn
             ? { name: 'Customer Pickup', address: fullAddr }
-            : { name: 'popclozet Warehouse', address: 'Near IIT Main Gate, Powai' },
+            : { name: 'Popclozet Warehouse', address: 'Near IIT Main Gate, Powai' },
         dropoff: isReturn
             ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
             : { name: 'Customer', address: fullAddr },

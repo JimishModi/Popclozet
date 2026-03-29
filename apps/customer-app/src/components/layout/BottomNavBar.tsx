@@ -78,7 +78,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
         <nav className={cn(
             "fixed z-50 pointer-events-none",
             // Mobile styling (Bottom Nav)
-            "bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-3 pb-3 pt-1",
+            "bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-0 pb-0 pt-0",
             // Tablet styling (Top Nav)
             "md:translate-x-0 md:top-0 md:bottom-auto md:left-0 md:w-full md:max-w-full md:px-6 md:py-4 md:flex md:justify-center",
             // Desktop styling (Left Sidebar) - Now sticky inside MobileShell container
@@ -89,7 +89,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                 "pointer-events-auto relative flex items-center shadow-[0_-10px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)_inset]",
                 "backdrop-blur-3xl border border-white/10",
                 // Mobile interior container
-                "justify-around bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80 rounded-[28px] py-2 px-2",
+                "justify-around bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80 rounded-none py-2 px-2",
                 // Tablet interior container
                 "md:justify-around md:bg-zinc-950/80 md:rounded-2xl md:py-2 md:px-6 md:shadow-lg md:w-fit md:mx-auto md:gap-8",
                 // Desktop interior container

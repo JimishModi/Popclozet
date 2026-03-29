@@ -18,7 +18,7 @@ import { supabase } from '@popclozet/api-client';
 import { ValidatedAddress, getAddressDetail } from '@/services/addressService';
 import { fetchPlaceDetails } from '@/services/mapplsService';
 import { geocodeAddress } from '@/services/mapServices';
-import { geocodeWithMapbox } from '@/services/mapboxGeocode';
+import { geocodeWithMappls } from '@/services/mapplsGeocode';
 import { HubWithDistance } from '@/services/hubService';
 
 type ViewMode = 'search' | 'hubs';
@@ -54,10 +54,11 @@ export default function MapLocationPage() {
         location,
         address,
         isLoading: locationLoading,
+        accuracy: locationAccuracy,
         requestLocation,
         setLocation,
         setLocationCoords,
-        permissionState,
+        permissionState
     } = useMapLocation();
 
     const {
@@ -93,19 +94,22 @@ export default function MapLocationPage() {
     // false = user picked a specific address from search/map click
     const [useGps, setUseGps] = useState(!selectedAddress);
 
-    // Sync GPS location → selectedAddress when in GPS mode.
-    // Watches BOTH `address` (reverse-geocoded) and `location` (raw coords)
-    // so the map updates even if reverse geocoding is slow or fails.
+    // Sync location (GPS or Manual Click) -> selectedAddress.
+    // Watches BOTH `address` (reverse-geocoded) and `location` (raw coords).
     useEffect(() => {
-        if (!useGps) return;
-
         if (address) {
-            // Prefer the properly reverse-geocoded address
-            console.log('[MapLocation] GPS sync → using reverse-geocoded address:', address.formattedAddress);
-            setSelectedAddress(address);
-        } else if (location) {
-            // Reverse geocode pending or failed — use raw GPS coords so the map still moves
-            console.log('[MapLocation] GPS sync → using raw GPS coords:', location.lat, location.lng);
+            // If the address coordinates match our current selection, update it.
+            // This is crucial for replacing the "Locating address..." placeholder after a map click.
+            const isMatch = selectedAddress && 
+                Math.abs(selectedAddress.lat - address.lat) < 0.0001 && 
+                Math.abs(selectedAddress.lng - address.lng) < 0.0001;
+
+            if (isMatch || useGps) {
+                console.log('[MapLocation] Address sync:', address.formattedAddress);
+                setSelectedAddress(address);
+            }
+        } else if (location && useGps) {
+            // In GPS mode, if address is pending, show raw coords as fallback
             setSelectedAddress({
                 lat: location.lat,
                 lng: location.lng,
@@ -192,19 +196,19 @@ export default function MapLocationPage() {
                 }
             }
 
-            // Strategy 4: Mapbox forward geocode (reliable client-side — uses the same token as the map)
+            // Strategy 4: Mappls forward geocode (reliable client-side — uses the same token as the map)
             if (!resolved && addr.formattedAddress) {
                 try {
-                    const mbResult = await geocodeWithMapbox(addr.formattedAddress);
-                    if (mbResult && mbResult.lat && mbResult.lng &&
-                        (Math.abs(mbResult.lat) > 0.01 || Math.abs(mbResult.lng) > 0.01)) {
-                        resolvedLat = mbResult.lat;
-                        resolvedLng = mbResult.lng;
+                    const mapplsResult = await geocodeWithMappls(addr.formattedAddress);
+                    if (mapplsResult && mapplsResult.lat && mapplsResult.lng &&
+                        (Math.abs(mapplsResult.lat) > 0.01 || Math.abs(mapplsResult.lng) > 0.01)) {
+                        resolvedLat = mapplsResult.lat;
+                        resolvedLng = mapplsResult.lng;
                         resolved = true;
-                        console.log('[MapLocation] ✓ Strategy 4 — Mapbox geocode:', resolvedLat, resolvedLng);
+                        console.log('[MapLocation] ✓ Strategy 4 — Mappls geocode:', resolvedLat, resolvedLng);
                     }
                 } catch (e) {
-                    console.warn('[MapLocation] Strategy 4 failed (Mapbox geocode):', e);
+                    console.warn('[MapLocation] Strategy 4 failed (Mappls geocode):', e);
                 }
             }
 
@@ -269,15 +273,18 @@ export default function MapLocationPage() {
     const handleMapClick = (pos: { lat: number; lng: number }) => {
         console.log('[MapLocation] Map clicked at:', pos.lat, pos.lng);
         setUseGps(false); // user manually picked a point
+        
+        // Trigger reverse geocoding in the hook
         setLocation(pos.lat, pos.lng);
-        const clickedAddress: ValidatedAddress = {
+        
+        // Show temporary placeholder instead of raw numbers
+        setSelectedAddress({
             lat: pos.lat,
             lng: pos.lng,
-            formattedAddress: `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`,
+            formattedAddress: "📍 Locating address...",
             city: '',
             pincode: '',
-        };
-        setSelectedAddress(clickedAddress);
+        });
     };
 
     const handleLocateMe = () => {
@@ -445,7 +452,8 @@ export default function MapLocationPage() {
         }
     };
 
-    const canConfirm = selectedAddress && (!hubs.length || selectedHubId);
+    const isAddressLocating = selectedAddress?.formattedAddress === "📍 Locating address..." || resolvingAddress;
+    const canConfirm = selectedAddress && !isAddressLocating && (!hubs.length || selectedHubId);
 
     return (
         <div className="bg-black text-white min-h-screen">
@@ -523,6 +531,27 @@ export default function MapLocationPage() {
                     </div>
                 )}
 
+                {/* GPS Settling Overlay */}
+                {locationLoading && !resolvingAddress && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                        <motion.div 
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-700 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md"
+                        >
+                            <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-medium text-blue-400 tracking-wide uppercase">Refining GPS Location...</span>
+                                {locationAccuracy && (
+                                    <span className="text-[8px] text-zinc-500 font-mono">
+                                        Accuracy: ±{locationAccuracy.toFixed(1)}m
+                                    </span>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
                 {/* GPS Button on map */}
                 {permissionState !== 'unavailable' && (
                     <button
@@ -545,10 +574,19 @@ export default function MapLocationPage() {
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800"
+                    className={`mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border transition-all duration-300 ${
+                        isAddressLocating ? 'border-zinc-700 animate-pulse' : 'border-zinc-800'
+                    }`}
                 >
                     <p className="text-xs text-zinc-400 mb-1">Delivery Address</p>
-                    <p className="text-sm text-white">{selectedAddress.formattedAddress}</p>
+                    <div className="flex items-center gap-2">
+                        {isAddressLocating && (
+                            <div className="w-3 h-3 border-2 border-[#f2546d]/50 border-t-[#f2546d] rounded-full animate-spin" />
+                        )}
+                        <p className={`text-sm ${isAddressLocating ? 'text-zinc-400 italic' : 'text-white'}`}>
+                            {selectedAddress.formattedAddress}
+                        </p>
+                    </div>
                 </motion.div>
             )}
 

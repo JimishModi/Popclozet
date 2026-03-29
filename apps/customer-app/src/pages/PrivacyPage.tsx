@@ -31,7 +31,7 @@ const SECTIONS = [
     },
     {
         title: "7. Contact Us",
-        content: "If you have questions or concerns about this notice, you may email us at businessrep@popclozet.in or contact us by post at: popclozet Fashion Pvt Ltd, Mumbai, Maharashtra, India."
+        content: "If you have questions or concerns about this notice, you may email us at businessrep@popclozet.in or contact us by post at: Popclozet Fashion Pvt Ltd, Mumbai, Maharashtra, India."
     },
 ];
 
@@ -83,7 +83,7 @@ const PrivacyPage: React.FC = () => {
                 </div>
 
                 <p className="text-center text-xs text-zinc-700 mt-8 pb-2">
-                    © 2026 popclozet Pvt. Ltd. All rights reserved.
+                    © 2026 Popclozet Pvt. Ltd. All rights reserved.
                 </p>
             </main>
         </MobileShell>

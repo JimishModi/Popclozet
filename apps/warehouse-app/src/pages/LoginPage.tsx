@@ -123,7 +123,7 @@ export function LoginPage() {
                     </button>
                 </motion.form>
 
-                <p className="text-center text-[10px] text-zinc-600 mt-6">PopCLozet Warehouse Hub v1.0</p>
+                <p className="text-center text-[10px] text-zinc-600 mt-6">Popclozet Warehouse Hub v1.0</p>
             </div>
         </WarehouseShell>
     );

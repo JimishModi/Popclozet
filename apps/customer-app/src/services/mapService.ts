@@ -1,18 +1,7 @@
 // src/services/mapService.ts
-// Mapbox GL JS integration for customer app
+// Mappls integration for customer app via map-core
 
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-
-// Set Mapbox access token
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
-if (!MAPBOX_TOKEN) {
-    console.warn('Mapbox access token is missing! Check your .env file.');
-}
-mapboxgl.accessToken = MAPBOX_TOKEN;
-
-// Try to avoid some CSP issues with workers by using the bundled worker if possible
-// or explicitly allowing the blob. We already updated index.html for this.
+import { initializeMap, mapboxgl } from '@popclozet/map-core';
 
 // Types for map service
 export interface MapConfig {
@@ -28,33 +17,14 @@ export interface RouteResult {
     coordinates: [number, number][]; // lat, lng pairs
 }
 
-// Mapbox styles
-const STYLES = {
-    light: 'mapbox://styles/mapbox/streets-v12',
-    dark: 'mapbox://styles/mapbox/dark-v11',
-};
-
-// Create a map instance - returns immediately with instance, but load can be awaited
-export async function createMap(
-    container: HTMLElement | string,
-    config: MapConfig
-): Promise<mapboxgl.Map> {
-    const style = config.darkMode ? STYLES.dark : STYLES.light;
-    const [lat, lng] = config.center;
-
-    const map = new mapboxgl.Map({
-        container,
-        style,
-        center: [lng, lat], // Mapbox uses [lng, lat]
-        zoom: config.zoom,
-        attributionControl: true,
-        // Optimization: Performance hints
-        preserveDrawingBuffer: false,
-        trackResize: true,
-    });
+// Create a map instance utilizing the mappls SDK via map-core
+export async function createMap(container: HTMLElement | string, config: MapConfig): Promise<any> {
+    const el = typeof container === 'string' ? document.getElementById(container)! : container;
+    
+    // Mappls SDK initializeMap expects [lat, lng] and handles conversion internally
+    const map = await initializeMap(el, config.center, config.zoom);
 
     // Wait for the map to be fully loaded before returning
-    // This ensures flyTo and marker operations work reliably
     await new Promise<void>((resolve) => {
         if (map.loaded()) {
             resolve();
@@ -68,7 +38,7 @@ export async function createMap(
 
 // Marker icon configs
 const MARKER_CONFIGS = {
-    user: { color: '#8b5cf6', symbol: '📍', size: 42 }, // Purple for premium feel
+    user: { color: '#8b5cf6', symbol: '📍', size: 42 },
     hub: { color: '#10b981', symbol: '🏪', size: 36 },
     vehicle: { color: '#3b82f6', symbol: '🚗', size: 36 },
 };
@@ -105,7 +75,7 @@ function createMarkerElement(icon: 'user' | 'hub' | 'vehicle'): HTMLElement {
 
 // Add a marker to the map
 export function addMarker(
-    map: mapboxgl.Map,
+    map: any,
     position: [number, number], // [lat, lng]
     options?: {
         title?: string;
@@ -113,10 +83,10 @@ export function addMarker(
         icon?: 'user' | 'hub' | 'vehicle';
         popup?: string;
     }
-): mapboxgl.Marker {
+): any {
     const [lat, lng] = position;
 
-    let markerOptions: mapboxgl.MarkerOptions = {
+    let markerOptions: any = {
         draggable: options?.draggable ?? false,
     };
 
@@ -141,7 +111,7 @@ export function addMarker(
 
 // Draw route on map using a GeoJSON source + layer
 export function drawRoute(
-    map: mapboxgl.Map,
+    map: any,
     coordinates: [number, number][], // [lat, lng] pairs
     options?: {
         color?: string;
@@ -153,11 +123,9 @@ export function drawRoute(
     const sourceId = 'route-source';
     const layerId = 'route-layer';
 
-    // Remove existing route if present
     if (map.getLayer(layerId)) map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 
-    // Convert [lat, lng] to [lng, lat] for GeoJSON
     const geoCoords = coordinates.map(([lat, lng]) => [lng, lat]);
 
     map.addSource(sourceId, {
@@ -187,32 +155,29 @@ export function drawRoute(
         },
     });
 
-    // Fit map bounds to show entire route
     const bounds = new mapboxgl.LngLatBounds();
     geoCoords.forEach((coord) => bounds.extend(coord as [number, number]));
-    map.fitBounds(bounds, { padding: 50, duration: 1000 });
+    
+    if (map.fitBounds) {
+        map.fitBounds(bounds, { padding: 50, duration: 1000 });
+    }
 
     return layerId;
 }
 
-// Remove route from map
-export function removeRoute(map: mapboxgl.Map) {
+export function removeRoute(map: any) {
     const sourceId = 'route-source';
     const layerId = 'route-layer';
     if (map.getLayer(layerId)) map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 }
 
-// Clean up map instance
-export function destroyMap(map: mapboxgl.Map) {
+export function destroyMap(map: any) {
     if (map) {
         map.remove();
     }
 }
 
-/**
- * Calculate route between two points using MapmyIndia via Backend Proxy
- */
 export async function calculateRoute(
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number }
@@ -235,7 +200,6 @@ export async function calculateRoute(
         }
 
         const route = data.routes[0];
-        // MapmyIndia GeoJSON coordinates are [lng, lat], convert to [lat, lng] for internal use
         const coordinates: [number, number][] = route.geometry.coordinates.map(
             (coord: [number, number]) => [coord[1], coord[0]]
         );

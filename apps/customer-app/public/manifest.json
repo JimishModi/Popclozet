@@ -1,7 +1,7 @@
 {
-    "name": "popclozet - Rent the Trend",
-    "short_name": "popclozet",
-    "description": "Rent designer fashion for every occasion. popclozet delivers premium outfits in 60 minutes. Affordable, sustainable, and stylish.",
+    "name": "Popclozet - Rent the Trend",
+    "short_name": "Popclozet",
+    "description": "Rent designer fashion for every occasion. Popclozet delivers premium outfits in 60 minutes. Affordable, sustainable, and stylish.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",

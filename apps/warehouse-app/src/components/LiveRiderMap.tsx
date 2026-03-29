@@ -19,7 +19,7 @@ import {
     updateRouteSource,
     calculateDistance,
     getMapboxToken,
-} from '@popclozet/mapbox-core';
+} from '@popclozet/map-core';
 import type { ActiveRider } from '../hooks/useActiveRiders';
 
 interface Props {
@@ -34,9 +34,9 @@ const RIDER_COLORS  = ['#8855F7', '#F7558E', '#55C1F7', '#F7A855', '#55F7A2'];
 const REDRAW_KM     = 0.05; // 50 m
 
 interface RiderEntry {
-    marker:       mapboxgl.Marker;
-    destMarker:   mapboxgl.Marker;
-    popup:        mapboxgl.Popup;
+    marker:       any;
+    destMarker:   any;
+    popup:        any;
     color:        string;
     lastRoutePos: { lat: number; lng: number } | null;
 }
@@ -45,13 +45,13 @@ export const LiveRiderMap: React.FC<Props> = ({
     riders, selectedOrderId, onRiderClick, viewMode, onViewModeChange,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef       = useRef<mapboxgl.Map | null>(null);
+    const mapRef       = useRef<any>(null);
     const entriesRef   = useRef<Map<string, RiderEntry>>(new Map());
     const token        = getMapboxToken();
 
     // Draw / update Mapbox Directions route for one rider
     const drawRiderRoute = useCallback(async (
-        map: mapboxgl.Map,
+        map: any,
         orderId: string,
         rLng: number, rLat: number,
         dLng: number, dLat: number,
@@ -87,7 +87,7 @@ export const LiveRiderMap: React.FC<Props> = ({
     }, []);
 
     // Sync markers/routes to current riders array
-    const syncRiders = useCallback((map: mapboxgl.Map) => {
+    const syncRiders = useCallback((map: any) => {
         const currentIds = new Set(riders.map((r) => r.orderId));
 
         // Remove stale
@@ -117,12 +117,12 @@ export const LiveRiderMap: React.FC<Props> = ({
                 // Create rider dot
                 const el    = createColorMarker(color, 14, true);
                 const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, className: 'rider-popup' }).setHTML(popupHTML(rider));
-                const rMarker = new mapboxgl.Marker(el).setLngLat([rider.lng, rider.lat]).setPopup(popup).addTo(map);
+                const rMarker = new (mapboxgl.Marker as any)(el).setLngLat([rider.lng, rider.lat]).setPopup(popup).addTo(map);
                 el.addEventListener('click', () => onRiderClick?.(rider.orderId));
 
                 // Create destination pin
                 const dEl     = destMarkerEl(color);
-                const dMarker = new mapboxgl.Marker(dEl).setLngLat([rider.deliveryAddress.lng, rider.deliveryAddress.lat]).addTo(map);
+                const dMarker = new (mapboxgl.Marker as any)(dEl).setLngLat([rider.deliveryAddress.lng, rider.deliveryAddress.lat]).addTo(map);
 
                 entriesRef.current.set(rider.orderId, { marker: rMarker, destMarker: dMarker, popup, color, lastRoutePos: null });
 
@@ -137,18 +137,37 @@ export const LiveRiderMap: React.FC<Props> = ({
     // Init map once
     useEffect(() => {
         if (!containerRef.current || mapRef.current || !token) return;
-        const map = createMapInstance(containerRef.current, [72.9133, 19.1334], 12);
-        mapRef.current = map;
-        map.on('load', () => syncRiders(map));
+        let mounted = true;
 
-        // Resize map whenever the container changes size (handles framer-motion height animation)
-        const ro = new ResizeObserver(() => { map.resize(); });
-        ro.observe(containerRef.current);
+        (async () => {
+            try {
+                const map = await createMapInstance(containerRef.current!, [72.9133, 19.1334], 12);
+                if (!mounted) {
+                    map.remove();
+                    return;
+                }
+                mapRef.current = map;
+                
+                // Usually mappls map is loaded once the callback fires, but to be robust
+                if (map.loaded && map.loaded()) {
+                    syncRiders(map);
+                } else if (map.on) {
+                    map.on('load', () => syncRiders(map));
+                }
+
+                const ro = new ResizeObserver(() => { if (map.resize) map.resize(); });
+                ro.observe(containerRef.current!);
+
+                return () => ro.disconnect();
+            } catch (e) { console.error('Map init error', e); }
+        })();
 
         return () => {
-            ro.disconnect();
-            map.remove();
-            mapRef.current = null;
+            mounted = false;
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
             entriesRef.current.clear();
         };
     }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
