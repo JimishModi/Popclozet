@@ -1,9 +1,7 @@
 /**
  * Delivery Navigation Page
  *
- * Bug 1 fix: Google Maps deeplink for turn-by-turn navigation (mirrors warehouse pattern)
- * Bug 2 fix: OTP-gated "Mark as Delivered" flow
- * Bug 3 fix: useRef guard so startDeliveryTracking is called only once per session
+ * Refactored to use global LocationContext for persistent GPS tracking.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +16,7 @@ import {
   mapboxgl,
 } from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
+import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRiderProfile } from '@/services/riderProfileService';
 import {
@@ -57,11 +56,11 @@ export const DeliveryNavigationPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { location: globalLocation } = useLocation();
   const navigate = useNavigate();
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
-  const watchIdRef = useRef<number | null>(null);
   const trackingInitialized = useRef(false);
 
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
@@ -110,16 +109,6 @@ export const DeliveryNavigationPage: React.FC = () => {
     fetchOrder();
   }, [id, navigate, showToast]);
 
-  // ── Cleanup GPS watch on unmount ─────────────────────────────────────────────
-
-  useEffect(() => {
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-    };
-  }, []);
-
   // ── Resolve destination ──────────────────────────────────────────────────────
 
   const destLat = order?.delivery_address_snapshot?.lat
@@ -135,8 +124,6 @@ export const DeliveryNavigationPage: React.FC = () => {
   // ── Open Google Maps (mirrors warehouse pattern) ─────────────────────────────
 
   const handleOpenGoogleMaps = useCallback(() => {
-    // Prefer text address — Google geocodes "Hostel 18, IIT Bombay" far more
-    // accurately than raw lat/lng which can snap to nearby POIs.
     let destination: string;
     if (destAddress && destAddress !== 'Delivery address unavailable') {
       destination = encodeURIComponent(destAddress);
@@ -149,56 +136,48 @@ export const DeliveryNavigationPage: React.FC = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [destLat, destLng, destAddress]);
 
-  // ── Auto-start GPS + tracking on mount ───────────────────────────────────────
+  // ── Sync global location to local state ──────────────────────────────────────
 
   useEffect(() => {
-    if (!id || !user?.id || !navigator.geolocation) return;
+    if (globalLocation) {
+      const coords: [number, number] = [globalLocation.longitude, globalLocation.latitude];
+      setRiderLocation(coords);
+    }
+  }, [globalLocation]);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-        setRiderLocation(coords);
+  // ── Tracking updates ─────────────────────────────────────────────────────────
 
-        // Only initialize tracking once per session
-        if (!trackingInitialized.current) {
-          trackingInitialized.current = true;
-          const profile = await getRiderProfile(user.id);
-          await startDeliveryTracking(
-            id,
-            pos.coords.latitude,
-            pos.coords.longitude,
-            profile?.name ?? null,
-            profile?.vehicleNumber ?? null,
-            profile?.phone ?? null
-          );
-        }
+  useEffect(() => {
+    if (!id || !user?.id || !globalLocation) return;
 
-        // Start continuous GPS watch
-        const watchId = navigator.geolocation.watchPosition(
-          (watchPos) => {
-            const newCoords: [number, number] = [
-              watchPos.coords.longitude,
-              watchPos.coords.latitude,
-            ];
-            setRiderLocation(newCoords);
-            pushLocationUpdate(
-              user.id,
-              id,
-              watchPos.coords.latitude,
-              watchPos.coords.longitude,
-              watchPos.coords.heading ?? null,
-              watchPos.coords.speed ?? null
-            );
-          },
-          (err) => console.error('GPS watch error:', err),
-          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    const runTracking = async () => {
+      // Only initialize tracking once per session
+      if (!trackingInitialized.current) {
+        trackingInitialized.current = true;
+        const profile = await getRiderProfile(user.id);
+        await startDeliveryTracking(
+          id,
+          globalLocation.latitude,
+          globalLocation.longitude,
+          profile?.name ?? null,
+          profile?.vehicleNumber ?? null,
+          profile?.phone ?? null
         );
-        watchIdRef.current = watchId;
-      },
-      () => showToast('Failed to get location', 'error'),
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
-    );
-  }, [id, user?.id, showToast]);
+      }
+
+      // Push update
+      await pushLocationUpdate(
+        user.id,
+        id,
+        globalLocation.latitude,
+        globalLocation.longitude,
+        globalLocation.heading ?? null,
+        globalLocation.speed ?? null
+      );
+    };
+
+    runTracking();
+  }, [id, user?.id, globalLocation]);
 
   // ── Init map ─────────────────────────────────────────────────────────────────
 
@@ -296,10 +275,6 @@ export const DeliveryNavigationPage: React.FC = () => {
 
     try {
       if (isReturn) {
-        // Return pickup: use the atomic verify_order_otp RPC which verifies otp_return
-        // AND transitions return_dispatched → return_picked_up in one server-side call.
-        // We cannot use transitionOrderState here because the transition_order_state RPC
-        // does not include return_dispatched → return_picked_up in its rider transitions.
         const { data, error } = await supabase.rpc('verify_order_otp', {
           p_order_id: id,
           p_otp_code: otpValue,
@@ -312,7 +287,6 @@ export const DeliveryNavigationPage: React.FC = () => {
           return;
         }
       } else {
-        // Regular delivery: verify OTP, stop tracking, then transition via state machine
         const result = await verifyDeliveryOtp(id, otpValue, 'otp_delivery');
         if (!result.success) {
           setOtpError(result.error || 'Incorrect OTP. Please try again.');
@@ -323,10 +297,6 @@ export const DeliveryNavigationPage: React.FC = () => {
         setOtpVerifying(false);
         setDeliveryCompleting(true);
 
-        if (watchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(watchIdRef.current);
-          watchIdRef.current = null;
-        }
         await stopDeliveryTracking(id);
 
         const transition = await transitionOrderState(id, 'delivered' as any, 'rider', user.id);
@@ -338,21 +308,15 @@ export const DeliveryNavigationPage: React.FC = () => {
         return;
       }
 
-      // Return flow post-verification cleanup
       setOtpVerifying(false);
       setDeliveryCompleting(true);
 
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
       await stopDeliveryTracking(id);
 
       setShowOtpModal(false);
       showToast('Return collected! Head to the warehouse. ✅', 'success');
       navigate(`/warehouse/${id}`);
     } catch (err: any) {
-      // Modal may or may not be open — use toast so it's always visible
       setDeliveryCompleting(false);
       setOtpVerifying(false);
       showToast(err.message || 'Failed to complete. Try again.', 'error');

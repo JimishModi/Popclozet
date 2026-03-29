@@ -28,6 +28,7 @@ import { SwipeToAccept } from '../components/SwipeToAccept';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { RiderShell } from '../components/layout/RiderShell';
 import { useToast } from '../contexts/ToastContext';
+import { useLocation } from '../contexts/LocationContext';
 
 import { getEarningsSummary, type EarningsSummary } from '../services/walletService';
 import { updateRiderStatus } from '../services/riderProfileService';
@@ -152,6 +153,7 @@ export function HomePage() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { showToast } = useToast();
+    const { requestPermission, stopWatching } = useLocation();
 
     const [isOnline, setIsOnline] = useState(() =>
         localStorage.getItem('rider_is_online') === 'true',
@@ -406,16 +408,28 @@ export function HomePage() {
         if (!user?.id) return;
         setIsLoading(true);
 
-        const newStatus = isOnline ? 'offline' : 'online';
+        const turningOnline = !isOnline;
+
+        // If turning online, ensure we have location permission first
+        if (turningOnline) {
+            const granted = await requestPermission();
+            if (!granted) {
+                showToast('Location access is required to go online.', 'error');
+                setIsLoading(false);
+                return;
+            }
+        }
+
+        const newStatus = turningOnline ? 'online' : 'offline';
         const result = await updateRiderStatus(user.id, newStatus);
 
         if (result.success) {
-            const next = !isOnline;
-            setIsOnline(next);
-            localStorage.setItem('rider_is_online', String(next));
-            if (!next) {
+            setIsOnline(turningOnline);
+            localStorage.setItem('rider_is_online', String(turningOnline));
+            if (!turningOnline) {
                 setPendingOrder(null);
                 setIsSearching(false);
+                stopWatching();
             }
         }
         setIsLoading(false);

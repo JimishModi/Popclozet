@@ -1,7 +1,7 @@
 // Vercel Serverless Function: /api/location/search
 
 export default async function handler(req, res) {
-  let { query } = req.query || {};
+  let { query, lat, lng } = req.query || {};
 
   if (!query || query.length < 3) {
     res.status(200).json([]);
@@ -11,10 +11,16 @@ export default async function handler(req, res) {
 
   const REST_KEY = process.env.MAPPLS_REST_KEY;
 
+  // Build location bias parameter if user coordinates are available
+  const userLat = parseFloat(lat);
+  const userLng = parseFloat(lng);
+  const hasUserLocation = !isNaN(userLat) && !isNaN(userLng) && Math.abs(userLat) > 0.01;
+  const locationParam = hasUserLocation ? `&location=${userLat},${userLng}` : '';
+
   if (REST_KEY) {
-    // Try Mappls v1 REST API (uses key directly in URL — no OAuth needed)
+    // Try Mappls v1 REST API with autosuggest (more accurate than place_suggest)
     try {
-      const v1Url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/place_suggest?query=${encodeURIComponent(query)}&region=IND`;
+      const v1Url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/place_suggest?query=${encodeURIComponent(query)}&region=IND${locationParam}`;
       const v1Res = await fetch(v1Url, {
         headers: { 'Referer': 'https://popclozet.vercel.app/' },
       });
@@ -66,7 +72,7 @@ export default async function handler(req, res) {
 
     // Try Mappls Atlas API (newer — may need OAuth, worth trying)
     try {
-      const atlasUrl = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
+      const atlasUrl = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true${locationParam}`;
       const atlasRes = await fetch(atlasUrl, {
         headers: { 'Referer': 'https://popclozet.vercel.app/' },
       });

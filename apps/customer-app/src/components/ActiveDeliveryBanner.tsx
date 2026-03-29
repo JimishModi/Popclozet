@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Package, Truck, RotateCcw, CheckCircle2 } from "lucide-react";
+import { ChevronRight, Package, Truck, RotateCcw, CheckCircle2, X } from "lucide-react";
 import { useOrders, Order } from "@/hooks/useOrders";
 
 // Statuses that qualify for the banner and their display config
@@ -28,6 +29,8 @@ const BANNER_CONFIG: Record<string, {
     return_scheduled:         { label: "Return Pickup Scheduled", sublabel: "Rider will collect soon",        color: "text-blue-300",   border: "border-blue-400",   bg: "bg-blue-500/10",   Icon: RotateCcw,     pulse: false },
     return_dispatched:        { label: "Rider On the Way",     sublabel: "Coming to collect your order",       color: "text-indigo-300", border: "border-indigo-400", bg: "bg-indigo-500/10", Icon: RotateCcw,     pulse: true  },
     return_picked_up:         { label: "Return Collected",     sublabel: "Heading back to warehouse",          color: "text-green-300",  border: "border-green-500",  bg: "bg-green-500/10",  Icon: RotateCcw,     pulse: false },
+    return_at_warehouse:      { label: "Return Received",      sublabel: "Items arrived at warehouse",         color: "text-green-300",  border: "border-green-500",  bg: "bg-green-500/10",  Icon: RotateCcw,     pulse: false },
+    returned:                 { label: "Return Completed",     sublabel: "Process completed successfully",      color: "text-green-300",  border: "border-green-500",  bg: "bg-green-500/10",  Icon: CheckCircle2,  pulse: false },
 };
 
 // Which statuses to surface in the banner (excludes very terminal ones)
@@ -63,10 +66,27 @@ function pickPriorityOrder(orders: Order[]): Order | null {
 export function ActiveDeliveryBanner() {
     const navigate = useNavigate();
     const { activeOrders, loading } = useOrders();
+    const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem("dismissed_order_banners") || "[]");
+        } catch {
+            return [];
+        }
+    });
+
+    const handleDismiss = (e: React.MouseEvent, orderId: string) => {
+        e.stopPropagation();
+        const next = [...dismissedIds, orderId].slice(-20); // Keep last 20
+        setDismissedIds(next);
+        localStorage.setItem("dismissed_order_banners", JSON.stringify(next));
+    };
 
     if (loading || activeOrders.length === 0) return null;
 
-    const order = pickPriorityOrder(activeOrders.filter(o => BANNER_STATUSES.has(o.status)));
+    const filteredOrders = activeOrders.filter(o => !dismissedIds.includes(o.id));
+    if (filteredOrders.length === 0) return null;
+
+    const order = pickPriorityOrder(filteredOrders.filter(o => BANNER_STATUSES.has(o.status)));
     if (!order) return null;
 
     const config = BANNER_CONFIG[order.status];
@@ -115,12 +135,23 @@ export function ActiveDeliveryBanner() {
                 </div>
 
                 {/* Right side */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {activeOrders.length > 1 && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {filteredOrders.length > 1 && (
                         <span className="text-[10px] font-bold text-white bg-[#f2546d]/20 border border-[#f2546d]/30 px-1.5 py-0.5 rounded-full">
-                            +{activeOrders.length - 1}
+                            +{filteredOrders.length - 1}
                         </span>
                     )}
+                    
+                    {/* Dismiss Button - only for terminal active states like Delivered */}
+                    {(order.status === "delivered" || order.status === "in_use" || order.status === "return_picked_up" || order.status === "return_at_warehouse" || order.status === "returned") && (
+                        <button
+                            onClick={(e) => handleDismiss(e, order.id)}
+                            className="p-1 hover:bg-white/10 rounded-full transition-colors mr-1"
+                        >
+                            <X className="w-5 h-5 text-zinc-400" />
+                        </button>
+                    )}
+                    
                     <ChevronRight className="w-4 h-4 text-[#f2546d]" />
                 </div>
             </motion.button>

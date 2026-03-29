@@ -340,38 +340,108 @@ const MobileHome: React.FC = () => {
 
 
                 {/* ─── GENDER SELECTOR: Overlapping Dark Panels ─── */}
-                <section className="px-4 mt-3 md:px-5 md:mt-4">
-                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <section className="px-4 mt-1 md:px-5 md:mt-2">
+                    <div className="grid grid-cols-2 gap-4 md:gap-6 py-4">
                         {/* Women card */}
                         <motion.div
-                            whileTap={{ scale: 0.95 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => setActiveGender("womens")}
-                            className="relative h-[100px] md:h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
+                            initial={false}
+                            animate={{
+                                scale: activeGender === "womens" ? 1.08 : 0.94,
+                                y: activeGender === "womens" ? -8 : 0,
+                                opacity: activeGender === "womens" ? 1 : 0.6,
+                                filter: activeGender === "womens" ? "grayscale(0%)" : "grayscale(30%)",
+                                borderColor: activeGender === "womens" ? "#f2546d" : "rgba(255,255,255,0.05)",
+                                boxShadow: activeGender === "womens" 
+                                    ? "0 15px 35px -5px rgba(242, 84, 109, 0.4)" 
+                                    : "0 0 0px rgba(0,0,0,0)",
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={cn(
+                                "relative h-[110px] md:h-[130px] rounded-[24px] overflow-hidden cursor-pointer group border-2 transition-colors duration-300",
+                                activeGender === "womens" ? "z-10" : "z-0"
+                            )}
                         >
                             <img 
                                 src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400" 
                                 alt="Women" 
-                                className="absolute inset-0 w-full h-full object-cover"
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
+                            <div className={cn(
+                                "absolute inset-0 bg-gradient-to-t transition-opacity duration-300",
+                                activeGender === "womens" ? "from-black/70 via-black/20 to-transparent" : "from-black/80 to-black/30"
+                            )} />
+                            
+                            {/* Selected Badge */}
+                            {activeGender === "womens" && (
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    className="absolute top-2 right-2 bg-[#f2546d] rounded-full p-1 shadow-lg"
+                                >
+                                    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                </motion.div>
+                            )}
+
+                            <span className={cn(
+                                "absolute bottom-3 left-4 font-black text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all duration-300",
+                                activeGender === "womens" ? "text-white scale-110 origin-left" : "text-white/70"
+                            )}>
                                 WOMEN
                             </span>
                         </motion.div>
 
                         {/* Men card */}
                         <motion.div
-                            whileTap={{ scale: 0.95 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => setActiveGender("mens")}
-                            className="relative h-[100px] md:h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
+                            initial={false}
+                            animate={{
+                                scale: activeGender === "mens" ? 1.08 : 0.94,
+                                y: activeGender === "mens" ? -8 : 0,
+                                opacity: activeGender === "mens" ? 1 : 0.6,
+                                filter: activeGender === "mens" ? "grayscale(0%)" : "grayscale(30%)",
+                                borderColor: activeGender === "mens" ? "#f2546d" : "rgba(255,255,255,0.05)",
+                                boxShadow: activeGender === "mens" 
+                                    ? "0 15px 35px -5px rgba(242, 84, 109, 0.4)" 
+                                    : "0 0 0px rgba(0,0,0,0)",
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={cn(
+                                "relative h-[110px] md:h-[130px] rounded-[24px] overflow-hidden cursor-pointer group border-2 transition-colors duration-300",
+                                activeGender === "mens" ? "z-10" : "z-0"
+                            )}
                         >
                             <img 
                                 src="https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=400" 
                                 alt="Men" 
-                                className="absolute inset-0 w-full h-full object-cover"
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
+                            <div className={cn(
+                                "absolute inset-0 bg-gradient-to-t transition-opacity duration-300",
+                                activeGender === "mens" ? "from-black/70 via-black/20 to-transparent" : "from-black/80 to-black/30"
+                            )} />
+
+                            {/* Selected Badge */}
+                            {activeGender === "mens" && (
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    className="absolute top-2 right-2 bg-[#f2546d] rounded-full p-1 shadow-lg"
+                                >
+                                    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                </motion.div>
+                            )}
+
+                            <span className={cn(
+                                "absolute bottom-3 left-4 font-black text-[10px] md:text-xs tracking-[0.2em] uppercase transition-all duration-300",
+                                activeGender === "mens" ? "text-white scale-110 origin-left" : "text-white/70"
+                            )}>
                                 MEN
                             </span>
                         </motion.div>
@@ -523,7 +593,7 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => navigate(`/shop/all?category=${collection.id}&title=${collection.title}&fromHome=true&initialGender=${activeGender}`)}
+                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
                                 className="relative h-[160px] md:h-[250px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
                             >
                                 <motion.img

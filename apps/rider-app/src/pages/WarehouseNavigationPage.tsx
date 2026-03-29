@@ -1,9 +1,7 @@
 /**
  * Warehouse Navigation Page
  *
- * Bug 4 fix: handleVerifyOtp now transitions to 'arrived' (not 'dispatched')
- *   and does NOT navigate away. The rider must still physically confirm pickup
- *   and dispatch before proceeding to delivery.
+ * Refactored to use global LocationContext for persistent GPS tracking.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,8 +10,8 @@ import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
 import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/map-core';
-import { Button } from '@/components/Button';
 import { useToast } from '@/contexts/ToastContext';
+import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     markOrderPickedUp,
@@ -95,6 +93,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { user, profile } = useAuth();
     const { showToast } = useToast();
+    const { location: globalLocation } = useLocation();
     const navigate = useNavigate();
 
     const mapRef = useRef<HTMLDivElement>(null);
@@ -111,6 +110,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
+    
     // Persist returnOtp in sessionStorage so a page reload doesn't lose the warehouse OTP
     const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
     const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
@@ -127,9 +127,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [isCancelling, setIsCancelling] = useState(false);
 
     // GPS broadcast refs (background — no re-render)
-    const gpsWatchRef       = useRef<number | null>(null);
     const gpsBroadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-    const latestGpsPos      = useRef<GeolocationPosition | null>(null);
     const lastBroadcastPos  = useRef<{ lat: number; lng: number } | null>(null);
 
     const showToastRef = useRef(showToast);
@@ -146,9 +144,7 @@ export const WarehouseNavigationPage: React.FC = () => {
         [order?.status],
     );
 
-    // ── useMemo for step config (MUST be before early returns per React rules) ──
-
-    const stepIndex = useMemo(() => STEP_ORDER.indexOf(step), [step]);
+    // ── useMemo for step config ──
 
     const currentStepCfg = useMemo(() => {
         if (!isReturnFlow) return STEP_CONFIG[step];
@@ -210,52 +206,37 @@ export const WarehouseNavigationPage: React.FC = () => {
         return () => { cancelled = true; };
     }, [id]);
 
-    // ── GPS ────────────────────────────────────────────────────────────────────
-
-    const startNavigation = useCallback(() => {
-        if (!navigator.geolocation) { showToast('GPS not supported', 'error'); return; }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => setRiderLocation([pos.coords.longitude, pos.coords.latitude]),
-            () => showToast('Failed to get location', 'error'),
-            { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
-        );
-    }, [showToast]);
+    // ── Sync global location to local state ──────────────────────────────────────
 
     useEffect(() => {
-        startNavigation();
-    }, [startNavigation]);
+        if (globalLocation) {
+            const coords: [number, number] = [globalLocation.longitude, globalLocation.latitude];
+            setRiderLocation(coords);
+        }
+    }, [globalLocation]);
 
     // ── GPS background broadcast → warehouse app can see rider approaching ─────
 
     useEffect(() => {
-        if (!user?.id || !order) return;
+        if (!user?.id || !order || !globalLocation) return;
         const activeStatuses = ['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'];
         if (!activeStatuses.includes(order.status)) return;
-        if (!navigator.geolocation) return;
-
-        gpsWatchRef.current = navigator.geolocation.watchPosition(
-            (pos) => { latestGpsPos.current = pos; },
-            () => {},
-            { enableHighAccuracy: true, timeout: 10_000, maximumAge: 3_000 }
-        );
 
         gpsBroadcastTimer.current = setInterval(() => {
-            const pos = latestGpsPos.current;
-            if (!pos || !user?.id) return;
-            const curr = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            if (!user?.id || !globalLocation) return;
+            const curr = { lat: globalLocation.latitude, lng: globalLocation.longitude };
             const last = lastBroadcastPos.current;
             if (last && haversineMetres(last, curr) < GPS_MOVE_THRESHOLD_M) return;
             lastBroadcastPos.current = curr;
-            updateRiderLocation(user.id, curr.lat, curr.lng, pos.coords.heading ?? undefined, pos.coords.speed ?? undefined);
+            updateRiderLocation(user.id, curr.lat, curr.lng, globalLocation.heading ?? undefined, globalLocation.speed ?? undefined);
         }, GPS_BROADCAST_INTERVAL_MS);
 
         return () => {
-            if (gpsWatchRef.current !== null) { navigator.geolocation.clearWatch(gpsWatchRef.current); gpsWatchRef.current = null; }
             if (gpsBroadcastTimer.current) { clearInterval(gpsBroadcastTimer.current); gpsBroadcastTimer.current = null; }
         };
-    }, [user?.id, order?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user?.id, order?.status, globalLocation]);
 
-    // ── Open in Google Maps (destination = warehouse) ──────────────────────────
+    // ── Open in Google Maps ────────────────────────────────────────────────────
 
     const handleOpenGoogleMaps = useCallback(() => {
         const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(WAREHOUSE_ADDRESS)}&travelmode=driving`;
@@ -285,7 +266,6 @@ export const WarehouseNavigationPage: React.FC = () => {
                     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
                     let routeDrawn = false;
 
-                    // Fetch actual road route to warehouse via Mapbox Directions API
                     if (token && riderLocation) {
                         try {
                             const [rLng, rLat] = riderLocation;
@@ -304,7 +284,6 @@ export const WarehouseNavigationPage: React.FC = () => {
                         }
                     }
 
-                    // Fallback: straight line rider → warehouse
                     if (!routeDrawn) {
                         await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
                     }
@@ -336,24 +315,17 @@ export const WarehouseNavigationPage: React.FC = () => {
             mapInstance.current?.remove(); 
             mapInstance.current = null; 
         };
-    }, [riderLocation?.[0], riderLocation?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [riderLocation?.[0], riderLocation?.[1]]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
     const handleDropOffReturn = useCallback(async () => {
-        console.log('[Rider] handleDropOffReturn called', { id, userId: user?.id, hasOrder: !!order });
-        if (!id || !user?.id || !order) {
-            console.warn('[Rider] handleDropOffReturn guard failed', { id, userId: user?.id, hasOrder: !!order });
-            return;
-        }
+        if (!id || !user?.id || !order) return;
         setActionLoading(true);
         try {
-            console.log('[Rider] Calling riderDropOffReturn RPC...');
             const result = await riderDropOffReturn(id, user.id);
-            console.log('[Rider] riderDropOffReturn result:', result);
             if (!result.success) throw new Error(result.message);
 
-            // Save the OTP to display on screen for warehouse staff
             setReturnOtp(result.otp || null);
 
             await insertNotification({
@@ -367,7 +339,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             showToast('Return dropped off! Show the OTP to warehouse staff.', 'success');
             setStep('picked_up');
         } catch (err: any) {
-            console.error('[Rider] handleDropOffReturn error:', err);
             showToast(err.message || 'Failed to drop off return', 'error');
         } finally {
             setActionLoading(false);
@@ -375,11 +346,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     }, [id, user?.id, order, showToast]);
 
     const handleConfirmArrival = useCallback(() => {
-        console.log('[Rider] handleConfirmArrival called', { id, userId: user?.id, isReturnFlow });
-        if (!id || !user?.id) {
-            console.warn('[Rider] handleConfirmArrival guard failed');
-            return;
-        }
+        if (!id || !user?.id) return;
 
         if (riderLocation) {
             const distance = calculateDistance(
@@ -393,7 +360,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         }
 
         if (isReturnFlow) {
-            console.log('[Rider] isReturnFlow=true, calling handleDropOffReturn');
             void handleDropOffReturn();
             return;
         }
@@ -416,7 +382,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             setOrder(prev => prev ? { ...prev, status: 'driver_arrived_warehouse' } : prev);
             setShowOtpModal(false);
         } catch (err: any) {
-            console.error('[Rider] Failed to verify OTP:', err);
             showToast(err.message || 'Failed to verify PIN', 'error');
         } finally {
             setOtpVerifying(false);
@@ -451,27 +416,23 @@ export const WarehouseNavigationPage: React.FC = () => {
         setActionLoading(true);
 
         try {
-            // State machine: order_picked_up → dispatched → out_for_delivery
-            // Jumping directly from order_picked_up → out_for_delivery is blocked by the server.
-            // Step through dispatched first if needed.
             if (order.status === 'order_picked_up') {
                 const dispatchResult = await markAsDispatched(id, user.id);
                 if (!dispatchResult.success) throw new Error(dispatchResult.message);
             }
 
-            // If already out_for_delivery (e.g. rider re-opens page), skip transition
             if (order.status !== 'out_for_delivery') {
                 const result = await markAsOutForDelivery(id, user.id);
                 if (!result.success) throw new Error(result.message);
             }
 
             if (order?.user_id) {
-                const riderName = (profile as any)?.full_name || 'Your rider';
+                const rName = (profile as any)?.full_name || 'Your rider';
                 await supabase.from('notifications').insert({
                     user_id: order.user_id,
                     type: 'out_for_delivery',
                     title: '🚗 Your package is on the way!',
-                    body: `${riderName} has picked up your package and is heading to you. Have your delivery code ready.`,
+                    body: `${rName} has picked up your package and is heading to you. Have your delivery code ready.`,
                     order_id: id,
                     is_read: false,
                 });
@@ -546,11 +507,9 @@ export const WarehouseNavigationPage: React.FC = () => {
                         <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
                             <MapPin size={28} className="text-zinc-500" />
                         </div>
-                        <h2 className="text-lg font-bold text-white">Location Access Needed</h2>
+                        <h2 className="text-lg font-bold text-white">Getting your location...</h2>
                         <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
-                        <button onClick={startNavigation} className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm hover:bg-zinc-200">
-                            Enable Location
-                        </button>
+                        <div className="w-6 h-6 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     </div>
                 </div>
             )}
@@ -605,10 +564,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                         {step === 'navigating' && isReturnFlow && (
                             <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                                 <button
-                                    onClick={() => {
-                                        console.log('[Rider] Return drop-off button clicked directly');
-                                        handleDropOffReturn();
-                                    }}
+                                    onClick={() => handleDropOffReturn()}
                                     disabled={actionLoading}
                                     className={primaryBtn('from-indigo-600 to-indigo-500')}
                                 >

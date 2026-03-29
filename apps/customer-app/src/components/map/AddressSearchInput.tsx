@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, MapPin, Navigation, X, Clock } from 'lucide-react';
-import { searchAddresses, ValidatedAddress, getLocalAddresses } from '@/services/addressService';
+import { searchAddresses, ValidatedAddress, getLocalAddresses, getAddressDetail } from '@/services/addressService';
 import { cn } from '@/lib/utils';
 
 interface AddressSearchInputProps {
@@ -108,13 +108,32 @@ export function AddressSearchInput({
         };
     }, [query, handleSearch]);
 
-    const handleSelect = (address: ValidatedAddress) => {
+    const handleSelect = async (address: ValidatedAddress) => {
         console.log('[AddressSearch] Selected:', { formattedAddress: address.formattedAddress, lat: address.lat, lng: address.lng, eLoc: address.eLoc });
         setQuery(address.formattedAddress);
         setSuggestions([]);
         setIsFocused(false);
-        onAddressSelect(address);
         inputRef.current?.blur();
+
+        // If coordinates are missing/zero but we have an eLoc, resolve precise coordinates
+        const hasValidCoords = address.lat && address.lng && (Math.abs(address.lat) > 0.01 || Math.abs(address.lng) > 0.01);
+        if (!hasValidCoords && address.eLoc) {
+            setIsLoadingInternal(true);
+            try {
+                const coords = await getAddressDetail(address.eLoc);
+                if (coords) {
+                    console.log('[AddressSearch] Resolved eLoc coordinates:', coords);
+                    onAddressSelect({ ...address, lat: coords.lat, lng: coords.lng });
+                    return;
+                }
+            } catch (err) {
+                console.error('[AddressSearch] Failed to resolve eLoc:', err);
+            } finally {
+                setIsLoadingInternal(false);
+            }
+        }
+
+        onAddressSelect(address);
     };
 
     const handleClear = () => {

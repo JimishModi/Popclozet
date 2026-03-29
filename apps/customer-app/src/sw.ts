@@ -77,9 +77,12 @@ registerRoute(
     })
 );
 
-// Cache images
+// Cache images (skip Mappls tile/map images)
 registerRoute(
-    /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+    ({ url, request }) =>
+        /\.(?:png|jpg|jpeg|svg|gif|webp)$/i.test(url.pathname) &&
+        !url.hostname.includes('mappls.com') &&
+        !url.hostname.includes('mapmyindia.com'),
     new CacheFirst({
         cacheName: 'images-cache',
         plugins: [
@@ -91,9 +94,12 @@ registerRoute(
     })
 );
 
-// Cache CSS files
+// Cache CSS files (skip Mappls SDK stylesheets)
 registerRoute(
-    /\.css$/i,
+    ({ url }) =>
+        /\.css$/i.test(url.pathname) &&
+        !url.hostname.includes('mappls.com') &&
+        !url.hostname.includes('mapmyindia.com'),
     new StaleWhileRevalidate({
         cacheName: 'css-cache',
         plugins: [
@@ -105,9 +111,12 @@ registerRoute(
     })
 );
 
-// Cache JS files
+// Cache JS files (skip Mappls SDK scripts)
 registerRoute(
-    /\.js$/i,
+    ({ url }) =>
+        /\.js$/i.test(url.pathname) &&
+        !url.hostname.includes('mappls.com') &&
+        !url.hostname.includes('mapmyindia.com'),
     new StaleWhileRevalidate({
         cacheName: 'js-cache',
         plugins: [

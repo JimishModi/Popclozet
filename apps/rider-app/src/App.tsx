@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
 import { supabase } from '@popclozet/api-client';
+import { useLocation } from './contexts/LocationContext';
 
 // Legacy pages (existing)
 import { RiderDashboardPage } from './pages/RiderDashboardPage';
@@ -41,6 +42,7 @@ if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
 
 function App() {
     const { loading, user } = useAuth();
+    const { startWatching, stopWatching } = useLocation();
     const [isRider, setIsRider] = useState<boolean | null>(null);
     const [riderCheckLoading, setRiderCheckLoading] = useState(false);
     // Track which user ID we already checked to prevent re-check on token refresh
@@ -71,6 +73,20 @@ function App() {
                 setRiderCheckLoading(false);
             });
     }, [user?.id]);
+
+    // Handle global location tracking
+    useEffect(() => {
+        if (isRider && user) {
+            const isOnline = localStorage.getItem('rider_is_online') === 'true';
+            if (isOnline) {
+                startWatching();
+            } else {
+                stopWatching();
+            }
+        } else {
+            stopWatching();
+        }
+    }, [isRider, user, startWatching, stopWatching]);
 
     // Show loader while checking auth or rider status
     if (loading || riderCheckLoading) {
