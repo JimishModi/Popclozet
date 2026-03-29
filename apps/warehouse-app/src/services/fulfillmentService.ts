@@ -428,3 +428,48 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
     }
 }
 
+/**
+ * Get all orders history with filtering and search
+ */
+export async function getOrderHistory(options?: { status?: string, searchQuery?: string, limit?: number }): Promise<OrderWithItems[]> {
+    try {
+        let query = supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    id,
+                    product_id,
+                    size,
+                    rental_price,
+                    individual_id,
+                    products (id, name, images)
+                ),
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                rider:rider_id (full_name)
+            `);
+
+        if (options?.status && options.status !== 'all') {
+            query = query.eq('status', options.status);
+        }
+
+        if (options?.searchQuery) {
+            // Search by order ID snippet
+            query = query.ilike('id', `%${options.searchQuery}%`);
+        }
+
+        const { data, error } = await query
+            .order('created_at', { ascending: false })
+            .limit(options?.limit || 50);
+
+        if (error) {
+            console.warn('getOrderHistory:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch (err) {
+        console.error('Failed to get order history:', err);
+        return [];
+    }
+}

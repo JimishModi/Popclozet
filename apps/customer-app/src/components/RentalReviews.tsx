@@ -33,7 +33,7 @@ const earlyTesterReviews = [
   },
   {
     name: "Sneha R.",
-    review: "Highly recommend popclozet! Amazing collection and service.",
+    review: "Highly recommend Popclozet! Amazing collection and service.",
     location: "Worli",
     rating: 5,
     avatar: "https://i.pinimg.com/736x/48/6a/b5/486ab5b518f0f1829388b120c4106ece.jpg",
@@ -91,7 +91,7 @@ const RentalReviews = () => {
             What Our <span className="text-gradient-brand">Early Testers</span> Say
           </h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
-            Real experiences from real people who tried popclozet
+            Real experiences from real people who tried Popclozet
           </p>
         </motion.div>
 

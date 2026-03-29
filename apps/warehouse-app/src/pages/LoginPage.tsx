@@ -47,7 +47,7 @@ export function LoginPage() {
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-warehouse-500 to-warehouse-700 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-warehouse-500/25">
                         <Warehouse size={28} className="text-white" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white">PopCLozet Warehouse</h1>
+                    <h1 className="text-2xl font-bold text-white">Popclozet Warehouse</h1>
                     <p className="text-sm text-zinc-500 mt-1">Inventory & Operations Hub</p>
                 </motion.div>
 

@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, Droplets, ClipboardList, MoreHorizontal, RotateCcw, Truck, PlusCircle, Settings, LogOut, X, Eye } from 'lucide-react';
+import { LayoutDashboard, Package, Droplets, ClipboardList, MoreHorizontal, RotateCcw, Truck, PlusCircle, Settings, LogOut, X, Eye, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
@@ -28,6 +28,7 @@ const mainTabs: NavItem[] = [
 const moreTabs: NavItem[] = [
     { path: '/dispatch', icon: <Truck size={20} />, label: 'Dispatch' },
     { path: '/active-pickups', icon: <Eye size={20} />, label: 'Active Pickups' },
+    { path: '/order-history', icon: <History size={20} />, label: 'Order History' },
     { path: '/intake', icon: <PlusCircle size={20} />, label: 'Product Intake' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
 ];
