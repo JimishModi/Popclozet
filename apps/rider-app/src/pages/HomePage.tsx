@@ -62,7 +62,7 @@ interface IncomingOrder {
 
 const ORDER_SELECT = `
     *, 
-    profiles(full_name),
+    customer_profiles!orders_user_id_fkey1(full_name),
     addresses:delivery_address_id(full_address, latitude, longitude), 
     order_items(
         id, 
@@ -149,7 +149,7 @@ function mapDbOrderToIncoming(
         dropoff: isReturn
             ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
             : { name: 'Customer', address: fullAddr },
-        customerName: dbOrder.profiles?.full_name || 'Customer',
+        customerName: dbOrder.customer_profiles?.full_name || dbOrder.profiles?.full_name || 'Customer',
         items,
         earnings: dbOrder.delivery_fee > 0
             ? dbOrder.delivery_fee

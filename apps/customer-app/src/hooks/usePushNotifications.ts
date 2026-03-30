@@ -86,13 +86,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       } else {
         const errorMsg = result.error || "Failed to subscribe";
         setError(errorMsg);
-        alert("Push Error: " + errorMsg);
+        console.error("[Push] Subscribe failed:", errorMsg);
         return false;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to subscribe";
       setError(msg);
-      alert("Push Exception: " + msg);
+      console.error("[Push] Subscribe exception:", msg);
       return false;
     } finally {
       setIsLoading(false);

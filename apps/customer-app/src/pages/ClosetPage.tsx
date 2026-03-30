@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, ShoppingBag } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Heart, ShoppingBag, Loader2, MapPin, Zap, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { useCart } from '@/context/CartContext';
-import { getMyActiveRentals, keepItem } from '@/services/ordersService';
+import { getMyActiveRentals, keepItem, requestImmediateReturn, getMySavedAddresses, type SavedAddressRecord } from '@/services/ordersService';
 import { getRemainingRentalTime } from '@popclozet/api-client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -47,6 +47,10 @@ const ClosetPage: React.FC = () => {
     const [rentals, setRentals] = useState<RentalItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [tick, setTick] = useState(0);
+    const [returnNowModal, setReturnNowModal] = useState<{ orderId: string; title: string } | null>(null);
+    const [returnNowAddresses, setReturnNowAddresses] = useState<SavedAddressRecord[]>([]);
+    const [returnNowAddressId, setReturnNowAddressId] = useState<string>('');
+    const [returnNowSubmitting, setReturnNowSubmitting] = useState(false);
 
     useEffect(() => {
         const interval = setInterval(() => setTick(t => t + 1), 60000);
@@ -149,6 +153,35 @@ const ClosetPage: React.FC = () => {
 
     const handleKeepIt = (orderId: string) => {
         navigate(`/checkout?buyoutOrderId=${orderId}`);
+    };
+
+    const openReturnNowModal = async (orderId: string, title: string) => {
+        setReturnNowModal({ orderId, title });
+        setReturnNowSubmitting(false);
+        try {
+            const addrs = await getMySavedAddresses();
+            setReturnNowAddresses(addrs);
+            const defaultAddr = addrs.find(a => a.is_default) ?? addrs[0];
+            setReturnNowAddressId(defaultAddr?.id ?? '');
+        } catch {
+            setReturnNowAddresses([]);
+        }
+    };
+
+    const handleReturnNow = async () => {
+        if (!returnNowModal) return;
+        setReturnNowSubmitting(true);
+        try {
+            await requestImmediateReturn(returnNowModal.orderId, returnNowAddressId || null);
+            toast.success('Immediate return requested — a rider will be assigned shortly');
+            setReturnNowModal(null);
+            fetchRentals();
+        } catch (err: any) {
+            console.error('Return Now failed:', err);
+            toast.error(err?.message || 'Failed to request immediate return');
+        } finally {
+            setReturnNowSubmitting(false);
+        }
     };
 
     const currentRentals = rentals.filter((item) => item.type === 'current');
@@ -347,17 +380,31 @@ const ClosetPage: React.FC = () => {
                                 )}
 
                                 {item.isDelivered && !item.hasPreScheduledReturn && (
-                                    <button
-                                        onClick={() => navigate(`/schedule-return?orderId=${item.id}`)}
-                                        className="w-full mt-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all"
-                                    >
-                                        <span
-                                            className="text-sm font-semibold text-zinc-300 tracking-[-0.42px]"
-                                            style={dmSans}
+                                    <div className="flex gap-2 mt-4">
+                                        <button
+                                            onClick={() => openReturnNowModal(item.id, item.title)}
+                                            className="flex-1 py-3 rounded-2xl bg-[#f2546d] border border-[#ff8597] text-center active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
                                         >
-                                            Schedule Return
-                                        </span>
-                                    </button>
+                                            <Zap className="w-3.5 h-3.5 text-white" />
+                                            <span
+                                                className="text-sm font-semibold text-white tracking-[-0.42px]"
+                                                style={dmSans}
+                                            >
+                                                Return Now
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={() => navigate(`/schedule-return?orderId=${item.id}`)}
+                                            className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all"
+                                        >
+                                            <span
+                                                className="text-sm font-semibold text-zinc-300 tracking-[-0.42px]"
+                                                style={dmSans}
+                                            >
+                                                Schedule
+                                            </span>
+                                        </button>
+                                    </div>
                                 )}
 
                                 {item.isReturnInProgress && (
@@ -380,6 +427,93 @@ const ClosetPage: React.FC = () => {
 
                 {/* FUTURE BOOKINGS HIDDEN PER USER REQUEST */}
             </main>
+
+            {/* ─── RETURN NOW CONFIRMATION MODAL ─── */}
+            <AnimatePresence>
+                {returnNowModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ y: 100, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 100, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            className="w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-t-3xl sm:rounded-3xl overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between p-5 border-b border-white/10">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-[#f2546d]/20 flex items-center justify-center">
+                                        <Zap className="w-4 h-4 text-[#f2546d]" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-white" style={dmSans}>Return Now</h3>
+                                </div>
+                                <button
+                                    onClick={() => setReturnNowModal(null)}
+                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-5 space-y-5">
+                                <p className="text-sm text-zinc-400" style={dmSans}>
+                                    A rider will be assigned immediately to pick up <span className="text-white font-medium">{returnNowModal.title}</span>.
+                                </p>
+
+                                {/* Address picker */}
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-3">
+                                        <MapPin className="w-3.5 h-3.5 text-[#f2546d]" />
+                                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-[0.15em]" style={dmSans}>Pickup from</span>
+                                    </div>
+                                    {returnNowAddresses.length === 0 ? (
+                                        <p className="text-sm text-zinc-500">Using delivery address</p>
+                                    ) : (
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {returnNowAddresses.map(addr => (
+                                                <button
+                                                    key={addr.id}
+                                                    onClick={() => setReturnNowAddressId(addr.id)}
+                                                    className={`w-full text-left p-3 rounded-xl border transition-all ${
+                                                        returnNowAddressId === addr.id
+                                                            ? 'bg-[#f2546d]/10 border-[#f2546d]'
+                                                            : 'bg-white/[0.03] border-white/10'
+                                                    }`}
+                                                >
+                                                    <p className="text-sm font-medium text-white" style={dmSans}>{addr.label || 'Saved Address'}</p>
+                                                    <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{addr.full_address}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={handleReturnNow}
+                                    disabled={returnNowSubmitting}
+                                    className="w-full h-14 rounded-2xl bg-[#f2546d] flex items-center justify-center gap-2 shadow-lg shadow-[#f2546d]/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {returnNowSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin text-white" />
+                                            <span className="text-base font-bold text-white" style={dmSans}>Requesting...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Zap className="w-5 h-5 text-white" />
+                                            <span className="text-base font-bold text-white" style={dmSans}>Confirm Immediate Return</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

@@ -367,3 +367,34 @@ export async function setUnitStatus(
 export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
     return setUnitStatus(individualId, 'archived', actorId);
 }
+
+/**
+ * Flag a physical unit as damaged with optional notes.
+ * Sets status to 'damaged', records notes and timestamp,
+ * and logs the action to warehouse_activity_log.
+ */
+export async function flagUnitAsDamaged(
+    individualId: string,
+    notes: string,
+    actorId: string = 'system',
+): Promise<void> {
+    const { error } = await supabase
+        .from('all_products')
+        .update({
+            status: 'damaged',
+            available: false,
+            damage_notes: notes.trim() || null,
+            damage_flagged_at: new Date().toISOString(),
+        })
+        .eq('individual_id', individualId);
+
+    if (error) throw error;
+
+    await supabase.from('warehouse_activity_log').insert({
+        actor_id: actorId === 'system' ? null : actorId,
+        action: 'flag_unit_damaged',
+        entity_type: 'individual_unit',
+        entity_id: null,
+        details: { individual_id: individualId, damage_notes: notes.trim() || null },
+    });
+}

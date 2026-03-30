@@ -195,6 +195,27 @@ export async function updateCartQuantityDB(productId: string, size: string, plan
     }
 }
 
+export async function migrateAnonymousCartDB(userId: string) {
+    const db = await initDB();
+    const prefix = `${ANON_PREFIX}:`;
+    const allItems = await db.getAll('cart');
+    const anonItems = allItems.filter(item => item.productId.startsWith(prefix));
+
+    if (anonItems.length === 0) return;
+
+    for (const item of anonItems) {
+        // Expected format: anon:{rawProductId}:{size}:{plan}
+        const parts = item.productId.split(':');
+        if (parts.length >= 4) {
+            const rawProductId = parts[1];
+            const size = parts[2];
+            const plan = parts[3];
+            await addToCartDB(rawProductId, size, plan, item.quantity, userId);
+        }
+        await db.delete('cart', item.productId);
+    }
+}
+
 export async function getCartItemsDB(userId?: string | null) {
     const db = await initDB();
     const prefix = `${userId || ANON_PREFIX}:`;
@@ -248,6 +269,21 @@ export async function addToWishlistDB(productId: string, userId?: string | null)
 export async function removeFromWishlistDB(productId: string, userId?: string | null) {
     const db = await initDB();
     await db.delete('wishlist', cartKey(userId, productId));
+}
+
+export async function migrateAnonymousWishlistDB(userId: string) {
+    const db = await initDB();
+    const prefix = `${ANON_PREFIX}:`;
+    const allItems = await db.getAll('wishlist');
+    const anonItems = allItems.filter(item => item.productId.startsWith(prefix));
+
+    if (anonItems.length === 0) return;
+
+    for (const item of anonItems) {
+        const rawProductId = stripPrefix(item.productId);
+        await addToWishlistDB(rawProductId, userId);
+        await db.delete('wishlist', item.productId);
+    }
 }
 
 export async function getWishlistItemsDB(userId?: string | null) {

@@ -95,8 +95,10 @@ export const DeliveryNavigationPage: React.FC = () => {
           navigate('/');
           return;
         }
-        // Auto-open OTP modal on reload — rider is here to deliver/collect, skip the button tap
-        if (['out_for_delivery', 'dispatched', 'return_dispatched'].includes(order.status)) {
+        // Auto-open OTP modal for deliveries — rider is at the customer's door
+        // NOTE: For returns (return_dispatched), rider must navigate to customer first,
+        // then manually tap "Mark as Collected" to open the OTP modal.
+        if (['out_for_delivery', 'dispatched'].includes(order.status)) {
           setShowOtpModal(true);
         }
       } catch (err) {

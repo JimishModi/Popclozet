@@ -120,25 +120,26 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                             onClick={handleClick}
                             className={cn(
                                 "relative flex items-center transition-all duration-200",
-                                // Mobile link styling
-                                "flex-col gap-0.5 px-4 py-1",
+                                // Mobile link styling - icon on top, text below
+                                "flex-col gap-1 px-4 py-1.5",
                                 // Tablet link styling
                                 "md:flex-row md:py-2 md:px-4 md:rounded-lg md:hover:bg-white/5",
                                 // Desktop link styling
                                 "lg:w-full lg:px-4 lg:py-3 lg:rounded-xl lg:hover:bg-white/5",
                                 active
                                     ? "text-[#ff4d6d]"
-                                : "text-zinc-500 hover:text-zinc-300",
-                            active && "md:bg-[#ff4d6d]/10 lg:bg-[#ff4d6d]/10"
+                                    : "text-zinc-500 hover:text-zinc-300",
+                                active && "md:bg-[#ff4d6d]/10 lg:bg-[#ff4d6d]/10"
                             )}
                         >
                             <div className="relative">
                                 <Icon
                                     className={cn(
-                                        // Mobile: show full PNG (icon + embedded text label)
-                                        "w-12 h-10 object-contain",
-                                        // Tablet/Desktop: crop to icon only, span label handles text
-                                        "md:w-6 md:h-6 md:object-cover md:object-top",
+                                        // Mobile: show icon only (crop out embedded text from PNG)
+                                        "w-6 h-6 object-cover object-top",
+                                        // Tablet: same icon size
+                                        "md:w-6 md:h-6",
+                                        // Desktop: slightly larger
                                         "lg:w-8 lg:h-8"
                                     )}
                                     active={active}
@@ -156,18 +157,18 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                     </span>
                                 )}
                             </div>
-                        <span className={cn(
-                            "font-semibold tracking-wide",
-                            // Mobile: hidden (PNG already has embedded text label)
-                            "hidden",
-                            // Tablet: show alongside icon
-                            "md:inline md:text-[13px] md:ml-2",
-                            // Desktop: show alongside icon
-                            "lg:text-sm lg:ml-3",
-                            active ? "text-[#ff4d6d]" : "text-zinc-500 md:text-zinc-400"
-                        )}>
-                            {item.label}
-                        </span>
+                            <span className={cn(
+                                "font-medium tracking-wide",
+                                // Mobile: show text label below icon
+                                "text-[11px]",
+                                // Tablet: show alongside icon
+                                "md:text-[13px] md:ml-2",
+                                // Desktop: show alongside icon
+                                "lg:text-sm lg:ml-3",
+                                active ? "text-[#ff4d6d]" : "text-zinc-500 md:text-zinc-400"
+                            )}>
+                                {item.label}
+                            </span>
                         </Link>
                     );
                 })}

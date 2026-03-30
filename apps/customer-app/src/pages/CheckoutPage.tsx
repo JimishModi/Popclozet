@@ -77,6 +77,7 @@ export default function CheckoutPage() {
   // FIX 7: Use useSearchParams instead of window.location.search
   const [searchParams] = useSearchParams();
   const buyoutOrderId = searchParams.get("buyoutOrderId");
+  const skipDelivery = searchParams.get("skipDelivery") === 'true';
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
@@ -113,6 +114,15 @@ export default function CheckoutPage() {
       localStorage.setItem("preferred_payment_method", paymentMethod);
     }
   }, [paymentMethod]);
+
+  // Force payment to online-only when no delivery (no cash collection possible)
+  const isNoDeliveryFlow = skipDelivery || !!buyoutOrderId;
+
+  useEffect(() => {
+    if (isNoDeliveryFlow && paymentMethod === 'cod') {
+      setPaymentMethod('upi');
+    }
+  }, [isNoDeliveryFlow, paymentMethod]);
 
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
@@ -440,12 +450,14 @@ export default function CheckoutPage() {
   // FIX 5: Single source of truth for distance surcharge — removed as per request
   const distanceSurcharge = 0;
 
-  const deliveryFee = selectedOrderType === 'home_try_on'
-    ? 0
-    : hasFreeDeliveryBenefit
+  const deliveryFee = isNoDeliveryFlow
+    ? 0  // No delivery needed — user already has the item
+    : selectedOrderType === 'home_try_on'
       ? 0
-      : deliveryFeeBase;
-  const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
+      : hasFreeDeliveryBenefit
+        ? 0
+        : deliveryFeeBase;
+  const isDeliveryFeeWaived = isNoDeliveryFlow || selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
   const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
   const total = subtotal + deliveryFee + insuranceFee;
 
@@ -720,34 +732,45 @@ export default function CheckoutPage() {
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
           <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
 
-          <div className="flex items-center justify-between mt-9">
-            <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
-            <button onClick={() => setShowAddressSelector(true)} className="text-xs font-bold text-[#f2546d] uppercase">Change</button>
-          </div>
-          {deliveryAddress ? (
-            <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
-              <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
-              <div className="mt-3 flex items-center gap-2 relative z-10">
-                {isResolvingAddress ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
-                  </div>
-                ) : distanceLoading ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
-                  </div>
-                ) : distanceError ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-red-900/30 border border-red-500/20">
-                    <span className="text-[10px] text-red-400 font-bold">{distanceError}</span>
-                  </div>
-                ) : null}
+          {/* Address section — hide when isNoDeliveryFlow (user already has the item) */}
+          {!isNoDeliveryFlow && (
+            <>
+              <div className="flex items-center justify-between mt-9">
+                <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
+                <button onClick={() => setShowAddressSelector(true)} className="text-xs font-bold text-[#f2546d] uppercase">Change</button>
               </div>
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+              {deliveryAddress ? (
+                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+                  <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                  <div className="mt-3 flex items-center gap-2 relative z-10">
+                    {isResolvingAddress ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
+                      </div>
+                    ) : distanceLoading ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
+                      </div>
+                    ) : distanceError ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-red-900/30 border border-red-500/20">
+                        <span className="text-[10px] text-red-400 font-bold">{distanceError}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+                </div>
+              ) : (
+                <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
+                  + Select Address
+                </button>
+              )}
+            </>
+          )}
+          {isNoDeliveryFlow && (
+            <div className="mt-9 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-sm font-semibold text-emerald-400" style={dmSans}>✓ No delivery needed</p>
+              <p className="text-xs text-emerald-400/70 mt-1" style={dmSans}>You already have this item — keeping it permanently!</p>
             </div>
-          ) : (
-            <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
-              + Select Address
-            </button>
           )}
 
           {/* Removed Plan Access UI Block */}
@@ -987,26 +1010,29 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                <button
-                  onClick={() => setPaymentMethod('cod')}
-                  className={cn(
-                    "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
-                  )}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
-                      <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
+                {/* COD option — hide when no delivery needed (no delivery to collect cash at) */}
+                {!isNoDeliveryFlow && (
+                  <button
+                    onClick={() => setPaymentMethod('cod')}
+                    className={cn(
+                      "w-full p-5 rounded-2xl text-left border transition-all",
+                      paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
+                        <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
+                        <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
+                      </div>
+                      <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
+                        {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
-                    </div>
-                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
-                      {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                )}
               </div>
 
               <button

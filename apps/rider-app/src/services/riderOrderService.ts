@@ -197,7 +197,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         .from('orders')
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
-            profiles(full_name),
+            customer_profiles!orders_user_id_fkey1(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
             order_items (
                 id, 
@@ -208,10 +208,12 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         `)
         .eq('rider_id', riderId)
         .in('status', [
-            'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
+            'rider_assigned', 'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
             'order_picked_up', 'dispatched', 'out_for_delivery',
             'return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse',
-        ]);
+            'delivered', 'cancelled', 'return_completed', 'returned',
+        ])
+        .order('created_at', { ascending: false });
 
     if (error) { console.error('[riderOrderService] getRiderOrders:', error); return []; }
 
@@ -243,7 +245,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
 
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
-            customerName: order.profiles?.full_name,
+            customerName: order.customer_profiles?.full_name || order.profiles?.full_name,
             orderType: isReturn ? 'return' as const : 'delivery' as const,
             status: order.status,
             pickupAddress,
@@ -279,7 +281,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee,
             route_distance_km, route_polyline, created_at, delivery_eta,
-            profiles(full_name),
+            customer_profiles!orders_user_id_fkey1(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
             order_items (
                 id, 
@@ -297,7 +299,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     const isReturn = isReturnFlowOrder(data);
     return {
         id: data.id, orderId: data.id, customerId: data.user_id,
-        customerName: (data.profiles as any)?.full_name,
+        customerName: (data as any).customer_profiles?.full_name || (data as any).profiles?.full_name,
         orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
         status: data.status,
         pickupAddress: isReturn

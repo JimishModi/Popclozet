@@ -96,8 +96,8 @@ export default {
       },
 
       fontFamily: {
-        // Primary site sans (Inter) and a dedicated heading font (Playfair Display)
-        sans: ["Inter", "system-ui", "sans-serif"],
+        // Primary site sans (DM Sans) and a dedicated heading font (Playfair Display)
+        sans: ["'DM Sans'", "system-ui", "sans-serif"],
         heading: ["'Playfair Display'", "serif"],
       },
 

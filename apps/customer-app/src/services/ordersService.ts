@@ -333,6 +333,28 @@ export async function scheduleReturn(
 }
 
 /**
+ * Request an immediate return (Return Now).
+ * Auto-approves and transitions to return_scheduled so riders can claim it right away.
+ * If no pickupAddressId is provided, the server falls back to the delivery address.
+ */
+export async function requestImmediateReturn(
+  orderId: string,
+  pickupAddressId?: string | null
+) {
+  const { data, error } = await supabase.rpc("request_immediate_return", {
+    p_order_id: orderId,
+    p_pickup_address_id: pickupAddressId ?? null,
+  });
+
+  if (error) {
+    console.error("requestImmediateReturn error:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
  * Keep an item (buy it out at the fixed price).
  */
 export async function keepItem(orderId: string) {
