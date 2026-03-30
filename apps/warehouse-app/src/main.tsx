@@ -10,17 +10,14 @@ import './index.css';
 // Register PWA Service Worker
 registerSW({
     onNeedRefresh() {
-        if (import.meta.env.PROD) {
-            window.location.reload();
-        } else {
-            console.log('New service worker available (dev mode)');
-        }
+        console.log('[PWA] New content available, reloading...');
+        window.location.reload();
     },
     onOfflineReady() {
-        console.log('App ready for offline usage');
+        console.log('[PWA] App ready for offline usage');
     },
     onRegisterError(error) {
-        console.error('SW registration error:', error);
+        console.error('[PWA] SW registration error:', error);
     },
 });
 

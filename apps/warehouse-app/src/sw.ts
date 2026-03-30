@@ -93,12 +93,15 @@ registerRoute(
 // Cache CSS files
 registerRoute(
     ({ url }) => /\.css$/i.test(url.pathname),
-    new StaleWhileRevalidate({
+    new NetworkFirst({
         cacheName: 'css-cache',
         plugins: [
             new ExpirationPlugin({
                 maxEntries: 20,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+            }),
+            new CacheableResponsePlugin({
+                statuses: [0, 200],
             }),
         ],
     })
@@ -107,12 +110,15 @@ registerRoute(
 // Cache JS files
 registerRoute(
     ({ url }) => /\.js$/i.test(url.pathname),
-    new StaleWhileRevalidate({
+    new NetworkFirst({
         cacheName: 'js-cache',
         plugins: [
             new ExpirationPlugin({
                 maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+            }),
+            new CacheableResponsePlugin({
+                statuses: [0, 200],
             }),
         ],
     })

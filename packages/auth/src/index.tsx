@@ -160,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
+        console.log('[Auth] Bootstrap session status:', session ? 'Present' : 'Not found');
         if (error) console.error('[Auth] getSession error:', error);
         if (!active) return;
 
@@ -174,7 +175,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('[Auth] Bootstrap crashed:', err);
       } finally {
-        if (active) setLoading(false);
+        // Ensure a minimum loading pulse for stability in PWA standalone mode
+        // This prevents the app from immediately deciding there's no user before JS hydrates
+        if (active) {
+            setTimeout(() => {
+                if (active) setLoading(false);
+            }, 100);
+        }
       }
     };
 

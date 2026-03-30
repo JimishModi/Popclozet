@@ -12,7 +12,7 @@ export function InstallPrompt() {
             return;
         }
 
-        const dismissed = localStorage.getItem('pwa-install-dismissed');
+        const dismissed = localStorage.getItem('pwa-install-rider-v1');
         if (!dismissed) {
             if (isInstallableNatively || isIOS) {
                 setShowPrompt(true);
@@ -28,7 +28,7 @@ export function InstallPrompt() {
 
     const handleDismiss = () => {
         setShowPrompt(false);
-        localStorage.setItem('pwa-install-dismissed', 'true');
+        localStorage.setItem('pwa-install-rider-v1', 'true');
     };
 
     if (!showPrompt) return null;
