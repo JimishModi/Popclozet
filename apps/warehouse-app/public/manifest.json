@@ -1,12 +1,13 @@
 {
-    "name": "Popclozet - Rental Fashion",
-    "short_name": "Popclozet",
-    "description": "Premium rental fashion platform with seamless delivery experience",
+    "name": "Popclozet Warehouse - Operations Hub",
+    "short_name": "PC Warehouse",
+    "description": "Inventory management, order processing, and warehouse operations.",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#8B5CF6",
-    "orientation": "portrait",
+    "background_color": "#0b0b0c",
+    "theme_color": "#6C3AE0",
+    "orientation": "portrait-primary",
     "icons": [
         {
             "src": "/icons/icon-192x192.png",
@@ -21,10 +22,46 @@
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-512x512.png",
+            "src": "/icons/icon-maskable-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/icon-maskable-512x512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
         }
+    ],
+    "shortcuts": [
+        {
+            "name": "Inventory",
+            "short_name": "Inventory",
+            "description": "Manage warehouse inventory",
+            "url": "/inventory",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Orders",
+            "short_name": "Orders",
+            "description": "View and process orders",
+            "url": "/orders",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity"
     ]
 }

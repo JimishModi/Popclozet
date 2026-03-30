@@ -182,9 +182,16 @@ export function ReturnsPage() {
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div>
-                                            <p className="text-xs text-zinc-500">
-                                                Order #{order?.id?.slice(0, 8)}
-                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-zinc-500">
+                                                    Order #{order?.id?.slice(0, 8)}
+                                                </p>
+                                                {request.reason === 'pre_scheduled' && (
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 uppercase tracking-wider">
+                                                        Pre-scheduled
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-sm font-medium text-zinc-100 mt-1">
                                                 ₹{order?.total_amount ?? 0} • {order?.order_items?.length ?? 0} item{(order?.order_items?.length ?? 0) === 1 ? '' : 's'}
                                             </p>
@@ -194,6 +201,11 @@ export function ReturnsPage() {
                                             <p className="text-xs text-zinc-500 mt-1">
                                                 Slot: {request.pickup_slot ? new Date(request.pickup_slot).toLocaleString() : 'Not set'}
                                             </p>
+                                            {request.reason === 'pre_scheduled' && request.status === 'approved' && (
+                                                <p className="text-[10px] text-purple-400/80 mt-1">
+                                                    Auto-dispatch 60 min before pickup
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="text-right">

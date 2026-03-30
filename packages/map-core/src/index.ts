@@ -246,7 +246,7 @@ export const createMapInstance = async (
         mapObject.initialize(CONFIGURED_TOKEN, { map: true }, () => {
             const map = mapObject.Map({
                 id: container.id,
-                center: [center[0], center[1]], 
+                center: [center[1], center[0]], // Mappls expects [lat, lng], callers pass [lng, lat]
                 zoom,
                 addControl: true,
                 attributionControl: false,
@@ -254,6 +254,29 @@ export const createMapInstance = async (
             resolve(map);
         });
     });
+};
+
+/**
+ * Fetch driving route from Mappls Route API.
+ * Returns GeoJSON coordinates array [[lng, lat], ...] or null on failure.
+ */
+export const fetchMapplsRoute = async (
+    startLng: number,
+    startLat: number,
+    endLng: number,
+    endLat: number
+): Promise<number[][] | null> => {
+    if (!CONFIGURED_TOKEN) return null;
+    try {
+        const url = `https://apis.mappls.com/advancedmaps/v1/${CONFIGURED_TOKEN}/route_adv/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full&steps=false`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.routes?.[0]?.geometry?.coordinates ?? null;
+    } catch (e) {
+        console.warn('[map-core] Mappls Route API failed:', e);
+        return null;
+    }
 };
 
 export const createColorMarker = (

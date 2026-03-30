@@ -14,6 +14,7 @@ import {
   initializeMap,
   drawRoute,
   mapboxgl,
+  fetchMapplsRoute,
 } from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
 import { useLocation } from '@/contexts/LocationContext';
@@ -200,23 +201,18 @@ export const DeliveryNavigationPage: React.FC = () => {
         mapInstance.current = map;
 
         const setupMap = async () => {
-          const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
           let routeDrawn = false;
 
-          if (token && riderLocation) {
+          if (riderLocation) {
             try {
               const [rLng, rLat] = riderLocation;
-              const dirRes = await fetch(
-                `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`
-              );
-              const dirJson = await dirRes.json();
-              const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+              const routeCoords = await fetchMapplsRoute(rLng, rLat, destLng!, destLat!);
               if (routeCoords?.length) {
                 await drawRoute(map, routeCoords);
                 routeDrawn = true;
               }
             } catch (err) {
-              console.warn('[DeliveryNav] Directions API failed:', err);
+              console.warn('[DeliveryNav] Mappls Route API failed:', err);
             }
           }
 

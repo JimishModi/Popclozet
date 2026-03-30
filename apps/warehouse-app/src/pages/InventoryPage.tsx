@@ -70,7 +70,7 @@ export function InventoryPage() {
             </div>
 
             {/* Card List */}
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filtered.length === 0 ? (
                     <div className="text-center py-12">
                         <Package size={32} className="mx-auto text-zinc-600 mb-2" />

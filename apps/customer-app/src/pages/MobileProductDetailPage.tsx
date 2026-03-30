@@ -665,53 +665,42 @@ const MobileProductDetailPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Size buttons — sourced from inventory, only show sizes with stock */}
+                    {/* Size buttons — show all standard sizes, mark unavailable ones as out of stock */}
                     <div className="flex items-center gap-2 md:gap-3 mt-3 md:mt-5 relative flex-wrap pb-2">
-                        {inventory.length === 0 ? (
-                            <span className="text-sm text-zinc-500">No sizes available</span>
-                        ) : (
-                            inventory.map((row) => {
-                                const size = row.size;
-                                const isSelected = selectedSize === size;
-                                const isDisabled = row.available_stock <= 0;
-                                const isLowStock = !isDisabled && row.available_stock > 0 && row.available_stock < 3;
+                        {(['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const).map((size) => {
+                            const row = inventory.find(r => r.size === size);
+                            const isSelected = selectedSize === size;
+                            const isOutOfStock = !row || row.available_stock <= 0;
 
-                                return (
-                                    <div key={size} className="relative flex flex-col items-center gap-2">
-                                        <button
-                                            onClick={() =>
-                                                !isDisabled && setSelectedSize(size)
-                                            }
-                                            disabled={isDisabled}
-                                            title={isDisabled ? 'Out of stock' : `${row.available_stock} available`}
-                                            className={cn(
-                                                "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center",
-                                                "text-base md:text-lg font-black tracking-tighter transition-all duration-300",
-                                                isSelected
-                                                    ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
-                                                    : isDisabled
-                                                        ? "text-zinc-700 bg-[#1A1A1A] line-through cursor-not-allowed border border-white/5"
-                                                        : "text-zinc-400 bg-[#1A1A1A] border border-white/5 hover:bg-white/5 hover:text-white"
-                                            )}
-                                        >
-                                            {size}
-                                        </button>
+                            return (
+                                <div key={size} className="relative flex flex-col items-center gap-2">
+                                    <button
+                                        onClick={() =>
+                                            !isOutOfStock && setSelectedSize(size)
+                                        }
+                                        disabled={isOutOfStock}
+                                        title={isOutOfStock ? 'Out of stock' : `${row!.available_stock} available`}
+                                        className={cn(
+                                            "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center",
+                                            "text-base md:text-lg font-black tracking-tighter transition-all duration-300",
+                                            isSelected
+                                                ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
+                                                : isOutOfStock
+                                                    ? "text-zinc-700 bg-[#1A1A1A] line-through cursor-not-allowed border border-white/5 opacity-50"
+                                                    : "text-zinc-400 bg-[#1A1A1A] border border-white/5 hover:bg-white/5 hover:text-white"
+                                        )}
+                                    >
+                                        {size}
+                                    </button>
 
-                                        {/* Low stock indicator */}
-                                        {isLowStock && (
-                                            <span className="text-[10px] font-bold text-[#f2546d] whitespace-nowrap px-1.5 py-0.5 bg-[#f2546d]/10 rounded-md">
-                                                Only {row.available_stock} left!
-                                            </span>
-                                        )}
-                                        {isDisabled && (
-                                            <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap">
-                                                Out
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            })
-                        )}
+                                    {isOutOfStock && (
+                                        <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap">
+                                            Out
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Desktop Add to Cart */}

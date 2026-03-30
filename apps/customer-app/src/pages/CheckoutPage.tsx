@@ -587,6 +587,8 @@ export default function CheckoutPage() {
           payment_method: paymentMethod,
           delivery_fee: deliveryFee,
           route_distance_km: actualDistance || profile?.delivery_distance_km || 0,
+          ...(returnPickupDate ? { return_pickup_date: returnPickupDate } : {}),
+          ...(returnTimeSlot ? { return_time_slot: returnTimeSlot } : {}),
         })
         .select("id")
         .single();
@@ -628,6 +630,21 @@ export default function CheckoutPage() {
 
       const createdOrderId = order.id;
       const createdOrderTotal = total;
+
+      // 2b) Create pre-scheduled return request if return slot was selected at checkout
+      if (returnSchedule?.pickupSlotIso && createdOrderId) {
+        const { error: returnReqErr } = await supabase.from("return_requests").insert({
+          order_id: createdOrderId,
+          reason: 'pre_scheduled',
+          pickup_address_id: addressId,
+          pickup_slot: returnSchedule.pickupSlotIso,
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        });
+        if (returnReqErr) {
+          console.warn("[Checkout] Pre-scheduled return request failed:", returnReqErr);
+        }
+      }
 
       // 3) Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({

@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
     Search, 
     Filter, 
@@ -19,7 +20,8 @@ import {
     AlertCircle,
     User,
     MapPin,
-    ArrowUpDown
+    ArrowUpDown,
+    RefreshCw
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getOrderHistory, type OrderWithItems } from '../services/fulfillmentService';
@@ -35,6 +37,7 @@ const statusFilters = [
 ];
 
 export function OrderHistoryPage() {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState<OrderWithItems[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -68,6 +71,14 @@ export function OrderHistoryPage() {
         return () => clearTimeout(timer);
     }, [fetchOrders, searchQuery]);
 
+    // Auto-refresh every 60 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchOrders();
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [fetchOrders]);
+
     const getStatusStyle = (status: string) => {
         switch (status.toLowerCase()) {
             case 'pending': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
@@ -96,6 +107,20 @@ export function OrderHistoryPage() {
                             {orders.length} {statusFilter === 'all' ? '' : statusFilter} orders found
                         </p>
                     </div>
+
+                    <button 
+                        onClick={() => fetchOrders()}
+                        disabled={isRefreshing || loading}
+                        className={clsx(
+                            "p-2.5 rounded-xl border transition-all active:scale-95",
+                            isRefreshing || loading
+                                ? "bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed"
+                                : "bg-warehouse-500/10 border-warehouse-500/20 text-warehouse-400 hover:bg-warehouse-500/20"
+                        )}
+                        title="Refresh history"
+                    >
+                        <RefreshCw size={18} className={clsx(isRefreshing && "animate-spin")} />
+                    </button>
                 </div>
 
                 {/* Search Bar */}
@@ -216,6 +241,40 @@ export function OrderHistoryPage() {
                                                 <p className="text-xs font-bold text-white">₹{order.total_amount}</p>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    {/* Clickable Items List */}
+                                    <div className="mb-4 space-y-2 max-h-36 overflow-y-auto no-scrollbar">
+                                        {order.order_items?.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (item.product_id) navigate(`/product/${item.product_id}`);
+                                                }}
+                                                className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/30 hover:bg-zinc-800/50 border border-zinc-800/50 transition-all active:scale-[0.98] text-left"
+                                            >
+                                                <div className="w-10 h-12 rounded-lg bg-zinc-800 overflow-hidden shrink-0 border border-zinc-700">
+                                                    {item.products?.images?.[0] ? (
+                                                        <img src={item.products.images[0]} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Package size={14} className="text-zinc-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-bold text-white truncate uppercase tracking-tight">
+                                                        {item.products?.name || 'Product'}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-warehouse-400 text-[9px] font-black">SIZE: {item.size || 'N/A'}</span>
+                                                        <span className="text-zinc-600 font-bold text-[9px]">₹{item.rental_price}</span>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={14} className="text-zinc-700 mr-1" />
+                                            </button>
+                                        ))}
                                     </div>
 
                                     {/* Details */}

@@ -11,7 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const REST_KEY = process.env.MAPPLS_REST_KEY;
+const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
 if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
@@ -25,38 +25,64 @@ if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
  * Proxies to Mappls Auto-Suggest API
  */
 app.get("/api/location/search", async (req, res) => {
-    let { query } = req.query;
-    if (typeof query === 'string' && query.length > 40) {
-        query = query.substring(0, 40);
-        console.log(`[API] Truncated long query to: ${query}`);
+    let { query, lat, lng } = req.query;
+    if (typeof query === 'string' && query.length > 100) {
+        query = query.substring(0, 100);
+        console.log(`[API] Truncated very long query to: ${query}`);
     }
 
     if (!query) {
         return res.status(400).json({ error: "Query is required" });
     }
 
+    const locationBias = (lat && lng) ? `&location=${lat},${lng}` : '';
+
     try {
-        const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query as string)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true`;
+        const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(query as string)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true${locationBias}`;
         console.log(`[API] Searching Mappls Atlas: ${query}`);
-        console.log(`[API] URL: ${url.replace(REST_KEY || '', 'REDACTED')}`);
-
+        
         const response = await axios.get(url, {
-            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
+            headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' },
+            timeout: 5000
         });
 
-        console.log(`[API] Mappls Response Status: ${response.status}`);
-
-        // Handle both root array and 'suggestedLocations' wrapper
         const results = response.data.suggestedLocations || (Array.isArray(response.data) ? response.data : []);
-        console.log(`[API] Found ${results.length} results`);
-        res.json(results);
+        console.log(`[API] Mappls found ${results.length} results`);
+        
+        if (results.length > 0) {
+            return res.json(results);
+        }
+        
+        throw new Error("No Mappls results, falling back to OSM");
     } catch (error: any) {
-        console.error("Mappls Search Error:", error.response?.data || error.message);
-        console.error("Full Error Stack:", error.stack);
-        res.status(500).json({
-            error: "Failed to fetch locations",
-            detail: error.response?.data || error.message
-        });
+        console.warn("[API] Mappls Search failed, falling back to Nominatim (OSM):", error.message);
+        
+        try {
+            // Fallback: Nominatim (OpenStreetMap) — no key needed, great for addresses
+            const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query as string)}&format=json&addressdetails=1&countrycodes=in&limit=10`;
+            const nomResponse = await axios.get(nomUrl, {
+                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+            });
+            
+            const results = nomResponse.data.map((place: any) => ({
+                placeName: place.name || (place.display_name ? place.display_name.split(',')[0] : 'Unknown'),
+                placeAddress: place.display_name,
+                latitude: parseFloat(place.lat),
+                longitude: parseFloat(place.lon),
+                type: place.type,
+                pincode: place.address?.postcode || '',
+                city: place.address?.city || place.address?.town || place.address?.village || ''
+            }));
+
+            console.log(`[API] Nominatim found ${results.length} results`);
+            res.json(results);
+        } catch (nomError: any) {
+            console.error("[API] Both Mappls and Nominatim failed:", nomError.message);
+            res.status(500).json({
+                error: "Search failed completely",
+                detail: nomError.message
+            });
+        }
     }
 });
 

@@ -115,24 +115,6 @@ export function AddressSearchInput({
         setIsFocused(false);
         inputRef.current?.blur();
 
-        // If coordinates are missing/zero but we have an eLoc, resolve precise coordinates
-        const hasValidCoords = address.lat && address.lng && (Math.abs(address.lat) > 0.01 || Math.abs(address.lng) > 0.01);
-        if (!hasValidCoords && address.eLoc) {
-            setIsLoadingInternal(true);
-            try {
-                const coords = await getAddressDetail(address.eLoc);
-                if (coords) {
-                    console.log('[AddressSearch] Resolved eLoc coordinates:', coords);
-                    onAddressSelect({ ...address, lat: coords.lat, lng: coords.lng });
-                    return;
-                }
-            } catch (err) {
-                console.error('[AddressSearch] Failed to resolve eLoc:', err);
-            } finally {
-                setIsLoadingInternal(false);
-            }
-        }
-
         onAddressSelect(address);
     };
 

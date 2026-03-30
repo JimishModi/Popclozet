@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const REST_KEY = process.env.MAPPLS_REST_KEY;
+  const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 
   if (REST_KEY) {
     // Try Mappls v1 REST API (uses key directly in URL — no OAuth needed)

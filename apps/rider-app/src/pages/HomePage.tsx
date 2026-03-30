@@ -636,7 +636,7 @@ export function HomePage() {
                             </motion.div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <button
                                 onClick={() => navigate('/slots')}
                                 className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors text-left"

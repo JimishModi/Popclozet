@@ -9,7 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/map-core';
+import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl, fetchMapplsRoute } from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -247,7 +247,7 @@ export const WarehouseNavigationPage: React.FC = () => {
 
     useEffect(() => {
         if (!riderLocation || !mapRef.current) return;
-        if (!isMapboxAvailable() || !import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) return;
+        if (!isMapboxAvailable()) return; // checks VITE_MAPPLS_REST_KEY
         if (mapInstance.current) return;
 
         let mounted = true;
@@ -255,7 +255,7 @@ export const WarehouseNavigationPage: React.FC = () => {
         (async () => {
             try {
                 const map = await initializeMap(mapRef.current!, riderLocation, 13);
-                
+
                 if (!mounted) {
                     map.remove();
                     return;
@@ -263,24 +263,19 @@ export const WarehouseNavigationPage: React.FC = () => {
                 mapInstance.current = map;
 
                 const setupMap = async () => {
-                    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
                     let routeDrawn = false;
 
-                    if (token && riderLocation) {
+                    if (riderLocation) {
                         try {
                             const [rLng, rLat] = riderLocation;
                             const [wLng, wLat] = WAREHOUSE_LOCATION;
-                            const dirRes = await fetch(
-                                `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${wLng},${wLat}?geometries=geojson&overview=full&access_token=${token}`
-                            );
-                            const dirJson = await dirRes.json();
-                            const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
+                            const routeCoords = await fetchMapplsRoute(rLng, rLat, wLng, wLat);
                             if (routeCoords?.length) {
                                 await drawRoute(map, routeCoords);
                                 routeDrawn = true;
                             }
                         } catch (err) {
-                            console.warn('[WarehouseNav] Directions API failed:', err);
+                            console.warn('[WarehouseNav] Mappls Route API failed:', err);
                         }
                     }
 
@@ -292,10 +287,10 @@ export const WarehouseNavigationPage: React.FC = () => {
                         const geolocate = new (mapboxgl.GeolocateControl as any)({
                             positionOptions: { enableHighAccuracy: true },
                             trackUserLocation: true,
-                            showUserHeading: true
+                            showUserHeading: true,
                         });
                         map.addControl(geolocate);
-                    } catch { /* mapboxgl may not have GeolocateControl */ }
+                    } catch { /* mapboxgl shim — GeolocateControl is a no-op */ }
 
                     setMapReady(true);
                 };
@@ -310,10 +305,10 @@ export const WarehouseNavigationPage: React.FC = () => {
             }
         })();
 
-        return () => { 
+        return () => {
             mounted = false;
-            mapInstance.current?.remove(); 
-            mapInstance.current = null; 
+            mapInstance.current?.remove();
+            mapInstance.current = null;
         };
     }, [riderLocation?.[0], riderLocation?.[1]]);
 

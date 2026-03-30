@@ -7,9 +7,9 @@ export default async function handler(req, res) {
     res.status(200).json([]);
     return;
   }
-  if (query.length > 40) query = query.substring(0, 40);
+  if (query.length > 100) query = query.substring(0, 100);
 
-  const REST_KEY = process.env.MAPPLS_REST_KEY;
+  const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 
   // Build location bias parameter if user coordinates are available
   const userLat = parseFloat(lat);

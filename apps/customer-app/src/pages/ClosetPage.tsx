@@ -25,6 +25,9 @@ interface RentalItem {
     isInTransit?: boolean;
     isDelivered?: boolean;
     isReturnInProgress?: boolean;
+    hasPreScheduledReturn?: boolean;
+    returnPickupDate?: string | null;
+    returnTimeSlot?: string | null;
     hoursLeft?: number;
     minutesLeft?: number;
 }
@@ -128,6 +131,9 @@ const ClosetPage: React.FC = () => {
                     isInTransit,
                     isDelivered,
                     isReturnInProgress,
+                    hasPreScheduledReturn: !!(order.return_pickup_date && isDelivered),
+                    returnPickupDate: order.return_pickup_date,
+                    returnTimeSlot: order.return_time_slot,
                     itemCount: order.order_items?.length || 0
                 };
             });
@@ -321,7 +327,26 @@ const ClosetPage: React.FC = () => {
                                     </span>
                                 </button>
 
-                                {item.isDelivered && (
+                                {item.isDelivered && item.hasPreScheduledReturn && (
+                                    <button
+                                        onClick={() => navigate(`/pickup-tracking/${item.id}`)}
+                                        className="w-full mt-4 py-3 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/30 text-center hover:bg-[#f2546d]/20 transition-all"
+                                    >
+                                        <span
+                                            className="text-sm font-semibold text-[#f2546d] tracking-[-0.42px]"
+                                            style={dmSans}
+                                        >
+                                            Track Return
+                                        </span>
+                                        {item.returnPickupDate && (
+                                            <span className="block text-xs text-zinc-400 mt-1" style={dmSans}>
+                                                Pickup: {item.returnPickupDate}{item.returnTimeSlot ? ` • ${item.returnTimeSlot}` : ''}
+                                            </span>
+                                        )}
+                                    </button>
+                                )}
+
+                                {item.isDelivered && !item.hasPreScheduledReturn && (
                                     <button
                                         onClick={() => navigate(`/schedule-return?orderId=${item.id}`)}
                                         className="w-full mt-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all"

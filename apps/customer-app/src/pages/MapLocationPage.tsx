@@ -101,12 +101,19 @@ export default function MapLocationPage() {
             // If the address coordinates match our current selection, update it.
             // This is crucial for replacing the "Locating address..." placeholder after a map click.
             const isMatch = selectedAddress && 
-                Math.abs(selectedAddress.lat - address.lat) < 0.0001 && 
-                Math.abs(selectedAddress.lng - address.lng) < 0.0001;
+                Math.abs(selectedAddress.lat - address.lat) < 0.001 && 
+                Math.abs(selectedAddress.lng - address.lng) < 0.001;
 
-            if (isMatch || useGps) {
+            const isLocating = selectedAddress?.formattedAddress === "📍 Locating address...";
+
+            if (isMatch || useGps || isLocating) {
                 console.log('[MapLocation] Address sync:', address.formattedAddress);
-                setSelectedAddress(address);
+                // Keep the exact user-clicked pin coordinates, just absorb the resolved address components
+                setSelectedAddress({
+                    ...address,
+                    lat: selectedAddress?.lat ?? address.lat,
+                    lng: selectedAddress?.lng ?? address.lng
+                });
             }
         } else if (location && useGps) {
             // In GPS mode, if address is pending, show raw coords as fallback
@@ -129,9 +136,10 @@ export default function MapLocationPage() {
             (Math.abs(a.lat) > 0.01 || Math.abs(a.lng) > 0.01) &&
             !isNaN(a.lat) && !isNaN(a.lng);
 
-        // If the address already has valid coordinates, use them directly
-        if (hasValidCoords(addr)) {
-            console.log('[MapLocation] Address has valid coords, using directly:', addr.lat, addr.lng);
+        // If the address lacks an eLoc but has valid coordinates, use them directly
+        // (If it has an eLoc, we ALWAYS resolve it because AutoSuggest coords are imprecise)
+        if (hasValidCoords(addr) && !addr.eLoc) {
+            console.log('[MapLocation] Address has valid coords and no eLoc, using directly:', addr.lat, addr.lng);
             setUseGps(false); // stop GPS sync — user picked a specific address
             setSelectedAddress(addr);
             setLocationCoords(addr.lat, addr.lng); // update hook coords for hub query only
@@ -238,6 +246,36 @@ export default function MapLocationPage() {
                 }
             }
 
+            // Strategy 6: Iterative Relaxed Nominatim (Removes specific building/flat names until it finds a match)
+            if (!resolved && addr.formattedAddress && addr.formattedAddress.includes(',')) {
+                let chunks = addr.formattedAddress.split(',');
+                while (chunks.length > 1 && !resolved) {
+                    chunks.shift(); // Remove the most specific part
+                    const relaxedQuery = encodeURIComponent(chunks.join(',').trim());
+                    try {
+                        const nomRes = await fetch(
+                            `https://nominatim.openstreetmap.org/search?q=${relaxedQuery}&format=json&countrycodes=in&limit=1`,
+                            { headers: { 'Accept': 'application/json' } }
+                        );
+                        if (nomRes.ok) {
+                            const nomData = await nomRes.json();
+                            if (Array.isArray(nomData) && nomData.length > 0) {
+                                const nLat = parseFloat(nomData[0].lat);
+                                const nLng = parseFloat(nomData[0].lon);
+                                if (!isNaN(nLat) && !isNaN(nLng) && (Math.abs(nLat) > 0.01 || Math.abs(nLng) > 0.01)) {
+                                    resolvedLat = nLat;
+                                    resolvedLng = nLng;
+                                    resolved = true;
+                                    console.log('[MapLocation] ✓ Strategy 6 — Relaxed Nominatim geocode:', resolvedLat, resolvedLng);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[MapLocation] Strategy 6 chunk failed:', e);
+                    }
+                }
+            }
+
         } finally {
             setResolvingAddress(false);
         }
@@ -249,11 +287,16 @@ export default function MapLocationPage() {
             setSelectedAddress(resolvedAddr);
             setLocationCoords(resolvedLat, resolvedLng); // update hook coords for hub query only
             console.log('[MapLocation] ✓ Address resolved successfully — marker will move to:', resolvedLat, resolvedLng);
+        } else if (hasValidCoords(addr)) {
+            // ALL precise strategies failed, BUT the AutoSuggest entry itself had rough coordinates.
+            // Rather than NOT moving the map at all, use these rough coordinates.
+            console.warn('[MapLocation] ⚠ Precise resolution failed, falling back to rough AutoSuggest coordinates for:', addr.formattedAddress);
+            setUseGps(false);
+            setSelectedAddress(addr);
+            setLocationCoords(addr.lat, addr.lng);
         } else {
-            // ALL strategies failed — do NOT overwrite selectedAddress with zero coords.
-            // Keep the old selectedAddress (and thus the old marker position).
-            // Just update the display text so the user sees what they selected.
-            console.error('[MapLocation] ✗ All resolution strategies failed for:', addr.formattedAddress);
+            // ALL strategies failed AND we have no fallback coordinates.
+            console.error('[MapLocation] ✗ All resolution strategies and fallbacks failed for:', addr.formattedAddress);
             console.error('[MapLocation] Keeping previous marker position to prevent vanishing');
 
             // Set the address text but preserve the OLD coordinates (marker stays put)
@@ -262,7 +305,6 @@ export default function MapLocationPage() {
                     // Keep old coords, just update the display text
                     return { ...prev, formattedAddress: addr.formattedAddress, full_address: addr.formattedAddress };
                 }
-                // If there was no previous valid address, use what we have (will fall back to GPS in InteractiveMap)
                 return addr;
             });
         }

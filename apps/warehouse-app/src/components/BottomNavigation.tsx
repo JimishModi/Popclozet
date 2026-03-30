@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, Droplets, ClipboardList, MoreHorizontal, RotateCcw, Truck, PlusCircle, Settings, LogOut, X, Eye, History } from 'lucide-react';
+import { LayoutDashboard, Package, Droplets, ClipboardList, MoreHorizontal, RotateCcw, Truck, PlusCircle, Settings, LogOut, X, Eye, History, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
@@ -29,6 +29,7 @@ const moreTabs: NavItem[] = [
     { path: '/dispatch', icon: <Truck size={20} />, label: 'Dispatch' },
     { path: '/active-pickups', icon: <Eye size={20} />, label: 'Active Pickups' },
     { path: '/order-history', icon: <History size={20} />, label: 'Order History' },
+    { path: '/live-map', icon: <Map size={20} />, label: 'Live Map' },
     { path: '/intake', icon: <PlusCircle size={20} />, label: 'Product Intake' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
 ];
@@ -64,7 +65,7 @@ export function BottomNavigation() {
                             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                             className="fixed bottom-0 left-0 right-0 z-50 flex justify-center"
                         >
-                            <div className="w-full max-w-[430px] bg-surface-card border-t border-surface-border rounded-t-2xl px-4 pt-3 pb-6">
+                            <div className="w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] bg-surface-card border-t border-surface-border rounded-t-2xl px-4 pt-3 pb-6">
                                 {/* Handle */}
                                 <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-4" />
 
@@ -78,7 +79,7 @@ export function BottomNavigation() {
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     {moreTabs.map(item => {
                                         const isActive = location.pathname === item.path;
                                         return (
@@ -123,7 +124,7 @@ export function BottomNavigation() {
             {/* Bottom Nav Bar */}
             <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center">
                 <div className={clsx(
-                    "w-full max-w-[430px]",
+                    "w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px]",
                     "bg-surface-card/95 backdrop-blur-xl",
                     "border-t border-surface-border",
                     "px-2 pb-safe"
@@ -139,7 +140,7 @@ export function BottomNavigation() {
                                     onClick={() => navigate(item.path)}
                                     className={clsx(
                                         "relative flex flex-col items-center justify-center",
-                                        "w-16 h-full",
+                                        "flex-1 h-full",
                                         "transition-colors duration-200",
                                         isActive ? "text-warehouse-400" : "text-zinc-500"
                                     )}
@@ -177,7 +178,7 @@ export function BottomNavigation() {
                             onClick={() => setShowMore(true)}
                             className={clsx(
                                 "relative flex flex-col items-center justify-center",
-                                "w-16 h-full",
+                                "flex-1 h-full",
                                 "transition-colors duration-200",
                                 isMoreActive || showMore ? "text-warehouse-400" : "text-zinc-500"
                             )}

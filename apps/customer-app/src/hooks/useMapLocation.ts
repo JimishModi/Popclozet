@@ -58,7 +58,7 @@ export function useMapLocation() {
             return;
         }
 
-        setState((prev) => ({ ...prev, isLoading: true, error: null }));
+        setState((prev) => ({ ...prev, isLoading: true, error: null, address: null, location: null }));
 
         let bestLocation: { lat: number, lng: number, accuracy: number } | null = null;
         let watchId: number | null = null;
@@ -177,13 +177,29 @@ export function useMapLocation() {
     // Set location manually (from map click or search)
     const setLocation = useCallback(async (lat: number, lng: number) => {
         const location = { lat, lng };
-        setState((prev) => ({ ...prev, location, isLoading: true }));
+        setState((prev) => ({ ...prev, location, address: null, isLoading: true }));
 
         try {
-            const address = await reverseGeocode(lat, lng);
+            let address = await reverseGeocode(lat, lng);
+            if (!address) {
+                address = {
+                    lat,
+                    lng,
+                    formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                    city: '',
+                    pincode: '',
+                };
+            }
             setState((prev) => ({ ...prev, address, isLoading: false }));
         } catch {
-            setState((prev) => ({ ...prev, isLoading: false }));
+            const fallbackAddress = {
+                lat,
+                lng,
+                formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                city: '',
+                pincode: '',
+            };
+            setState((prev) => ({ ...prev, address: fallbackAddress, isLoading: false }));
         }
     }, []);
 
@@ -207,7 +223,7 @@ export function useMapLocation() {
     // Set location coordinates only — no reverse geocode, no address change.
     // Use this when updating coords for hub queries without polluting the GPS address.
     const setLocationCoords = useCallback((lat: number, lng: number) => {
-        setState((prev) => ({ ...prev, location: { lat, lng } }));
+        setState((prev) => ({ ...prev, location: { lat, lng }, address: null }));
     }, []);
 
     // Clear location

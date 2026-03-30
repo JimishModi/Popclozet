@@ -43,13 +43,35 @@ export function GlobalOrderListener() {
                     schema: 'public',
                     table: 'orders',
                 },
-                (payload) => {
+                async (payload) => {
                     console.log('[GlobalOrderListener] New order received:', payload.new);
-                    const newOrder = payload.new as OrderWithItems;
-                    
-                    // Show full-screen notification
-                    setActiveNotification(newOrder);
-                    
+                    const rawOrder = payload.new as OrderWithItems;
+
+                    // Fetch full order with items and address
+                    try {
+                        const { data, error } = await supabase
+                            .from('orders')
+                            .select(`
+                                *,
+                                order_items (
+                                    id, product_id, size, rental_price, individual_id,
+                                    products (id, name, images)
+                                ),
+                                addresses:delivery_address_id (full_address, latitude, longitude)
+                            `)
+                            .eq('id', rawOrder.id)
+                            .single();
+
+                        if (!error && data) {
+                            setActiveNotification(data as OrderWithItems);
+                        } else {
+                            // Fallback to raw payload if fetch fails
+                            setActiveNotification(rawOrder);
+                        }
+                    } catch {
+                        setActiveNotification(rawOrder);
+                    }
+
                     // Play sound
                     playNotificationSound();
                 }

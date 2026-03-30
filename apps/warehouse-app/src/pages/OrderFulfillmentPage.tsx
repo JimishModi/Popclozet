@@ -5,7 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin, Package } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
 import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
@@ -24,6 +25,7 @@ const filterTabs: { key: StatusFilter; label: string; icon: any; color: string }
 ];
 
 export function OrderFulfillmentPage() {
+    const navigate = useNavigate();
     const { showToast } = useToast();
     const { user } = useAuth();
     const [filter, setFilter] = useState<StatusFilter>('pending');
@@ -205,11 +207,41 @@ export function OrderFulfillmentPage() {
                                     </div>
 
                                     {order.addresses?.full_address && (
-                                        <div className="flex items-start gap-1.5 mb-2">
+                                        <div className="flex items-start gap-1.5 mb-3">
                                             <MapPin size={12} className="text-zinc-500 mt-0.5 shrink-0" />
                                             <p className="text-[10px] text-zinc-400 line-clamp-1">{order.addresses.full_address}</p>
                                         </div>
                                     )}
+
+                                    {/* Items List */}
+                                    <div className="mb-4 space-y-2 max-h-32 overflow-y-auto no-scrollbar">
+                                        {order.order_items?.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (item.product_id) navigate(`/product/${item.product_id}`);
+                                                }}
+                                                className="w-full flex items-center gap-2.5 p-1.5 rounded-lg bg-surface hover:bg-surface-hover border border-surface-border transition-all active:scale-[0.98] text-left"
+                                            >
+                                                <div className="w-8 h-10 rounded bg-zinc-800 overflow-hidden shrink-0 border border-zinc-700">
+                                                    {item.products?.images?.[0] ? (
+                                                        <img src={item.products.images[0]} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Package size={12} className="text-zinc-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] font-bold text-white truncate uppercase tracking-tight">
+                                                        {item.products?.name || 'Product'}
+                                                    </p>
+                                                    <p className="text-[9px] text-warehouse-400 font-bold uppercase">SIZE: {item.size || 'N/A'}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
 
                                     <div className="flex items-center justify-between">
                                         <p className="text-[10px] text-zinc-500">

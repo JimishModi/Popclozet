@@ -33,12 +33,8 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { SupportPage } from './pages/SupportPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { EarningsPage } from './pages/EarningsPage';
-import { configureMapbox } from '@popclozet/map-core';
-
-// Ensure WebWorker has access to Mapbox Token globally on init
-if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
-    configureMapbox(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
-}
+// map-core reads VITE_MAPPLS_REST_KEY directly at module scope — no init needed here
+import { InstallPrompt } from './components/InstallPrompt';
 
 function App() {
     const { loading, user } = useAuth();
@@ -121,6 +117,8 @@ function App() {
     }
 
     return (
+        <>
+        <InstallPrompt />
         <Routes>
             {/* Home / Dashboard */}
             <Route path="/" element={<HomePage />} />
@@ -153,6 +151,7 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </>
     );
 }
 

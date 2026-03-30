@@ -40,13 +40,17 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
         <nav
             className={clsx(
                 "fixed bottom-0 left-0 right-0 z-50",
-                "bg-zinc-900/95 backdrop-blur-xl",
-                "border-t border-zinc-800/50",
-                "px-2 pb-safe",
+                "flex justify-center",
                 className
             )}
         >
-            <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+            <div className={clsx(
+                "w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px]",
+                "bg-zinc-900/95 backdrop-blur-xl",
+                "border-t border-zinc-800/50",
+                "px-2 pb-safe"
+            )}>
+            <div className="flex items-center justify-around h-16">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path ||
                         (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -57,7 +61,7 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
                             onClick={() => navigate(item.path)}
                             className={clsx(
                                 "relative flex flex-col items-center justify-center",
-                                "w-16 h-full",
+                                "flex-1 h-full",
                                 "transition-colors duration-200",
                                 isActive ? "text-blue-500" : "text-zinc-500"
                             )}
@@ -93,6 +97,7 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
                         </button>
                     );
                 })}
+            </div>
             </div>
         </nav>
     );
