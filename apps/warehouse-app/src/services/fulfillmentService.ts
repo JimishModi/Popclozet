@@ -220,6 +220,8 @@ export async function getReturnRequests() {
                         unit:all_products!order_items_individual_id_fkey (
                             individual_id,
                             status,
+                            damage_notes,
+                            damage_flagged_at,
                             inventory:inventory_id (
                                 id,
                                 size
@@ -335,6 +337,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
             `)
             .in('status', [
                 'pending',
+                'pending_payment',
                 'confirmed',
                 'packed',
                 'ready_for_pickup',

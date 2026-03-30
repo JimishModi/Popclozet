@@ -346,6 +346,26 @@ export async function notifyOrderStatusChange(
             title: '🎉 Package Delivered!',
             message: 'Your package has been delivered. Enjoy!',
         },
+        return_scheduled: {
+            type: 'return_scheduled',
+            title: '📅 Return Pickup Scheduled',
+            message: 'Your return pickup has been scheduled. A rider will be assigned shortly.',
+        },
+        return_dispatched: {
+            type: 'return_scheduled',
+            title: '🚗 Rider On The Way!',
+            message: 'A rider has been assigned and is heading to your location to collect your items.',
+        },
+        return_picked_up: {
+            type: 'return_completed',
+            title: '✅ Items Collected!',
+            message: 'Your items have been collected by the rider. They are heading back to the warehouse.',
+        },
+        returned: {
+            type: 'return_completed',
+            title: '🎉 Return Complete!',
+            message: 'Your return has been completed and processed at the warehouse.',
+        },
     };
 
     const notifConfig = notifications[status];

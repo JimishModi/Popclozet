@@ -10,6 +10,7 @@ import { getOrderById, DeliveryOrder, OrderStatus } from '@/services/deliverySer
 import { getHubById, RentalHub } from '@/services/hubService';
 import { getTrackingRecord, TrackingRecord } from '@/services/trackingService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
+import { notifyOrderStatusChange } from '@/services/notificationService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface DeliveryTrackerProps {
@@ -59,6 +60,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
     const [isLoading, setIsLoading] = useState(true);
     const channelRef = useRef<RealtimeChannel | null>(null);
     const channelNameRef = useRef(`tracking:${orderId}_${Math.random().toString(36).slice(2, 9)}`);
+    const previousStatusRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (order && onOrderLoad) onOrderLoad(order);
@@ -74,6 +76,8 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
             setIsLoading(true);
             const orderData = await getOrderById(orderId);
             setOrder(orderData);
+            // Seed the ref so the first real-time status change triggers a notification
+            previousStatusRef.current = orderData?.status ?? null;
 
             if (orderData?.hub_id) {
                 const hubData = await getHubById(orderData.hub_id);
@@ -139,7 +143,14 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
                 async () => {
                     // Re-fetch order so status steps update in real-time
                     const updated = await getOrderById(orderId);
-                    if (updated) setOrder(updated);
+                    if (updated) {
+                        // Fire notification on status change
+                        if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
+                            notifyOrderStatusChange(updated.user_id, orderId, updated.status).catch(console.warn);
+                        }
+                        previousStatusRef.current = updated.status;
+                        setOrder(updated);
+                    }
                 }
             )
             .subscribe();

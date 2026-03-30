@@ -49,6 +49,17 @@ function isInsideMumbai(lat: number, lng: number) {
 }
 
 /* ---------------------------------- */
+/* Skip helper — store a default so   */
+/* the gate doesn't reappear          */
+/* ---------------------------------- */
+function skipLocation() {
+  localStorage.setItem(
+    "user_location",
+    JSON.stringify({ lat: MUMBAI.lat, lng: MUMBAI.lng, allowed: true, skipped: true })
+  );
+}
+
+/* ---------------------------------- */
 /* Location Gate Component             */
 /* ---------------------------------- */
 export function LocationGate() {
@@ -78,8 +89,13 @@ export function LocationGate() {
         saveLocation(pos.coords.latitude, pos.coords.longitude);
       },
       () => setState("denied"),
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleSkip = () => {
+    skipLocation();
+    setState("dismissed");
   };
 
   /* Restore previous session */
@@ -94,6 +110,17 @@ export function LocationGate() {
       localStorage.removeItem("user_location");
     }
   }, []);
+
+  /* Auto-dismiss after 10s so users are never permanently stuck */
+  useEffect(() => {
+    if (state !== "idle" && state !== "requesting" && state !== "denied") return;
+    const timer = setTimeout(() => {
+      if (state === "idle" || state === "requesting" || state === "denied") {
+        handleSkip();
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   /* ---------------------------------- */
   /* Never block the app completely     */
@@ -110,19 +137,27 @@ export function LocationGate() {
           <h2 className="text-lg font-semibold mb-2">Enable location</h2>
           <p className="text-sm text-zinc-400 mb-6">
             We use your location to check delivery availability.
-            You can browse even if delivery isn’t available yet.
+            You can browse even if delivery isn't available yet.
           </p>
 
           <button
             onClick={requestLocation}
-            className="w-full py-3 rounded-full bg-[#f2546d] font-semibold"
+            disabled={state === "requesting"}
+            className="w-full py-3 rounded-full bg-[#f2546d] font-semibold disabled:opacity-60"
           >
-            Allow location
+            {state === "requesting" ? "Detecting..." : "Allow location"}
+          </button>
+
+          <button
+            onClick={handleSkip}
+            className="w-full py-3 mt-2 rounded-full bg-transparent text-zinc-400 font-medium text-sm hover:text-white transition-colors"
+          >
+            Not now
           </button>
 
           {state === "denied" && (
             <p className="text-xs text-red-400 mt-3">
-              Location permission was denied.
+              Location permission was denied. You can set your location later from the home page.
             </p>
           )}
         </div>

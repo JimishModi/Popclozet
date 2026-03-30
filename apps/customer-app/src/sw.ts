@@ -77,10 +77,11 @@ registerRoute(
     })
 );
 
-// Cache images (skip Mappls tile/map images)
+// Cache images (skip Mappls tile/map images and Vite dev-mode @fs paths)
 registerRoute(
-    ({ url, request }) =>
+    ({ url }) =>
         /\.(?:png|jpg|jpeg|svg|gif|webp)$/i.test(url.pathname) &&
+        !url.pathname.startsWith('/@fs') &&
         !url.hostname.includes('mappls.com') &&
         !url.hostname.includes('mapmyindia.com'),
     new CacheFirst({
@@ -128,21 +129,9 @@ registerRoute(
     })
 );
 
-// Offline fallback
-self.addEventListener('fetch', (event) => {
-    // Only handle navigation requests for HTML pages
-    if (event.request.mode === 'navigate') {
-        event.respondWith(
-            fetch(event.request).catch((error) => {
-                console.warn('[SW] Navigation failed, serving fallback:', error);
-                // Return the precached /index.html if we're genuinely offline
-                return caches.match('/index.html').then((response) => {
-                    return response || caches.match('/offline.html');
-                });
-            })
-        );
-    }
-});
+// Note: Offline fallback for navigation is handled by the workbox NetworkFirst
+// route above (lines 15-26). A manual fetch listener here would conflict with
+// workbox's routing and cause blank pages on fresh PWA installs.
 
 // Background Sync - Sync pending mutations when connection is restored
 self.addEventListener('sync', (event: any) => {

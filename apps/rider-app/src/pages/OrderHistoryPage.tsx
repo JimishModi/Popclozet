@@ -169,7 +169,21 @@ export function OrderHistoryPage() {
                                         duration={order.etaMinutes ? `${order.etaMinutes} mins` : '-- mins'}
                                         status={order.status === 'delivered' ? 'delivered' : 'pending'}
                                         variant="compact"
-                                        onClick={() => navigate(`/order/${order.orderId}`)}
+                                        onClick={() => {
+                                            const activeStatuses = [
+                                                'rider_assigned', 'confirmed', 'packed', 'ready_for_pickup',
+                                                'driver_arrived_warehouse', 'order_picked_up', 'dispatched',
+                                                'out_for_delivery', 'return_scheduled', 'return_dispatched',
+                                                'return_picked_up', 'return_at_warehouse',
+                                            ];
+                                            if (activeStatuses.includes(order.status)) {
+                                                if (['out_for_delivery', 'return_scheduled', 'return_dispatched', 'return_picked_up'].includes(order.status) || order.orderType === 'return') {
+                                                    navigate(`/delivery/${order.orderId}`);
+                                                } else {
+                                                    navigate(`/warehouse/${order.orderId}`);
+                                                }
+                                            }
+                                        }}
                                     />
                                 ))}
                             </div>

@@ -11,6 +11,7 @@ import {
   removeFromCartDB,
   updateCartQuantityDB,
   getCartItemsDB,
+  migrateAnonymousCartDB,
 } from "@/lib/db";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useAuth } from "@/context/SupabaseAuthContext";
@@ -63,7 +64,19 @@ export const CartProvider = ({
   useEffect(() => {
     // Reset immediately so the previous user's data isn't visible
     setCartItems({});
-    loadCartFromDB();
+
+    async function init() {
+      if (userId) {
+        try {
+          await migrateAnonymousCartDB(userId);
+        } catch (e) {
+          console.error("Cart migration failed:", e);
+        }
+      }
+      await loadCartFromDB();
+    }
+
+    init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 

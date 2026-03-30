@@ -6,7 +6,7 @@ import { ChevronLeft, Bell, Package, Heart, Tag, Info, Truck, MessageCircle, Map
 import { MobileShell } from "@/components/layout/MobileShell";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
-import { useAuth } from "@popclozet/auth";
+import { useAuth } from "@/context/SupabaseAuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -29,6 +29,9 @@ const NOTIF_ICON_MAP: Record<string, { icon: any; color: string; bg: string }> =
     rider_message: { icon: MessageCircle, color: "text-amber-400", bg: "bg-amber-500/20" },
     rider_arrived_warehouse: { icon: Truck, color: "text-blue-400", bg: "bg-blue-500/20" },
     delivered: { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/20" },
+    order_update: { icon: Package, color: "text-blue-400", bg: "bg-blue-500/20" },
+    return_scheduled: { icon: Package, color: "text-orange-400", bg: "bg-orange-500/20" },
+    return_completed: { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/20" },
 };
 
 const NotificationsPage: React.FC = () => {
@@ -57,13 +60,14 @@ const NotificationsPage: React.FC = () => {
     // Handle push toggle
     const handlePushToggle = async () => {
         if (push.isLoading) return;
+        if (push.permission === "denied") {
+            // Can't re-request after denial — user must go to browser settings
+            return;
+        }
         if (push.isSubscribed) {
             await push.unsubscribe();
         } else {
-            const success = await push.subscribe();
-            if (!success && push.permission === "denied") {
-                alert("Notifications are blocked in your browser settings. Please enable them in your browser/device settings and try again.");
-            }
+            await push.subscribe();
         }
     };
 
@@ -141,7 +145,7 @@ const NotificationsPage: React.FC = () => {
             {/* Header */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate("/profile")} className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all active:scale-95">
+                    <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all active:scale-95">
                         <ChevronLeft className="w-5 h-5 text-zinc-400" />
                     </button>
                     <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Notifications</h1>
@@ -214,23 +218,28 @@ const NotificationsPage: React.FC = () => {
 
                         {/* ─── Push Notifications — real Web Push API ─── */}
                         <div className="flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 border-b border-white/5">
-                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
                                 <Bell className="w-4 h-4 md:w-5 md:h-5 text-[#ff4d6d]" />
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                                 <p className="text-white text-sm font-medium">Push Notifications</p>
                                 <p className="text-zinc-600 text-xs">
                                     {!push.isSupported
                                         ? "Not supported in this browser"
                                         : push.permission === "denied"
-                                          ? "Blocked — enable in browser settings"
+                                          ? "Blocked — open browser Settings → Notifications to enable"
                                           : push.isSubscribed
                                             ? "Receiving alerts on this device"
-                                            : "Receive alerts on your device"}
+                                            : "Tap to enable delivery & order alerts"}
                                 </p>
+                                {push.error && push.permission !== "denied" && (
+                                    <p className="text-[#f2546d] text-xs mt-0.5 truncate">{push.error}</p>
+                                )}
                             </div>
                             {push.isLoading ? (
-                                <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin" />
+                                <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin flex-shrink-0" />
+                            ) : push.permission === "denied" ? (
+                                <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider flex-shrink-0">Blocked</span>
                             ) : (
                                 <Toggle
                                     value={push.isSubscribed}

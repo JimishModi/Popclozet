@@ -47,16 +47,16 @@ export function InstallPrompt() {
             </button>
 
             <div className="flex flex-col gap-6">
-                <div className="flex items-start gap-4 pr-6">
-                    <div className="bg-white/20 p-3 rounded-2xl shrink-0">
+                <div className="flex items-start gap-4 pr-4">
+                    <div className="bg-white/20 p-2.5 rounded-xl shrink-0">
                         <Download className="w-6 h-6" />
                     </div>
-                    
-                    <div className="min-w-0">
-                        <h3 className="font-bold text-xl leading-tight mb-1 truncate">
-                            Install popclozet
+
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-lg leading-tight mb-1 truncate">
+                            Install Popclozet
                         </h3>
-                        <p className="text-sm text-white/80 leading-relaxed">
+                        <p className="text-sm text-white/90 leading-relaxed line-clamp-2">
                             Add to your home screen for a faster, app-like experience.
                         </p>
                     </div>

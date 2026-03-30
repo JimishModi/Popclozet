@@ -7,6 +7,8 @@ import { useNavigate } from "react-router-dom";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { useCart } from "@/context/CartContext";
 import { productService } from "@/services/productService";
+import type { GenderType } from "@/components/ui/GenderSelector";
+import { GenderSelector } from "@/components/ui/GenderSelector";
 
 /* ── Line-art SVG icons matching Figma ── */
 
@@ -141,29 +143,11 @@ const CollectionsPage = () => {
         </div>
 
         {/* ── Gender Toggle ── */}
-        <div className="flex items-center gap-1 w-fit">
-          <button
-            onClick={() => setActiveGender("womens")}
-            className={cn(
-              "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "womens"
-                ? "bg-[#f2546d] text-white"
-                : "bg-[#1C1C1E] text-zinc-500"
-            )}
-          >
-            WOMEN
-          </button>
-          <button
-            onClick={() => setActiveGender("mens")}
-            className={cn(
-              "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "mens"
-                ? "bg-[#f2546d] text-white"
-                : "bg-[#1C1C1E] text-zinc-500"
-            )}
-          >
-            MEN
-          </button>
+        <div className="w-full max-w-[280px] mt-3">
+          <GenderSelector 
+            value={activeGender as GenderType} 
+            onChange={(g) => setActiveGender(g)} 
+          />
         </div>
       </div>
 

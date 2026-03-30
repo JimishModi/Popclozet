@@ -14,8 +14,17 @@ initTheme();
 registerSW({
   onNeedRefresh() {
     if (import.meta.env.PROD) {
-      // Auto-reload to apply new assets — prevents blank screen on installed PWA
-      window.location.reload();
+      // Guard: only reload ONCE per browser session to prevent infinite loops.
+      // On fresh install the new SW activates immediately, which fires onNeedRefresh.
+      // Without this guard the page reloads → SW re-claims → fires again → loop.
+      const RELOAD_KEY = "sw_reload_done";
+      if (!sessionStorage.getItem(RELOAD_KEY)) {
+        sessionStorage.setItem(RELOAD_KEY, "1");
+        console.log("🔄 New service worker — reloading once to apply assets");
+        window.location.reload();
+      } else {
+        console.log("🔄 New service worker available (already reloaded this session)");
+      }
     } else {
       console.log("🔄 New service worker available (dev mode — manual reload if needed)");
     }
