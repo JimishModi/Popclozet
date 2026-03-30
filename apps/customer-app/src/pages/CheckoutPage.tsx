@@ -535,6 +535,7 @@ export default function CheckoutPage() {
         .from("addresses")
         .select("id")
         .eq("user_id", userId)
+        .eq("full_address", addrFull)
         .limit(1)
         .maybeSingle();
 
@@ -545,7 +546,7 @@ export default function CheckoutPage() {
           .from("addresses")
           .insert({
             user_id: userId,
-            label: "Delivery",
+            label: deliveryAddress?.label || "Delivery",
             full_address: addrFull,
             latitude: addrLat,
             longitude: addrLng,

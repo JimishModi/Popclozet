@@ -228,7 +228,7 @@ export async function getProductsWithFakeMix(
   if (gender) {
     // DB stores 'men'/'women'; app uses 'mens'/'womens'
     const dbGender = gender === 'mens' ? 'men' : gender === 'womens' ? 'women' : gender;
-    realQuery = realQuery.eq('gender', dbGender);
+    realQuery = realQuery.in('gender', [dbGender, 'unisex']);
   }
 
   const { data: realData, error: realError } = await realQuery;

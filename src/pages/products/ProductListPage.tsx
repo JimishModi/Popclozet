@@ -47,7 +47,7 @@ export const ProductListPage: React.FC = () => {
             let query = supabase.from('products').select('*').eq('is_available', true);
 
             if (filters.gender) {
-                query = query.eq('gender', filters.gender);
+                query = query.in('gender', [filters.gender, 'unisex']);
             }
 
             if (filters.occasion && filters.occasion.length > 0) {

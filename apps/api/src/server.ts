@@ -154,21 +154,36 @@ app.get("/api/location/reverse", async (req, res) => {
         const results = response.data.results || (Array.isArray(response.data) ? response.data : [response.data]);
         const bestResult = results[0];
 
-        if (bestResult) {
+        if (bestResult && bestResult.formatted_address) {
             res.json(bestResult);
         } else {
-            // Robust fallback
-            res.json({
-                formatted_address: `${lat}, ${lng}`,
-                latitude: parseFloat(lat as string),
-                longitude: parseFloat(lng as string),
-                city: "Mumbai"
-            });
+            throw new Error("Mappls returned empty or invalid results for reverse geocoding");
         }
     } catch (error: any) {
-        console.warn("[BACKEND] Mappls Reverse Error (Likely Expired Key), attempting Mapbox Fallback:", error.response?.data?.error_description || error.message);
+        console.warn("[BACKEND] Mappls Reverse Error, attempting Nominatim Fallback:", error.response?.data?.error_description || error.message);
         
-        // Fallback to Mapbox Reverse Geocoding
+        // Fallback 1: Nominatim Reverse Geocoding (Free, no token required)
+        try {
+            const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+            const nomResponse = await axios.get(nominatimUrl, {
+                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+            });
+
+            if (nomResponse.data && nomResponse.data.display_name) {
+                let city = nomResponse.data.address?.city || nomResponse.data.address?.town || nomResponse.data.address?.county || "Mumbai";
+                console.log(`[BACKEND] Nominatim Reverse Geocode Success: ${nomResponse.data.display_name}`);
+                return res.json({
+                    formatted_address: nomResponse.data.display_name,
+                    latitude: parseFloat(lat as string),
+                    longitude: parseFloat(lng as string),
+                    city: city
+                });
+            }
+        } catch (nomError: any) {
+            console.error("[BACKEND] Nominatim Reverse Geocode Fallback failed:", nomError.message);
+        }
+
+        // Fallback 2: Mapbox Reverse Geocoding
         if (MAPBOX_TOKEN) {
             try {
                 const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=poi,address,place,locality&limit=1`;
@@ -194,8 +209,8 @@ app.get("/api/location/reverse", async (req, res) => {
             }
         }
 
-        // Ultimate hard fallback if BOTH fail
-        console.warn(`[BACKEND] Both Mappls and Mapbox failed. Sending raw coords.`);
+        // Ultimate hard fallback if ALL fail
+        console.warn(`[BACKEND] All reverse geocoding methods failed. Sending raw coords.`);
         res.json({
             formatted_address: `${lat}, ${lng}`,
             latitude: parseFloat(lat as string),

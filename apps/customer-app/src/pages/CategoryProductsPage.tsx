@@ -170,7 +170,7 @@ const CategoryProductsPage: React.FC = () => {
         }
 
         if (dbGender && dbGender !== 'all') {
-            query = query.eq('gender', dbGender);
+            query = query.in('gender', [dbGender, 'unisex']);
         }
 
         // Backend name search — filter at DB level
