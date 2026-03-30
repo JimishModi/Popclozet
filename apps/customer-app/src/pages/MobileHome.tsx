@@ -89,13 +89,13 @@ const MobileHome: React.FC = () => {
         productService.getCategories().then(setCollections);
     }, []);
 
-    // Auto-rotate featured slides
+    // Auto-rotate featured slides - Reset timer on slide change (manual or auto)
     useEffect(() => {
         const interval = setInterval(() => {
             setActiveSlide((prev) => (prev + 1) % filteredSlides.length);
         }, 3000);
         return () => clearInterval(interval);
-    }, [filteredSlides.length]);
+    }, [filteredSlides.length, activeSlide]);
 
     // Load persisted delivery estimate
     useEffect(() => {
@@ -471,9 +471,21 @@ const MobileHome: React.FC = () => {
                 {/* ─── ACTIVE DELIVERY BANNER ─── */}
                 <ActiveDeliveryBanner />
 
-                {/* ─── FEATURED CAROUSEL: 3-Card Peek ─── */}
+                {/* ─── FEATURED CAROUSEL: 3-Card Peek with Swipe Support ─── */}
                 <section className="mt-5 md:mt-8 overflow-hidden">
-                    <div className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px]">
+                    <motion.div 
+                        className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px] touch-pan-y"
+                        onPanEnd={(e, info) => {
+                            const threshold = 50;
+                            if (info.offset.x > threshold) {
+                                // Swipe Right -> Previous Slide
+                                setActiveSlide(prev => (prev - 1 + filteredSlides.length) % filteredSlides.length);
+                            } else if (info.offset.x < -threshold) {
+                                // Swipe Left -> Next Slide
+                                setActiveSlide(prev => (prev + 1) % filteredSlides.length);
+                            }
+                        }}
+                    >
 
                         {/* Side cards + Center card */}
                         <div className="flex items-center gap-3 md:gap-6" style={{ width: '100%', justifyContent: 'center' }}>
@@ -543,7 +555,7 @@ const MobileHome: React.FC = () => {
                         </div>
 
 
-                    </div>
+                    </motion.div>
 
                     {/* Pagination Dots */}
                     <div className="flex items-center justify-center gap-1.5 mt-2 md:gap-2 md:mt-3">
