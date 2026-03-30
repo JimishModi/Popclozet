@@ -51,7 +51,7 @@ interface IncomingOrder {
     pickup: { name: string; address: string };
     dropoff: { name: string; address: string };
     customerName: string;
-    itemCount: number;
+    items?: Array<{ name: string; qty: number; imageUrl?: string }>;
     earnings: number;
     distance: string;
     duration: string;
@@ -60,7 +60,16 @@ interface IncomingOrder {
 
 // ─── Mapper ───────────────────────────────────────────────────────────────────
 
-const ORDER_SELECT = '*, addresses:delivery_address_id(full_address, latitude, longitude), order_items(id)';
+const ORDER_SELECT = `
+    *, 
+    profiles(full_name),
+    addresses:delivery_address_id(full_address, latitude, longitude), 
+    order_items(
+        id, 
+        product_id, 
+        products(name, images)
+    )
+`;
 const ASSIGNED_ORDER_STATUSES = [
     'rider_assigned',
     'ready_for_pickup',
@@ -113,9 +122,13 @@ function mapDbOrderToIncoming(
 ): IncomingOrder {
     const addr = dbOrder.addresses;
     const fullAddr = addr?.full_address ?? 'Customer Address';
-    const itemCount = Array.isArray(dbOrder.order_items)
-        ? dbOrder.order_items.reduce((s: number, i: any) => s + (i.quantity || 1), 0)
-        : 1;
+    
+    const items = (dbOrder.order_items ?? []).map((i: any) => ({
+        name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`,
+        qty: 1,
+        imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
+    }));
+
     const estimatedKm = dbOrder.route_distance_km ?? 3;
     const etaMinutes = dbOrder.delivery_eta
         ? Math.max(1, Math.round((new Date(dbOrder.delivery_eta).getTime() - Date.now()) / 60000))
@@ -136,8 +149,8 @@ function mapDbOrderToIncoming(
         dropoff: isReturn
             ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
             : { name: 'Customer', address: fullAddr },
-        customerName: 'Customer',
-        itemCount,
+        customerName: dbOrder.profiles?.full_name || 'Customer',
+        items,
         earnings: dbOrder.delivery_fee > 0
             ? dbOrder.delivery_fee
             : Math.round((dbOrder.total_amount ?? 0) * 0.15),
@@ -514,6 +527,8 @@ export function HomePage() {
 
     // ── Render ────────────────────────────────────────────────────────────────
 
+    // ── Render ────────────────────────────────────────────────────────────────
+
     return (
         <RiderShell>
             {/* Header */}
@@ -547,14 +562,15 @@ export function HomePage() {
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="flex items-center justify-center gap-2 py-4 px-6 rounded-xl bg-blue-500/10 border border-blue-500/20"
+                            className="flex items-center justify-center gap-4 py-8 px-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 relative overflow-hidden group"
                         >
-                            <div className="flex gap-1">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            <div className="flex gap-2">
+                                <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]" style={{ animationDelay: '0ms' }} />
+                                <span className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.6)]" style={{ animationDelay: '200ms' }} />
+                                <span className="w-2.5 h-2.5 bg-blue-300 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.4)]" style={{ animationDelay: '400ms' }} />
                             </div>
-                            <span className="text-blue-400 font-medium">Searching for orders...</span>
+                            <span className="text-blue-400 font-bold uppercase tracking-widest text-xs">Searching for High-Value Orders...</span>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -574,19 +590,19 @@ export function HomePage() {
                             />
 
                             {pendingOrder.source === 'assigned' ? (
-                                <div className="space-y-3">
+                                <div className="space-y-3 mt-4">
                                     <button
                                         onClick={handleAcceptOrder}
-                                        className="w-full h-14 rounded-2xl bg-blue-500 text-white font-semibold hover:bg-blue-400 transition-colors"
+                                        className="w-full h-14 rounded-2xl bg-blue-600 text-white font-bold uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm"
                                     >
                                         {getAssignedActionLabel(pendingOrder)}
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex gap-3">
+                                <div className="flex gap-4 mt-4">
                                     <button
                                         onClick={handleDeclineOrder}
-                                        className="w-14 h-14 flex items-center justify-center rounded-full bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-colors"
+                                        className="w-16 h-14 flex items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all"
                                         aria-label="Decline order"
                                     >
                                         ✕
@@ -601,7 +617,7 @@ export function HomePage() {
                 </AnimatePresence>
 
                 {/* Dashboard (no pending order) */}
-                {!pendingOrder && (
+                {!pendingOrder && !isSearching && (
                     <>
                         <EarningsCard
                             todayEarnings={earnings?.today ?? 0}
@@ -621,37 +637,43 @@ export function HomePage() {
                             />
                         )}
 
-                        <div className="flex justify-center py-12">
+                        <div className="flex justify-center py-12 relative">
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-44 h-44 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
+                            </div>
                             <motion.div
-                                animate={isOnline ? { scale: [1, 1.1, 1] } : {}}
-                                transition={{ duration: 2, repeat: Infinity }}
+                                animate={isOnline ? { 
+                                    scale: [1, 1.05, 1],
+                                    rotate: [0, 5, -5, 0]
+                                } : {}}
+                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                                 className={clsx(
-                                    'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
+                                    'w-28 h-28 rounded-full flex items-center justify-center transition-all duration-700 relative z-10',
                                     isOnline
-                                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30'
-                                        : 'bg-zinc-800',
+                                        ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-blue-800 shadow-[0_0_50px_rgba(59,130,246,0.3)] border border-white/20'
+                                        : 'bg-zinc-900 border border-white/5',
                                 )}
                             >
-                                <Zap size={40} className={isOnline ? 'text-white' : 'text-zinc-500'} />
+                                <Zap size={44} className={isOnline ? 'text-white' : 'text-zinc-800'} />
                             </motion.div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => navigate('/slots')}
-                                className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors text-left"
+                                className="p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-left group"
                             >
-                                <span className="text-2xl mb-2 block">📅</span>
-                                <span className="text-white font-medium">Book Slots</span>
-                                <span className="block text-xs text-zinc-500 mt-0.5">Schedule your shifts</span>
+                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📅</span>
+                                <span className="text-white font-bold text-sm tracking-tight">Book Slots</span>
+                                <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Schedule shifts</span>
                             </button>
                             <button
                                 onClick={() => navigate('/orders')}
-                                className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors text-left"
+                                className="p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-left group"
                             >
-                                <span className="text-2xl mb-2 block">📋</span>
-                                <span className="text-white font-medium">Order History</span>
-                                <span className="block text-xs text-zinc-500 mt-0.5">View past deliveries</span>
+                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📋</span>
+                                <span className="text-white font-bold text-sm tracking-tight">History</span>
+                                <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Past deliveries</span>
                             </button>
                         </div>
                     </>

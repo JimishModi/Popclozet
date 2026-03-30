@@ -20,7 +20,7 @@ export interface RiderOrder {
     status: OrderStatus;
     pickupAddress: { fullAddress: string; lat: number; lng: number };
     deliveryAddress: { fullAddress: string; lat: number; lng: number };
-    items: Array<{ name: string; qty: number }>;
+    items: Array<{ name: string; qty: number; imageUrl?: string }>;
     totalAmount: number;
     deliveryFee: number;
     etaMinutes?: number;
@@ -197,8 +197,14 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         .from('orders')
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
+            profiles(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
-            order_items (id, product_id, rental_price)
+            order_items (
+                id, 
+                product_id, 
+                rental_price,
+                products (name, images)
+            )
         `)
         .eq('rider_id', riderId)
         .in('status', [
@@ -237,12 +243,15 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
 
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
+            customerName: order.profiles?.full_name,
             orderType: isReturn ? 'return' as const : 'delivery' as const,
             status: order.status,
             pickupAddress,
             deliveryAddress,
             items: (order.order_items ?? []).map((i: any) => ({
-                name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
+                name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+                qty: 1,
+                imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
             })),
             totalAmount: order.total_amount ?? 0,
             deliveryFee: order.delivery_fee ?? Math.round((order.total_amount ?? 0) * 0.15),
@@ -270,8 +279,14 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee,
             route_distance_km, route_polyline, created_at, delivery_eta,
+            profiles(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
-            order_items (id, product_id, rental_price)
+            order_items (
+                id, 
+                product_id, 
+                rental_price,
+                products (name, images)
+            )
         `)
         .eq('id', orderId)
         .single();
@@ -282,6 +297,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     const isReturn = isReturnFlowOrder(data);
     return {
         id: data.id, orderId: data.id, customerId: data.user_id,
+        customerName: (data.profiles as any)?.full_name,
         orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
         status: data.status,
         pickupAddress: isReturn
@@ -303,7 +319,9 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
                 lng: addr?.longitude ?? 0,
             },
         items: (data.order_items ?? []).map((i: any) => ({
-            name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
+            name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+            qty: 1,
+            imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
         })),
         totalAmount: data.total_amount ?? 0,
         deliveryFee: data.delivery_fee ?? 0,

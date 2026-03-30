@@ -52,9 +52,9 @@ const STEP_ORDER: PickupStep[] = [
 ];
 
 const STEP_CONFIG: Record<PickupStep, { badge: string; badgeColor: string; icon: React.ElementType }> = {
-    navigating: { badge: 'Navigate to Warehouse', badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/30', icon: Navigation },
-    arrived: { badge: 'Arrived at Warehouse', badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30', icon: MapPin },
-    picked_up: { badge: 'Package Collected — Ready to Deliver', badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', icon: Truck },
+    navigating: { badge: 'Navigate to Warehouse', badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: Navigation },
+    arrived: { badge: 'Arrived at Warehouse', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: MapPin },
+    picked_up: { badge: 'Ready to Deliver', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: Truck },
 };
 
 function statusToStep(status: string): PickupStep {
@@ -516,42 +516,50 @@ export const WarehouseNavigationPage: React.FC = () => {
             )}
 
             <motion.div
-                initial={{ y: 200 }} animate={{ y: 0 }}
+                initial={{ y: 200, opacity: 0 }} 
+                animate={{ y: 0, opacity: 1 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-6 left-4 right-4 bg-[#0f0f0f] rounded-3xl border border-zinc-800/80 shadow-2xl z-20"
+                className="absolute bottom-6 left-4 right-4 bg-zinc-900/60 backdrop-blur-2xl rounded-[32px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-20 overflow-hidden"
             >
-                <div className="px-6 pt-5 pb-2">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${currentStepCfg.badgeColor}`}>
+                {/* Glossy overlay */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                <div className="px-6 pt-6 pb-2 relative z-10">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wider ${currentStepCfg.badgeColor}`}>
                             {currentStepCfg.badge}
                         </span>
                         {order.total_amount != null && (
-                            <span className="text-[10px] text-zinc-500 ml-auto">₹{order.total_amount}</span>
+                            <span className="text-[10px] font-bold text-white/40 ml-auto tracking-widest">₹{order.total_amount}</span>
                         )}
                     </div>
                     {/* Progress Steps */}
-                    <div className="flex items-center gap-1 mb-4">
+                    <div className="flex items-center gap-1.5 mb-5">
                         {STEP_ORDER.map((s, i) => (
                             <React.Fragment key={s}>
-                                <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${STEP_ORDER.indexOf(step) >= i
-                                        ? 'bg-gradient-to-r from-blue-500 to-emerald-500'
-                                        : 'bg-zinc-800'
+                                <div className={`h-1.5 flex-1 rounded-full transition-all duration-700 ${STEP_ORDER.indexOf(step) >= i
+                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                                        : 'bg-white/5'
                                     }`} />
                             </React.Fragment>
                         ))}
                     </div>
-                    <div className="flex items-start gap-2 mb-3">
-                        <MapPin size={14} className="text-blue-400 mt-0.5 shrink-0" />
-                        <p className="text-xs text-zinc-400">{WAREHOUSE_ADDRESS}</p>
+                    <div className="flex items-start gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <MapPin size={16} className="text-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Warehouse</p>
+                            <p className="text-xs text-white font-medium line-clamp-1">{WAREHOUSE_ADDRESS}</p>
+                        </div>
                     </div>
 
                     {['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'].includes(order?.status ?? '') && (
-                        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15 w-fit">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <p className="text-[11px] text-emerald-400">Broadcasting location to warehouse</p>
+                        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10 w-fit">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Live GPS Active</p>
                         </div>
                     )}
-                    <p className="text-[10px] font-bold text-zinc-400 mb-3">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="text-[10px] font-bold text-white/20 mb-4 tracking-widest">ORDER #{order.id.slice(0, 8).toUpperCase()}</p>
                 </div>
 
                 <div className="px-6 pb-6 space-y-2.5">
@@ -599,7 +607,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 <button
                                     onClick={handleStartNavigation}
                                     disabled={actionLoading}
-                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold uppercase tracking-[0.15em] text-[11px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20"
                                 >
                                     {actionLoading ? (
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -661,15 +669,16 @@ export const WarehouseNavigationPage: React.FC = () => {
                 {showMessageModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                                <h3 className="font-semibold text-white">Send Update to Customer</h3>
-                                <button onClick={() => setShowMessageModal(false)} className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors">
+                        <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl relative">
+                            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                            <div className="flex items-center justify-between p-6 border-b border-white/5 relative z-10">
+                                <h3 className="font-bold text-white uppercase tracking-widest text-xs">Update Customer</h3>
+                                <button onClick={() => setShowMessageModal(false)} className="p-2 text-zinc-500 hover:text-white rounded-full transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
-                            <div className="p-4 space-y-3">
+                            <div className="p-6 space-y-3 relative z-10">
                                 {PREDEFINED_MESSAGES.map((msg, i) => (
                                     <button key={i} onClick={() => handleSendMessage(msg)} disabled={actionLoading}
                                         className="w-full text-left p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors text-sm text-zinc-300 disabled:opacity-50">
