@@ -8,10 +8,36 @@ interface GenderSelectorProps {
     value: GenderType;
     onChange: (gender: GenderType) => void;
     className?: string;
+    variant?: 'fancy' | 'simple';
 }
 
-export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange, className }) => {
+export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange, className, variant = 'fancy' }) => {
     const isWomens = value === 'womens';
+
+    if (variant === 'simple') {
+        return (
+            <div className={cn("flex items-center bg-[#1C1C1E] p-1 rounded-full border border-white/10 w-full max-w-[280px] mx-auto", className)}>
+                <button
+                    onClick={() => onChange('womens')}
+                    className={cn(
+                        "flex-1 py-1.5 md:py-2 text-[10px] md:text-sm font-bold tracking-widest uppercase rounded-full transition-all duration-300",
+                        isWomens ? "bg-white text-black shadow-lg" : "text-zinc-500 hover:text-white"
+                    )}
+                >
+                    Women
+                </button>
+                <button
+                    onClick={() => onChange('mens')}
+                    className={cn(
+                        "flex-1 py-1.5 md:py-2 text-[10px] md:text-sm font-bold tracking-widest uppercase rounded-full transition-all duration-300",
+                        !isWomens ? "bg-white text-black shadow-lg" : "text-zinc-500 hover:text-white"
+                    )}
+                >
+                    Men
+                </button>
+            </div>
+        );
+    }
 
     const womenImg = "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&q=80";
     const menImg = "https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=500&q=80";

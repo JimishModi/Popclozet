@@ -4,55 +4,20 @@ import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/SupabaseAuthContext';
-
-/* ── Navbar icons matching Figma ── */
-// @ts-ignore
-import normalHome from '../../../../../src/logo/Navbar/normal/Home.png';
-// @ts-ignore
-import activeHome from '../../../../../src/logo/Navbar/onclick/Home On Click.png';
-// @ts-ignore
-import normalCollections from '../../../../../src/logo/Navbar/normal/Collections.png';
-// @ts-ignore
-import activeCollections from '../../../../../src/logo/Navbar/onclick/Collections On Click.png';
-// @ts-ignore
-import normalCloset from '../../../../../src/logo/Navbar/normal/Closet.png';
-// @ts-ignore
-import activeCloset from '../../../../../src/logo/Navbar/onclick/Clozet Onclick.png';
-// @ts-ignore
-import normalProfile from '../../../../../src/logo/Navbar/normal/Profile.png';
-
-const HomeIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <img src={active ? activeHome : normalHome} alt="Home" className={className} />
-);
-
-const CollectionsIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <img src={active ? activeCollections : normalCollections} alt="Collections" className={className} />
-);
-
-const ClosetIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <img src={active ? activeCloset : normalCloset} alt="Closet" className={className} />
-);
-
-const ProfileIcon = ({ className, active }: { className?: string; active?: boolean }) => (
-    <img
-        src={normalProfile}
-        alt="Profile"
-        className={className}
-        style={{ filter: active ? "invert(49%) sepia(87%) saturate(3015%) hue-rotate(320deg) brightness(101%) contrast(101%)" : "none" }}
-    />
-);
+import { Home, LayoutGrid, User } from 'lucide-react';
+import { ClosetIcon } from '@/components/icons/ClosetIcon';
 
 interface NavItem {
     path: string;
     label: string;
-    icon: React.FC<{ className?: string; active?: boolean }>;
+    icon: any;
 }
 
 const navItems: NavItem[] = [
-    { path: '/home', label: 'Home', icon: HomeIcon },
-    { path: '/collections', label: 'Collections', icon: CollectionsIcon },
+    { path: '/home', label: 'Home', icon: Home },
+    { path: '/collections', label: 'Collections', icon: LayoutGrid },
     { path: '/closet', label: 'Closet', icon: ClosetIcon },
-    { path: '/profile', label: 'Profile', icon: ProfileIcon },
+    { path: '/profile', label: 'Profile', icon: User },
 ];
 
 interface BottomNavBarProps {
@@ -135,14 +100,9 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                             <div className="relative">
                                 <Icon
                                     className={cn(
-                                        // Mobile: show icon only (crop out embedded text from PNG)
-                                        "w-6 h-6 object-cover object-top",
-                                        // Tablet: same icon size
-                                        "md:w-6 md:h-6",
-                                        // Desktop: slightly larger
-                                        "lg:w-8 lg:h-8"
+                                        "w-6 h-6 md:w-6 md:h-6 lg:w-7 lg:h-7 transition-transform",
+                                        active ? "scale-110" : ""
                                     )}
-                                    active={active}
                                 />
                                 {/* Cart badge */}
                                 {item.path === '/cart' && cartCount > 0 && (

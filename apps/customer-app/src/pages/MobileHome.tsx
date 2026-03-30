@@ -549,13 +549,19 @@ const MobileHome: React.FC = () => {
                                 onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
                                 className="relative h-[160px] md:h-[250px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
                             >
-                                <motion.img
-                                    src={collection.image}
-                                    alt={collection.title}
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                    whileHover={{ scale: 1.05 }}
-                                    transition={{ duration: 0.4 }}
-                                />
+                                {collection.image ? (
+                                    <motion.img
+                                        src={collection.image}
+                                        alt={collection.title}
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        whileHover={{ scale: 1.05 }}
+                                        transition={{ duration: 0.4 }}
+                                    />
+                                ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
+                                        <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                    </div>
+                                )}
                                 {/* Gradient overlay at bottom */}
                                 <div
                                     className="absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[24px]"
