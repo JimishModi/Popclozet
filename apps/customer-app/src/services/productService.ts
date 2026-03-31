@@ -46,6 +46,7 @@ export interface Product {
     rentalCount?: number;
     lastCleanedAt?: string;
     conditionStatus?: 'excellent' | 'good' | 'fair' | 'needs_repair';
+    isRentedOut?: boolean;
 }
 
 // IndexedDB Schema for offline storage
@@ -144,7 +145,7 @@ class ProductService {
             // Fetch all products from Supabase with discounts
             const { data: products, error } = await (supabase as any)
                 .from('products')
-                .select('*, product_discounts(*)')
+                .select('*, product_discounts(*), inventory(available_stock)')
                 .eq('is_available', true);
 
             if (error) throw error;
@@ -178,6 +179,10 @@ class ProductService {
     }
 
     private transformFromDB(dbProduct: any): Product {
+        const inventory = dbProduct.inventory || [];
+        const totalAvailableStock = inventory.reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0);
+        const isRentedOut = inventory.length > 0 && totalAvailableStock === 0;
+
         return {
             id: dbProduct.id,
             name: dbProduct.name,
@@ -223,6 +228,7 @@ class ProductService {
                 dbProduct.product_discounts?.[0] || { discount_type: dbProduct.discount_type, discount_value: dbProduct.discount_value }
             ),
             earlyAccessUntil: dbProduct.early_access_until ?? null,
+            isRentedOut: isRentedOut,
         };
     }
 
@@ -272,7 +278,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
@@ -380,7 +386,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .in('gender', [dbGender, 'unisex'])
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -408,7 +414,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .eq('event_category', event)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -434,7 +440,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .in('gender', [gender, 'unisex'])
                     .eq('event_category', event)
                     .eq('is_available', true)
@@ -463,7 +469,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .eq('id', id)
                     .single();
 
@@ -500,7 +506,7 @@ class ProductService {
             try {
                 let supabaseQuery = (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .eq('is_available', true);
 
                 if (query.trim()) {
@@ -718,7 +724,7 @@ class ProductService {
             if (this.isOnline()) {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*)')
+                    .select('*, product_discounts(*), inventory(available_stock)')
                     .eq('category', category)
                     .eq('is_available', true)
                     .neq('id', excludeId)

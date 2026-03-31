@@ -162,7 +162,7 @@ const CategoryProductsPage: React.FC = () => {
 
         let query = supabase
             .from('products')
-            .select('*')
+            .select('*, inventory(available_stock)')
             .eq('is_available', true);
 
         if (filters.category) {
@@ -195,7 +195,8 @@ const CategoryProductsPage: React.FC = () => {
                     // Map DB 'sizes_available' to app 'sizes'
                     sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
                     // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
-                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
+                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
+                    isRentedOut: (p.inventory || []).length > 0 && (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
                 }));
 
                 // Show real products immediately, then mix in fakes
@@ -462,6 +463,8 @@ const CategoryProductsPage: React.FC = () => {
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
                                     const isFake = (product as any)._isFake === true;
+                                    const isRentedOut = (product as any).isRentedOut === true;
+                                    const showRented = isFake || isRentedOut;
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
                                     return (
                                     <motion.div
@@ -482,7 +485,7 @@ const CategoryProductsPage: React.FC = () => {
                                                     alt={product.name}
                                                     className={cn(
                                                         "w-full h-full object-cover transition-transform duration-300",
-                                                        isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                                        showRented ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
                                                     )}
                                                     loading="lazy"
                                                 />
@@ -493,7 +496,7 @@ const CategoryProductsPage: React.FC = () => {
                                             )}
 
                                             {/* Currently Rented badge */}
-                                            {isFake && (
+                                            {showRented && (
                                                 <div className="absolute top-2 left-2 z-10">
                                                     <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
                                                         <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
@@ -502,8 +505,8 @@ const CategoryProductsPage: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Wishlist — hidden for fake items */}
-                                            {!isFake && (
+                                            {/* Wishlist — hidden for rented items */}
+                                            {!showRented && (
                                                 <button
                                                     onClick={(e) => toggleWishlist(product.id, e)}
                                                     className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
@@ -518,9 +521,9 @@ const CategoryProductsPage: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="p-3">
-                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isFake ? "text-zinc-500" : "text-white")}>{product.name}</h3>
+                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", showRented ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                            {isFake ? (
+                                            {showRented ? (
                                                 <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
                                             ) : (
                                                 <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
