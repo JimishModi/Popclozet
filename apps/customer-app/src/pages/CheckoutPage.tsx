@@ -100,6 +100,11 @@ export default function CheckoutPage() {
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
+  // KYC States
+  const [kycVerified, setKycVerified] = useState<boolean>(false);
+  const [showKycGate, setShowKycGate] = useState<boolean>(false);
+  const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
+
   // Fetch IP address for legal logging
   useEffect(() => {
     fetch("https://api.ipify.org?format=json")
@@ -107,6 +112,32 @@ export default function CheckoutPage() {
       .then(data => setUserIp(data.ip))
       .catch(err => console.error("Failed to fetch IP:", err));
   }, []);
+
+  // Check URL params for KYC callback
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+    if (kycCallback === "success" && user?.id) {
+      toast.success("Identity verified successfully!");
+      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", user.id).then(() => {
+        setKycVerified(true);
+      });
+      // Optionally clean up the URL
+      searchParams.delete("kyc_callback");
+      const newUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, user?.id]);
+
+  // Fetch initial KYC status
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from("customer_profiles").select("kyc_verified").eq("user_id", user.id).single().then(({ data }) => {
+        if (data?.kyc_verified) {
+          setKycVerified(true);
+        }
+      });
+    }
+  }, [user?.id]);
 
   // Save payment method preference
   useEffect(() => {
@@ -470,6 +501,12 @@ export default function CheckoutPage() {
   /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
+    // KYC Gate
+    if (!kycVerified) {
+      setShowKycGate(true);
+      return;
+    }
+
     // Only gate on email if they actually have a real email set
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
@@ -1050,6 +1087,66 @@ export default function CheckoutPage() {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+
+      {/* KYC Verification Gate */}
+      <AnimatePresence>
+        {showKycGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowKycGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-[#f2546d]/10 flex items-center justify-center mx-auto mb-6">
+                <Check className="w-10 h-10 text-[#f2546d]" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Identity Verification</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                Before placing an order, we need to quickly verify your identity. This is a one-time process.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsKycLoading(true);
+                      const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                        body: { callbackParams: { user_id: user?.id } }
+                      });
+                      if (error) throw error;
+                      if (data?.url) {
+                        window.location.href = data.url;
+                      } else {
+                        window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      }
+                    } catch (err: any) {
+                      console.error('KYC Error:', err);
+                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    } finally {
+                      setIsKycLoading(false);
+                    }
+                  }}
+                  disabled={isKycLoading}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-lg shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+                </button>
+                <button onClick={() => setShowKycGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Email Verification Gate */}
       <AnimatePresence>

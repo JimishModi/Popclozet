@@ -517,13 +517,24 @@ const CartPage = () => {
           </div>
 
           {/* Pricing */}
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex flex-wrap items-baseline gap-2">
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              ₹ {(product.originalPrice || itemPrice * 5) * quantity}
-            </span>
+            {isRental ? (
+              <>
+                <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  ₹ {(product.originalPrice || itemPrice) * planDays(plan) * quantity}
+                </span>
+                <span className="text-xs text-zinc-500 font-medium ml-1">
+                  (₹{product.originalPrice}/day)
+                </span>
+              </>
+            ) : (
+              <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                ₹ {(product.originalPrice || itemPrice * 5) * quantity}
+              </span>
+            )}
           </div>
         </div>
       </motion.div>

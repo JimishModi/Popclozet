@@ -131,6 +131,22 @@ export const CartProvider = ({
 
   const addToCart = async (productId: string, size: string, plan: PricingPlan) => {
     try {
+      // Prevent adding multiple different plans for the same product+size
+      // If found, update the plan of the existing item instead of creating a new entry.
+      const existingKey = Object.keys(cartItems).find(
+        (k) => k.startsWith(`${productId}_${size}_`) && k !== `${productId}_${size}_${plan}`
+      );
+
+      if (existingKey) {
+         const oldPlan = cartItems[existingKey].plan;
+         await updatePlan(productId, size, oldPlan, plan);
+         
+         toast.success(`Updated to ${plan} rental plan`, {
+           duration: 2000,
+         });
+         return;
+      }
+
       await addToCartDB(productId, size, plan, 1, userId);
       const key = `${productId}_${size}_${plan}`;
 
