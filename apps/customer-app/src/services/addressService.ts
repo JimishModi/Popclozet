@@ -39,11 +39,14 @@ async function fetchBackendJson(path: string): Promise<any | null> {
     try {
       const response = await fetch(url);
       if (!response.ok) {
+        const text = await response.text().catch(() => 'no body');
+        console.warn(`[fetchBackendJson] ${url} returned ${response.status}: ${text.slice(0, 200)}`);
         continue;
       }
 
       return await response.json();
-    } catch {
+    } catch (e: any) {
+      console.warn(`[fetchBackendJson] Failed to fetch from ${url}:`, e.message);
       // Fallback to the next candidate.
     }
   }
@@ -68,7 +71,7 @@ function mapMapplsPlace(place: any): ValidatedAddress {
   console.log('RAW Mappls place:', JSON.stringify(place));
 
   const lat = parseFloat(place.latitude || place.lat || place.placeLat || place.y || 0);
-  const lng = parseFloat(place.longitude || place.lng || place.placeLng || place.x || 0);
+  const lng = parseFloat(place.longitude || place.lng || place.lon || place.placeLng || place.x || 0);
   const eLoc = place.eLoc || place.placeId || '';
 
   // Determine the best address display string
@@ -96,12 +99,25 @@ function mapMapplsPlace(place: any): ValidatedAddress {
 
 /**
  * Search for locations using Mappls AutoSuggest
+ * Passes user's current location for proximity-biased results
  */
 export async function searchLocations(query: string): Promise<ValidatedAddress[]> {
   if (!query || query.length < 3) return [];
 
   try {
-    const data = await fetchBackendJson(`/api/location/search?query=${encodeURIComponent(query)}`);
+    // Include user's current location for proximity-biased search results
+    let locationParams = '';
+    try {
+      const savedLocation = localStorage.getItem('user_location');
+      if (savedLocation) {
+        const { lat, lng } = JSON.parse(savedLocation);
+        if (lat && lng) {
+          locationParams = `&lat=${lat}&lng=${lng}`;
+        }
+      }
+    } catch { /* ignore */ }
+
+    const data = await fetchBackendJson(`/api/location/search?query=${encodeURIComponent(query)}${locationParams}`);
     if (!data) throw new Error('Search failed');
     const locations = Array.isArray(data) ? data : (data.suggestedLocations || []);
 

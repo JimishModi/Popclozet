@@ -2,7 +2,7 @@ import { FloatingNav } from "./ui/floating-navbar";
 import { IconHome, IconHanger, IconUser, IconShoppingBag, IconHelp } from "@tabler/icons-react";
 import { useCart } from "@/context/CartContext";
 
-export function PopClozetFloatingNav() {
+export function popclozetFloatingNav() {
     const { totalItems } = useCart();
     const navItems = [
         {

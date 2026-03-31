@@ -20,7 +20,7 @@ export interface RiderOrder {
     status: OrderStatus;
     pickupAddress: { fullAddress: string; lat: number; lng: number };
     deliveryAddress: { fullAddress: string; lat: number; lng: number };
-    items: Array<{ name: string; qty: number }>;
+    items: Array<{ name: string; qty: number; imageUrl?: string }>;
     totalAmount: number;
     deliveryFee: number;
     etaMinutes?: number;
@@ -185,7 +185,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         return [{
             id: 'order-123', orderId: 'order-123', customerId: 'cust-1',
             customerName: 'Alice Smith', orderType: 'delivery', status: 'confirmed',
-            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
+            pickupAddress: { fullAddress: 'Popclozet Warehouse', lat: 19.1234, lng: 72.8567 },
             deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
             items: [{ name: 'Designer Dress', qty: 1 }],
             totalAmount: 1500, deliveryFee: 150, etaMinutes: 15, distanceKm: 2.5,
@@ -197,15 +197,23 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         .from('orders')
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
+            customer_profiles!orders_user_id_fkey1(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
-            order_items (id, product_id, rental_price)
+            order_items (
+                id, 
+                product_id, 
+                rental_price,
+                products (name, images)
+            )
         `)
         .eq('rider_id', riderId)
         .in('status', [
-            'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
+            'rider_assigned', 'confirmed', 'packed', 'ready_for_pickup', 'driver_arrived_warehouse',
             'order_picked_up', 'dispatched', 'out_for_delivery',
             'return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse',
-        ]);
+            'delivered', 'cancelled', 'return_completed', 'returned',
+        ])
+        .order('created_at', { ascending: false });
 
     if (error) { console.error('[riderOrderService] getRiderOrders:', error); return []; }
 
@@ -219,13 +227,13 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
                 lng: addr?.longitude ?? 0,
             }
             : {
-                fullAddress: 'PopClozet Warehouse, Powai',
+                fullAddress: 'Popclozet Warehouse, Powai',
                 lat: 19.1234,
                 lng: 72.8567,
             };
         const deliveryAddress = isReturn
             ? {
-                fullAddress: 'PopClozet Warehouse, Powai',
+                fullAddress: 'Popclozet Warehouse, Powai',
                 lat: 19.1234,
                 lng: 72.8567,
             }
@@ -237,12 +245,15 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
 
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
+            customerName: order.customer_profiles?.full_name || order.profiles?.full_name,
             orderType: isReturn ? 'return' as const : 'delivery' as const,
             status: order.status,
             pickupAddress,
             deliveryAddress,
             items: (order.order_items ?? []).map((i: any) => ({
-                name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
+                name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+                qty: 1,
+                imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
             })),
             totalAmount: order.total_amount ?? 0,
             deliveryFee: order.delivery_fee ?? Math.round((order.total_amount ?? 0) * 0.15),
@@ -257,7 +268,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         return {
             id: orderId, orderId, customerId: 'cust-1', customerName: 'Alice Smith',
             orderType: 'delivery', status: 'out_for_delivery',
-            pickupAddress: { fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567 },
+            pickupAddress: { fullAddress: 'Popclozet Warehouse', lat: 19.1234, lng: 72.8567 },
             deliveryAddress: { fullAddress: '123 Main St, Mumbai', lat: 19.1100, lng: 72.8600 },
             items: [{ name: 'Designer Dress', qty: 1 }],
             totalAmount: 1500, deliveryFee: 150, etaMinutes: 10, distanceKm: 1.2,
@@ -270,8 +281,14 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee,
             route_distance_km, route_polyline, created_at, delivery_eta,
+            customer_profiles!orders_user_id_fkey1(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
-            order_items (id, product_id, rental_price)
+            order_items (
+                id, 
+                product_id, 
+                rental_price,
+                products (name, images)
+            )
         `)
         .eq('id', orderId)
         .single();
@@ -282,6 +299,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     const isReturn = isReturnFlowOrder(data);
     return {
         id: data.id, orderId: data.id, customerId: data.user_id,
+        customerName: (data as any).customer_profiles?.full_name || (data as any).profiles?.full_name,
         orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
         status: data.status,
         pickupAddress: isReturn
@@ -291,11 +309,11 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
                 lng: addr?.longitude ?? 0,
             }
             : {
-                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+                fullAddress: 'Popclozet Warehouse', lat: 19.1234, lng: 72.8567,
             },
         deliveryAddress: isReturn
             ? {
-                fullAddress: 'PopClozet Warehouse', lat: 19.1234, lng: 72.8567,
+                fullAddress: 'Popclozet Warehouse', lat: 19.1234, lng: 72.8567,
             }
             : {
                 fullAddress: addr?.full_address ?? 'Customer Address',
@@ -303,7 +321,9 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
                 lng: addr?.longitude ?? 0,
             },
         items: (data.order_items ?? []).map((i: any) => ({
-            name: `Product ${i.product_id.slice(0, 8)}`, qty: 1,
+            name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+            qty: 1,
+            imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
         })),
         totalAmount: data.total_amount ?? 0,
         deliveryFee: data.delivery_fee ?? 0,

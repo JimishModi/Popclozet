@@ -34,7 +34,7 @@ export function Sidebar() {
                     <Warehouse className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-base font-bold text-white leading-tight">PopCLozet</h1>
+                    <h1 className="text-base font-bold text-white leading-tight">Popclozet</h1>
                     <p className="text-xs text-zinc-500">Warehouse Hub</p>
                 </div>
             </div>

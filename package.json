@@ -15,7 +15,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@types/mapbox-gl": "^3.5.0",
+    "@types/geojson": "^7946.0.16",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^22.19.10",
     "@types/react": "~18.2.79",
@@ -37,7 +37,7 @@
     "framer-motion": "^10.18.0",
     "fs-extra": "^11.3.3",
     "lucide-react": "^0.563.0",
-    "mapbox-gl": "^3.19.0",
+    "mappls-web-maps": "^3.8.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-router-dom": "^6.30.3",

@@ -65,7 +65,7 @@ const FounderNote = () => {
                         <span className="text-white text-xs font-bold">PC</span>
                       </div>
                       <div>
-                        <p className="text-white text-sm font-medium">@popclozet</p>
+                        <p className="text-white text-sm font-medium">@Popclozet</p>
                         <p className="text-slate-400 text-xs">Available for styling chats</p>
                       </div>
                     </div>

@@ -99,7 +99,7 @@ export function DashboardPage() {
         return (
             <div className="px-4 py-5 space-y-4">
                 <div className="h-8 w-48 bg-surface-card rounded-lg animate-pulse" />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="bg-surface-card rounded-xl h-24 animate-pulse" />
                     ))}
@@ -141,7 +141,7 @@ export function DashboardPage() {
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard icon={Package} label="Total Stock" value={summary?.total_stock ?? 0} color="bg-warehouse-500/15 text-warehouse-400" delay={0} />
                 <StatCard icon={TrendingUp} label="Available" value={summary?.available_stock ?? 0} color="bg-emerald-500/15 text-emerald-400" delay={0.05} />
                 <StatCard icon={Droplets} label="In Wash" value={summary?.went_for_wash ?? 0} color="bg-amber-500/15 text-amber-400" delay={0.1} />
@@ -209,7 +209,7 @@ export function DashboardPage() {
             {/* Quick Actions */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <h2 className="text-sm font-semibold text-white mb-3">Quick Actions</h2>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {[
                         { to: '/wash', label: 'Send to Wash', icon: Droplets, color: 'text-amber-400' },
                         { to: '/orders', label: 'Pack Orders', icon: ShoppingBag, color: 'text-blue-400' },

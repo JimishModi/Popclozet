@@ -14,14 +14,18 @@ import type { OrderStatus, ActorRole, TransitionResult, UserRole } from '@popclo
 // SUPABASE CLIENT
 // ==========================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('⚠️ [api-client] CRITICAL: Supabase environment variables are missing.');
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...');
+console.log('📦 [@popclozet/api-client] Initializing Supabase client...', {
+    url: supabaseUrl.substring(0, 15) + '...',
+    hasKey: !!supabaseAnonKey
+});
 
 let client: SupabaseClient;
 try {

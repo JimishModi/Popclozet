@@ -28,8 +28,8 @@
       "@popclozet/ui": [
         "../../packages/ui/src/index.tsx"
       ],
-      "@popclozet/mapbox-core": [
-        "../../packages/mapbox-core/src/index.ts"
+      "@popclozet/map-core": [
+        "../../packages/map-core/src/index.ts"
       ],
       "@popclozet/api-client": [
         "../../packages/api-client/src/index.ts"
@@ -60,7 +60,7 @@
       "path": "../../packages/domain-contracts"
     },
     {
-      "path": "../../packages/mapbox-core"
+      "path": "../../packages/map-core"
     },
     {
       "path": "../../packages/ui"

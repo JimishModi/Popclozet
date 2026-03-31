@@ -166,7 +166,7 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
                     </button>
                 </div>
                 <p className="text-[10px] text-zinc-600 mt-2 text-center uppercase tracking-widest font-bold">
-                    Powered by PopClozet Secure
+                    Powered by popclozet Secure
                 </p>
             </form>
         </motion.div>

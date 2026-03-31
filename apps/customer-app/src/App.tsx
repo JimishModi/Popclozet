@@ -4,7 +4,7 @@ import AuthGate from "@/components/auth/AuthGate";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import PageTransition from "./components/PageTransition";
 import ScrollProgress from "./components/ScrollProgress";
@@ -62,6 +62,7 @@ const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackin
 const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage"));
 const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
 const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
+const CheckoutReturnSchedulePage = lazyWithRetry(() => import("./pages/CheckoutReturnSchedulePage"));
 const WelcomePage = lazyWithRetry(() => import("./pages/WelcomePage"));
 const OnboardingPage = lazyWithRetry(() => import("./pages/OnboardingPage"));
 const SettingsPage = lazyWithRetry(() => import("./pages/SettingsPage"));
@@ -102,7 +103,7 @@ import CookiePolicyPage from "./pages/CookiePolicyPage";
 import TermsPage from "./pages/TermsPage";
 import AboutUsProcessPage from "./pages/AboutUsProcessPage";
 
-import { configureMapbox } from '@popclozet/mapbox-core';
+import { configureMapbox } from '@popclozet/map-core';
 
 // Ensure WebWorker has access to Mapbox Token globally on init
 if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
@@ -143,6 +144,7 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
+                  <PushNotificationListener />
 
                   {/* LOCATION */}
                   <LocationGate />
@@ -182,6 +184,7 @@ function App() {
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
                           <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                           <Route path="/checkout/address" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressSelectionPage /></Suspense></PageTransition>} />
+                          <Route path="/checkout/return-schedule" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutReturnSchedulePage /></Suspense></PageTransition>} />
                           <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                           <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
                           <Route path="/orders" element={<PageTransition><OrdersPage /></PageTransition>} />
@@ -249,6 +252,30 @@ function App() {
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );
+}
+
+// Internal component to listen for Push Notification clicks from the Service Worker
+function PushNotificationListener() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "NOTIFICATION_CLICK") {
+        console.log("🔔 Handling push notification click navigation to:", event.data.url);
+        const urlToNavigate = event.data.url || "/";
+        navigate(urlToNavigate);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleMessage);
+    };
+  }, [navigate]);
+
+  return null;
 }
 
 const pageVariants = {

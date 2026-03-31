@@ -88,7 +88,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
 
 # App Config
-VITE_APP_NAME=PopClozet
+VITE_APP_NAME=popclozet
 VITE_APP_URL=http://localhost:3000
 VITE_ENABLE_MAP=true
 VITE_ENABLE_OFFLINE_MODE=true

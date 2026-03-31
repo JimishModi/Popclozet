@@ -26,8 +26,10 @@ export function SwipeToAccept({
     const containerRef = useRef<HTMLDivElement>(null);
     const controls = useAnimation();
 
+    const getContainerWidth = () => containerRef.current?.offsetWidth || 300;
+
     const handleDragEnd = async (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-        const containerWidth = containerRef.current?.offsetWidth || 300;
+        const containerWidth = getContainerWidth();
         const threshold = containerWidth * 0.6; // 60% to trigger accept
 
         if (info.offset.x >= threshold) {
@@ -88,7 +90,7 @@ export function SwipeToAccept({
             {/* Draggable thumb */}
             <motion.div
                 drag={disabled || isComplete ? false : "x"}
-                dragConstraints={{ left: 0, right: containerRef.current ? containerRef.current.offsetWidth - 64 : 236 }}
+                dragConstraints={{ left: 0, right: getContainerWidth() - 56 }}
                 dragElastic={0.1}
                 onDragEnd={handleDragEnd}
                 animate={controls}

@@ -11,8 +11,8 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
             manifest: {
-                name: 'PopClozet - Rental Fashion',
-                short_name: 'PopClozet',
+                name: 'popclozet - Rental Fashion',
+                short_name: 'popclozet',
                 description: 'Premium rental fashion platform with seamless delivery experience',
                 theme_color: '#ff4d6d',
                 background_color: '#0a0a0a',

@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { ChevronRight, Search, Heart } from "lucide-react";
+import { ChevronRight, Search, Heart, Bell } from "lucide-react";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate } from "react-router-dom";
 import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotifications } from "@/hooks/useNotifications";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
+import type { GenderType } from "@/components/ui/GenderSelector";
+import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/logo.png";
@@ -53,6 +56,8 @@ const MobileHome: React.FC = () => {
     const [brands, setBrands] = useState<string[]>([]);
     const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
     const [loadingCatalogue, setLoadingCatalogue] = useState(true);
+    const [catalogueError, setCatalogueError] = useState(false);
+    const catalogueRetryCount = useRef(0);
     const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed'>('15min');
     const [collections, setCollections] = useState<{ id: string; title: string; image: string }[]>([]);
 
@@ -61,12 +66,13 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Fallback logic: prefer explicit deliveryEstimate state, then hub distance
-    const isDelayed = deliveryEstimate === 'delayed' || (selectedHub ? selectedHub.distance_km > 6 : false);
+    // Show delayed delivery only when delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
+    const isDelayed = selectedHub ? selectedHub.distance_km > 6 : false;
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
     const wishlistCount = wishlistItems.length;
+    const { unreadCount } = useNotifications({ limit: 5, autoSubscribe: true });
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -89,13 +95,13 @@ const MobileHome: React.FC = () => {
         productService.getCategories().then(setCollections);
     }, []);
 
-    // Auto-rotate featured slides
+    // Auto-rotate featured slides - Reset timer on slide change (manual or auto)
     useEffect(() => {
         const interval = setInterval(() => {
             setActiveSlide((prev) => (prev + 1) % filteredSlides.length);
         }, 3000);
         return () => clearInterval(interval);
-    }, [filteredSlides.length]);
+    }, [filteredSlides.length, activeSlide]);
 
     // Load persisted delivery estimate
     useEffect(() => {
@@ -121,30 +127,41 @@ const MobileHome: React.FC = () => {
     }, [user]);
 
 
-    // Auto-detect location using GPS + Mapbox reverse geocoding
+    // Auto-detect location using GPS + Mappls reverse geocoding
     useEffect(() => {
+        let cancelled = false;
+
+        // Timeout: if detection takes >8s, show fallback text
+        const timeout = setTimeout(() => {
+            if (!cancelled) setUserLocation(prev => prev === "Detecting..." ? "Select Location" : prev);
+        }, 8000);
+
         const detectLocation = async () => {
             try {
-                // If we already have a location saved, just use it and skip Mapbox
+                // If we already have a location saved, just use it and skip GPS
                 const stored = locationStorage.get();
                 if (stored && stored.city) {
                     const displayLocation = stored.locality && stored.locality !== stored.city
                         ? `${stored.locality}, ${stored.city}`
                         : stored.city;
-                    setUserLocation(displayLocation);
-                    if ('lat' in stored && 'lng' in stored && stored.lat && stored.lng) {
-                        setUserCoords({ lat: stored.lat as number, lng: stored.lng as number });
-                    }
-                    if ((stored as any).delivery_estimate) {
-                        console.log('📦 Stored Delivery Estimate:', (stored as any).delivery_estimate);
-                        setDeliveryEstimate((stored as any).delivery_estimate);
+                    if (!cancelled) {
+                        setUserLocation(displayLocation);
+                        if ('lat' in stored && 'lng' in stored && stored.lat && stored.lng) {
+                            setUserCoords({ lat: stored.lat as number, lng: stored.lng as number });
+                        }
+                        if ((stored as any).delivery_estimate) {
+                            console.log('📦 Stored Delivery Estimate:', (stored as any).delivery_estimate);
+                            setDeliveryEstimate((stored as any).delivery_estimate);
+                        }
                     }
                     return; // Skip GPS detection entirely
                 }
 
-                // Only hit Mapbox if we have no location at all
-                const { autoDetectLocation } = await import("@popclozet/mapbox-core");
+                // Only hit GPS + reverse geocode if we have no location at all
+                const { autoDetectLocation } = await import("@popclozet/map-core");
                 const result = await autoDetectLocation();
+
+                if (cancelled) return;
 
                 if (result) {
                     const displayLocation = result.locality !== result.city
@@ -170,7 +187,7 @@ const MobileHome: React.FC = () => {
                             console.log(`🌐 Auto-detected Road Distance: ${distRes.distanceKm.toFixed(2)}km -> ${estimate}`);
                         }
 
-                        setDeliveryEstimate(estimate);
+                        if (!cancelled) setDeliveryEstimate(estimate);
 
                         locationStorage.set({
                             source: "gps",
@@ -195,16 +212,18 @@ const MobileHome: React.FC = () => {
                 }
             } catch (error) {
                 console.error("Location detection failed:", error);
+                if (cancelled) return;
                 const stored = locationStorage.get();
                 if (stored?.source === "manual") {
                     setUserLocation(stored.city);
                 } else {
-                    setUserLocation("Enable Location");
+                    setUserLocation("Select Location");
                 }
             }
         };
 
         detectLocation();
+        return () => { cancelled = true; clearTimeout(timeout); };
     }, []);
 
     // Fetch brands from database
@@ -220,24 +239,36 @@ const MobileHome: React.FC = () => {
         fetchBrands();
     }, [activeGender]);
 
-    // Fetch catalogue products from database
-    useEffect(() => {
-        const fetchCatalogue = async () => {
-            setLoadingCatalogue(true);
-            try {
-                const products = await productService.getProductsByGender(activeGender);
+    // Fetch catalogue products from database (with retry on failure)
+    const fetchCatalogue = useCallback(async (isRetry = false) => {
+        if (!isRetry) setCatalogueError(false);
+        setLoadingCatalogue(true);
+        try {
+            const products = await productService.getProductsByGender(activeGender);
+            if (products.length > 0) {
                 setCatalogueProducts(products.slice(0, 4));
-            } catch (error) {
-                console.error("Failed to fetch catalogue products:", error);
-                // Fallback: show real products only
-                const products = await productService.getProductsByGender(activeGender);
-                setCatalogueProducts(products.slice(0, 4));
-            } finally {
-                setLoadingCatalogue(false);
+                catalogueRetryCount.current = 0;
+            } else if (catalogueRetryCount.current < 2) {
+                // Products came back empty — might be a stale IDB on fresh install.
+                // Try a full sync then re-fetch.
+                catalogueRetryCount.current += 1;
+                console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
+                await productService.syncProducts();
+                const synced = await productService.getProductsByGender(activeGender);
+                setCatalogueProducts(synced.slice(0, 4));
             }
-        };
-        fetchCatalogue();
+        } catch (error) {
+            console.error("Failed to fetch catalogue products:", error);
+            setCatalogueError(true);
+        } finally {
+            setLoadingCatalogue(false);
+        }
     }, [activeGender]);
+
+    useEffect(() => {
+        catalogueRetryCount.current = 0;
+        fetchCatalogue();
+    }, [fetchCatalogue]);
 
     // Auto-switch About Us slides
     useEffect(() => {
@@ -252,7 +283,7 @@ const MobileHome: React.FC = () => {
             <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 pb-2 md:py-3 md:pb-8 flex items-center justify-between">
                 {/* ─── LOGO ─── */}
                 <div className="px-3 pt-2 pb-0.5 md:px-5 md:pt-5 md:pb-1 flex items-center">
-                    <img src={popclozetLogo} alt="PopClozet" className="h-5 md:h-7 object-contain" />
+                    <img src={popclozetLogo} alt="Popclozet" className="h-5 md:h-7 object-contain" />
                 </div>
             </header>
 
@@ -266,40 +297,40 @@ const MobileHome: React.FC = () => {
                         {/* Left: Delivery badge + location */}
                         <div 
                             className={cn(
-                                "flex flex-col gap-1 cursor-pointer transition-all duration-500",
+                                "flex flex-col gap-0.5 cursor-pointer transition-all duration-500",
                                 isDelayed && "drop-shadow-[0_0_8px_rgba(245,158,11,0.2)]"
                             )}
                             onClick={() => navigate('/checkout/address', { state: { returnTo: '/home' } })}
                         >
                             <span className={cn(
-                                "text-[10px] md:text-xs font-bold tracking-tight uppercase",
+                                "text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-70",
                                 isDelayed ? "text-amber-500" : "text-[#f2546d]"
                             )}>
                                 {isDelayed ? "Expected" : "Delivery in"}
                             </span>
                             <div className="flex items-center gap-2">
                                 <h1 className={cn(
-                                    "font-black leading-none tracking-tight transition-all duration-500 flex items-center gap-1.5 md:gap-2", 
-                                    isDelayed ? "text-amber-500 text-lg md:text-[26px]" : "text-white text-[22px] md:text-[32px]"
+                                    "font-bold leading-none tracking-tight transition-all duration-500 flex items-center gap-1.5 md:gap-2", 
+                                    isDelayed ? "text-amber-500 text-lg md:text-2xl" : "text-white text-2xl md:text-3xl"
                                 )}>
                                     {isDelayed ? (
                                         <>
-                                            <span className="text-lg md:text-[28px]">🕐</span>
+                                            <span className="text-lg md:text-xl">🕐</span>
                                             <span>Delayed Delivery</span>
                                         </>
                                     ) : (
                                         <>
                                             <span className="text-[#f2546d]">⚡</span>
-                                            <span>15 Minutes</span>
+                                            <span>60 Minutes</span>
                                         </>
                                     )}
                                 </h1>
                             </div>
-                            <div className="flex items-center gap-1 mt-0.5 md:gap-1.5 md:mt-1">
-                                <svg className={cn("w-3 h-3 md:w-4 md:h-4 transition-colors", isDelayed ? "text-amber-500/70" : "text-white/70")} viewBox="0 0 24 24" fill="currentColor">
+                            <div className="flex items-center gap-1 mt-0.5 md:gap-1.5">
+                                <svg className={cn("w-3 h-3 md:w-3.5 md:h-3.5 transition-colors", isDelayed ? "text-amber-500/70" : "text-white/60")} viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z" />
                                 </svg>
-                                <span className="text-xs md:text-sm font-bold text-white/90 tracking-tight">
+                                <span className="text-[11px] md:text-xs font-semibold text-white/80 tracking-tight">
                                     {userLocation}
                                 </span>
                             </div>
@@ -308,6 +339,17 @@ const MobileHome: React.FC = () => {
 
                         {/* Right: Action buttons */}
                         <div className="flex items-center gap-2 mb-1">
+                            <button
+                                onClick={() => navigate('/notifications')}
+                                className="hidden"
+                            >
+                                <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-white/80" />
+                                {unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
                             <button
                                 onClick={() => navigate('/closet?tab=wishlist')}
                                 className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
@@ -339,43 +381,12 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
-                {/* ─── GENDER SELECTOR: Overlapping Dark Panels ─── */}
-                <section className="px-4 mt-3 md:px-5 md:mt-4">
-                    <div className="grid grid-cols-2 gap-3 md:gap-4">
-                        {/* Women card */}
-                        <motion.div
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setActiveGender("womens")}
-                            className="relative h-[100px] md:h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
-                        >
-                            <img 
-                                src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400" 
-                                alt="Women" 
-                                className="absolute inset-0 w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
-                                WOMEN
-                            </span>
-                        </motion.div>
-
-                        {/* Men card */}
-                        <motion.div
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setActiveGender("mens")}
-                            className="relative h-[100px] md:h-[120px] rounded-[16px] overflow-hidden cursor-pointer group transition-all"
-                        >
-                            <img 
-                                src="https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=400" 
-                                alt="Men" 
-                                className="absolute inset-0 w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <span className="absolute bottom-3 left-4 text-white font-bold text-sm tracking-widest">
-                                MEN
-                            </span>
-                        </motion.div>
-                    </div>
+                {/* ─── GENDER SELECTOR ─── */}
+                <section className="px-4 mt-5 md:px-5 md:mt-6">
+                    <GenderSelector 
+                        value={activeGender as GenderType} 
+                        onChange={(g) => setActiveGender(g)} 
+                    />
                 </section>
 
 
@@ -391,7 +402,7 @@ const MobileHome: React.FC = () => {
                         >
                             <Search className="w-4 h-4 md:w-[18px] md:h-[18px] text-white/90" />
                         </div>
-                        <span className="ml-3 md:ml-4 text-xs md:text-sm text-zinc-500 font-semibold tracking-tight">
+                        <span className="ml-3 md:ml-4 text-[11px] md:text-sm text-zinc-500 font-medium tracking-tight">
                             Search for dresses, tops, brands...
                         </span>
                     </div>
@@ -401,9 +412,21 @@ const MobileHome: React.FC = () => {
                 {/* ─── ACTIVE DELIVERY BANNER ─── */}
                 <ActiveDeliveryBanner />
 
-                {/* ─── FEATURED CAROUSEL: 3-Card Peek ─── */}
+                {/* ─── FEATURED CAROUSEL: 3-Card Peek with Swipe Support ─── */}
                 <section className="mt-5 md:mt-8 overflow-hidden">
-                    <div className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px]">
+                    <motion.div 
+                        className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px] touch-pan-y"
+                        onPanEnd={(e, info) => {
+                            const threshold = 50;
+                            if (info.offset.x > threshold) {
+                                // Swipe Right -> Previous Slide
+                                setActiveSlide(prev => (prev - 1 + filteredSlides.length) % filteredSlides.length);
+                            } else if (info.offset.x < -threshold) {
+                                // Swipe Left -> Next Slide
+                                setActiveSlide(prev => (prev + 1) % filteredSlides.length);
+                            }
+                        }}
+                    >
 
                         {/* Side cards + Center card */}
                         <div className="flex items-center gap-3 md:gap-6" style={{ width: '100%', justifyContent: 'center' }}>
@@ -452,7 +475,7 @@ const MobileHome: React.FC = () => {
                                         <span className="inline-block px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[8px] md:text-[10px] font-bold uppercase tracking-wider mb-1 md:mb-2">
                                             Trending
                                         </span>
-                                        <h3 className="text-sm md:text-xl font-black text-white tracking-tight">
+                                        <h3 className="text-base md:text-xl font-bold text-white tracking-tight">
                                             {filteredSlides[activeSlide].title}
                                         </h3>
                                     </div>
@@ -473,7 +496,7 @@ const MobileHome: React.FC = () => {
                         </div>
 
 
-                    </div>
+                    </motion.div>
 
                     {/* Pagination Dots */}
                     <div className="flex items-center justify-center gap-1.5 mt-2 md:gap-2 md:mt-3">
@@ -502,8 +525,8 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── COLLECTIONS: 2 Cards with Gradient Overlay ─── */}
                 <section className="px-4 mt-5 md:px-5 md:mt-8">
-                    <div className="flex items-center justify-between mb-3 md:mb-6">
-                        <h2 className="text-lg md:text-xl font-semibold md:font-bold text-white tracking-tight">
+                    <div className="flex items-center justify-between mb-4 md:mb-6">
+                        <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                             Collections
                         </h2>
                         <button
@@ -523,16 +546,22 @@ const MobileHome: React.FC = () => {
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => navigate(`/shop/all?category=${collection.id}&title=${collection.title}&fromHome=true&initialGender=${activeGender}`)}
+                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
                                 className="relative h-[160px] md:h-[250px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
                             >
-                                <motion.img
-                                    src={collection.image}
-                                    alt={collection.title}
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                    whileHover={{ scale: 1.05 }}
-                                    transition={{ duration: 0.4 }}
-                                />
+                                {collection.image ? (
+                                    <motion.img
+                                        src={collection.image}
+                                        alt={collection.title}
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        whileHover={{ scale: 1.05 }}
+                                        transition={{ duration: 0.4 }}
+                                    />
+                                ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
+                                        <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                    </div>
+                                )}
                                 {/* Gradient overlay at bottom */}
                                 <div
                                     className="absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[24px]"
@@ -541,7 +570,7 @@ const MobileHome: React.FC = () => {
                                     }}
                                 />
                                 <div className="absolute bottom-5 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    <span className="text-lg font-black text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
+                                    <span className="text-base md:text-lg font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
                                         {collection.title}
                                     </span>
                                 </div>
@@ -559,7 +588,7 @@ const MobileHome: React.FC = () => {
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg md:text-xl font-semibold md:font-bold text-white tracking-tight">
+                            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                                 About Us
                             </h2>
                             <ChevronRight className="w-4 h-4 text-zinc-400" />
@@ -615,8 +644,8 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── BRANDS: Dual-Column Grid + See All Button ─── */}
                 <section className="px-4 mt-5 md:px-5 md:mt-8 max-w-4xl mx-auto">
-                    <div className="flex items-center justify-between mb-3 md:mb-6">
-                        <h2 className="text-lg md:text-xl font-semibold md:font-bold text-white tracking-tight">
+                    <div className="flex items-center justify-between mb-4 md:mb-6">
+                        <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                             Brands
                         </h2>
                         <button onClick={() => navigate('/brands')} className="text-sm font-bold text-[#f2546d] hover:text-[#f2546d]/80 transition-colors">
@@ -647,7 +676,7 @@ const MobileHome: React.FC = () => {
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
                                             onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
                                         >
-                                            <span className="text-sm font-bold text-zinc-300">
+                                            <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}
                                             </span>
                                         </div>
@@ -679,7 +708,7 @@ const MobileHome: React.FC = () => {
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
                                             onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
                                         >
-                                            <span className="text-sm font-bold text-zinc-300">
+                                            <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}
                                             </span>
                                         </div>
@@ -695,8 +724,8 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── CATALOGUE: Product Cards Grid ─── */}
                 <section className="px-4 mt-6 md:px-5 md:mt-10">
-                    <div className="flex items-center justify-between mb-4 md:mb-8">
-                        <h2 className="text-lg md:text-xl font-semibold md:font-bold text-white tracking-tight">
+                    <div className="flex items-center justify-between mb-5 md:mb-8">
+                        <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                             Catalogue
                         </h2>
                         <button
@@ -708,7 +737,18 @@ const MobileHome: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
-                        {loadingCatalogue ? (
+                        {catalogueError ? (
+                            // Error state with retry button
+                            <div className="col-span-2 md:col-span-3 lg:col-span-4 flex flex-col items-center justify-center py-12 gap-4">
+                                <p className="text-sm text-zinc-400">Couldn't load products</p>
+                                <button
+                                    onClick={() => fetchCatalogue(true)}
+                                    className="px-6 py-2.5 rounded-full bg-[#f2546d] text-white text-sm font-semibold hover:bg-[#f2546d]/90 transition-colors"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : loadingCatalogue ? (
                             // Skeleton loaders
                             [...Array(4)].map((_, i) => (
                                 <div key={`skel-${i}`} className="relative rounded-2xl bg-[#232323] aspect-square md:aspect-[3/4] animate-pulse border border-[#484848]" />
@@ -778,7 +818,7 @@ const MobileHome: React.FC = () => {
 
                                 {/* Product Details */}
                                 <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                    <h3 className={cn("text-sm font-bold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
+                                    <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
                                         {item.name}
                                     </h3>
 

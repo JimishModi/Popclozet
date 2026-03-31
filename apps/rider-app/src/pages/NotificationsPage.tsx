@@ -72,7 +72,8 @@ export function NotificationsPage() {
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a]">
+        <div className="min-h-screen bg-black flex justify-center">
+        <div className="w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] min-h-screen bg-[#0a0a0a]">
             {/* Header */}
             <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-zinc-800/50">
                 <div className="flex items-center justify-between px-4 h-16">
@@ -186,6 +187,7 @@ export function NotificationsPage() {
                     </AnimatePresence>
                 )}
             </main>
+        </div>
         </div>
     );
 }

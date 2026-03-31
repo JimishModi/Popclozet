@@ -41,6 +41,10 @@ export interface OrderWithItems {
         latitude: number | null;
         longitude: number | null;
     } | null;
+    riders?: {
+        name?: string | null;
+        full_name?: string | null;
+    } | null;
 }
 
 /**
@@ -50,7 +54,7 @@ function normalizeOrders(rows: any[]): OrderWithItems[] {
     return rows.map(row => ({
         ...row,
         status: row.status || row.lifecycle_state || 'unknown',
-        rider_name: row.rider?.full_name ?? null,
+        rider_name: row.riders?.name || row.riders?.full_name || null,
     }));
 }
 
@@ -216,6 +220,8 @@ export async function getReturnRequests() {
                         unit:all_products!order_items_individual_id_fkey (
                             individual_id,
                             status,
+                            damage_notes,
+                            damage_flagged_at,
                             inventory:inventory_id (
                                 id,
                                 size
@@ -331,6 +337,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
             `)
             .in('status', [
                 'pending',
+                'pending_payment',
                 'confirmed',
                 'packed',
                 'ready_for_pickup',
@@ -366,7 +373,7 @@ export async function getActivePickups(): Promise<OrderWithItems[]> {
                 *,
                 order_items (*),
                 addresses:delivery_address_id (full_address, latitude, longitude),
-                rider:rider_id (full_name)
+                riders:rider_id (name, full_name)
             `)
             .in('status', ['ready_for_pickup', 'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
             .order('updated_at', { ascending: false });
@@ -428,3 +435,48 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
     }
 }
 
+/**
+ * Get all orders history with filtering and search
+ */
+export async function getOrderHistory(options?: { status?: string, searchQuery?: string, limit?: number }): Promise<OrderWithItems[]> {
+    try {
+        let query = supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    id,
+                    product_id,
+                    size,
+                    rental_price,
+                    individual_id,
+                    products (id, name, images)
+                ),
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                riders:rider_id (name, full_name)
+            `);
+
+        if (options?.status && options.status !== 'all') {
+            query = query.or(`status.eq.${options.status},lifecycle_state.eq.${options.status}`);
+        }
+
+        if (options?.searchQuery) {
+            // Search by order ID snippet
+            query = query.ilike('id', `%${options.searchQuery}%`);
+        }
+
+        const { data, error } = await query
+            .order('created_at', { ascending: false })
+            .limit(options?.limit || 50);
+
+        if (error) {
+            console.warn('getOrderHistory:', error.message);
+            return [];
+        }
+
+        return normalizeOrders(data || []);
+    } catch (err) {
+        console.error('Failed to get order history:', err);
+        return [];
+    }
+}

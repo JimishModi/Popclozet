@@ -14,7 +14,7 @@
 // ─── Configuration ───────────────────────────────────────────
 
 const CONFIG = {
-    // Countries where PopClozet operates (ISO 3166 alpha-2)
+    // Countries where popclozet operates (ISO 3166 alpha-2)
     ALLOWED_COUNTRIES: ['IN', 'US', 'GB', 'AE', 'SG'],
 
     // Rate limits (requests per window)

@@ -11,14 +11,14 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * 
  * Setup:
  *   npm install @capacitor/core @capacitor/cli
- *   npx cap init PopClozet com.popclozet.app --web-dir dist
+ *   npx cap init popclozet com.popclozet.app --web-dir dist
  *   npx cap add android
  *   npx cap add ios
  */
 
 const config: CapacitorConfig = {
     appId: 'com.popclozet.app',
-    appName: 'PopClozet',
+    appName: 'popclozet',
     webDir: 'apps/customer-app/dist',
 
     // ─── Server Config ─────────────────────────────────────
@@ -34,7 +34,7 @@ const config: CapacitorConfig = {
         // Enable mixed content blocking
         allowMixedContent: false,
         // Use Chrome Custom Tabs for OAuth (more secure than WebView)
-        appendUserAgent: 'PopClozet-Android',
+        appendUserAgent: 'popclozet-Android',
         // Prevent screenshots on sensitive screens
         // (Additional native code needed in MainActivity.java)
     },
@@ -42,7 +42,7 @@ const config: CapacitorConfig = {
     // ─── iOS Security ──────────────────────────────────────
     ios: {
         // Use WKWebView (more secure than UIWebView)
-        appendUserAgent: 'PopClozet-iOS',
+        appendUserAgent: 'popclozet-iOS',
         // Enable scroll for forms
         scrollEnabled: true,
     },

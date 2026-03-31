@@ -29,7 +29,7 @@ export default function WelcomeGridPage() {
           >
             WELCOME TO
           </p>
-          <img src={logoImage} alt="PopClozet" className="h-9 mx-auto" />
+          <img src={logoImage} alt="Popclozet" className="h-9 mx-auto" />
         </div>
 
         {/* Animated Masonry Grid – 3 columns */}

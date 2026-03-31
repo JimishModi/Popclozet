@@ -1,5 +1,5 @@
 // src/pages/CartPage.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "vaul";
 import { useCart } from "@/context/CartContext";
@@ -7,11 +7,13 @@ import { useServiceAvailability } from "@/hooks/useServiceAvailability";
 import { toast } from "sonner";
 import {
   ChevronLeft,
+  ChevronRight,
   ShoppingBag,
   X,
   Heart,
   Calendar,
-  Plus
+  Plus,
+  Info
 } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { supabase } from "@popclozet/api-client";
@@ -53,6 +55,113 @@ const getSavedHub = () => {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const CARD_GAP = 12;
+
+const AddOnsCarousel = ({
+  addOnProducts,
+  primaryRentalDays,
+  addToCart,
+}: {
+  addOnProducts: any[];
+  primaryRentalDays: number;
+  addToCart: (id: string, size: string, plan: string) => void;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  const [cardsPerPage, setCardsPerPage] = useState(2);
+  const [cardWidth, setCardWidth] = useState(160);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!containerRef.current) return;
+      const w = containerRef.current.offsetWidth;
+      const perPage = w >= 700 ? 4 : w >= 480 ? 3 : 2;
+      const cw = (w - (perPage - 1) * CARD_GAP) / perPage;
+      setCardsPerPage(perPage);
+      setCardWidth(cw);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  const totalPages = Math.ceil(addOnProducts.length / cardsPerPage);
+  const pageOffset = cardsPerPage * (cardWidth + CARD_GAP);
+
+  return (
+    <section className="px-5 lg:px-0 mt-8 overflow-hidden" ref={containerRef}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Plus className="w-4 h-4 text-[#f2546d]" />
+          <h2 className="text-base font-black text-white uppercase tracking-widest" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            Add-Ons
+          </h2>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
+              style={{ opacity: page === 0 ? 0.3 : 1 }}
+            >
+              <ChevronLeft className="w-4 h-4 text-white" />
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
+              style={{ opacity: page === totalPages - 1 ? 0.3 : 1 }}
+            >
+              <ChevronRight className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="overflow-hidden w-full">
+        <motion.div
+          className="flex"
+          style={{ gap: CARD_GAP }}
+          animate={{ x: -page * pageOffset }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        >
+          {addOnProducts.map((product: any) => {
+            const basePrice = product.rental_price_1d || product.rental_price || 0;
+            const displayPrice = basePrice * primaryRentalDays;
+            return (
+              <motion.div
+                key={product.id}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => addToCart(product.id, 'One Size', '1d')}
+                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
+                style={{ width: cardWidth }}
+              >
+                <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
+                  {product.images?.[0] && (
+                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <div className="p-2.5">
+                  <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                  <p className="text-xs text-[#f2546d] font-black mt-0.5">
+                    ₹{displayPrice}
+                    {primaryRentalDays > 1 && (
+                      <span className="text-white/30 font-normal ml-1">({primaryRentalDays}d)</span>
+                    )}
+                  </p>
+                </div>
+                <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </div>
+    </section>
+  );
+};
+
 const CartPage = () => {
   const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan, addToCart } = useCart();
   const service = useServiceAvailability();
@@ -78,6 +187,15 @@ const CartPage = () => {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string, discount: number, type: 'percent' | 'fixed' } | null>(null);
   const [addOnProducts, setAddOnProducts] = useState<any[]>([]);
+  const [activeInfoTooltip, setActiveInfoTooltip] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  const planDays = (plan: string) => {
+    if (plan === '1d') return 1;
+    if (plan === '2d') return 2;
+    if (plan === '3d') return 3;
+    return 1;
+  };
 
   const cartEntries = Object.entries(cartItems);
 
@@ -169,6 +287,11 @@ const CartPage = () => {
   // Calculate cart metrics
   const totalQty = useMemo(() => {
     return validCartEntries.reduce((sum, [, data]) => sum + data.quantity, 0);
+  }, [validCartEntries]);
+
+  const primaryRentalDays = useMemo(() => {
+    const rentalEntry = validCartEntries.find(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+    return rentalEntry ? planDays(rentalEntry[1].plan) : 1;
   }, [validCartEntries]);
 
   // Load saved address and hub on mount
@@ -323,11 +446,31 @@ const CartPage = () => {
 
           {/* Date Selector (Rentals Only) */}
           {isRental && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
-              <Calendar className="w-3.5 h-3.5 text-white/60" />
-              <span className="text-xs font-medium text-white/90" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                1 Feb - 2 Feb
-              </span>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
+                <Calendar className="w-3.5 h-3.5 text-white/60" />
+                <span className="text-xs font-medium text-white/90" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  1 Feb - 2 Feb
+                </span>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    if (activeInfoTooltip === key) {
+                      setActiveInfoTooltip(null);
+                    } else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const tooltipWidth = 200;
+                      const left = Math.min(rect.left, window.innerWidth - tooltipWidth - 16);
+                      setTooltipPos({ top: rect.bottom + 8, left: Math.max(16, left) });
+                      setActiveInfoTooltip(key);
+                    }
+                  }}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -391,7 +534,7 @@ const CartPage = () => {
     <MobileShell className="bg-black text-white">
 
       {/* Main scrollable area */}
-      <main className="flex-1 overflow-y-auto pb-56 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-56 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">
 
         {/* ─── HEADER: Gradient Glow + Title ─── */}
         <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-4 pt-4 pb-3 md:px-5 md:pt-6 md:pb-4">
@@ -461,9 +604,9 @@ const CartPage = () => {
             </Link>
           </div>
         ) : (
-          <div className="lg:flex lg:gap-12 lg:items-start lg:mt-6 w-full flex-1">
+          <div className="lg:flex lg:gap-8 lg:items-start lg:mt-6 w-full flex-1 min-w-0">
             {/* Left Column */}
-            <div className="lg:w-2/3 lg:pr-4">
+            <div className="lg:flex-1 min-w-0">
             {/* ─── RENTAL ITEMS ─── */}
             <section className="px-5 lg:px-0 space-y-4">
               <AnimatePresence>
@@ -476,42 +619,16 @@ const CartPage = () => {
 
             {/* ─── ADD-ONS ─── */}
             {addOnProducts.length > 0 && (
-              <section className="px-5 lg:px-0 mt-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <Plus className="w-4 h-4 text-[#f2546d]" />
-                  <h2 className="text-base font-black text-white uppercase tracking-widest" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Add-Ons
-                  </h2>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {addOnProducts.map((product: any) => (
-                    <motion.div
-                      key={product.id}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => addToCart(product.id, 'One Size', '1d')}
-                      className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer"
-                    >
-                      <div className="aspect-square bg-zinc-900 overflow-hidden">
-                        {product.images?.[0] && (
-                          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div className="p-2.5">
-                        <p className="text-xs font-semibold text-white truncate">{product.name}</p>
-                        <p className="text-xs text-[#f2546d] font-black mt-0.5">₹{product.rental_price || product.rental_price_1d}</p>
-                      </div>
-                      <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
-                        <Plus className="w-3.5 h-3.5 text-white" />
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </section>
+              <AddOnsCarousel
+                addOnProducts={addOnProducts}
+                primaryRentalDays={primaryRentalDays}
+                addToCart={addToCart}
+              />
             )}
             </div>
 
             {/* Right Column */}
-            <div className="lg:w-1/3 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
+            <div className="lg:w-[340px] lg:flex-shrink-0 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
             {/* ─── COUPON SECTION ─── */}
             <section className="px-5 lg:px-0">
               <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -672,6 +789,30 @@ const CartPage = () => {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+      {/* ─── INFO TOOLTIP (global, always in-bounds) ─── */}
+      {activeInfoTooltip && (() => {
+        const entry = validCartEntries.find(([k]) => k === activeInfoTooltip);
+        const days = entry ? planDays(entry[1].plan) : 1;
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setActiveInfoTooltip(null)} />
+            <div
+              className="fixed z-50 w-[200px] bg-[#2a2a2e] border border-white/10 rounded-xl px-3 py-2.5 shadow-xl"
+              style={{ top: tooltipPos.top, left: tooltipPos.left }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[11px] text-white/80 leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  <span className="text-white font-bold">{days} {days === 1 ? 'day' : 'days'}</span> will be counted from the time your order is delivered.
+                </p>
+                <button onClick={() => setActiveInfoTooltip(null)} className="text-white/30 hover:text-white/60 flex-shrink-0 mt-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
       <CheckoutBlockedModal open={checkoutBlocked} onClose={() => setCheckoutBlocked(false)} />
       <CitySelectorModal open={citySelectorOpen} onClose={() => setCitySelectorOpen(false)} />

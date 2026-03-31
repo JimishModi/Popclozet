@@ -209,7 +209,7 @@ export const ProfilePage: React.FC = () => {
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-900">About PopClozet</p>
+                                    <p className="text-sm font-medium text-gray-900">About popclozet</p>
                                     <p className="text-xs text-gray-500">Learn more about us</p>
                                 </div>
                             </div>

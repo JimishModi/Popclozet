@@ -104,7 +104,7 @@ const TermsPage: React.FC = () => {
                         Email: businessrep@popclozet.in
                     </p>
                     <p className="text-zinc-700 text-[10px]">
-                        © 2026 PopClozet. All rights reserved.
+                        © 2026 Popclozet. All rights reserved.
                     </p>
                 </div>
             </main>

@@ -8,6 +8,7 @@ export interface MapLocationState {
     location: { lat: number; lng: number } | null;
     address: ValidatedAddress | null;
     isLoading: boolean;
+    accuracy: number | null;
     error: string | null;
     permissionState: 'prompt' | 'granted' | 'denied' | 'unavailable';
 }
@@ -17,6 +18,7 @@ export function useMapLocation() {
         location: null,
         address: null,
         isLoading: false,
+        accuracy: null,
         error: null,
         permissionState: 'prompt',
     });
@@ -45,7 +47,7 @@ export function useMapLocation() {
         }
     }, []);
 
-    // Request current location with Fast-First strategy
+    // Request current location with Settling Strategy (watches until accuracy improves)
     const requestLocation = useCallback(async () => {
         if (!navigator.geolocation) {
             setState((prev) => ({
@@ -56,93 +58,94 @@ export function useMapLocation() {
             return;
         }
 
-        setState((prev) => ({ ...prev, isLoading: true, error: null }));
+        setState((prev) => ({ ...prev, isLoading: true, error: null, address: null, location: null }));
 
-        // Phase 1: FAST (Low Accuracy) - Instant via Wifi/Cell
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                const location = { lat: latitude, lng: longitude };
+        let bestLocation: { lat: number, lng: number, accuracy: number } | null = null;
+        let watchId: number | null = null;
+        let settlingTimeout: any = null;
 
-                // Set initial fast location immediately
-                setState((prev) => ({
-                    ...prev,
-                    location,
-                    permissionState: 'granted'
+        const finalize = (finalLoc: { lat: number, lng: number }) => {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (settlingTimeout) clearTimeout(settlingTimeout);
+            
+            // final reverse geocode
+            reverseGeocode(finalLoc.lat, finalLoc.lng)
+                .then(finalAddress => {
+                    setState(prev => ({
+                        ...prev,
+                        location: finalLoc,
+                        address: finalAddress,
+                        isLoading: false,
+                        permissionState: 'granted'
+                    }));
+                })
+                .catch(() => {
+                    setState(prev => ({
+                        ...prev,
+                        location: finalLoc,
+                        isLoading: false,
+                        permissionState: 'granted'
+                    }));
+                });
+            
+            // Also persist
+            localStorage.setItem(
+                'user_location',
+                JSON.stringify({ ...finalLoc, allowed: true })
+            );
+        };
+
+        // Timeout fallback: after 20s, take whatever we have
+        settlingTimeout = setTimeout(() => {
+            console.log('[useMapLocation] Settling timeout reached — finalizing with best fix');
+            if (bestLocation) {
+                finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
+            } else {
+                setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Location request timed out' }));
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            }
+        }, 20000);
+
+        // Start watching for the best fix
+        watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy } = pos.coords;
+                console.log(`[useMapLocation] Fix received: Accuracy ${accuracy.toFixed(1)}m`);
+
+                const newLoc = { lat: latitude, lng: longitude, accuracy };
+
+                // Update state immediately so UI/marker moves even while settling
+                setState(prev => ({ 
+                    ...prev, 
+                    location: { lat: latitude, lng: longitude }, 
+                    accuracy,
+                    permissionState: 'granted' 
                 }));
 
-                // Try to get address for first fix
-                try {
-                    const address = await reverseGeocode(latitude, longitude);
-                    setState((prev) => ({ ...prev, address }));
-                } catch (e) { }
-
-                // Phase 2: ACCURATE (High Accuracy) - Background GPS fix
-                navigator.geolocation.getCurrentPosition(
-                    async (highPos) => {
-                        const hLat = highPos.coords.latitude;
-                        const hLng = highPos.coords.longitude;
-                        const hLocation = { lat: hLat, lng: hLng };
-
-                        // Store in localStorage (the accurate one)
-                        localStorage.setItem(
-                            'user_location',
-                            JSON.stringify({ ...hLocation, allowed: true })
-                        );
-
-                        try {
-                            const hAddress = await reverseGeocode(hLat, hLng);
-                            setState({
-                                location: hLocation,
-                                address: hAddress,
-                                isLoading: false,
-                                error: null,
-                                permissionState: 'granted',
-                            });
-                        } catch {
-                            setState((prev) => ({
-                                ...prev,
-                                location: hLocation,
-                                isLoading: false,
-                                permissionState: 'granted',
-                            }));
-                        }
-                    },
-                    (err) => {
-                        // High accuracy failed, but we have the fast one, so just stop loading
-                        setState((prev) => ({ ...prev, isLoading: false }));
-                    },
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-                );
-            },
-            (error) => {
-                // Initial fast request failed
-                let errorMessage: string;
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMessage = 'Location permission denied';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMessage = 'Location unavailable';
-                        break;
-                    case error.TIMEOUT:
-                        errorMessage = 'Location request timed out';
-                        break;
-                    default:
-                        errorMessage = 'Failed to get location';
+                // Keep track of best fix
+                if (!bestLocation || accuracy < bestLocation.accuracy) {
+                    bestLocation = newLoc;
+                    
+                    // Optional: Update address occasionally if it's early or accuracy is great
+                    if (accuracy < 15) {
+                        console.log('[useMapLocation] High accuracy fix found (<15m) — finalizing early');
+                        finalize({ lat: latitude, lng: longitude });
+                    }
                 }
-
-                setState((prev) => ({
-                    ...prev,
-                    isLoading: false,
-                    error: errorMessage,
-                    permissionState: error.code === error.PERMISSION_DENIED ? 'denied' : prev.permissionState,
-                }));
+            },
+            (err) => {
+                console.warn('[useMapLocation] Watch failed during settling:', err.message);
+                if (bestLocation) {
+                    finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
+                } else {
+                    setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Could not get location' }));
+                    if (settlingTimeout) clearTimeout(settlingTimeout);
+                }
             },
             {
-                enableHighAccuracy: false, // FAST
-                timeout: 5000,
-                maximumAge: 300000, // Reuse last 5 min cache if available
+                enableHighAccuracy: true,
+                timeout: 20000,
+                maximumAge: 0
             }
         );
     }, []);
@@ -174,13 +177,29 @@ export function useMapLocation() {
     // Set location manually (from map click or search)
     const setLocation = useCallback(async (lat: number, lng: number) => {
         const location = { lat, lng };
-        setState((prev) => ({ ...prev, location, isLoading: true }));
+        setState((prev) => ({ ...prev, location, address: null, isLoading: true }));
 
         try {
-            const address = await reverseGeocode(lat, lng);
+            let address = await reverseGeocode(lat, lng);
+            if (!address) {
+                address = {
+                    lat,
+                    lng,
+                    formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                    city: '',
+                    pincode: '',
+                };
+            }
             setState((prev) => ({ ...prev, address, isLoading: false }));
         } catch {
-            setState((prev) => ({ ...prev, isLoading: false }));
+            const fallbackAddress = {
+                lat,
+                lng,
+                formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                city: '',
+                pincode: '',
+            };
+            setState((prev) => ({ ...prev, address: fallbackAddress, isLoading: false }));
         }
     }, []);
 
@@ -201,6 +220,12 @@ export function useMapLocation() {
         );
     }, []);
 
+    // Set location coordinates only — no reverse geocode, no address change.
+    // Use this when updating coords for hub queries without polluting the GPS address.
+    const setLocationCoords = useCallback((lat: number, lng: number) => {
+        setState((prev) => ({ ...prev, location: { lat, lng }, address: null }));
+    }, []);
+
     // Clear location
     const clearLocation = useCallback(() => {
         localStorage.removeItem('user_location');
@@ -208,6 +233,7 @@ export function useMapLocation() {
             location: null,
             address: null,
             isLoading: false,
+            accuracy: null,
             error: null,
             permissionState: state.permissionState,
         });
@@ -242,6 +268,7 @@ export function useMapLocation() {
         watchPosition,
         setLocation,
         setLocationWithAddress,
+        setLocationCoords,
         clearLocation,
         isAvailable: state.permissionState !== 'unavailable',
         canRequest: state.permissionState === 'prompt' || state.permissionState === 'granted',

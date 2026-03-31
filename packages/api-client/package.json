@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@popclozet/domain-contracts": "workspace:*",
-    "@popclozet/mapbox-core": "workspace:*",
+    "@popclozet/map-core": "workspace:*",
     "@supabase/supabase-js": "^2.49.1",
     "react": "18.2.0",
     "react-dom": "18.2.0"

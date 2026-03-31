@@ -325,7 +325,7 @@ class ProductService {
 
                 if (gender) {
                     const dbGender = gender === 'mens' ? 'men' : 'women';
-                    query = query.eq('gender', dbGender);
+                    query = query.in('gender', [dbGender, 'unisex']);
                 }
 
                 const { data, error } = await query;
@@ -381,7 +381,7 @@ class ProductService {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*)')
-                    .eq('gender', dbGender)
+                    .in('gender', [dbGender, 'unisex'])
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
@@ -391,12 +391,14 @@ class ProductService {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
                 const products = await db.getAllFromIndex('products', 'by-gender', gender);
-                return products.filter(product => this.isOfflineVisible(product));
+                const unisexProducts = await db.getAllFromIndex('products', 'by-gender', 'unisex');
+                return [...products, ...unisexProducts].filter(product => this.isOfflineVisible(product));
             }
         } else {
             const db = await this.initDB();
             const products = await db.getAllFromIndex('products', 'by-gender', gender);
-            return products.filter(product => this.isOfflineVisible(product));
+            const unisexProducts = await db.getAllFromIndex('products', 'by-gender', 'unisex');
+            return [...products, ...unisexProducts].filter(product => this.isOfflineVisible(product));
         }
     }
 
@@ -433,7 +435,7 @@ class ProductService {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*)')
-                    .eq('gender', gender)
+                    .in('gender', [gender, 'unisex'])
                     .eq('event_category', event)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -444,12 +446,14 @@ class ProductService {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
                 const products = await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
-                return products.filter(product => this.isOfflineVisible(product));
+                const unisexProducts = await db.getAllFromIndex('products', 'by-gender-event', ['unisex', event]);
+                return [...products, ...unisexProducts].filter(product => this.isOfflineVisible(product));
             }
         } else {
             const db = await this.initDB();
             const products = await db.getAllFromIndex('products', 'by-gender-event', [gender, event]);
-            return products.filter(product => this.isOfflineVisible(product));
+            const unisexProducts = await db.getAllFromIndex('products', 'by-gender-event', ['unisex', event]);
+            return [...products, ...unisexProducts].filter(product => this.isOfflineVisible(product));
         }
     }
 
@@ -506,7 +510,7 @@ class ProductService {
 
                 if (filters?.gender) {
                     const dbGender = filters.gender === 'mens' ? 'men' : 'women';
-                    supabaseQuery = supabaseQuery.eq('gender', dbGender);
+                    supabaseQuery = supabaseQuery.in('gender', [dbGender, 'unisex']);
                 }
 
                 if (filters?.event) {
@@ -545,7 +549,7 @@ class ProductService {
                 product.brand?.toLowerCase().includes(lowerQuery) ||
                 product.description?.toLowerCase().includes(lowerQuery);
 
-            const matchesGender = !filters?.gender || product.gender === filters.gender;
+            const matchesGender = !filters?.gender || product.gender === filters.gender || product.gender === 'unisex';
             const matchesEvent = !filters?.event || product.eventCategory === filters.event;
             const matchesBrand = !filters?.brand || product.brand === filters.brand;
 

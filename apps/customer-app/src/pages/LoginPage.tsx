@@ -6,29 +6,68 @@ import { loadAndInitMsg91, sendOtp } from '@/services/msg91OtpService';
 import logoImage from '@/logo/logo.png';
 import { Loader2, ChevronRight, Phone } from 'lucide-react';
 
-function BackgroundGrid() {
-  const cols = 7;
-  const rows = 10;
-  const tiles = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      tiles.push(
-        <div
-          key={`${r}-${c}`}
-          style={{
-            width: '100%',
-            aspectRatio: '1 / 1.2',
-            borderRadius: '10px',
-            background: '#2a2a2a',
-            border: '1px solid rgba(242,84,109,0.12)',
-          }}
-        />
-      );
-    }
-  }
+import imgCasuals from '@/moodboards/casuals.jpg';
+import imgCocktail from '@/moodboards/cocktail.jpg';
+import imgFormal from '@/moodboards/formal.jpg';
+import imgParty from '@/moodboards/party.jpg';
+import imgStreetwear from '@/moodboards/streetwear.jpg';
+import imgVacation from '@/moodboards/vacation.jpg';
+import imgBusiness from '@/assets/hero-business.png';
+import imgWedding from '@/assets/hero-wedding.png';
+import imgHeroParty from '@/assets/hero-party.png';
+import imgHeroVacation from '@/assets/hero-vacation.png';
+import imgTrendy from '@/assets/trendy-outfits.webp';
+import imgStoryChoice from '@/assets/story-choice.png';
+
+const columns = [
+  [imgCasuals, imgCocktail, imgFormal, imgParty, imgStreetwear, imgVacation],
+  [imgBusiness, imgWedding, imgHeroParty, imgHeroVacation, imgTrendy, imgStoryChoice],
+  [imgParty, imgFormal, imgVacation, imgCasuals, imgCocktail, imgStreetwear],
+  [imgHeroVacation, imgTrendy, imgBusiness, imgStoryChoice, imgWedding, imgHeroParty],
+];
+
+function ScrollingPhotoGrid() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '6px', padding: '8px', width: '100%', height: '100%' }}>
-      {tiles}
+    <div className="absolute inset-0 flex gap-1.5 px-1.5 overflow-hidden">
+      {columns.map((imgs, colIdx) => {
+        const isUp = colIdx % 2 === 0;
+        const durations = ['28s', '32s', '26s', '34s'];
+        return (
+          <div key={colIdx} className="flex-1 overflow-hidden relative">
+            <div
+              className="flex flex-col gap-1.5"
+              style={{
+                animation: `${isUp ? 'scrollUp' : 'scrollDown'} ${durations[colIdx]} linear infinite`,
+              }}
+            >
+              {[...imgs, ...imgs].map((src, i) => (
+                <div
+                  key={i}
+                  className="w-full rounded-lg overflow-hidden flex-shrink-0"
+                  style={{ aspectRatio: '3 / 4' }}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="eager"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <style>{`
+        @keyframes scrollUp {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+        @keyframes scrollDown {
+          0% { transform: translateY(-50%); }
+          100% { transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -42,7 +81,7 @@ export default function LoginPage() {
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) navigate('/home');
+    if (!authLoading && user) navigate('/home', { replace: true });
   }, [user, authLoading, navigate]);
 
   const handlePhoneLogin = useCallback(async () => {
@@ -74,20 +113,23 @@ export default function LoginPage() {
   return (
     <MobileShell className="bg-[#1a1a1a] text-white" hideBottomNav hideGlow>
       <div className="flex flex-col min-h-screen">
-        <div className="relative h-[40vh] overflow-hidden">
+        <div className="relative h-[45vh] overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <img src={logoImage} alt="PopClozet" className="h-12 mix-blend-screen" />
+            <img src={logoImage} alt="Popclozet" className="h-14 drop-shadow-2xl" style={{ filter: 'drop-shadow(0 0 20px rgba(242,84,109,0.4))' }} />
           </div>
-          <div className="absolute inset-0 z-10 overflow-hidden opacity-40">
-            <BackgroundGrid />
+          <div className="absolute inset-0 z-10 overflow-hidden opacity-50">
+            <ScrollingPhotoGrid />
           </div>
-          <div className="absolute inset-x-0 bottom-0 h-40 pointer-events-none z-10" style={{ background: 'linear-gradient(0deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)' }} />
+          <div className="absolute inset-0 pointer-events-none z-10" style={{ background: 'radial-gradient(ellipse at center 40%, transparent 0%, rgba(26,26,26,0.6) 70%)' }} />
+          <div className="absolute inset-x-0 bottom-0 h-48 pointer-events-none z-10" style={{ background: 'linear-gradient(0deg, #1a1a1a 0%, rgba(26,26,26,0.8) 50%, rgba(26,26,26,0) 100%)' }} />
+          <div className="absolute inset-x-0 top-0 h-20 pointer-events-none z-10" style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, rgba(26,26,26,0) 100%)' }} />
         </div>
 
         <div className="relative z-30 px-6 flex-1 flex flex-col justify-end pb-12">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">Welcome</h1>
-            <p className="text-zinc-400">Sign in to start your closet journey</p>
+            <p className="text-sm font-medium text-[#f2546d] tracking-widest uppercase mb-2">Welcome to</p>
+            <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-white to-zinc-300 bg-clip-text text-transparent">Popclozet</h1>
+            <p className="text-zinc-400 text-[15px]">Rent stunning outfits for every occasion</p>
           </div>
 
           <div className="space-y-4">

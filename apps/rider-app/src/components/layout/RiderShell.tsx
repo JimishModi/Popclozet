@@ -18,10 +18,10 @@ export const RiderShell: React.FC<RiderShellProps> = ({
 }) => {
     return (
         <div className="min-h-screen bg-black flex justify-center">
-            {/* Mobile container */}
+            {/* Responsive container — mobile-first, scales up on tablets */}
             <div
                 className={clsx(
-                    "w-full max-w-[430px] min-h-screen relative",
+                    "w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] min-h-screen relative",
                     "bg-[#0a0a0a]", // Dark theme background
                     "shadow-2xl shadow-black/50",
                     className

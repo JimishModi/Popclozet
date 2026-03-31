@@ -32,7 +32,7 @@ If you have a favicon.ico in `/public/`, you can:
 
 ### Option 3: Create Manually
 Design a square icon (512x512px) with:
-- PopClozet branding
+- popclozet branding
 - Indigo/purple gradient background (#6366f1)
 - Simple, recognizable symbol (hanger, "P", or clothing item)
 - Padding around edges for maskable icons

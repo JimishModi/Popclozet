@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@popclozet/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,7 +13,11 @@ import {
     PackageCheck,
     KeyRound,
     X,
+    Clock,
+    AlertTriangle,
+    Zap,
 } from 'lucide-react';
+import { supabase } from '@popclozet/api-client';
 import { clsx } from 'clsx';
 
 import { useToast } from '../contexts/ToastContext';
@@ -24,6 +28,7 @@ import {
     receiveReturnAtWarehouse,
 } from '../services/fulfillmentService';
 import { sendUnitToWash, returnUnitFromWash } from '../services/washService';
+import { flagUnitAsDamaged } from '../services/productProfileService';
 
 type ReturnRequestRow = any;
 
@@ -46,6 +51,46 @@ export function ReturnsPage() {
     const [otpModalOrderId, setOtpModalOrderId] = useState<string | null>(null);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
+    const [otpExpiresAt, setOtpExpiresAt] = useState<Date | null>(null);
+    const [otpSecondsLeft, setOtpSecondsLeft] = useState<number | null>(null);
+    const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [damageModal, setDamageModal] = useState<{ individualId: string; productName: string } | null>(null);
+    const [damageNotes, setDamageNotes] = useState('');
+
+    // Fetch OTP expiry and start countdown whenever the modal opens
+    useEffect(() => {
+        if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+        setOtpExpiresAt(null);
+        setOtpSecondsLeft(null);
+
+        if (!otpModalOrderId) return;
+
+        supabase
+            .from('orders')
+            .select('warehouse_otp_expires_at')
+            .eq('id', otpModalOrderId)
+            .single()
+            .then(({ data }) => {
+                if (!data?.warehouse_otp_expires_at) return;
+                const exp = new Date(data.warehouse_otp_expires_at);
+                setOtpExpiresAt(exp);
+
+                const tick = () => {
+                    const secs = Math.floor((exp.getTime() - Date.now()) / 1000);
+                    setOtpSecondsLeft(secs);
+                    if (secs <= 0 && otpTimerRef.current) {
+                        clearInterval(otpTimerRef.current);
+                        otpTimerRef.current = null;
+                    }
+                };
+                tick();
+                otpTimerRef.current = setInterval(tick, 1000);
+            });
+
+        return () => {
+            if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+        };
+    }, [otpModalOrderId]);
 
     const loadData = useCallback(async () => {
         try {
@@ -134,6 +179,24 @@ export function ReturnsPage() {
         }
     };
 
+    const handleFlagDamaged = async () => {
+        if (!user?.id || !damageModal) return;
+        const actionKey = `unit:${damageModal.individualId}`;
+        setProcessingKey(actionKey);
+        try {
+            await flagUnitAsDamaged(damageModal.individualId, damageNotes, user.id);
+            showToast(`Unit ${damageModal.individualId} flagged as damaged`, 'info');
+            setDamageModal(null);
+            setDamageNotes('');
+            await loadData();
+        } catch (error: any) {
+            console.error('flagUnitAsDamaged failed:', error);
+            showToast(error?.message || 'Failed to flag unit as damaged', 'error');
+        } finally {
+            setProcessingKey(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="px-4 py-5 space-y-4">
@@ -182,9 +245,21 @@ export function ReturnsPage() {
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div>
-                                            <p className="text-xs text-zinc-500">
-                                                Order #{order?.id?.slice(0, 8)}
-                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-zinc-500">
+                                                    Order #{order?.id?.slice(0, 8)}
+                                                </p>
+                                                {request.reason === 'pre_scheduled' && (
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 uppercase tracking-wider">
+                                                        Pre-scheduled
+                                                    </span>
+                                                )}
+                                                {request.reason === 'immediate' && (
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 uppercase tracking-wider flex items-center gap-0.5">
+                                                        <Zap size={8} /> Immediate
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-sm font-medium text-zinc-100 mt-1">
                                                 ₹{order?.total_amount ?? 0} • {order?.order_items?.length ?? 0} item{(order?.order_items?.length ?? 0) === 1 ? '' : 's'}
                                             </p>
@@ -194,6 +269,11 @@ export function ReturnsPage() {
                                             <p className="text-xs text-zinc-500 mt-1">
                                                 Slot: {request.pickup_slot ? new Date(request.pickup_slot).toLocaleString() : 'Not set'}
                                             </p>
+                                            {request.reason === 'pre_scheduled' && request.status === 'approved' && (
+                                                <p className="text-[10px] text-purple-400/80 mt-1">
+                                                    Auto-dispatch 60 min before pickup
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="text-right">
@@ -257,6 +337,7 @@ export function ReturnsPage() {
                                                     const unitStatus = unit?.status || 'unknown';
                                                     const unitActionBusy = processingKey === `unit:${item.individual_id}`;
                                                     const canWash = order?.status === 'returned' && ['rented', 'washing'].includes(unitStatus);
+                                                    const canFlagDamaged = order?.status === 'returned' && !['damaged', 'archived'].includes(unitStatus);
 
                                                     return (
                                                         <div
@@ -274,6 +355,11 @@ export function ReturnsPage() {
                                                                     <p className="text-xs text-zinc-500 mt-1">
                                                                         Size: {item.size || unit?.inventory?.size || 'N/A'}
                                                                     </p>
+                                                                    {unitStatus === 'damaged' && unit?.damage_notes && (
+                                                                        <p className="text-xs text-red-400/80 mt-1 italic">
+                                                                            "{unit.damage_notes}"
+                                                                        </p>
+                                                                    )}
                                                                 </div>
 
                                                                 <div className="text-right">
@@ -282,22 +368,43 @@ export function ReturnsPage() {
                                                                         unitStatus === 'available' && 'bg-emerald-500/15 text-emerald-400',
                                                                         unitStatus === 'washing' && 'bg-cyan-500/15 text-cyan-400',
                                                                         unitStatus === 'rented' && 'bg-amber-500/15 text-amber-400',
-                                                                        !['available', 'washing', 'rented'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
+                                                                        unitStatus === 'damaged' && 'bg-red-500/15 text-red-400',
+                                                                        !['available', 'washing', 'rented', 'damaged'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
                                                                     )}>
-                                                                        {unitStatus}
+                                                                        {unitStatus === 'damaged' && '⚠ '}{unitStatus}
                                                                     </span>
                                                                 </div>
                                                             </div>
 
-                                                            {canWash && (
-                                                                <button
-                                                                    disabled={unitActionBusy}
-                                                                    onClick={() => handleUnitAction(item.individual_id, unitStatus)}
-                                                                    className="mt-3 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition-all disabled:opacity-60"
-                                                                >
-                                                                    {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
-                                                                    {unitStatus === 'washing' ? 'Mark Available Again' : 'Send To Wash'}
-                                                                </button>
+                                                            {(canWash || canFlagDamaged) && (
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    {canWash && (
+                                                                        <button
+                                                                            disabled={unitActionBusy}
+                                                                            onClick={() => handleUnitAction(item.individual_id, unitStatus)}
+                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition-all disabled:opacity-60"
+                                                                        >
+                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
+                                                                            {unitStatus === 'washing' ? 'Mark Available Again' : 'Send To Wash'}
+                                                                        </button>
+                                                                    )}
+                                                                    {canFlagDamaged && (
+                                                                        <button
+                                                                            disabled={unitActionBusy}
+                                                                            onClick={() => {
+                                                                                setDamageNotes('');
+                                                                                setDamageModal({
+                                                                                    individualId: item.individual_id,
+                                                                                    productName: item.product?.name || item.individual_id,
+                                                                                });
+                                                                            }}
+                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-60"
+                                                                        >
+                                                                            <AlertTriangle size={12} />
+                                                                            Flag as Damaged
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </div>
                                                     );
@@ -333,7 +440,7 @@ export function ReturnsPage() {
                                 Verify Return OTP
                             </h3>
                             <button
-                                onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); } }}
+                                onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); setOtpExpiresAt(null); setOtpSecondsLeft(null); } }}
                                 disabled={otpVerifying}
                                 className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
                             >
@@ -344,6 +451,24 @@ export function ReturnsPage() {
                             <p className="text-sm text-zinc-400">
                                 Enter the 6-digit OTP shown on the rider's screen to confirm receipt of the return.
                             </p>
+                            {otpExpiresAt && (
+                                <div className={clsx(
+                                    'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg',
+                                    otpSecondsLeft !== null && otpSecondsLeft <= 0
+                                        ? 'bg-red-500/15 text-red-400'
+                                        : otpSecondsLeft !== null && otpSecondsLeft <= 60
+                                        ? 'bg-amber-500/15 text-amber-400'
+                                        : 'bg-zinc-800 text-zinc-400'
+                                )}>
+                                    <Clock size={12} />
+                                    {otpSecondsLeft !== null && otpSecondsLeft <= 0
+                                        ? 'OTP expired — ask rider to regenerate'
+                                        : otpSecondsLeft !== null
+                                        ? `Expires in ${Math.floor(otpSecondsLeft / 60)}m ${otpSecondsLeft % 60}s`
+                                        : `Expires at ${otpExpiresAt.toLocaleTimeString()}`
+                                    }
+                                </div>
+                            )}
                             <input
                                 type="text"
                                 inputMode="numeric"
@@ -357,7 +482,7 @@ export function ReturnsPage() {
                             />
                             <button
                                 onClick={() => handleReceive(otpModalOrderId)}
-                                disabled={otpValue.length !== 6 || otpVerifying}
+                                disabled={otpValue.length !== 6 || otpVerifying || (otpSecondsLeft !== null && otpSecondsLeft <= 0)}
                                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
                             >
                                 {otpVerifying ? (
@@ -366,6 +491,74 @@ export function ReturnsPage() {
                                     'Verify & Receive'
                                 )}
                             </button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Damage Flag Modal */}
+        <AnimatePresence>
+            {damageModal && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                >
+                    <motion.div
+                        initial={{ scale: 0.95, y: 20 }}
+                        animate={{ scale: 1, y: 0 }}
+                        exit={{ scale: 0.95, y: 20 }}
+                        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                            <h3 className="font-semibold text-white flex items-center gap-2">
+                                <AlertTriangle size={18} className="text-red-400" />
+                                Flag Unit as Damaged
+                            </h3>
+                            <button
+                                onClick={() => { setDamageModal(null); setDamageNotes(''); }}
+                                className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <p className="text-sm text-zinc-400">Unit: <span className="text-white font-medium">{damageModal.individualId}</span></p>
+                                <p className="text-sm text-zinc-400 mt-0.5">Item: <span className="text-white font-medium">{damageModal.productName}</span></p>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                                    Damage Description <span className="text-zinc-600 font-normal normal-case">(optional)</span>
+                                </label>
+                                <textarea
+                                    value={damageNotes}
+                                    onChange={(e) => setDamageNotes(e.target.value)}
+                                    placeholder="e.g. Torn seam, stain on back panel, broken zipper..."
+                                    rows={3}
+                                    className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-800 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all resize-none"
+                                />
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => { setDamageModal(null); setDamageNotes(''); }}
+                                    className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleFlagDamaged}
+                                    disabled={processingKey === `unit:${damageModal.individualId}`}
+                                    className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {processingKey === `unit:${damageModal.individualId}`
+                                        ? <><RefreshCw size={14} className="animate-spin" /> Saving...</>
+                                        : <><AlertTriangle size={14} /> Confirm Damage</>
+                                    }
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 </motion.div>

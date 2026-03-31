@@ -11,8 +11,11 @@ import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
 import { WarehouseShell } from './components/layout/WarehouseShell';
 import { BottomNavigation } from './components/BottomNavigation';
+import { GlobalOrderListener } from './components/GlobalOrderListener';
+import { MapProvider } from './contexts/MapContext';
 
 // Pages
+import { InstallPrompt } from './components/InstallPrompt';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { InventoryPage } from './pages/InventoryPage';
@@ -24,6 +27,9 @@ import { ProductIntakePage } from './pages/ProductIntakePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { ActivePickupsPage } from './pages/ActivePickupsPage';
+import { OrderHistoryPage } from './pages/OrderHistoryPage';
+import { LiveMapPage } from './pages/LiveMapPage';
+import { ProductProfilePage } from './pages/ProductProfilePage';
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -55,13 +61,16 @@ function App() {
     }
 
     return (
-        <Routes>
+        <MapProvider>
+            <InstallPrompt />
+            <Routes>
             {/* Full-screen overlay routes — rendered outside shell so they cover bottom nav */}
             <Route path="/track/:orderId" element={<OrderTrackingPage />} />
 
             {/* Standard Dashboard Routes wrapped in Shell */}
             <Route path="*" element={
                 <WarehouseShell>
+                    <GlobalOrderListener />
                     <main className="flex-1 overflow-y-auto">
                         <Routes>
                             <Route path="/" element={<DashboardPage />} />
@@ -72,6 +81,9 @@ function App() {
                             <Route path="/dispatch" element={<DispatchPage />} />
                             <Route path="/intake" element={<ProductIntakePage />} />
                             <Route path="/active-pickups" element={<ActivePickupsPage />} />
+                            <Route path="/order-history" element={<OrderHistoryPage />} />
+                            <Route path="/live-map" element={<LiveMapPage />} />
+                            <Route path="/product/:productId" element={<ProductProfilePage />} />
                             <Route path="/settings" element={<SettingsPage />} />
                             <Route path="/login" element={<LoginPage />} />
                             <Route path="*" element={<Navigate to="/" replace />} />
@@ -81,6 +93,7 @@ function App() {
                 </WarehouseShell>
             } />
         </Routes>
+        </MapProvider>
     );
 }
 

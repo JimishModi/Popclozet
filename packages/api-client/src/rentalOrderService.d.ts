@@ -5,7 +5,7 @@
  * Customer order → Rider delivery → Rental timer → Automatic pickup
  */
 import type { Order, OrderStatus, Address } from '@popclozet/domain-contracts';
-import { isWithinServiceArea } from '@popclozet/mapbox-core';
+import { isWithinServiceArea } from '@popclozet/map-core';
 export interface RentalOrder extends Order {
     orderType: 'delivery' | 'pickup';
     warehouseLocation: {

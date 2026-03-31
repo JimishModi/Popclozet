@@ -1,7 +1,7 @@
 // src/pages/MapLocationPage.tsx
 // Full-screen interactive map for address selection and hub discovery
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Check, Navigation } from 'lucide-react';
@@ -15,9 +15,10 @@ import { useNearbyHubs } from '@/hooks/useNearbyHubs';
 import { useAuth } from '@/hooks/useAuth';
 import { locationStorage } from '@/lib/locationStorage';
 import { supabase } from '@popclozet/api-client';
-import { saveAddressLocally, ValidatedAddress, getAddressDetail } from '@/services/addressService';
+import { ValidatedAddress, getAddressDetail } from '@/services/addressService';
 import { fetchPlaceDetails } from '@/services/mapplsService';
 import { geocodeAddress } from '@/services/mapServices';
+import { geocodeWithMappls } from '@/services/mapplsGeocode';
 import { HubWithDistance } from '@/services/hubService';
 
 type ViewMode = 'search' | 'hubs';
@@ -30,7 +31,20 @@ export default function MapLocationPage() {
     const returnTo = searchParams.get('returnTo') || '/home';
 
     const [viewMode, setViewMode] = useState<ViewMode>('search');
-    const [selectedAddress, setSelectedAddress] = useState<ValidatedAddress | null>(null);
+    // Restore last confirmed address on mount so it survives reload
+    const [selectedAddress, setSelectedAddress] = useState<ValidatedAddress | null>(() => {
+        try {
+            const saved = localStorage.getItem('confirmed_delivery_address');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.lat && parsed.lng && parsed.formattedAddress) {
+                    console.log('[MapLocation] Restored confirmed address from localStorage:', parsed.formattedAddress);
+                    return parsed as ValidatedAddress;
+                }
+            }
+        } catch { /* ignore */ }
+        return null;
+    });
     const [showHubSheet, setShowHubSheet] = useState(false);
     const [detailedHub, setDetailedHub] = useState<HubWithDistance | null>(null);
     const [resolvingAddress, setResolvingAddress] = useState(false);
@@ -40,10 +54,11 @@ export default function MapLocationPage() {
         location,
         address,
         isLoading: locationLoading,
+        accuracy: locationAccuracy,
         requestLocation,
         setLocation,
-        setLocationWithAddress,
-        permissionState,
+        setLocationCoords,
+        permissionState
     } = useMapLocation();
 
     const {
@@ -58,25 +73,76 @@ export default function MapLocationPage() {
         enabled: !!location,
     });
 
-    // Initially sync selected address from current location, but don't yank it back if user manually selected something
-    useEffect(() => {
-        if (address && !selectedAddress) {
-            setSelectedAddress(address);
+    // Stable map center — updates only when selectedAddress or location actually change.
+    // This avoids creating new object references on every render that confuse InteractiveMap.
+    const mapCenter = useMemo(() => {
+        if (selectedAddress && selectedAddress.lat && selectedAddress.lng &&
+            (Math.abs(selectedAddress.lat) > 0.01 || Math.abs(selectedAddress.lng) > 0.01)) {
+            console.log('[MapLocation] mapCenter from selectedAddress:', selectedAddress.lat, selectedAddress.lng);
+            return { lat: selectedAddress.lat, lng: selectedAddress.lng };
         }
-    }, [address, selectedAddress]);
+        if (location) {
+            console.log('[MapLocation] mapCenter from GPS location:', location.lat, location.lng);
+            return { lat: location.lat, lng: location.lng };
+        }
+        console.log('[MapLocation] mapCenter fallback to Mumbai default');
+        return { lat: 19.076, lng: 72.8777 };
+    }, [selectedAddress?.lat, selectedAddress?.lng, location?.lat, location?.lng]);
+
+    // useGps: when true, the hook's GPS address syncs into selectedAddress automatically.
+    // true = user wants GPS location (initial load with no saved addr, or "Use Current Location")
+    // false = user picked a specific address from search/map click
+    const [useGps, setUseGps] = useState(!selectedAddress);
+
+    // Sync location (GPS or Manual Click) -> selectedAddress.
+    // Watches BOTH `address` (reverse-geocoded) and `location` (raw coords).
+    useEffect(() => {
+        if (address) {
+            // If the address coordinates match our current selection, update it.
+            // This is crucial for replacing the "Locating address..." placeholder after a map click.
+            const isMatch = selectedAddress && 
+                Math.abs(selectedAddress.lat - address.lat) < 0.001 && 
+                Math.abs(selectedAddress.lng - address.lng) < 0.001;
+
+            const isLocating = selectedAddress?.formattedAddress === "📍 Locating address...";
+
+            if (isMatch || useGps || isLocating) {
+                console.log('[MapLocation] Address sync:', address.formattedAddress);
+                // Keep the exact user-clicked pin coordinates, just absorb the resolved address components
+                setSelectedAddress({
+                    ...address,
+                    lat: selectedAddress?.lat ?? address.lat,
+                    lng: selectedAddress?.lng ?? address.lng
+                });
+            }
+        } else if (location && useGps) {
+            // In GPS mode, if address is pending, show raw coords as fallback
+            setSelectedAddress({
+                lat: location.lat,
+                lng: location.lng,
+                formattedAddress: `📍 ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+                city: '',
+                pincode: '',
+            });
+        }
+    }, [useGps, address, location?.lat, location?.lng]);
 
     const handleAddressSelect = async (addr: ValidatedAddress) => {
+        console.log('[MapLocation] handleAddressSelect called with:', JSON.stringify({ lat: addr.lat, lng: addr.lng, eLoc: addr.eLoc, formattedAddress: addr.formattedAddress }));
+
         // Check if address already has valid coordinates (non-zero)
         const hasValidCoords = (a: ValidatedAddress) =>
             typeof a.lat === 'number' && typeof a.lng === 'number' &&
             (Math.abs(a.lat) > 0.01 || Math.abs(a.lng) > 0.01) &&
             !isNaN(a.lat) && !isNaN(a.lng);
 
-        // If the address already has valid coordinates, use them directly
-        if (hasValidCoords(addr)) {
-            console.log('[MapLocation] Address has valid coords, using directly:', addr.lat, addr.lng);
+        // If the address lacks an eLoc but has valid coordinates, use them directly
+        // (If it has an eLoc, we ALWAYS resolve it because AutoSuggest coords are imprecise)
+        if (hasValidCoords(addr) && !addr.eLoc) {
+            console.log('[MapLocation] Address has valid coords and no eLoc, using directly:', addr.lat, addr.lng);
+            setUseGps(false); // stop GPS sync — user picked a specific address
             setSelectedAddress(addr);
-            setLocationWithAddress(addr.lat, addr.lng, addr);
+            setLocationCoords(addr.lat, addr.lng); // update hook coords for hub query only
             setViewMode('search');
             return;
         }
@@ -91,7 +157,23 @@ export default function MapLocationPage() {
         let resolved = false;
 
         try {
-            // Strategy 1: Mappls eLoc → Place Details (most accurate — uses place ID)
+            // Strategy 1: Backend proxy eLoc → coordinates (most reliable — uses server-side REST key)
+            if (addr.eLoc && !resolved) {
+                try {
+                    const detail = await getAddressDetail(addr.eLoc);
+                    if (detail && detail.lat && detail.lng &&
+                        (Math.abs(detail.lat) > 0.01 || Math.abs(detail.lng) > 0.01)) {
+                        resolvedLat = detail.lat;
+                        resolvedLng = detail.lng;
+                        resolved = true;
+                        console.log('[MapLocation] ✓ Strategy 1 — backend eLoc detail:', resolvedLat, resolvedLng);
+                    }
+                } catch (e) {
+                    console.warn('[MapLocation] Strategy 1 failed (backend eLoc detail):', e);
+                }
+            }
+
+            // Strategy 2: Mappls eLoc → Place Details (client-side — needs VITE_MAPPLS_REST_KEY)
             if (addr.eLoc && !resolved) {
                 try {
                     const placeDetails = await fetchPlaceDetails(addr.eLoc);
@@ -99,42 +181,47 @@ export default function MapLocationPage() {
                         resolvedLat = placeDetails.latitude;
                         resolvedLng = placeDetails.longitude;
                         resolved = true;
-                        console.log('[MapLocation] ✓ Strategy 1 — Mappls eLoc:', resolvedLat, resolvedLng);
+                        console.log('[MapLocation] ✓ Strategy 2 — Mappls client eLoc:', resolvedLat, resolvedLng);
                     }
                 } catch (e) {
-                    console.warn('[MapLocation] Strategy 1 failed (Mappls eLoc):', e);
+                    console.warn('[MapLocation] Strategy 2 failed (Mappls client eLoc):', e);
                 }
             }
 
-            // Strategy 2: MapMyIndia text geocoding (accurate for Indian addresses)
+            // Strategy 3: Backend text geocoding (searches again by address text — may hit Nominatim)
             if (!resolved && addr.formattedAddress) {
                 try {
                     const geoResult = await geocodeAddress(addr.formattedAddress);
-                    if (geoResult.status === 'success' && geoResult.lat && geoResult.lng) {
+                    if (geoResult.status === 'success' && geoResult.lat && geoResult.lng &&
+                        (Math.abs(geoResult.lat) > 0.01 || Math.abs(geoResult.lng) > 0.01)) {
                         resolvedLat = geoResult.lat;
                         resolvedLng = geoResult.lng;
                         resolved = true;
-                        console.log('[MapLocation] ✓ Strategy 2 — MapMyIndia geocode:', resolvedLat, resolvedLng);
+                        console.log('[MapLocation] ✓ Strategy 3 — text geocode:', resolvedLat, resolvedLng);
                     }
                 } catch (e) {
-                    console.warn('[MapLocation] Strategy 2 failed (MapMyIndia geocode):', e);
+                    console.warn('[MapLocation] Strategy 3 failed (text geocode):', e);
                 }
             }
 
-            // Strategy 3: Backend proxy (if running)
-            if (addr.eLoc && !resolved) {
+            // Strategy 4: Mappls forward geocode (reliable client-side — uses the same token as the map)
+            if (!resolved && addr.formattedAddress) {
                 try {
-                    const detail = await getAddressDetail(addr.eLoc);
-                    if (detail && detail.lat && detail.lng) {
-                        resolvedLat = detail.lat;
-                        resolvedLng = detail.lng;
+                    const mapplsResult = await geocodeWithMappls(addr.formattedAddress);
+                    if (mapplsResult && mapplsResult.lat && mapplsResult.lng &&
+                        (Math.abs(mapplsResult.lat) > 0.01 || Math.abs(mapplsResult.lng) > 0.01)) {
+                        resolvedLat = mapplsResult.lat;
+                        resolvedLng = mapplsResult.lng;
                         resolved = true;
-                        console.log('[MapLocation] ✓ Strategy 3 — backend proxy:', resolvedLat, resolvedLng);
+                        console.log('[MapLocation] ✓ Strategy 4 — Mappls geocode:', resolvedLat, resolvedLng);
                     }
                 } catch (e) {
-                    console.warn('[MapLocation] Strategy 3 failed (backend proxy):', e);
+                    console.warn('[MapLocation] Strategy 4 failed (Mappls geocode):', e);
                 }
             }
+
+            // Strategy 5 & 6 (Nominatim) removed: direct frontend calls triggered CORS errors.
+            // Support is now fully handled securely and efficiently by Strategy 3 (backend proxy)!
 
         } finally {
             setResolvingAddress(false);
@@ -143,14 +230,20 @@ export default function MapLocationPage() {
         if (resolved && resolvedLat && resolvedLng) {
             // Resolution succeeded — update map and address
             const resolvedAddr = { ...addr, lat: resolvedLat, lng: resolvedLng };
+            setUseGps(false); // stop GPS sync — user picked a specific address
             setSelectedAddress(resolvedAddr);
-            setLocationWithAddress(resolvedLat, resolvedLng, resolvedAddr);
+            setLocationCoords(resolvedLat, resolvedLng); // update hook coords for hub query only
             console.log('[MapLocation] ✓ Address resolved successfully — marker will move to:', resolvedLat, resolvedLng);
+        } else if (hasValidCoords(addr)) {
+            // ALL precise strategies failed, BUT the AutoSuggest entry itself had rough coordinates.
+            // Rather than NOT moving the map at all, use these rough coordinates.
+            console.warn('[MapLocation] ⚠ Precise resolution failed, falling back to rough AutoSuggest coordinates for:', addr.formattedAddress);
+            setUseGps(false);
+            setSelectedAddress(addr);
+            setLocationCoords(addr.lat, addr.lng);
         } else {
-            // ALL strategies failed — do NOT overwrite selectedAddress with zero coords.
-            // Keep the old selectedAddress (and thus the old marker position).
-            // Just update the display text so the user sees what they selected.
-            console.error('[MapLocation] ✗ All resolution strategies failed for:', addr.formattedAddress);
+            // ALL strategies failed AND we have no fallback coordinates.
+            console.error('[MapLocation] ✗ All resolution strategies and fallbacks failed for:', addr.formattedAddress);
             console.error('[MapLocation] Keeping previous marker position to prevent vanishing');
 
             // Set the address text but preserve the OLD coordinates (marker stays put)
@@ -159,7 +252,6 @@ export default function MapLocationPage() {
                     // Keep old coords, just update the display text
                     return { ...prev, formattedAddress: addr.formattedAddress, full_address: addr.formattedAddress };
                 }
-                // If there was no previous valid address, use what we have (will fall back to GPS in InteractiveMap)
                 return addr;
             });
         }
@@ -168,23 +260,50 @@ export default function MapLocationPage() {
     };
 
     const handleMapClick = (pos: { lat: number; lng: number }) => {
+        console.log('[MapLocation] Map clicked at:', pos.lat, pos.lng);
+        setUseGps(false); // user manually picked a point
+        
+        // Trigger reverse geocoding in the hook
         setLocation(pos.lat, pos.lng);
-        // Create a basic address object from clicked position
-        // This will trigger the address to be displayed and route simulation to work
-        if (!selectedAddress || selectedAddress.lat !== pos.lat || selectedAddress.lng !== pos.lng) {
-            // Reverse geocode or create a basic address
-            const clickedAddress: ValidatedAddress = {
-                lat: pos.lat,
-                lng: pos.lng,
-                formattedAddress: `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`,
-                city: '',
-                pincode: '',
-            };
-            setSelectedAddress(clickedAddress);
-        }
+        
+        // Show temporary placeholder instead of raw numbers
+        setSelectedAddress({
+            lat: pos.lat,
+            lng: pos.lng,
+            formattedAddress: "📍 Locating address...",
+            city: '',
+            pincode: '',
+        });
     };
 
     const handleLocateMe = () => {
+        console.log('[MapLocation] Use Current Location clicked, permissionState:', permissionState);
+        // Switch to GPS mode — the sync effect will update selectedAddress when GPS arrives
+        setUseGps(true);
+        localStorage.removeItem('confirmed_delivery_address');
+
+        // Show best available data immediately for instant feedback:
+        // 1. If we have a reverse-geocoded GPS address, use it
+        // 2. If we only have raw GPS coords, create a basic address from them
+        // 3. If nothing, keep the existing selectedAddress (don't clear it — prevents marker vanishing)
+        if (address) {
+            console.log('[MapLocation] Using existing GPS address:', address.formattedAddress);
+            setSelectedAddress(address);
+        } else if (location) {
+            console.log('[MapLocation] Using existing GPS coords:', location.lat, location.lng);
+            setSelectedAddress({
+                lat: location.lat,
+                lng: location.lng,
+                formattedAddress: `📍 ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+                city: '',
+                pincode: '',
+            });
+        } else {
+            console.log('[MapLocation] No GPS data yet — keeping current marker while GPS acquires');
+            // Do NOT set selectedAddress to null — keeps the existing marker visible
+        }
+
+        // Request fresh GPS fix — the sync effect updates selectedAddress when coords/address arrive
         requestLocation();
     };
 
@@ -200,6 +319,11 @@ export default function MapLocationPage() {
 
     const handleConfirm = async () => {
         if (selectedAddress) {
+            // 0. Persist the confirmed address so it survives page reload
+            try {
+                localStorage.setItem('confirmed_delivery_address', JSON.stringify(selectedAddress));
+            } catch { /* ignore */ }
+
             // 1. Save address locally for "Recent Addresses"
             const { saveAddressLocally } = await import("@/services/addressService");
             saveAddressLocally({ ...selectedAddress, label: 'Delivery Address' });
@@ -317,7 +441,8 @@ export default function MapLocationPage() {
         }
     };
 
-    const canConfirm = selectedAddress && (!hubs.length || selectedHubId);
+    const isAddressLocating = selectedAddress?.formattedAddress === "📍 Locating address..." || resolvingAddress;
+    const canConfirm = selectedAddress && !isAddressLocating && (!hubs.length || selectedHubId);
 
     return (
         <div className="bg-black text-white min-h-screen">
@@ -369,12 +494,7 @@ export default function MapLocationPage() {
             {/* Map */}
             <div className="relative h-[450px] mx-4 rounded-2xl overflow-hidden border border-zinc-800">
                 <InteractiveMap
-                    center={
-                        // Only use selectedAddress as center if it has valid coordinates
-                        selectedAddress && selectedAddress.lat && selectedAddress.lng
-                            ? { lat: selectedAddress.lat, lng: selectedAddress.lng }
-                            : (location || { lat: 19.076, lng: 72.8777 })
-                    }
+                    center={mapCenter}
                     zoom={selectedAddress || location ? 14 : 11}
                     darkMode={true}
                     userLocation={
@@ -400,6 +520,27 @@ export default function MapLocationPage() {
                     </div>
                 )}
 
+                {/* GPS Settling Overlay */}
+                {locationLoading && !resolvingAddress && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                        <motion.div 
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-700 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md"
+                        >
+                            <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-medium text-blue-400 tracking-wide uppercase">Refining GPS Location...</span>
+                                {locationAccuracy && (
+                                    <span className="text-[8px] text-zinc-500 font-mono">
+                                        Accuracy: ±{locationAccuracy.toFixed(1)}m
+                                    </span>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
                 {/* GPS Button on map */}
                 {permissionState !== 'unavailable' && (
                     <button
@@ -422,10 +563,19 @@ export default function MapLocationPage() {
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800"
+                    className={`mx-4 mt-4 p-4 rounded-2xl bg-zinc-900 border transition-all duration-300 ${
+                        isAddressLocating ? 'border-zinc-700 animate-pulse' : 'border-zinc-800'
+                    }`}
                 >
                     <p className="text-xs text-zinc-400 mb-1">Delivery Address</p>
-                    <p className="text-sm text-white">{selectedAddress.formattedAddress}</p>
+                    <div className="flex items-center gap-2">
+                        {isAddressLocating && (
+                            <div className="w-3 h-3 border-2 border-[#f2546d]/50 border-t-[#f2546d] rounded-full animate-spin" />
+                        )}
+                        <p className={`text-sm ${isAddressLocating ? 'text-zinc-400 italic' : 'text-white'}`}>
+                            {selectedAddress.formattedAddress}
+                        </p>
+                    </div>
                 </motion.div>
             )}
 

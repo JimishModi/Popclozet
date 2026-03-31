@@ -21,7 +21,7 @@ export default function LandingPage() {
 
   const handleContinue = useCallback(() => navigate("/auth/login"), [navigate]);
   const handleStartBrowsing = useCallback(() => {
-    navigate("/home");
+    navigate("/home", { replace: true });
   }, [navigate]);
 
   // Auto-advance every 4 seconds
@@ -70,7 +70,7 @@ function SlideHeader() {
       >
         WELCOME TO
       </p>
-      <img src={logoImage} alt="PopClozet" className="h-10 mx-auto mix-blend-screen" />
+      <img src={logoImage} alt="Popclozet" className="h-10 mx-auto mix-blend-screen" />
     </div>
   );
 }

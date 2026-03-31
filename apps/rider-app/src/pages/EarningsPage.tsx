@@ -53,7 +53,8 @@ export function EarningsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a]">
+        <div className="min-h-screen bg-black flex justify-center">
+        <div className="w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] min-h-screen bg-[#0a0a0a]">
             {/* Header */}
             <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-zinc-800/50">
                 <div className="flex items-center gap-4 px-4 h-16">
@@ -120,7 +121,7 @@ export function EarningsPage() {
                 </motion.div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
                         <p className="text-xs text-zinc-500 mb-1">Avg per Order</p>
                         <p className="text-2xl font-bold text-white">
@@ -198,6 +199,7 @@ export function EarningsPage() {
                     )}
                 </section>
             </main>
+        </div>
         </div>
     );
 }

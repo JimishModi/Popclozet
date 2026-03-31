@@ -28,9 +28,9 @@ export default function Footer() {
         {/* Top: brand + newsletter */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
           <div className="flex items-center gap-4">
-            <a href="/" aria-label="PopClozet home" className="flex items-center gap-3">
-              <img src={logo} alt="PopClozet logo" className="w-10 h-10 rounded-full object-contain" />
-              <span className="font-bold text-lg text-foreground">PopClozet</span>
+            <a href="/" aria-label="popclozet home" className="flex items-center gap-3">
+              <img src={logo} alt="popclozet logo" className="w-10 h-10 rounded-full object-contain" />
+              <span className="font-bold text-lg text-foreground">popclozet</span>
             </a>
 
             <div className="hidden sm:block text-sm text-muted-foreground">
@@ -90,7 +90,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-border pt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} PopClozet. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} popclozet. All rights reserved.</p>
 
           <div className="flex items-center gap-4">
             <a href="/terms" className="text-sm text-muted-foreground hover:text-primary">Terms</a>

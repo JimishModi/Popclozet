@@ -7,6 +7,8 @@ import { useNavigate } from "react-router-dom";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
 import { useCart } from "@/context/CartContext";
 import { productService } from "@/services/productService";
+import type { GenderType } from "@/components/ui/GenderSelector";
+import { GenderSelector } from "@/components/ui/GenderSelector";
 
 /* ── Line-art SVG icons matching Figma ── */
 
@@ -78,6 +80,38 @@ const AccessoriesIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const WristStacksIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 80 80" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Top bracelet */}
+    <ellipse cx="40" cy="26" rx="22" ry="8" />
+    <ellipse cx="40" cy="26" rx="16" ry="5" strokeDasharray="3 2" />
+    {/* Middle bracelet */}
+    <ellipse cx="40" cy="40" rx="24" ry="9" />
+    <ellipse cx="40" cy="40" rx="18" ry="6" strokeDasharray="3 2" />
+    {/* Bottom bracelet */}
+    <ellipse cx="40" cy="54" rx="22" ry="8" />
+    <ellipse cx="40" cy="54" rx="16" ry="5" strokeDasharray="3 2" />
+  </svg>
+);
+
+const BeltsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 80 80" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Belt strap */}
+    <path d="M8 36h64v8H8z" rx="2" />
+    {/* Buckle frame */}
+    <rect x="16" y="30" width="16" height="20" rx="3" />
+    {/* Buckle prong */}
+    <line x1="24" y1="30" x2="30" y2="44" />
+    {/* Belt holes */}
+    <circle cx="44" cy="40" r="2" fill="currentColor" />
+    <circle cx="52" cy="40" r="2" fill="currentColor" />
+    <circle cx="60" cy="40" r="2" fill="currentColor" />
+    {/* Stitching lines */}
+    <line x1="34" y1="38" x2="68" y2="38" strokeDasharray="2 3" strokeWidth="0.8" />
+    <line x1="34" y1="42" x2="68" y2="42" strokeDasharray="2 3" strokeWidth="0.8" />
+  </svg>
+);
+
 /* ── Icon map for known categories ── */
 type IconComponent = ({ className }: { className?: string }) => React.JSX.Element;
 
@@ -88,6 +122,11 @@ const ICON_MAP: Record<string, IconComponent> = {
   jacket: JacketIcon,
   accessories: AccessoriesIcon,
   accessory: AccessoriesIcon,
+  "wrist stacks": WristStacksIcon,
+  wriststacks: WristStacksIcon,
+  bracelets: WristStacksIcon,
+  belts: BeltsIcon,
+  belt: BeltsIcon,
 };
 
 const FallbackIcon = ({ className }: { className?: string }) => (
@@ -141,29 +180,12 @@ const CollectionsPage = () => {
         </div>
 
         {/* ── Gender Toggle ── */}
-        <div className="flex items-center gap-1 w-fit">
-          <button
-            onClick={() => setActiveGender("womens")}
-            className={cn(
-              "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "womens"
-                ? "bg-[#f2546d] text-white"
-                : "bg-[#1C1C1E] text-zinc-500"
-            )}
-          >
-            WOMEN
-          </button>
-          <button
-            onClick={() => setActiveGender("mens")}
-            className={cn(
-              "px-5 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all",
-              activeGender === "mens"
-                ? "bg-[#f2546d] text-white"
-                : "bg-[#1C1C1E] text-zinc-500"
-            )}
-          >
-            MEN
-          </button>
+        <div className="w-full max-w-[280px] mt-3">
+          <GenderSelector 
+            value={activeGender as GenderType} 
+            onChange={(g) => setActiveGender(g)} 
+            variant="simple"
+          />
         </div>
       </div>
 

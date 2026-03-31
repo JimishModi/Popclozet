@@ -1,9 +1,7 @@
 /**
  * Warehouse Navigation Page
  *
- * Bug 4 fix: handleVerifyOtp now transitions to 'arrived' (not 'dispatched')
- *   and does NOT navigate away. The rider must still physically confirm pickup
- *   and dispatch before proceeding to delivery.
+ * Refactored to use global LocationContext for persistent GPS tracking.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,9 +9,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl } from '@popclozet/mapbox-core';
-import { Button } from '@/components/Button';
+import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl, fetchMapplsRoute } from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
+import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     markOrderPickedUp,
@@ -54,9 +52,9 @@ const STEP_ORDER: PickupStep[] = [
 ];
 
 const STEP_CONFIG: Record<PickupStep, { badge: string; badgeColor: string; icon: React.ElementType }> = {
-    navigating: { badge: 'Navigate to Warehouse', badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/30', icon: Navigation },
-    arrived: { badge: 'Arrived at Warehouse', badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30', icon: MapPin },
-    picked_up: { badge: 'Package Collected — Ready to Deliver', badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', icon: Truck },
+    navigating: { badge: 'Navigate to Warehouse', badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: Navigation },
+    arrived: { badge: 'Arrived at Warehouse', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: MapPin },
+    picked_up: { badge: 'Ready to Deliver', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: Truck },
 };
 
 function statusToStep(status: string): PickupStep {
@@ -95,10 +93,11 @@ export const WarehouseNavigationPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { user, profile } = useAuth();
     const { showToast } = useToast();
+    const { location: globalLocation } = useLocation();
     const navigate = useNavigate();
 
     const mapRef = useRef<HTMLDivElement>(null);
-    const mapInstance = useRef<mapboxgl.Map | null>(null);
+    const mapInstance = useRef<any>(null);
 
     const [order, setOrder] = useState<WarehouseOrder | null>(null);
     const [loading, setLoading] = useState(true);
@@ -111,6 +110,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
+    
     // Persist returnOtp in sessionStorage so a page reload doesn't lose the warehouse OTP
     const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
     const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
@@ -127,9 +127,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [isCancelling, setIsCancelling] = useState(false);
 
     // GPS broadcast refs (background — no re-render)
-    const gpsWatchRef       = useRef<number | null>(null);
     const gpsBroadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-    const latestGpsPos      = useRef<GeolocationPosition | null>(null);
     const lastBroadcastPos  = useRef<{ lat: number; lng: number } | null>(null);
 
     const showToastRef = useRef(showToast);
@@ -146,9 +144,7 @@ export const WarehouseNavigationPage: React.FC = () => {
         [order?.status],
     );
 
-    // ── useMemo for step config (MUST be before early returns per React rules) ──
-
-    const stepIndex = useMemo(() => STEP_ORDER.indexOf(step), [step]);
+    // ── useMemo for step config ──
 
     const currentStepCfg = useMemo(() => {
         if (!isReturnFlow) return STEP_CONFIG[step];
@@ -210,52 +206,37 @@ export const WarehouseNavigationPage: React.FC = () => {
         return () => { cancelled = true; };
     }, [id]);
 
-    // ── GPS ────────────────────────────────────────────────────────────────────
-
-    const startNavigation = useCallback(() => {
-        if (!navigator.geolocation) { showToast('GPS not supported', 'error'); return; }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => setRiderLocation([pos.coords.longitude, pos.coords.latitude]),
-            () => showToast('Failed to get location', 'error'),
-            { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
-        );
-    }, [showToast]);
+    // ── Sync global location to local state ──────────────────────────────────────
 
     useEffect(() => {
-        startNavigation();
-    }, [startNavigation]);
+        if (globalLocation) {
+            const coords: [number, number] = [globalLocation.longitude, globalLocation.latitude];
+            setRiderLocation(coords);
+        }
+    }, [globalLocation]);
 
     // ── GPS background broadcast → warehouse app can see rider approaching ─────
 
     useEffect(() => {
-        if (!user?.id || !order) return;
+        if (!user?.id || !order || !globalLocation) return;
         const activeStatuses = ['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'];
         if (!activeStatuses.includes(order.status)) return;
-        if (!navigator.geolocation) return;
-
-        gpsWatchRef.current = navigator.geolocation.watchPosition(
-            (pos) => { latestGpsPos.current = pos; },
-            () => {},
-            { enableHighAccuracy: true, timeout: 10_000, maximumAge: 3_000 }
-        );
 
         gpsBroadcastTimer.current = setInterval(() => {
-            const pos = latestGpsPos.current;
-            if (!pos || !user?.id) return;
-            const curr = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            if (!user?.id || !globalLocation) return;
+            const curr = { lat: globalLocation.latitude, lng: globalLocation.longitude };
             const last = lastBroadcastPos.current;
             if (last && haversineMetres(last, curr) < GPS_MOVE_THRESHOLD_M) return;
             lastBroadcastPos.current = curr;
-            updateRiderLocation(user.id, curr.lat, curr.lng, pos.coords.heading ?? undefined, pos.coords.speed ?? undefined);
+            updateRiderLocation(user.id, curr.lat, curr.lng, globalLocation.heading ?? undefined, globalLocation.speed ?? undefined);
         }, GPS_BROADCAST_INTERVAL_MS);
 
         return () => {
-            if (gpsWatchRef.current !== null) { navigator.geolocation.clearWatch(gpsWatchRef.current); gpsWatchRef.current = null; }
             if (gpsBroadcastTimer.current) { clearInterval(gpsBroadcastTimer.current); gpsBroadcastTimer.current = null; }
         };
-    }, [user?.id, order?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user?.id, order?.status, globalLocation]);
 
-    // ── Open in Google Maps (destination = warehouse) ──────────────────────────
+    // ── Open in Google Maps ────────────────────────────────────────────────────
 
     const handleOpenGoogleMaps = useCallback(() => {
         const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(WAREHOUSE_ADDRESS)}&travelmode=driving`;
@@ -266,82 +247,80 @@ export const WarehouseNavigationPage: React.FC = () => {
 
     useEffect(() => {
         if (!riderLocation || !mapRef.current) return;
-        if (!isMapboxAvailable() || !import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) return;
+        if (!isMapboxAvailable()) return; // checks VITE_MAPPLS_REST_KEY
         if (mapInstance.current) return;
 
-        let map: any;
-        try {
-            map = initializeMap(mapRef.current, riderLocation, 13);
-        } catch (e) {
-            console.warn('[WarehouseNav] Map init failed, retrying on clean container:', e);
-            if (mapRef.current) {
-                mapRef.current.innerHTML = '';
-            }
+        let mounted = true;
+
+        (async () => {
             try {
-                map = initializeMap(mapRef.current, riderLocation, 13);
-            } catch (e2) {
-                console.error('[WarehouseNav] Map init failed twice:', e2);
-                return;
-            }
-        }
+                const map = await initializeMap(mapRef.current!, riderLocation, 13);
 
-        mapInstance.current = map;
-        map.on('load', async () => {
-            const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
-            let routeDrawn = false;
-
-            // Fetch actual road route to warehouse via Mapbox Directions API
-            if (token && riderLocation) {
-                try {
-                    const [rLng, rLat] = riderLocation;
-                    const [wLng, wLat] = WAREHOUSE_LOCATION;
-                    const dirRes = await fetch(
-                        `https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${wLng},${wLat}?geometries=geojson&overview=full&access_token=${token}`
-                    );
-                    const dirJson = await dirRes.json();
-                    const routeCoords: number[][] = dirJson.routes?.[0]?.geometry?.coordinates;
-                    if (routeCoords?.length) {
-                        await drawRoute(map, routeCoords);
-                        routeDrawn = true;
-                    }
-                } catch (err) {
-                    console.warn('[WarehouseNav] Directions API failed:', err);
+                if (!mounted) {
+                    map.remove();
+                    return;
                 }
+                mapInstance.current = map;
+
+                const setupMap = async () => {
+                    let routeDrawn = false;
+
+                    if (riderLocation) {
+                        try {
+                            const [rLng, rLat] = riderLocation;
+                            const [wLng, wLat] = WAREHOUSE_LOCATION;
+                            const routeCoords = await fetchMapplsRoute(rLng, rLat, wLng, wLat);
+                            if (routeCoords?.length) {
+                                await drawRoute(map, routeCoords);
+                                routeDrawn = true;
+                            }
+                        } catch (err) {
+                            console.warn('[WarehouseNav] Mappls Route API failed:', err);
+                        }
+                    }
+
+                    if (!routeDrawn) {
+                        await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
+                    }
+
+                    try {
+                        const geolocate = new (mapboxgl.GeolocateControl as any)({
+                            positionOptions: { enableHighAccuracy: true },
+                            trackUserLocation: true,
+                            showUserHeading: true,
+                        });
+                        map.addControl(geolocate);
+                    } catch { /* mapboxgl shim — GeolocateControl is a no-op */ }
+
+                    setMapReady(true);
+                };
+
+                if (map.loaded && map.loaded()) {
+                    setupMap();
+                } else if (map.on) {
+                    map.on('load', setupMap);
+                }
+            } catch (e) {
+                console.error('[WarehouseNav] Map init failed:', e);
             }
+        })();
 
-            // Fallback: straight line rider → warehouse
-            if (!routeDrawn) {
-                await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
-            }
-
-            const geolocate = new mapboxgl.GeolocateControl({
-                positionOptions: { enableHighAccuracy: true },
-                trackUserLocation: true,
-                showUserHeading: true
-            });
-            map.addControl(geolocate);
-
-            setMapReady(true);
-        });
-        return () => { mapInstance.current?.remove(); mapInstance.current = null; };
-    }, [riderLocation?.[0], riderLocation?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+        return () => {
+            mounted = false;
+            mapInstance.current?.remove();
+            mapInstance.current = null;
+        };
+    }, [riderLocation?.[0], riderLocation?.[1]]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
     const handleDropOffReturn = useCallback(async () => {
-        console.log('[Rider] handleDropOffReturn called', { id, userId: user?.id, hasOrder: !!order });
-        if (!id || !user?.id || !order) {
-            console.warn('[Rider] handleDropOffReturn guard failed', { id, userId: user?.id, hasOrder: !!order });
-            return;
-        }
+        if (!id || !user?.id || !order) return;
         setActionLoading(true);
         try {
-            console.log('[Rider] Calling riderDropOffReturn RPC...');
             const result = await riderDropOffReturn(id, user.id);
-            console.log('[Rider] riderDropOffReturn result:', result);
             if (!result.success) throw new Error(result.message);
 
-            // Save the OTP to display on screen for warehouse staff
             setReturnOtp(result.otp || null);
 
             await insertNotification({
@@ -355,7 +334,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             showToast('Return dropped off! Show the OTP to warehouse staff.', 'success');
             setStep('picked_up');
         } catch (err: any) {
-            console.error('[Rider] handleDropOffReturn error:', err);
             showToast(err.message || 'Failed to drop off return', 'error');
         } finally {
             setActionLoading(false);
@@ -363,11 +341,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     }, [id, user?.id, order, showToast]);
 
     const handleConfirmArrival = useCallback(() => {
-        console.log('[Rider] handleConfirmArrival called', { id, userId: user?.id, isReturnFlow });
-        if (!id || !user?.id) {
-            console.warn('[Rider] handleConfirmArrival guard failed');
-            return;
-        }
+        if (!id || !user?.id) return;
 
         if (riderLocation) {
             const distance = calculateDistance(
@@ -381,7 +355,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         }
 
         if (isReturnFlow) {
-            console.log('[Rider] isReturnFlow=true, calling handleDropOffReturn');
             void handleDropOffReturn();
             return;
         }
@@ -404,7 +377,6 @@ export const WarehouseNavigationPage: React.FC = () => {
             setOrder(prev => prev ? { ...prev, status: 'driver_arrived_warehouse' } : prev);
             setShowOtpModal(false);
         } catch (err: any) {
-            console.error('[Rider] Failed to verify OTP:', err);
             showToast(err.message || 'Failed to verify PIN', 'error');
         } finally {
             setOtpVerifying(false);
@@ -439,27 +411,23 @@ export const WarehouseNavigationPage: React.FC = () => {
         setActionLoading(true);
 
         try {
-            // State machine: order_picked_up → dispatched → out_for_delivery
-            // Jumping directly from order_picked_up → out_for_delivery is blocked by the server.
-            // Step through dispatched first if needed.
             if (order.status === 'order_picked_up') {
                 const dispatchResult = await markAsDispatched(id, user.id);
                 if (!dispatchResult.success) throw new Error(dispatchResult.message);
             }
 
-            // If already out_for_delivery (e.g. rider re-opens page), skip transition
             if (order.status !== 'out_for_delivery') {
                 const result = await markAsOutForDelivery(id, user.id);
                 if (!result.success) throw new Error(result.message);
             }
 
             if (order?.user_id) {
-                const riderName = (profile as any)?.full_name || 'Your rider';
+                const rName = (profile as any)?.full_name || 'Your rider';
                 await supabase.from('notifications').insert({
                     user_id: order.user_id,
                     type: 'out_for_delivery',
                     title: '🚗 Your package is on the way!',
-                    body: `${riderName} has picked up your package and is heading to you. Have your delivery code ready.`,
+                    body: `${rName} has picked up your package and is heading to you. Have your delivery code ready.`,
                     order_id: id,
                     is_read: false,
                 });
@@ -534,11 +502,9 @@ export const WarehouseNavigationPage: React.FC = () => {
                         <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
                             <MapPin size={28} className="text-zinc-500" />
                         </div>
-                        <h2 className="text-lg font-bold text-white">Location Access Needed</h2>
+                        <h2 className="text-lg font-bold text-white">Getting your location...</h2>
                         <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
-                        <button onClick={startNavigation} className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm hover:bg-zinc-200">
-                            Enable Location
-                        </button>
+                        <div className="w-6 h-6 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     </div>
                 </div>
             )}
@@ -550,42 +516,50 @@ export const WarehouseNavigationPage: React.FC = () => {
             )}
 
             <motion.div
-                initial={{ y: 200 }} animate={{ y: 0 }}
+                initial={{ y: 200, opacity: 0 }} 
+                animate={{ y: 0, opacity: 1 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-6 left-4 right-4 bg-[#0f0f0f] rounded-3xl border border-zinc-800/80 shadow-2xl z-20"
+                className="absolute bottom-6 left-4 right-4 bg-zinc-900/60 backdrop-blur-2xl rounded-[32px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-20 overflow-hidden"
             >
-                <div className="px-6 pt-5 pb-2">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${currentStepCfg.badgeColor}`}>
+                {/* Glossy overlay */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                <div className="px-6 pt-6 pb-2 relative z-10">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wider ${currentStepCfg.badgeColor}`}>
                             {currentStepCfg.badge}
                         </span>
                         {order.total_amount != null && (
-                            <span className="text-[10px] text-zinc-500 ml-auto">₹{order.total_amount}</span>
+                            <span className="text-[10px] font-bold text-white/40 ml-auto tracking-widest">₹{order.total_amount}</span>
                         )}
                     </div>
                     {/* Progress Steps */}
-                    <div className="flex items-center gap-1 mb-4">
+                    <div className="flex items-center gap-1.5 mb-5">
                         {STEP_ORDER.map((s, i) => (
                             <React.Fragment key={s}>
-                                <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${STEP_ORDER.indexOf(step) >= i
-                                        ? 'bg-gradient-to-r from-blue-500 to-emerald-500'
-                                        : 'bg-zinc-800'
+                                <div className={`h-1.5 flex-1 rounded-full transition-all duration-700 ${STEP_ORDER.indexOf(step) >= i
+                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                                        : 'bg-white/5'
                                     }`} />
                             </React.Fragment>
                         ))}
                     </div>
-                    <div className="flex items-start gap-2 mb-3">
-                        <MapPin size={14} className="text-blue-400 mt-0.5 shrink-0" />
-                        <p className="text-xs text-zinc-400">{WAREHOUSE_ADDRESS}</p>
+                    <div className="flex items-start gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <MapPin size={16} className="text-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Warehouse</p>
+                            <p className="text-xs text-white font-medium line-clamp-1">{WAREHOUSE_ADDRESS}</p>
+                        </div>
                     </div>
 
                     {['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'].includes(order?.status ?? '') && (
-                        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15 w-fit">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <p className="text-[11px] text-emerald-400">Broadcasting location to warehouse</p>
+                        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10 w-fit">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Live GPS Active</p>
                         </div>
                     )}
-                    <p className="text-[10px] font-bold text-zinc-400 mb-3">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="text-[10px] font-bold text-white/20 mb-4 tracking-widest">ORDER #{order.id.slice(0, 8).toUpperCase()}</p>
                 </div>
 
                 <div className="px-6 pb-6 space-y-2.5">
@@ -593,10 +567,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                         {step === 'navigating' && isReturnFlow && (
                             <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                                 <button
-                                    onClick={() => {
-                                        console.log('[Rider] Return drop-off button clicked directly');
-                                        handleDropOffReturn();
-                                    }}
+                                    onClick={() => handleDropOffReturn()}
                                     disabled={actionLoading}
                                     className={primaryBtn('from-indigo-600 to-indigo-500')}
                                 >
@@ -636,7 +607,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 <button
                                     onClick={handleStartNavigation}
                                     disabled={actionLoading}
-                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold uppercase tracking-[0.15em] text-[11px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20"
                                 >
                                     {actionLoading ? (
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -698,15 +669,16 @@ export const WarehouseNavigationPage: React.FC = () => {
                 {showMessageModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                                <h3 className="font-semibold text-white">Send Update to Customer</h3>
-                                <button onClick={() => setShowMessageModal(false)} className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors">
+                        <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl relative">
+                            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                            <div className="flex items-center justify-between p-6 border-b border-white/5 relative z-10">
+                                <h3 className="font-bold text-white uppercase tracking-widest text-xs">Update Customer</h3>
+                                <button onClick={() => setShowMessageModal(false)} className="p-2 text-zinc-500 hover:text-white rounded-full transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
-                            <div className="p-4 space-y-3">
+                            <div className="p-6 space-y-3 relative z-10">
                                 {PREDEFINED_MESSAGES.map((msg, i) => (
                                     <button key={i} onClick={() => handleSendMessage(msg)} disabled={actionLoading}
                                         className="w-full text-left p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors text-sm text-zinc-300 disabled:opacity-50">

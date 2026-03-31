@@ -4,7 +4,8 @@ import {
     addToWishlistDB,
     removeFromWishlistDB,
     getWishlistItemsDB,
-    isInWishlistDB
+    isInWishlistDB,
+    migrateAnonymousWishlistDB
 } from '@/lib/db';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useAuth } from '@/context/SupabaseAuthContext';
@@ -28,7 +29,19 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         // Reset immediately so the previous user's data isn't visible
         setWishlistItems([]);
-        loadWishlistFromDB();
+
+        async function init() {
+            if (userId) {
+                try {
+                    await migrateAnonymousWishlistDB(userId);
+                } catch (e) {
+                    console.error("Wishlist migration failed:", e);
+                }
+            }
+            await loadWishlistFromDB();
+        }
+
+        init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 

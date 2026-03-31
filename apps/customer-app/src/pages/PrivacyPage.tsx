@@ -83,7 +83,7 @@ const PrivacyPage: React.FC = () => {
                 </div>
 
                 <p className="text-center text-xs text-zinc-700 mt-8 pb-2">
-                    © 2026 PopClozet Pvt. Ltd. All rights reserved.
+                    © 2026 Popclozet Pvt. Ltd. All rights reserved.
                 </p>
             </main>
         </MobileShell>

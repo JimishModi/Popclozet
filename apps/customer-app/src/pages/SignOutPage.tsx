@@ -34,7 +34,7 @@ const SignOutPage: React.FC = () => {
     useEffect(() => {
         if (!isSigningOut) {
             const timer = setTimeout(() => {
-                navigate("/auth/login");
+                navigate("/auth/login", { replace: true });
             }, 3000);
             return () => clearTimeout(timer);
         }
@@ -80,7 +80,7 @@ const SignOutPage: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="relative mb-8">
                                     <div className="absolute -inset-4 bg-[#f2546d]/20 blur-2xl rounded-full" />
-                                    <img src={logo} alt="PopClozet" className="h-10 w-auto mx-auto relative" />
+                                    <img src={logo} alt="Popclozet" className="h-10 w-auto mx-auto relative" />
                                 </div>
 
                                 <h2 className="text-3xl font-bold tracking-tight">Come back soon!</h2>
@@ -94,7 +94,7 @@ const SignOutPage: React.FC = () => {
 
                             <div className="space-y-3 pt-4">
                                 <button
-                                    onClick={() => navigate("/auth/login")}
+                                    onClick={() => navigate("/auth/login", { replace: true })}
                                     className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
                                     Sign In Now
@@ -104,7 +104,7 @@ const SignOutPage: React.FC = () => {
 
                             <div className="pt-8 flex items-center justify-center gap-2 text-zinc-600">
                                 <Sparkles className="w-4 h-4" />
-                                <span className="text-xs font-medium uppercase tracking-[0.2em]">PopClozet Premium</span>
+                                <span className="text-xs font-medium uppercase tracking-[0.2em]">Popclozet Premium</span>
                             </div>
                         </motion.div>
                     )}

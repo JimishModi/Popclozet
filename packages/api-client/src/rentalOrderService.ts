@@ -9,7 +9,7 @@
 // @ts-ignore - used when switching from mock to real Supabase
 import { supabase } from './index';
 import type { Order, OrderStatus, Address } from '@popclozet/domain-contracts';
-import { SERVICE_CONFIG, calculateDistance, isWithinServiceArea } from '@popclozet/mapbox-core';
+import { SERVICE_CONFIG, calculateDistance, isWithinServiceArea } from '@popclozet/map-core';
 // @ts-ignore - used when switching from mock to real Supabase
 import { config } from './config';
 
@@ -70,7 +70,7 @@ const MOCK_DELIVERY_ORDERS: RiderDeliveryOrder[] = [
         orderType: 'delivery',
         status: 'packed',
         pickupLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,
@@ -95,7 +95,7 @@ const MOCK_DELIVERY_ORDERS: RiderDeliveryOrder[] = [
         orderType: 'delivery',
         status: 'packed',
         pickupLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,
@@ -129,7 +129,7 @@ const MOCK_PICKUP_ORDERS: RiderDeliveryOrder[] = [
             lng: 72.9145,
         },
         dropoffLocation: {
-            label: 'PopClozet Warehouse',
+            label: 'popclozet Warehouse',
             address: 'Powai, Near IIT Main Gate',
             lat: SERVICE_CONFIG.warehouseLocation.lat,
             lng: SERVICE_CONFIG.warehouseLocation.lng,

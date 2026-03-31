@@ -1,5 +1,5 @@
 {
-  "name": "@popclozet/mapbox-core",
+  "name": "@popclozet/map-core",
   "version": "1.1.1",
   "private": true,
   "main": "src/index.ts",
@@ -19,7 +19,7 @@
   "dependencies": {
     "@popclozet/api-client": "workspace:*",
     "@popclozet/domain-contracts": "workspace:*",
-    "mapbox-gl": "^3.18.1",
+    "mappls-web-maps": "^3.8.0",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   }

@@ -148,7 +148,7 @@ function showProximityNotification(status: ProximityStatus, distKm: number): voi
     };
 
     if (messages[status]) {
-        new Notification('PopClozet Delivery', {
+        new Notification('Popclozet Delivery', {
             body: messages[status],
             icon: '/icons/icon-192x192.png',
         });

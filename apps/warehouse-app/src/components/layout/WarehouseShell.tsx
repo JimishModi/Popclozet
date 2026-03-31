@@ -20,10 +20,10 @@ export const WarehouseShell: React.FC<WarehouseShellProps> = ({
 
     return (
         <div className="min-h-screen bg-black flex justify-center">
-            {/* Mobile container */}
+            {/* Responsive container — mobile-first, scales up on tablets */}
             <div
                 className={clsx(
-                    "w-full max-w-[430px] min-h-screen relative",
+                    "w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] min-h-screen relative",
                     "bg-surface",
                     "shadow-2xl shadow-black/50",
                     className
@@ -38,7 +38,7 @@ export const WarehouseShell: React.FC<WarehouseShellProps> = ({
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Warehouse Admin</span>
-                                <span className="text-xs text-white font-medium truncate max-w-[120px]">
+                                <span className="text-xs text-white font-medium truncate max-w-[120px] sm:max-w-[200px]">
                                     {profile?.full_name || user?.email?.split('@')[0] || 'Admin'}
                                 </span>
                             </div>

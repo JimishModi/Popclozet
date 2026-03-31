@@ -47,7 +47,7 @@
       "path": "./packages/auth"
     },
     {
-      "path": "./packages/mapbox-core"
+      "path": "./packages/map-core"
     },
     {
       "path": "./packages/ui"

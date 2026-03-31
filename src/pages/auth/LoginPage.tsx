@@ -47,7 +47,7 @@ export const LoginPage: React.FC = () => {
                 >
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center gap-2 mb-6">
-                            <img src={logo} alt="PopClozet" className="h-10 w-auto" />
+                            <img src={logo} alt="popclozet" className="h-10 w-auto" />
                         </div>
                         <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
                         <p className="text-zinc-400">Sign in to continue your fashion journey</p>

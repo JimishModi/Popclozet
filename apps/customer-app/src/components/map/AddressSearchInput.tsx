@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, MapPin, Navigation, X, Clock } from 'lucide-react';
-import { searchAddresses, ValidatedAddress, getLocalAddresses } from '@/services/addressService';
+import { searchAddresses, ValidatedAddress, getLocalAddresses, getAddressDetail } from '@/services/addressService';
 import { cn } from '@/lib/utils';
 
 interface AddressSearchInputProps {
@@ -78,8 +78,10 @@ export function AddressSearchInput({
         }
 
         setIsLoadingInternal(true);
+        console.log('[AddressSearch] Searching for:', searchQuery);
         try {
             const results = await searchAddresses(searchQuery);
+            console.log('[AddressSearch] Got', results.length, 'results:', results.map(r => ({ addr: r.formattedAddress, lat: r.lat, lng: r.lng, eLoc: r.eLoc })));
             setSuggestions(results);
         } catch (error) {
             console.error('Search failed:', error);
@@ -106,12 +108,14 @@ export function AddressSearchInput({
         };
     }, [query, handleSearch]);
 
-    const handleSelect = (address: ValidatedAddress) => {
+    const handleSelect = async (address: ValidatedAddress) => {
+        console.log('[AddressSearch] Selected:', { formattedAddress: address.formattedAddress, lat: address.lat, lng: address.lng, eLoc: address.eLoc });
         setQuery(address.formattedAddress);
         setSuggestions([]);
         setIsFocused(false);
-        onAddressSelect(address);
         inputRef.current?.blur();
+
+        onAddressSelect(address);
     };
 
     const handleClear = () => {

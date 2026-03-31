@@ -4,17 +4,17 @@
  * Rider-specific map functionality - navigation-focused
  */
 
-import { mapboxgl } from '@popclozet/mapbox-core';
+import { mapboxgl } from '@popclozet/map-core';
 
-let riderMarker: mapboxgl.Marker | null = null;
+let riderMarker: any = null;
 
 /**
  * Add or update rider marker on map
  */
 export const addRiderMarker = (
-    map: mapboxgl.Map,
+    map: any,
     coordinates: [number, number]
-): mapboxgl.Marker => {
+): any => {
     // Remove existing marker if any
     if (riderMarker) {
         riderMarker.remove();

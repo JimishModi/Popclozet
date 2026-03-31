@@ -46,20 +46,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const mountedRef = useRef(true);
+  // Track whether onAuthStateChange has already delivered a valid session
+  const authListenerFiredRef = useRef(false);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
-  // Safety timeout
+  // Safety timeout — increased to 15s to accommodate slow networks
+  // where token refresh might take longer after app close/reopen
   useEffect(() => {
     const t = setTimeout(() => {
       if (!mountedRef.current) return;
       setLoading((prev) => {
         if (prev) {
-          console.warn('[Auth] Safety timeout (8s) reached — forcing loading=false');
+          console.warn('[Auth] Safety timeout (15s) reached — forcing loading=false');
           return false;
         }
         return prev;
       });
-    }, 8_000);
+    }, 15_000);
     return () => clearTimeout(t);
   }, []);
 
@@ -160,20 +163,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
+        console.log('[Auth] Bootstrap session status:', session ? 'Present' : 'Not found');
         if (error) console.error('[Auth] getSession error:', error);
         if (!active) return;
 
-        setSession(session);
-        setUser(session?.user ?? null);
-
         if (session?.user) {
+          // Session is valid — use it immediately
+          setSession(session);
+          setUser(session.user);
           fetchProfile(session.user.id, session.user.user_metadata);
+          setLoading(false);
         } else {
-          setProfile(null);
+          // No session from getSession. This can happen when the stored
+          // token expired while the app was closed. Instead of immediately
+          // setting user=null (which routes to login), wait briefly for
+          // onAuthStateChange to fire TOKEN_REFRESHED with a valid session.
+          console.log('[Auth] No session from getSession — waiting for auth listener to attempt token refresh...');
+          setTimeout(() => {
+            if (!active || !mountedRef.current) return;
+            // If the auth listener hasn't delivered a valid session by now,
+            // the user is genuinely logged out.
+            if (!authListenerFiredRef.current) {
+              console.log('[Auth] Auth listener did not fire — user is logged out');
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+              setLoading(false);
+            }
+          }, 3_000);
         }
       } catch (err) {
         console.error('[Auth] Bootstrap crashed:', err);
-      } finally {
         if (active) setLoading(false);
       }
     };
@@ -188,8 +208,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        authListenerFiredRef.current = true;
         fetchProfile(session.user.id, session.user.user_metadata);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        // Only clear profile on explicit sign-out, not on transient token issues
         setProfile(null);
       }
 

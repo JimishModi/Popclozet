@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const REST_KEY = process.env.MAPPLS_REST_KEY;
+  const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 
   if (REST_KEY) {
     // Try Mappls v1 REST API (uses key directly in URL — no OAuth needed)
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   try {
     const nomRes = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-      { headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.vercel.app)', 'Accept-Language': 'en' } }
+      { headers: { 'User-Agent': 'popclozet/1.0 (popclozet.vercel.app)', 'Accept-Language': 'en' } }
     );
     if (nomRes.ok) {
       const data = await nomRes.json();

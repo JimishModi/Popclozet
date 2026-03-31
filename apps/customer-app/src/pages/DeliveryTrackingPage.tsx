@@ -21,12 +21,14 @@ export default function DeliveryTrackingPage() {
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
 
+    // Warehouse location: Hostel No 2, IIT Bombay
+    const WAREHOUSE_LOCATION = { lat: 19.1315, lng: 72.9157 };
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
-    const riderLocation = tracking ? { lat: tracking.current_lat, lng: tracking.current_lng } : null;
-    const distance = userLocation && riderLocation 
-        ? calculateDistance(userLocation.lat, userLocation.lng, riderLocation.lat, riderLocation.lng)
+    // Delayed if delivery address is outside 6km radius of warehouse
+    const distance = userLocation
+        ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng)
         : null;
     const isDelayed = distance !== null ? distance > 6 : false;
 
@@ -87,7 +89,7 @@ export default function DeliveryTrackingPage() {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Track my PopClozet order',
+                    title: 'Track my Popclozet order',
                     url,
                 });
             } catch {
@@ -142,7 +144,7 @@ export default function DeliveryTrackingPage() {
                             )}
                             <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
                                 <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
-                                    {isDelayed ? "Delayed Delivery" : "Arriving in 45-60 mins"}
+                                    {isDelayed ? "Delayed Delivery" : "Arriving in 60 mins"}
                                 </span>
                             </div>
                         </div>

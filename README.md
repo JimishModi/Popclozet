@@ -1,6 +1,6 @@
-# PopClozet Customer Application
+# popclozet Customer Application
 
-Production-grade customer PWA for PopClozet rental fashion platform with Zepto-style delivery experience.
+Production-grade customer PWA for popclozet rental fashion platform with Zepto-style delivery experience.
 
 ## Authentication Flow
 
@@ -263,7 +263,7 @@ if (distance <= 100) {
 
 ## 📄 License
 
-Proprietary - PopClozet Platform
+Proprietary - popclozet Platform
 
 ## 👥 Support
 
@@ -271,4 +271,4 @@ For issues or questions, contact the development team.
 
 ---
 
-**Built with ❤️ for PopClozet**
+**Built with ❤️ for popclozet**

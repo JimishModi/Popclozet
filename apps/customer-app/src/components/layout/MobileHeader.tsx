@@ -4,6 +4,7 @@ import { Bell, ShoppingBag, MapPin } from 'lucide-react';
 import { ClosetIcon } from '@/components/icons/ClosetIcon';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
+import { useNotifications } from '@/hooks/useNotifications';
 
 import logo from '@/logo/logo.png';
 
@@ -12,12 +13,13 @@ interface MobileHeaderProps {
 }
 
 /**
- * Mobile header with PopClozet branding, location, and action icons.
+ * Mobile header with popclozet branding, location, and action icons.
  * Dark theme only - premium glassmorphism design.
  */
 export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
     const { totalItems } = useCart();
     const cartCount = typeof totalItems === 'number' ? totalItems : 0;
+    const { unreadCount } = useNotifications({ limit: 5, autoSubscribe: true });
 
     return (
         <header className={cn(
@@ -32,7 +34,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                     <Link to="/home" className="flex items-center">
                         <img
                             src={logo}
-                            alt="POPCLOZET"
+                            alt="popclozet"
                             className="h-7 w-auto object-contain mix-blend-screen"
                         />
                     </Link>
@@ -44,12 +46,18 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
 
                 {/* Action Icons - Glass Style */}
                 <div className="flex items-center gap-2">
-                    <button
-                        className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all"
+                    <Link
+                        to="/notifications"
+                        className="relative p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all"
                         aria-label="Notifications"
                     >
                         <Bell className="w-5 h-5 text-zinc-400" />
-                    </button>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold text-white bg-[#f2546d] rounded-full shadow-lg shadow-[#f2546d]/30">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
+                    </Link>
 
                     <Link
                         to="/wishlist"

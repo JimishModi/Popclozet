@@ -52,7 +52,7 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-surface-card border border-surface-border rounded-2xl shadow-2xl overflow-hidden max-w-[90%] w-[400px]"
+            className="bg-surface-card border border-surface-border rounded-2xl shadow-2xl overflow-hidden w-[90vw] max-w-[400px]"
         >
             <div className="relative h-48 bg-surface">
                 {item.inventory?.products?.images?.[0] ? (

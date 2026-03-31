@@ -6,8 +6,9 @@ import {
     ArrowLeft, User, Bell, Mail, Shield, LogOut, ChevronRight,
     MapPin, CreditCard, Clock, Ruler, Package, RefreshCw,
     HelpCircle, FileText, Trash2, Phone, Zap, AlertTriangle,
-    Check, X, ChevronLeft
+    Check, X, ChevronLeft, Loader2, Smartphone
 } from 'lucide-react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { MobileShell } from '@/components/layout/MobileShell';
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
@@ -151,6 +152,25 @@ const SettingsPage: React.FC = () => {
         return first.charAt(0).toUpperCase() + first.slice(1);
     })();
 
+    // ── Push notifications (real Web Push API) ─────────────────────────────
+    const push = usePushNotifications();
+    const handlePushToggle = async () => {
+        if (push.isLoading) return;
+        if (push.isSubscribed) {
+            await push.unsubscribe();
+        } else {
+            const success = await push.subscribe();
+            if (!success) {
+                if (push.permission === 'denied') {
+                    alert('Notifications are blocked in your browser settings. Please enable them in your browser/device settings and try again.');
+                } else {
+                    // We need to wait a tick for push.error state to update, or just use the hook
+                    setTimeout(() => alert("Failed to turn on push: " + (push.error || "Unknown error")), 100);
+                }
+            }
+        }
+    };
+
     // ── Notification toggles ──────────────────────────────────────────────
     const [pushOrders, setPushOrders] = useState(() => loadBool('s_push_orders', true));
     const [pushDelivery, setPushDelivery] = useState(() => loadBool('s_push_delivery', true));
@@ -229,6 +249,22 @@ const SettingsPage: React.FC = () => {
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
                     <SectionLabel>Notifications</SectionLabel>
                     <Card>
+                        {/* Real Web Push toggle */}
+                        <Row
+                            icon={Smartphone}
+                            label="Push Notifications"
+                            sub={!push.isSupported
+                                ? 'Not supported'
+                                : push.permission === 'denied'
+                                  ? 'Blocked — enable in browser settings'
+                                  : push.isSubscribed
+                                    ? 'Enabled on this device'
+                                    : 'Enable alerts on this device'}
+                            right={push.isLoading
+                                ? <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin" />
+                                : <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${push.isSubscribed ? 'bg-[#f2546d]' : 'bg-zinc-700'}`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-300 ${push.isSubscribed ? 'translate-x-6' : 'translate-x-1'}`} /></div>}
+                            onClick={handlePushToggle}
+                        />
                         <ToggleRow icon={Package} label="Order Status Updates" sub="Confirmed, preparing, out for delivery" value={pushOrders} onChange={toggle(setPushOrders, 's_push_orders')} />
                         <ToggleRow icon={Zap} label="Delivery Alerts" sub="Rider nearby, delivered" value={pushDelivery} onChange={toggle(setPushDelivery, 's_push_delivery')} />
                         <ToggleRow icon={RefreshCw} label="Return Reminders" sub="24h & same-day pickup alerts" value={pushReturn} onChange={toggle(setPushReturn, 's_push_return')} />
@@ -242,7 +278,7 @@ const SettingsPage: React.FC = () => {
                     <SectionLabel>Support & Legal</SectionLabel>
                     <Card>
                         <Row icon={HelpCircle} label="Help Center" sub="FAQs & contact support" onClick={() => navigate('/help')} />
-                        <Row icon={Zap} label="About PopClozet" sub="Our hygiene process & brand" onClick={() => navigate('/about-us')} />
+                        <Row icon={Zap} label="About Popclozet" sub="Our hygiene process & brand" onClick={() => navigate('/about-us')} />
                         <Row icon={Phone} label="Call Support" sub="+91 98765 43210" onClick={() => window.open('tel:+919876543210')} />
                         <Row icon={Shield} label="Privacy Policy" onClick={() => navigate('/privacy')} />
                         <Row icon={FileText} label="Terms & Conditions" onClick={() => navigate('/terms')} last />
@@ -273,7 +309,7 @@ const SettingsPage: React.FC = () => {
                     </Card>
                 </motion.div>
 
-                <p className="text-center text-xs text-zinc-700 pb-2">PopClozet v1.0.0 · Mumbai 🇮🇳</p>
+                <p className="text-center text-xs text-zinc-700 pb-2">Popclozet v1.0.0 · Mumbai 🇮🇳</p>
             </main>
 
             {/* Delete Confirmation Sheet */}

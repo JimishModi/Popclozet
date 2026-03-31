@@ -1,7 +1,7 @@
 // src/pages/CheckoutPage.tsx
 // Checkout flow — creates order and notifies rider app via Supabase
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -77,6 +77,7 @@ export default function CheckoutPage() {
   // FIX 7: Use useSearchParams instead of window.location.search
   const [searchParams] = useSearchParams();
   const buyoutOrderId = searchParams.get("buyoutOrderId");
+  const skipDelivery = searchParams.get("skipDelivery") === 'true';
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
@@ -114,6 +115,15 @@ export default function CheckoutPage() {
     }
   }, [paymentMethod]);
 
+  // Force payment to online-only when no delivery (no cash collection possible)
+  const isNoDeliveryFlow = skipDelivery || !!buyoutOrderId;
+
+  useEffect(() => {
+    if (isNoDeliveryFlow && paymentMethod === 'cod') {
+      setPaymentMethod('upi');
+    }
+  }, [isNoDeliveryFlow, paymentMethod]);
+
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -123,6 +133,10 @@ export default function CheckoutPage() {
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
+  // Track the last address TEXT we attempted geocoding on, to prevent infinite re-geocode loops.
+  // After reGeocodeAndFetch succeeds, deliveryAddress updates (triggering the effect again),
+  // but the address TEXT stays the same, so we skip re-geocoding on the second run.
+  const lastGeocodedAddressRef = useRef<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
@@ -145,6 +159,9 @@ export default function CheckoutPage() {
   const [upiId, setUpiId] = useState<string>("");
   const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
+
+  // Read return schedule from state (set by CheckoutReturnSchedulePage)
+  const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
@@ -276,18 +293,33 @@ export default function CheckoutPage() {
       if (deliveryAddress.eLoc) {
         // Preferred path: use the eLoc directly (most accurate with MapMyIndia)
         console.log("[Checkout] Using eLoc for distance:", deliveryAddress.eLoc);
+        lastGeocodedAddressRef.current = deliveryAddress.formattedAddress; // mark as handled
         fetchDistance(deliveryAddress.eLoc);
       } else if (deliveryAddress.formattedAddress) {
-        // No eLoc — ALWAYS re-geocode the address text to get fresh coords + eLoc.
-        // Stored lat/lng may be stale from a previous address save (e.g. GPS location
-        // was used as fallback when geocoding failed on the map page).
+        const addrText = deliveryAddress.formattedAddress;
+
+        // INFINITE LOOP GUARD: if we already attempted geocoding this exact address text,
+        // use the coordinates we have instead of re-geocoding forever.
+        if (lastGeocodedAddressRef.current === addrText) {
+          console.log("[Checkout] Already geocoded this address — using existing coords to avoid loop.");
+          if (hasCoords) {
+            fetchDistance(`${lng},${lat}`);
+          } else {
+            setDistanceError("Could not verify delivery address. Please re-select your address.");
+            setActualDistance(null);
+          }
+          return;
+        }
+
+        // No eLoc — re-geocode the address text to get fresh coords + eLoc.
         if (suspiciouslyCloseToWarehouse) {
           console.warn(
             `[Checkout] ⚠️  Coords (${lat},${lng}) suspiciously close to warehouse ` +
-            `(${WAREHOUSE_LOCATION.lat},${WAREHOUSE_LOCATION.lng}) — likely stale.`
+            `(${WAREHOUSE_LOCATION.lat},${WAREHOUSE_LOCATION.lng}) — may be stale, re-geocoding.`
           );
         }
-        reGeocodeAndFetch(deliveryAddress.formattedAddress, !hasCoords ? 'no coordinates stored' : 'no eLoc — re-geocoding for accuracy');
+        lastGeocodedAddressRef.current = addrText; // mark BEFORE async call to prevent re-entry
+        reGeocodeAndFetch(addrText, !hasCoords ? 'no coordinates stored' : 'no eLoc — re-geocoding for accuracy');
       } else {
         setDistanceError("Location coordinates not found");
         setActualDistance(null);
@@ -394,6 +426,21 @@ export default function CheckoutPage() {
   }) : undefined;
   const hasExpensiveItem = !!expensiveItem;
 
+  // Calculate if the cart contains any rental items
+  const hasRentals = useMemo(() => {
+    if (buyoutOrderId) return false;
+    return validCartEntries.some(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+  }, [validCartEntries, buyoutOrderId]);
+
+  // Derive rental duration for slot calculation fallback
+  const rentalDurationDays = useMemo(() => {
+    if (validCartEntries.length === 0) return 3;
+    const rentalEntry = validCartEntries.find(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+    if (!rentalEntry) return 0;
+    const plan = rentalEntry[1].plan;
+    return plan === '1d' ? 1 : plan === '2d' ? 2 : 3;
+  }, [validCartEntries]);
+
   // Removed subscription error logic
   const subscriptionError = null;
 
@@ -437,12 +484,14 @@ export default function CheckoutPage() {
   // FIX 5: Single source of truth for distance surcharge — removed as per request
   const distanceSurcharge = 0;
 
-  const deliveryFee = selectedOrderType === 'home_try_on'
-    ? 0
-    : hasFreeDeliveryBenefit
+  const deliveryFee = isNoDeliveryFlow
+    ? 0  // No delivery needed — user already has the item
+    : selectedOrderType === 'home_try_on'
       ? 0
-      : deliveryFeeBase;
-  const isDeliveryFeeWaived = selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
+      : hasFreeDeliveryBenefit
+        ? 0
+        : deliveryFeeBase;
+  const isDeliveryFeeWaived = isNoDeliveryFlow || selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
   const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
   const total = subtotal + deliveryFee + insuranceFee;
 
@@ -520,6 +569,7 @@ export default function CheckoutPage() {
         .from("addresses")
         .select("id")
         .eq("user_id", userId)
+        .eq("full_address", addrFull)
         .limit(1)
         .maybeSingle();
 
@@ -530,7 +580,7 @@ export default function CheckoutPage() {
           .from("addresses")
           .insert({
             user_id: userId,
-            label: "Delivery",
+            label: deliveryAddress?.label || "Delivery",
             full_address: addrFull,
             latitude: addrLat,
             longitude: addrLng,
@@ -541,7 +591,7 @@ export default function CheckoutPage() {
           .select("id")
           .single();
 
-        if (addrErr || !newAddr) throw new Error("Could not save delivery address");
+        if (addrErr || !newAddr) throw new Error(addrErr?.message || "Could not save delivery address");
         addressId = newAddr.id;
       }
 
@@ -557,6 +607,20 @@ export default function CheckoutPage() {
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
 
+      // Parse pre-scheduled return slot if provided
+      let returnPickupDate: string | null = null;
+      let returnTimeSlot: string | null = null;
+      if (returnSchedule?.pickupSlotIso) {
+        const slotDate = new Date(returnSchedule.pickupSlotIso);
+        // Convert to IST date string (YYYY-MM-DD)
+        returnPickupDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' })
+          .format(slotDate); // yields "YYYY-MM-DD"
+        // Format as "HH:MM AM/PM"
+        returnTimeSlot = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
+        }).format(slotDate);
+      }
+
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
@@ -570,11 +634,31 @@ export default function CheckoutPage() {
           payment_method: paymentMethod,
           delivery_fee: deliveryFee,
           route_distance_km: actualDistance || profile?.delivery_distance_km || 0,
+          ...(returnPickupDate ? { return_pickup_date: returnPickupDate } : {}),
+          ...(returnTimeSlot ? { return_time_slot: returnTimeSlot } : {}),
         })
         .select("id")
         .single();
 
       if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order record");
+
+      // NEW: Link pre-scheduled return to return_requests table for warehouse visibility
+      if (returnSchedule?.pickupSlotIso) {
+        const { error: rrErr } = await supabase
+          .from('return_requests')
+          .insert({
+            order_id: order.id,
+            status: 'approved',
+            reason: 'pre_scheduled',
+            pickup_slot: returnSchedule.pickupSlotIso,
+            pickup_address_id: addressId
+          });
+        
+        if (rrErr) {
+          console.warn('[Checkout] Failed to create return request record:', rrErr.message);
+          // Non-blocking for the main order flow, but logged for debugging
+        }
+      }
 
       const { data: realProducts } = await supabase.from('products').select('id').limit(1);
       const fallbackUuid = realProducts?.[0]?.id;
@@ -611,6 +695,21 @@ export default function CheckoutPage() {
 
       const createdOrderId = order.id;
       const createdOrderTotal = total;
+
+      // 2b) Create pre-scheduled return request if return slot was selected at checkout
+      if (returnSchedule?.pickupSlotIso && createdOrderId) {
+        const { error: returnReqErr } = await supabase.from("return_requests").insert({
+          order_id: createdOrderId,
+          reason: 'pre_scheduled',
+          pickup_address_id: addressId,
+          pickup_slot: returnSchedule.pickupSlotIso,
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        });
+        if (returnReqErr) {
+          console.warn("[Checkout] Pre-scheduled return request failed:", returnReqErr);
+        }
+      }
 
       // 3) Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
@@ -686,37 +785,109 @@ export default function CheckoutPage() {
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
           <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
 
-          <div className="flex items-center justify-between mt-9">
-            <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
-            <button onClick={() => setShowAddressSelector(true)} className="text-xs font-bold text-[#f2546d] uppercase">Change</button>
-          </div>
-          {deliveryAddress ? (
-            <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
-              <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
-              <div className="mt-3 flex items-center gap-2 relative z-10">
-                {isResolvingAddress ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
-                  </div>
-                ) : distanceLoading ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
-                  </div>
-                ) : distanceError ? (
-                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-red-900/30 border border-red-500/20">
-                    <span className="text-[10px] text-red-400 font-bold">{distanceError}</span>
-                  </div>
-                ) : null}
+          {/* Address section — hide when isNoDeliveryFlow (user already has the item) */}
+          {!isNoDeliveryFlow && (
+            <>
+              <div className="flex items-center justify-between mt-9">
+                <h3 className="text-lg font-black text-white" style={dmSans}>Address</h3>
+                <button onClick={() => setShowAddressSelector(true)} className="text-xs font-bold text-[#f2546d] uppercase">Change</button>
               </div>
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+              {deliveryAddress ? (
+                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+                  <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                  <div className="mt-3 flex items-center gap-2 relative z-10">
+                    {isResolvingAddress ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
+                      </div>
+                    ) : distanceLoading ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Checking distance...</span>
+                      </div>
+                    ) : distanceError ? (
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-red-900/30 border border-red-500/20">
+                        <span className="text-[10px] text-red-400 font-bold">{distanceError}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+                </div>
+              ) : (
+                <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
+                  + Select Address
+                </button>
+              )}
+            </>
+          )}
+          {isNoDeliveryFlow && (
+            <div className="mt-9 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-sm font-semibold text-emerald-400" style={dmSans}>✓ No delivery needed</p>
+              <p className="text-xs text-emerald-400/70 mt-1" style={dmSans}>You already have this item — keeping it permanently!</p>
             </div>
-          ) : (
-            <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
-              + Select Address
-            </button>
           )}
 
           {/* Removed Plan Access UI Block */}
+
+          {/* Scheduled Return Info */}
+          {!isNoDeliveryFlow && hasRentals && (
+            <div className="mt-9">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
+                {returnSchedule?.pickupSlotIso && (
+                  <button 
+                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                    className="text-xs font-bold text-[#f2546d] uppercase"
+                  >
+                    Change
+                  </button>
+                )}
+              </div>
+
+              {returnSchedule?.pickupSlotIso ? (() => {
+                const slotDate = new Date(returnSchedule.pickupSlotIso);
+                const dateStr = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short' }).format(slotDate);
+                const timeStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(slotDate);
+                return (
+                  <div className="p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+                    <div className="flex items-center gap-3 relative z-10">
+                      <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-[#f2546d]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white" style={dmSans}>{dateStr}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">{timeStr} • Return pickup</p>
+                      </div>
+                    </div>
+                    {deliveryAddress?.formattedAddress && (
+                      <div className="mt-4 pt-4 border-t border-white/5 relative z-10">
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
+                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
+                          {deliveryAddress.formattedAddress}
+                        </p>
+                      </div>
+                    )}
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+                  </div>
+                );
+              })() : (
+                <button 
+                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                  className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-[#f2546d] flex items-center justify-center shadow-lg shadow-[#f2546d]/20">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Choose a slot for post-rental pickup</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-[#f2546d] transition-colors" />
+                </button>
+              )}
+            </div>
+          )}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
           <button
@@ -921,26 +1092,29 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                <button
-                  onClick={() => setPaymentMethod('cod')}
-                  className={cn(
-                    "w-full p-5 rounded-2xl text-left border transition-all",
-                    paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
-                  )}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
-                      <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
+                {/* COD option — hide when no delivery needed (no delivery to collect cash at) */}
+                {!isNoDeliveryFlow && (
+                  <button
+                    onClick={() => setPaymentMethod('cod')}
+                    className={cn(
+                      "w-full p-5 rounded-2xl text-left border transition-all",
+                      paymentMethod === 'cod' ? "bg-emerald-500/10 border-emerald-500" : "bg-[#141414] border-white/5 hover:border-white/10"
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", paymentMethod === 'cod' ? "bg-emerald-500/20" : "bg-zinc-800")}>
+                        <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
+                        <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
+                      </div>
+                      <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
+                        {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
-                    </div>
-                    <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
-                      {paymentMethod === 'cod' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                )}
               </div>
 
               <button
@@ -1069,9 +1243,9 @@ export default function CheckoutPage() {
                   </div>
                   <span className="text-sm text-zinc-300 font-bold leading-snug break-words" style={dmSans}>
                     I have read and accept the{' '}
-                    <a href="/docs/Terms & condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
-                    <a href="/docs/Privacy policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
-                    <a href="/docs/Cookies policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
+                    <a href="/docs/Terms%20%26%20condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
+                    <a href="/docs/Privacy%20policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
+                    <a href="/docs/Cookies%20policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
                   </span>
                 </label>
 
@@ -1264,9 +1438,9 @@ export default function CheckoutPage() {
                   </div>
                   <span className="text-sm text-zinc-300 font-bold leading-snug break-words" style={dmSans}>
                     I have read and accept the{' '}
-                    <a href="/docs/Terms & condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
-                    <a href="/docs/Privacy policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
-                    <a href="/docs/Cookies policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
+                    <a href="/docs/Terms%20%26%20condition_popclozet.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Terms & Conditions</a>,{' '}
+                    <a href="/docs/Privacy%20policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Privacy Policy</a>, and{' '}
+                    <a href="/docs/Cookies%20policy.pdf" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#f2546d] underline underline-offset-4 pointer-events-auto">Cookie Policy</a>.
                   </span>
                 </label>
 

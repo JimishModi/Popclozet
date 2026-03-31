@@ -7,12 +7,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Navigation, Clock, MapPin, Truck, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
-import * as mapboxgl from 'mapbox-gl';
 import {
     isMapboxAvailable,
     initializeMap,
-    mapboxgl as mapboxglLib,
-} from '@popclozet/mapbox-core';
+    mapboxgl,
+} from '@popclozet/map-core';
 import { useOrderTracking } from '../hooks/useOrderTracking';
 
 const ORDER_TYPE_LABEL: Record<string, string> = {
@@ -33,63 +32,85 @@ export function OrderTrackingPage() {
     const { tracking, isLoading, isLive } = useOrderTracking(orderId);
 
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
-    const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
+    const mapRef = useRef<any>(null);
+    const riderMarkerRef = useRef<any>(null);
+    const destMarkerRef = useRef<any>(null);
 
     // Init map once we have coordinates
     useEffect(() => {
         if (!tracking || !mapContainerRef.current) return;
         if (!isMapboxAvailable()) return;
         if (mapRef.current) return;
+        
+        let mounted = true;
 
-        const map = initializeMap(
-            mapContainerRef.current,
-            [tracking.riderLng, tracking.riderLat],
-            14
-        );
-        mapRef.current = map;
-
-        map.on('load', () => {
-            // Rider marker — blue dot with pulsing ring
-            const riderEl = document.createElement('div');
-            riderEl.className = 'rider-marker';
-            riderEl.innerHTML = `
-                <div style="
-                    width:18px;height:18px;border-radius:50%;
-                    background:#3b82f6;border:2px solid white;
-                    box-shadow:0 0 0 4px rgba(59,130,246,0.3);
-                    position:relative;
-                "></div>`;
-
-            riderMarkerRef.current = new mapboxglLib.Marker({ element: riderEl, anchor: 'center' })
-                .setLngLat([tracking.riderLng, tracking.riderLat])
-                .addTo(map);
-
-            // Destination marker — red pin
-            if (tracking.destLat && tracking.destLng) {
-                const destEl = document.createElement('div');
-                destEl.innerHTML = `
-                    <div style="
-                        width:14px;height:14px;border-radius:50%;
-                        background:#ef4444;border:2px solid white;
-                        box-shadow:0 2px 8px rgba(0,0,0,0.4);
-                    "></div>`;
-
-                destMarkerRef.current = new mapboxglLib.Marker({ element: destEl, anchor: 'center' })
-                    .setLngLat([tracking.destLng, tracking.destLat])
-                    .addTo(map);
-
-                // Auto-fit map to show both markers
-                const bounds = new mapboxglLib.LngLatBounds()
-                    .extend([tracking.riderLng, tracking.riderLat])
-                    .extend([tracking.destLng, tracking.destLat]);
+        (async () => {
+            try {
+                const map = await initializeMap(
+                    mapContainerRef.current!,
+                    [tracking.riderLng, tracking.riderLat],
+                    14
+                );
                 
-                map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+                if (!mounted) {
+                    map.remove();
+                    return;
+                }
+                
+                mapRef.current = map;
+
+                const setupMap = () => {
+                    // Rider marker — blue dot with pulsing ring
+                    const riderEl = document.createElement('div');
+                    riderEl.className = 'rider-marker';
+                    riderEl.innerHTML = `
+                        <div style="
+                            width:18px;height:18px;border-radius:50%;
+                            background:#3b82f6;border:2px solid white;
+                            box-shadow:0 0 0 4px rgba(59,130,246,0.3);
+                            position:relative;
+                        "></div>`;
+
+                    riderMarkerRef.current = new mapboxgl.Marker({ element: riderEl, anchor: 'center' })
+                        .setLngLat([tracking.riderLng, tracking.riderLat])
+                        .addTo(map);
+
+                    // Destination marker — red pin
+                    if (tracking.destLat && tracking.destLng) {
+                        const destEl = document.createElement('div');
+                        destEl.innerHTML = `
+                            <div style="
+                                width:14px;height:14px;border-radius:50%;
+                                background:#ef4444;border:2px solid white;
+                                box-shadow:0 2px 8px rgba(0,0,0,0.4);
+                            "></div>`;
+
+                        destMarkerRef.current = new mapboxgl.Marker({ element: destEl, anchor: 'center' })
+                            .setLngLat([tracking.destLng, tracking.destLat])
+                            .addTo(map);
+
+                        // Auto-fit map to show both markers
+                        const bounds = new mapboxgl.LngLatBounds()
+                            .extend([tracking.riderLng, tracking.riderLat])
+                            .extend([tracking.destLng, tracking.destLat]);
+                        
+                        // We check map.fitBounds to be safe just in case the wrapper behaves slightly differently
+                        if (map.fitBounds) map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+                    }
+                };
+                
+                if (map.loaded && map.loaded()) {
+                    setupMap();
+                } else if (map.on) {
+                    map.on('load', setupMap);
+                }
+            } catch (err) {
+                console.error('Failed to initialize OrderTrackingMap', err);
             }
-        });
+        })();
 
         return () => {
+            mounted = false;
             riderMarkerRef.current?.remove();
             destMarkerRef.current?.remove();
             mapRef.current?.remove();

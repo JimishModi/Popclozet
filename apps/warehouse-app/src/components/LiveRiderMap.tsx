@@ -1,29 +1,15 @@
-/**
- * LiveRiderMap — Warehouse live rider tracking map
- *
- * Renders a Mapbox dark map with:
- *  • Pulsing dot per active rider (moves in real-time)
- *  • Teardrop destination pin per rider
- *  • Route line rider → destination (redraws on > 50 m movement)
- *
- * View modes (toggled top-left):
- *  • All Riders  — fits bounds to every active rider
- *  • Per Order   — click a rider dot or order row to zoom into one
- */
-
 import React, { useEffect, useRef, useCallback } from 'react';
 import {
     mapboxgl,
-    createMapInstance,
     createColorMarker,
     updateRouteSource,
     calculateDistance,
     getMapboxToken,
-} from '@popclozet/mapbox-core';
+} from '@popclozet/map-core';
+import { useMap } from '../contexts/MapContext';
 import type { ActiveRider } from '../hooks/useActiveRiders';
 
 interface Props {
-    riders: ActiveRider[];
     selectedOrderId?: string | null;
     onRiderClick?: (orderId: string) => void;
     viewMode: 'all' | 'single';
@@ -34,24 +20,25 @@ const RIDER_COLORS  = ['#8855F7', '#F7558E', '#55C1F7', '#F7A855', '#55F7A2'];
 const REDRAW_KM     = 0.05; // 50 m
 
 interface RiderEntry {
-    marker:       mapboxgl.Marker;
-    destMarker:   mapboxgl.Marker;
-    popup:        mapboxgl.Popup;
+    marker:       any;
+    destMarker:   any;
+    popup:        any;
     color:        string;
     lastRoutePos: { lat: number; lng: number } | null;
 }
 
 export const LiveRiderMap: React.FC<Props> = ({
-    riders, selectedOrderId, onRiderClick, viewMode, onViewModeChange,
+    selectedOrderId, onRiderClick, viewMode, onViewModeChange,
 }) => {
+    const { riders, loading, initializePersistentMap } = useMap();
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef       = useRef<mapboxgl.Map | null>(null);
+    const mapRef       = useRef<any>(null);
     const entriesRef   = useRef<Map<string, RiderEntry>>(new Map());
     const token        = getMapboxToken();
 
     // Draw / update Mapbox Directions route for one rider
     const drawRiderRoute = useCallback(async (
-        map: mapboxgl.Map,
+        map: any,
         orderId: string,
         rLng: number, rLat: number,
         dLng: number, dLat: number,
@@ -87,7 +74,8 @@ export const LiveRiderMap: React.FC<Props> = ({
     }, []);
 
     // Sync markers/routes to current riders array
-    const syncRiders = useCallback((map: mapboxgl.Map) => {
+    const syncRiders = useCallback((map: any) => {
+        if (!map || !map.isStyleLoaded()) return;
         const currentIds = new Set(riders.map((r) => r.orderId));
 
         // Remove stale
@@ -117,12 +105,12 @@ export const LiveRiderMap: React.FC<Props> = ({
                 // Create rider dot
                 const el    = createColorMarker(color, 14, true);
                 const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, className: 'rider-popup' }).setHTML(popupHTML(rider));
-                const rMarker = new mapboxgl.Marker(el).setLngLat([rider.lng, rider.lat]).setPopup(popup).addTo(map);
+                const rMarker = new (mapboxgl.Marker as any)(el).setLngLat([rider.lng, rider.lat]).setPopup(popup).addTo(map);
                 el.addEventListener('click', () => onRiderClick?.(rider.orderId));
 
                 // Create destination pin
                 const dEl     = destMarkerEl(color);
-                const dMarker = new mapboxgl.Marker(dEl).setLngLat([rider.deliveryAddress.lng, rider.deliveryAddress.lat]).addTo(map);
+                const dMarker = new (mapboxgl.Marker as any)(dEl).setLngLat([rider.deliveryAddress.lng, rider.deliveryAddress.lat]).addTo(map);
 
                 entriesRef.current.set(rider.orderId, { marker: rMarker, destMarker: dMarker, popup, color, lastRoutePos: null });
 
@@ -134,24 +122,34 @@ export const LiveRiderMap: React.FC<Props> = ({
         });
     }, [riders, drawRiderRoute, onRiderClick]);
 
-    // Init map once
+    // Attach to persistent map instance
     useEffect(() => {
-        if (!containerRef.current || mapRef.current || !token) return;
-        const map = createMapInstance(containerRef.current, [72.9133, 19.1334], 12);
-        mapRef.current = map;
-        map.on('load', () => syncRiders(map));
+        if (!containerRef.current || !token) return;
+        let mounted = true;
 
-        // Resize map whenever the container changes size (handles framer-motion height animation)
-        const ro = new ResizeObserver(() => { map.resize(); });
-        ro.observe(containerRef.current);
+        const init = async () => {
+            console.log('[LiveRiderMap] Reattaching persistent map');
+            const map = await initializePersistentMap(containerRef.current!);
+            if (!mounted) return;
+            mapRef.current = map;
+            
+            if (map.loaded && map.loaded()) {
+                syncRiders(map);
+            } else if (map.on) {
+                map.on('load', () => syncRiders(map));
+            }
+        };
+
+        void init();
 
         return () => {
-            ro.disconnect();
-            map.remove();
+            mounted = false;
+            // IMPORTANT: Do NOT call map.remove() here to keep it warm.
+            // We just clear our local ref and entries.
             mapRef.current = null;
             entriesRef.current.clear();
         };
-    }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [initializePersistentMap, token]);
 
     // Re-sync when riders change
     useEffect(() => {
@@ -188,10 +186,17 @@ export const LiveRiderMap: React.FC<Props> = ({
                 </div>
             )}
 
-            {token && riders.length === 0 && (
+            {token && !loading && riders.length === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-card/80 backdrop-blur-sm rounded-xl">
                     <p className="text-zinc-500 text-sm font-medium">No active riders</p>
                     <p className="text-zinc-600 text-xs mt-1">Map populates once orders are picked up</p>
+                </div>
+            )}
+
+            {loading && riders.length === 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-card/80 backdrop-blur-sm rounded-xl">
+                    <div className="w-6 h-6 border-2 border-warehouse-500 border-t-transparent rounded-full animate-spin mb-2" />
+                    <p className="text-zinc-500 text-xs font-medium">Locating riders...</p>
                 </div>
             )}
 

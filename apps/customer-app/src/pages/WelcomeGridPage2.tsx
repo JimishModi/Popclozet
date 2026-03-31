@@ -45,7 +45,7 @@ export default function WelcomeGridPage2() {
                     </p>
                 </div>
 
-                {/* POPCLOZET Logo */}
+                {/* Popclozet Logo */}
                 <motion.div
                     className="flex items-start justify-center mb-10"
                     initial={{ opacity: 0, y: 4 }}

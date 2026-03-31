@@ -28,7 +28,7 @@ export const Header: React.FC = () => {
                         <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center">
                             <span className="text-white font-bold text-xl">P</span>
                         </div>
-                        <span className="text-xl font-display font-bold text-gradient-red">PopClozet</span>
+                        <span className="text-xl font-display font-bold text-gradient-red">popclozet</span>
                     </Link>
 
                     {/* Navigation */}

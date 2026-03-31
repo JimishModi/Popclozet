@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { openRazorpayCheckout, type RazorpayPaymentResponse } from '@/lib/razorpay';
 import { createRazorpayOrder, verifyRazorpayPayment } from '@/services/razorpayService';
 
-const POPCLOZET_LOGO = '/icons/icon-192x192.png';
+const popclozet_LOGO = '/icons/icon-192x192.png';
 
 interface UseRazorpayCheckoutOptions {
   internalOrderId: string;    // Supabase order ID (already created before calling this)
@@ -62,9 +62,9 @@ export function useRazorpayCheckout() {
         key: rzpOrder.key_id,
         amount: rzpOrder.amount,
         currency: rzpOrder.currency,
-        name: 'PopCLozet',
+        name: 'Popclozet',
         description: 'Fashion Rental Payment',
-        image: POPCLOZET_LOGO,
+        image: popclozet_LOGO,
         order_id: rzpOrder.id,
         prefill: {
           name: userName || '',

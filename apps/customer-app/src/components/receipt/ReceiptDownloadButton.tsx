@@ -73,7 +73,7 @@ export function ReceiptDownloadButton({ orderId, compact = false }: ReceiptDownl
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `PopClozet-Receipt-${orderId.slice(0, 8).toUpperCase()}.pdf`;
+        link.download = `popclozet-Receipt-${orderId.slice(0, 8).toUpperCase()}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -87,7 +87,7 @@ export function ReceiptDownloadButton({ orderId, compact = false }: ReceiptDownl
 
         const file = new File(
             [blob],
-            `PopClozet-Receipt-${orderId.slice(0, 8).toUpperCase()}.pdf`,
+            `popclozet-Receipt-${orderId.slice(0, 8).toUpperCase()}.pdf`,
             { type: "application/pdf" }
         );
 
@@ -95,7 +95,7 @@ export function ReceiptDownloadButton({ orderId, compact = false }: ReceiptDownl
         if (navigator.share && navigator.canShare?.({ files: [file] })) {
             try {
                 await navigator.share({
-                    title: "PopClozet Receipt",
+                    title: "popclozet Receipt",
                     text: `Receipt for order #${orderId.slice(0, 8).toUpperCase()}`,
                     files: [file],
                 });

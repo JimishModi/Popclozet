@@ -174,7 +174,7 @@ export function AuthOtpPage() {
                     </div>
 
                     {/* OTP Input */}
-                    <div className="flex justify-center gap-2 mb-6">
+                    <div className="flex justify-center gap-1.5 sm:gap-2 mb-6">
                         {otp.map((digit, i) => (
                             <input
                                 key={i}
@@ -186,7 +186,7 @@ export function AuthOtpPage() {
                                 onChange={e => handleChange(i, e.target.value)}
                                 onKeyDown={e => handleKeyDown(i, e)}
                                 onPaste={i === 0 ? handlePaste : undefined}
-                                className="w-12 h-14 text-center text-xl font-bold bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                className="w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
                             />
                         ))}
                     </div>

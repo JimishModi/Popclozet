@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import { ChevronLeft, MapPin, CalendarDays, Loader2, CheckCircle2, Plus } from 'lucide-react';
+import { ChevronLeft, MapPin, CalendarDays, Loader2, CheckCircle2, Plus, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { MobileShell } from '@/components/layout/MobileShell';
@@ -10,6 +10,7 @@ import {
     getOrderById,
     getMySavedAddresses,
     scheduleReturn,
+    requestImmediateReturn,
     type SavedAddressRecord,
 } from '@/services/ordersService';
 import { getAvailableTimeSlots, type TimeSlot } from '@/services/deliveryService';
@@ -38,6 +39,7 @@ const ScheduleReturnPage: React.FC = () => {
     const [selectedSlotIso, setSelectedSlotIso] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [returnNowSubmitting, setReturnNowSubmitting] = useState(false);
 
     const slotGroups = useMemo(() => getAvailableTimeSlots().slice(0, 4), []);
     const selectedSlot = useMemo(() => {
@@ -94,6 +96,25 @@ const ScheduleReturnPage: React.FC = () => {
             cancelled = true;
         };
     }, [orderId, slotGroups]);
+
+    const handleReturnNow = async () => {
+        if (!orderId) return;
+        if (!selectedAddressId) {
+            toast.error('Select a pickup address first');
+            return;
+        }
+        try {
+            setReturnNowSubmitting(true);
+            await requestImmediateReturn(orderId, selectedAddressId || null);
+            toast.success('Immediate return requested — a rider will be assigned shortly');
+            navigate(`/pickup-tracking/${orderId}`);
+        } catch (error: any) {
+            console.error('Return Now error:', error);
+            toast.error(error?.message || 'Failed to request immediate return');
+        } finally {
+            setReturnNowSubmitting(false);
+        }
+    };
 
     const handleScheduleReturn = async () => {
         if (!orderId) return;
@@ -344,9 +365,29 @@ const ScheduleReturnPage: React.FC = () => {
                 )}
             </main>
 
-            <div className="sticky bottom-0 px-5 py-6 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent">
+            <div className="sticky bottom-0 px-5 py-6 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent space-y-3">
+                {/* Return Now — immediate pickup, no slot needed */}
                 <button
-                    disabled={!canSchedule || addresses.length === 0 || !selectedAddressId || !selectedSlotIso || submitting}
+                    disabled={!canSchedule || addresses.length === 0 || !selectedAddressId || returnNowSubmitting || submitting}
+                    onClick={handleReturnNow}
+                    className="w-full h-14 rounded-2xl bg-white/5 border border-[#f2546d]/40 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                    {returnNowSubmitting ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin text-[#f2546d]" />
+                            <span className="text-base font-bold text-[#f2546d]" style={dmSans}>Requesting...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Zap className="w-5 h-5 text-[#f2546d]" />
+                            <span className="text-base font-bold text-[#f2546d]" style={dmSans}>Return Now</span>
+                        </>
+                    )}
+                </button>
+
+                {/* Schedule Return — pick a time slot */}
+                <button
+                    disabled={!canSchedule || addresses.length === 0 || !selectedAddressId || !selectedSlotIso || submitting || returnNowSubmitting}
                     onClick={handleScheduleReturn}
                     className="w-full h-14 rounded-2xl bg-[#f2546d] flex items-center justify-center gap-3 shadow-lg shadow-[#f2546d]/20 active:scale-[0.98] transition-all disabled:opacity-50"
                 >

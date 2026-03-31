@@ -10,6 +10,7 @@ import { getOrderById, DeliveryOrder, OrderStatus } from '@/services/deliverySer
 import { getHubById, RentalHub } from '@/services/hubService';
 import { getTrackingRecord, TrackingRecord } from '@/services/trackingService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
+import { notifyOrderStatusChange } from '@/services/notificationService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface DeliveryTrackerProps {
@@ -59,6 +60,7 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
     const [isLoading, setIsLoading] = useState(true);
     const channelRef = useRef<RealtimeChannel | null>(null);
     const channelNameRef = useRef(`tracking:${orderId}_${Math.random().toString(36).slice(2, 9)}`);
+    const previousStatusRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (order && onOrderLoad) onOrderLoad(order);
@@ -74,6 +76,8 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
             setIsLoading(true);
             const orderData = await getOrderById(orderId);
             setOrder(orderData);
+            // Seed the ref so the first real-time status change triggers a notification
+            previousStatusRef.current = orderData?.status ?? null;
 
             if (orderData?.hub_id) {
                 const hubData = await getHubById(orderData.hub_id);
@@ -139,7 +143,14 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
                 async () => {
                     // Re-fetch order so status steps update in real-time
                     const updated = await getOrderById(orderId);
-                    if (updated) setOrder(updated);
+                    if (updated) {
+                        // Fire notification on status change
+                        if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
+                            notifyOrderStatusChange(updated.user_id, orderId, updated.status).catch(console.warn);
+                        }
+                        previousStatusRef.current = updated.status;
+                        setOrder(updated);
+                    }
                 }
             )
             .subscribe();
@@ -173,9 +184,9 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         ? { lat: tracking.current_lat, lng: tracking.current_lng }
         : null;
 
-    // Calculate distance for delayed delivery logic
-    const distance = userLocation && displayVehicle 
-        ? calculateDistance(userLocation.lat, userLocation.lng, displayVehicle.lat, displayVehicle.lng)
+    // Delayed if delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
+    const distance = userLocation && hub
+        ? calculateDistance(userLocation.lat, userLocation.lng, hub.lat, hub.lng)
         : null;
     const isDelayed = distance !== null ? distance > 6 : false;
 
@@ -215,11 +226,11 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
                                     {isDelayed ? "⚠️ Expected" : "⚡ Arriving in"}
                                 </p>
                                 <p className="text-4xl font-black text-white tracking-tighter">
-                                    {isDelayed ? "Delayed" : `${tracking?.eta_minutes ?? '—'} mins`}
+                                    {isDelayed ? "Delayed Delivery" : "60 mins"}
                                 </p>
                                 {isDelayed && (
                                     <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest max-w-[200px]">
-                                        Rider is currently {distance?.toFixed(1)}km away. Potential delay due to distance.
+                                        Your address is {distance?.toFixed(1)}km from our warehouse. Delivery may take longer.
                                     </p>
                                 )}
                             </div>

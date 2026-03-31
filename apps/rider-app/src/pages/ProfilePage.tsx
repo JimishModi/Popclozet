@@ -65,7 +65,8 @@ export function ProfilePage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] pb-20">
+        <div className="min-h-screen bg-black flex justify-center">
+        <div className="w-full max-w-[430px] sm:max-w-[540px] md:max-w-[768px] min-h-screen bg-[#0a0a0a] pb-20">
             {/* Header */}
             <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-zinc-800/50">
                 <div className="flex items-center gap-4 px-4 h-16">
@@ -137,7 +138,7 @@ export function ProfilePage() {
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="grid grid-cols-3 gap-3"
+                    className="grid grid-cols-3 gap-3 sm:gap-4"
                 >
                     <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4 text-center">
                         <Package className="w-6 h-6 text-blue-500 mx-auto mb-2" />
@@ -199,6 +200,7 @@ export function ProfilePage() {
             </main>
 
             <BottomNavigation />
+        </div>
         </div>
     );
 }

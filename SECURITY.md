@@ -1,4 +1,4 @@
-# PopClozet — Complete Security Architecture (Implemented)
+# popclozet — Complete Security Architecture (Implemented)
 
 > **56 security features** across 10 layers. Every item below is implemented in this repository.
 

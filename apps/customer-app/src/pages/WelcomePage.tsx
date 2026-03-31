@@ -12,7 +12,7 @@ export default function WelcomePage() {
                 {/* Title */}
                 <div className="text-center pt-8">
                     <p className="text-zinc-400 text-sm font-medium tracking-widest uppercase mb-2">Welcome to</p>
-                    <img src={logoImage} alt="PopClozet" className="h-10 mx-auto" />
+                    <img src={logoImage} alt="Popclozet" className="h-10 mx-auto" />
                 </div>
 
                 {/* Phone Mockup */}
