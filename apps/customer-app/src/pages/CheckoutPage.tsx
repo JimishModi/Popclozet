@@ -117,17 +117,22 @@ export default function CheckoutPage() {
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
     if (kycCallback === "success" && user?.id) {
-      toast.success("Identity verified successfully!");
-      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", user.id).then(() => {
-        setKycVerified(true);
-      });
+      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", user.id)
+        .then(({ error }) => {
+          if (error) {
+            console.error("[KYC] Failed to persist verification:", error);
+            toast.error("Verification recorded but failed to save. Please try again.");
+            return;
+          }
+          setKycVerified(true);
+          toast.success("Identity verified successfully!");
+        });
       // Optionally clean up the URL
       searchParams.delete("kyc_callback");
       const newUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams, user?.id]);
-
   // Fetch initial KYC status
   useEffect(() => {
     if (user?.id) {
@@ -601,10 +606,10 @@ export default function CheckoutPage() {
       const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
 
       // Ensure start and end dates make sense
-      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0 
-                        : 3;
+      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1
+        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2
+          : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0
+            : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
@@ -931,7 +936,7 @@ export default function CheckoutPage() {
                 {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
-              {/* Removed Pop Insurance Row */}
+            {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
               <span>₹ {total}</span>
@@ -971,11 +976,11 @@ export default function CheckoutPage() {
                   ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
                   : selectedOrderType === 'home_try_on'
                     ? "BOOK TRY-ON"
-                  : paymentMethod === 'upi'
-                    ? "PAY VIA UPI"
-                    : paymentMethod === 'cod'
-                      ? "PLACE ORDER"
-                      : "PAY"
+                    : paymentMethod === 'upi'
+                      ? "PAY VIA UPI"
+                      : paymentMethod === 'cod'
+                        ? "PLACE ORDER"
+                        : "PAY"
               }
             </button>
           </div>

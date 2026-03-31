@@ -15,5 +15,6 @@ try {
   fs.writeFileSync(outputPath, b64);
   console.log(`Written ${outputPath}`);
 } catch (e) {
-  fs.writeFileSync("out_vapid.txt", e.toString());
+  console.error("Error:", e.message);
+  process.exit(1);
 }

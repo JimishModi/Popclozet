@@ -110,7 +110,7 @@ export const CartProvider = ({
 
       // Purge corrupted entries from IDB silently
       invalidItems.forEach((item) => {
-        removeFromCartDB(item.productId, item.size, item.plan, userId).catch(() => {});
+        removeFromCartDB(item.productId, item.size, item.plan, userId).catch(() => { });
       });
 
       setCartItems(cartMap);
@@ -138,15 +138,10 @@ export const CartProvider = ({
       );
 
       if (existingKey) {
-         const oldPlan = cartItems[existingKey].plan;
-         await updatePlan(productId, size, oldPlan, plan);
-         
-         toast.success(`Updated to ${plan} rental plan`, {
-           duration: 2000,
-         });
-         return;
+        const oldPlan = cartItems[existingKey].plan;
+        await updatePlan(productId, size, oldPlan, plan);
+        return;
       }
-
       await addToCartDB(productId, size, plan, 1, userId);
       const key = `${productId}_${size}_${plan}`;
 

@@ -18,7 +18,7 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
 
     return (
         <div className={cn("relative flex items-center h-[130px] w-full max-w-[320px] mx-auto overflow-visible", className)}>
-            
+
             {/* Women Card */}
             <motion.button
                 onClick={() => onChange('womens')}
@@ -35,15 +35,15 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
                 {/* Image Background */}
-                <img 
-                    src={womenImg} 
-                    alt="Women" 
+                <img
+                    src={womenImg}
+                    alt="Women"
                     className="absolute inset-0 w-full h-full object-cover"
                 />
-                
+
                 {/* Overlay for better text readability */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                
+
                 <span className={cn(
                     "absolute bottom-4 right-6 font-black text-[10px] tracking-[0.2em] transition-all duration-300",
                     isWomens ? "text-white opacity-100 scale-100" : "text-zinc-400 opacity-60 scale-90"
@@ -55,7 +55,9 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
             {/* Men Card */}
             <motion.button
                 onClick={() => onChange('mens')}
-                className="absolute right-0 top-0 bottom-0 w-[56%] rounded-[24px] overflow-hidden outline-none"
+                type="button"
+                aria-pressed={!isWomens}
+                className="absolute right-0 top-0 bottom-0 w-[56%] rounded-[24px] overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
                 initial={false}
                 animate={{
                     zIndex: !isWomens ? 20 : 10,
@@ -68,15 +70,15 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
                 {/* Image Background */}
-                <img 
-                    src={menImg} 
-                    alt="Men" 
+                <img
+                    src={menImg}
+                    alt="Men"
                     className="absolute inset-0 w-full h-full object-cover"
                 />
-                
+
                 {/* Overlay for better text readability */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                
+
                 <span className={cn(
                     "absolute bottom-4 left-8 font-black text-[10px] tracking-[0.2em] transition-all duration-300",
                     !isWomens ? "text-white opacity-100 scale-100" : "text-zinc-400 opacity-60 scale-90"
@@ -84,7 +86,6 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
                     MEN
                 </span>
             </motion.button>
-
         </div>
     );
 };

@@ -155,13 +155,13 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 /**
  * Fetch all products (for the search/list view) with aggregate stock info
  */
-export async function getAllProductProfiles(): Promise<{ 
-    id: string; 
-    name: string; 
-    brand: string | null; 
-    category: string | null; 
-    images: string[] | null; 
-    rental_price: number | null; 
+export async function getAllProductProfiles(): Promise<{
+    id: string;
+    name: string;
+    brand: string | null;
+    category: string | null;
+    images: string[] | null;
+    rental_price: number | null;
     rental_price_1d: number | null;
     rental_price_2d: number | null;
     rental_price_3d: number | null;
@@ -337,13 +337,13 @@ export async function updateProductProfile(productId: string, update: ProductUpd
  * Transition a physical unit to a new status (e.g. from available to archived)
  */
 export async function setUnitStatus(
-    individualId: string, 
+    individualId: string,
     newStatus: 'available' | 'washing' | 'ready' | 'archived' | 'lost' | 'damaged',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase
         .from('all_products')
-        .update({ 
+        .update({
             status: newStatus,
             available: (newStatus === 'available' || newStatus === 'ready')
         })
@@ -378,7 +378,7 @@ export async function flagUnitAsDamaged(
     notes: string,
     actorId: string = 'system',
 ): Promise<void> {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('all_products')
         .update({
             status: 'damaged',
@@ -386,10 +386,13 @@ export async function flagUnitAsDamaged(
             damage_notes: notes.trim() || null,
             damage_flagged_at: new Date().toISOString(),
         })
-        .eq('individual_id', individualId);
+        .eq('individual_id', individualId)
+        .select('individual_id');
 
     if (error) throw error;
-
+    if (!data || data.length === 0) {
+        throw new Error(`Unit not found: ${individualId}`);
+    }
     await supabase.from('warehouse_activity_log').insert({
         actor_id: actorId === 'system' ? null : actorId,
         action: 'flag_unit_damaged',

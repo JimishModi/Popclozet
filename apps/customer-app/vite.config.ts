@@ -6,11 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(({ mode }) => {
   // Load env file from the current directory
   const env = loadEnv(mode, process.cwd(), '');
-  
-  console.log("🔍 [Vite Config] Mode:", mode);
-  console.log("🔍 [Vite Config] Working Directory:", process.cwd());
-  console.log("🔍 [Vite Config] MSG91 Widget ID present:", !!env.VITE_MSG91_WIDGET_ID);
-  console.log("🔍 [Vite Config] Supabase URL present:", !!env.VITE_SUPABASE_URL);
+
 
   return {
     base: "/",

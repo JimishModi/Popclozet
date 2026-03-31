@@ -70,7 +70,11 @@ export function ReturnsPage() {
             .select('warehouse_otp_expires_at')
             .eq('id', otpModalOrderId)
             .single()
-            .then(({ data }) => {
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('Failed to fetch OTP expiry:', error);
+                    return;
+                }
                 if (!data?.warehouse_otp_expires_at) return;
                 const exp = new Date(data.warehouse_otp_expires_at);
                 setOtpExpiresAt(exp);
@@ -86,7 +90,6 @@ export function ReturnsPage() {
                 tick();
                 otpTimerRef.current = setInterval(tick, 1000);
             });
-
         return () => {
             if (otpTimerRef.current) clearInterval(otpTimerRef.current);
         };
@@ -419,151 +422,156 @@ export function ReturnsPage() {
                 </AnimatePresence>
             </div>
 
-        {/* OTP Verification Modal */}
-        <AnimatePresence>
-            {otpModalOrderId && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                >
+            {/* OTP Verification Modal */}
+            <AnimatePresence>
+                {otpModalOrderId && (
                     <motion.div
-                        initial={{ scale: 0.95, y: 20 }}
-                        animate={{ scale: 1, y: 0 }}
-                        exit={{ scale: 0.95, y: 20 }}
-                        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
                     >
-                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                            <h3 className="font-semibold text-white flex items-center gap-2">
-                                <KeyRound size={18} className="text-emerald-400" />
-                                Verify Return OTP
-                            </h3>
-                            <button
-                                onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); setOtpExpiresAt(null); setOtpSecondsLeft(null); } }}
-                                disabled={otpVerifying}
-                                className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-5 text-center">
-                            <p className="text-sm text-zinc-400">
-                                Enter the 6-digit OTP shown on the rider's screen to confirm receipt of the return.
-                            </p>
-                            {otpExpiresAt && (
-                                <div className={clsx(
-                                    'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg',
-                                    otpSecondsLeft !== null && otpSecondsLeft <= 0
-                                        ? 'bg-red-500/15 text-red-400'
-                                        : otpSecondsLeft !== null && otpSecondsLeft <= 60
-                                        ? 'bg-amber-500/15 text-amber-400'
-                                        : 'bg-zinc-800 text-zinc-400'
-                                )}>
-                                    <Clock size={12} />
-                                    {otpSecondsLeft !== null && otpSecondsLeft <= 0
-                                        ? 'OTP expired — ask rider to regenerate'
-                                        : otpSecondsLeft !== null
-                                        ? `Expires in ${Math.floor(otpSecondsLeft / 60)}m ${otpSecondsLeft % 60}s`
-                                        : `Expires at ${otpExpiresAt.toLocaleTimeString()}`
-                                    }
-                                </div>
-                            )}
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="\d*"
-                                maxLength={6}
-                                value={otpValue}
-                                onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
-                                autoFocus
-                                placeholder="000000"
-                                className="w-full text-center text-4xl font-mono font-bold tracking-[0.2em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-800"
-                            />
-                            <button
-                                onClick={() => handleReceive(otpModalOrderId)}
-                                disabled={otpValue.length !== 6 || otpVerifying || (otpSecondsLeft !== null && otpSecondsLeft <= 0)}
-                                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
-                            >
-                                {otpVerifying ? (
-                                    <><RefreshCw size={16} className="animate-spin" /> Verifying...</>
-                                ) : (
-                                    'Verify & Receive'
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                    <KeyRound size={18} className="text-emerald-400" />
+                                    Verify Return OTP
+                                </h3>
+                                <button
+                                    onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); setOtpExpiresAt(null); setOtpSecondsLeft(null); } }}
+                                    disabled={otpVerifying}
+                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-5 text-center">
+                                <p className="text-sm text-zinc-400">
+                                    Enter the 6-digit OTP shown on the rider's screen to confirm receipt of the return.
+                                </p>
+                                {otpExpiresAt && (
+                                    <div className={clsx(
+                                        'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg',
+                                        otpSecondsLeft !== null && otpSecondsLeft <= 0
+                                            ? 'bg-red-500/15 text-red-400'
+                                            : otpSecondsLeft !== null && otpSecondsLeft <= 60
+                                                ? 'bg-amber-500/15 text-amber-400'
+                                                : 'bg-zinc-800 text-zinc-400'
+                                    )}>
+                                        <Clock size={12} />
+                                        {otpSecondsLeft !== null && otpSecondsLeft <= 0
+                                            ? 'OTP expired — ask rider to regenerate'
+                                            : otpSecondsLeft !== null
+                                                ? `Expires in ${Math.floor(otpSecondsLeft / 60)}m ${otpSecondsLeft % 60}s`
+                                                : `Expires at ${otpExpiresAt.toLocaleTimeString()}`
+                                        }
+                                    </div>
                                 )}
-                            </button>
-                        </div>
-                    </motion.div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Damage Flag Modal */}
-        <AnimatePresence>
-            {damageModal && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                >
-                    <motion.div
-                        initial={{ scale: 0.95, y: 20 }}
-                        animate={{ scale: 1, y: 0 }}
-                        exit={{ scale: 0.95, y: 20 }}
-                        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
-                    >
-                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                            <h3 className="font-semibold text-white flex items-center gap-2">
-                                <AlertTriangle size={18} className="text-red-400" />
-                                Flag Unit as Damaged
-                            </h3>
-                            <button
-                                onClick={() => { setDamageModal(null); setDamageNotes(''); }}
-                                className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <p className="text-sm text-zinc-400">Unit: <span className="text-white font-medium">{damageModal.individualId}</span></p>
-                                <p className="text-sm text-zinc-400 mt-0.5">Item: <span className="text-white font-medium">{damageModal.productName}</span></p>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                                    Damage Description <span className="text-zinc-600 font-normal normal-case">(optional)</span>
-                                </label>
-                                <textarea
-                                    value={damageNotes}
-                                    onChange={(e) => setDamageNotes(e.target.value)}
-                                    placeholder="e.g. Torn seam, stain on back panel, broken zipper..."
-                                    rows={3}
-                                    className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-800 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all resize-none"
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="\d*"
+                                    maxLength={6}
+                                    value={otpValue}
+                                    onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                                    autoFocus
+                                    placeholder="000000"
+                                    className="w-full text-center text-4xl font-mono font-bold tracking-[0.2em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-800"
                                 />
-                            </div>
-                            <div className="flex gap-3">
                                 <button
-                                    onClick={() => { setDamageModal(null); setDamageNotes(''); }}
-                                    className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition-all"
+                                    onClick={() => handleReceive(otpModalOrderId)}
+                                    disabled={otpValue.length !== 6 || otpVerifying || (otpSecondsLeft !== null && otpSecondsLeft <= 0)}
+                                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
                                 >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleFlagDamaged}
-                                    disabled={processingKey === `unit:${damageModal.individualId}`}
-                                    className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
-                                >
-                                    {processingKey === `unit:${damageModal.individualId}`
-                                        ? <><RefreshCw size={14} className="animate-spin" /> Saving...</>
-                                        : <><AlertTriangle size={14} /> Confirm Damage</>
-                                    }
+                                    {otpVerifying ? (
+                                        <><RefreshCw size={16} className="animate-spin" /> Verifying...</>
+                                    ) : (
+                                        'Verify & Receive'
+                                    )}
                                 </button>
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Damage Flag Modal */}
+            <AnimatePresence>
+                {damageModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                    <AlertTriangle size={18} className="text-red-400" />
+                                    Flag Unit as Damaged
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        if (processingKey !== `unit:${damageModal.individualId}`) {
+                                            setDamageModal(null);
+                                            setDamageNotes('');
+                                        }
+                                    }}
+                                    disabled={processingKey === `unit:${damageModal.individualId}`}
+                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                >
+                                    <X size={20} />
+                                </button>                        </div>
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <p className="text-sm text-zinc-400">Unit: <span className="text-white font-medium">{damageModal.individualId}</span></p>
+                                    <p className="text-sm text-zinc-400 mt-0.5">Item: <span className="text-white font-medium">{damageModal.productName}</span></p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                                        Damage Description <span className="text-zinc-600 font-normal normal-case">(optional)</span>
+                                    </label>
+                                    <textarea
+                                        value={damageNotes}
+                                        onChange={(e) => setDamageNotes(e.target.value)}
+                                        placeholder="e.g. Torn seam, stain on back panel, broken zipper..."
+                                        className="w-full bg-black border border-zinc-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 min-h-[100px] resize-y placeholder:text-zinc-600"
+                                    />
+                                </div>
+                                <div className="flex gap-3 mt-2">
+                                    <button
+                                        onClick={() => { setDamageModal(null); setDamageNotes(''); }}
+                                        disabled={processingKey === `unit:${damageModal.individualId}`}
+                                        className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition-all disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleFlagDamaged}
+                                        disabled={processingKey === `unit:${damageModal.individualId}`}
+                                        className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
+                                    >
+                                        {processingKey === `unit:${damageModal.individualId}`
+                                            ? <><RefreshCw size={14} className="animate-spin" /> Saving...</>
+                                            : <><AlertTriangle size={14} /> Confirm Damage</>
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div >
     );
 }
