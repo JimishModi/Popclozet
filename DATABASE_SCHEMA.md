@@ -46,13 +46,61 @@ CREATE TABLE products (
   gender TEXT NOT NULL CHECK (gender IN ('men', 'women', 'unisex')),
   occasion TEXT[] NOT NULL,
   rental_price DECIMAL(10,2) NOT NULL,
+  rental_price_1d DECIMAL(10,2),
+  rental_price_2d DECIMAL(10,2),
+  rental_price_3d DECIMAL(10,2),
+  buy_price DECIMAL(10,2),
   deposit_amount DECIMAL(10,2) NOT NULL,
-  images TEXT[] NOT NULL,
-  fabric_details JSONB NOT NULL,
-  sizes_available JSONB NOT NULL,
-  hygiene_info JSONB NOT NULL,
+  images TEXT[] NOT NULL DEFAULT '{}',
+  fabric_details JSONB NOT NULL DEFAULT '{}'::jsonb,
   is_available BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  early_access_until TIMESTAMPTZ
+);
+```
+
+### inventory
+```sql
+CREATE TABLE inventory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+  size TEXT NOT NULL,
+  available_stock INTEGER NOT NULL DEFAULT 0,
+  went_for_wash INTEGER NOT NULL DEFAULT 0,
+  total_stock INTEGER GENERATED ALWAYS AS (available_stock + went_for_wash) STORED,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_product_size UNIQUE (product_id, size)
+);
+```
+
+### fake_products
+```sql
+CREATE TABLE fake_products (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  brand TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL,
+  gender TEXT NOT NULL,
+  occasion TEXT[] NOT NULL,
+  rental_price DECIMAL(10,2),
+  rental_price_1d DECIMAL(10,2),
+  rental_price_2d DECIMAL(10,2),
+  rental_price_3d DECIMAL(10,2),
+  buy_price DECIMAL(10,2),
+  deposit_amount DECIMAL(10,2),
+  mrp DECIMAL(10,2),
+  images TEXT[] NOT NULL DEFAULT '{}',
+  video_url TEXT,
+  color TEXT,
+  fabric_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_active BOOLEAN DEFAULT TRUE,
+  is_available BOOLEAN DEFAULT TRUE,
+  show_count INTEGER DEFAULT 0,
+  last_shown_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
