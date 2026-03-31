@@ -167,10 +167,23 @@ async function buildVapidAuthHeader(
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
   // Import private key via PKCS8 for ECDSA signing
-  const pkcs8 = buildPkcs8(vapidPrivKeyBytes);
+  const pubBytes = base64urlToUint8Array(vapidPublicKeyB64);
+  const x = uint8ArrayToBase64url(pubBytes.slice(1, 33));
+  const y = uint8ArrayToBase64url(pubBytes.slice(33, 65));
+  const d = uint8ArrayToBase64url(vapidPrivKeyBytes);
+  
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    x,
+    y,
+    d,
+    ext: true
+  };
+
   const signingKey = await crypto.subtle.importKey(
-    "pkcs8",
-    pkcs8,
+    "jwk",
+    jwk,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"],
@@ -326,18 +339,29 @@ async function sendWebPush(
   vapidSubject: string,
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
-    const authHeader = await buildVapidAuthHeader(
-      subscription.endpoint,
-      vapidPublicKey,
-      vapidPrivKeyBytes,
-      vapidSubject,
-    );
+    let authHeader;
+    try {
+      authHeader = await buildVapidAuthHeader(
+        subscription.endpoint,
+        vapidPublicKey,
+        vapidPrivKeyBytes,
+        vapidSubject,
+      );
+    } catch (e) {
+      throw new Error("buildVapidAuthHeader failed! Maybe VAPID_PRIVATE_KEY is bad? Error: " + e.message);
+    }
 
-    const { encrypted } = await encryptWebPushPayload(
-      subscription.p256dh,
-      subscription.auth,
-      payload,
-    );
+    let encryptedObj;
+    try {
+      encryptedObj = await encryptWebPushPayload(
+        subscription.p256dh,
+        subscription.auth,
+        payload,
+      );
+    } catch (e) {
+      throw new Error("encryptWebPushPayload failed! Maybe p256dh is bad? Error: " + e.message);
+    }
+    const { encrypted } = encryptedObj;
 
     const response = await fetch(subscription.endpoint, {
       method: "POST",

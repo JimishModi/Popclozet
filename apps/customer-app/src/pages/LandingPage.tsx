@@ -21,7 +21,7 @@ export default function LandingPage() {
 
   const handleContinue = useCallback(() => navigate("/auth/login"), [navigate]);
   const handleStartBrowsing = useCallback(() => {
-    navigate("/home");
+    navigate("/home", { replace: true });
   }, [navigate]);
 
   // Auto-advance every 4 seconds

@@ -1,7 +1,7 @@
 // src/pages/CheckoutPage.tsx
 // Checkout flow — creates order and notifies rider app via Supabase
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -133,6 +133,10 @@ export default function CheckoutPage() {
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
+  // Track the last address TEXT we attempted geocoding on, to prevent infinite re-geocode loops.
+  // After reGeocodeAndFetch succeeds, deliveryAddress updates (triggering the effect again),
+  // but the address TEXT stays the same, so we skip re-geocoding on the second run.
+  const lastGeocodedAddressRef = useRef<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
@@ -289,18 +293,33 @@ export default function CheckoutPage() {
       if (deliveryAddress.eLoc) {
         // Preferred path: use the eLoc directly (most accurate with MapMyIndia)
         console.log("[Checkout] Using eLoc for distance:", deliveryAddress.eLoc);
+        lastGeocodedAddressRef.current = deliveryAddress.formattedAddress; // mark as handled
         fetchDistance(deliveryAddress.eLoc);
       } else if (deliveryAddress.formattedAddress) {
-        // No eLoc — ALWAYS re-geocode the address text to get fresh coords + eLoc.
-        // Stored lat/lng may be stale from a previous address save (e.g. GPS location
-        // was used as fallback when geocoding failed on the map page).
+        const addrText = deliveryAddress.formattedAddress;
+
+        // INFINITE LOOP GUARD: if we already attempted geocoding this exact address text,
+        // use the coordinates we have instead of re-geocoding forever.
+        if (lastGeocodedAddressRef.current === addrText) {
+          console.log("[Checkout] Already geocoded this address — using existing coords to avoid loop.");
+          if (hasCoords) {
+            fetchDistance(`${lng},${lat}`);
+          } else {
+            setDistanceError("Could not verify delivery address. Please re-select your address.");
+            setActualDistance(null);
+          }
+          return;
+        }
+
+        // No eLoc — re-geocode the address text to get fresh coords + eLoc.
         if (suspiciouslyCloseToWarehouse) {
           console.warn(
             `[Checkout] ⚠️  Coords (${lat},${lng}) suspiciously close to warehouse ` +
-            `(${WAREHOUSE_LOCATION.lat},${WAREHOUSE_LOCATION.lng}) — likely stale.`
+            `(${WAREHOUSE_LOCATION.lat},${WAREHOUSE_LOCATION.lng}) — may be stale, re-geocoding.`
           );
         }
-        reGeocodeAndFetch(deliveryAddress.formattedAddress, !hasCoords ? 'no coordinates stored' : 'no eLoc — re-geocoding for accuracy');
+        lastGeocodedAddressRef.current = addrText; // mark BEFORE async call to prevent re-entry
+        reGeocodeAndFetch(addrText, !hasCoords ? 'no coordinates stored' : 'no eLoc — re-geocoding for accuracy');
       } else {
         setDistanceError("Location coordinates not found");
         setActualDistance(null);
@@ -406,6 +425,21 @@ export default function CheckoutPage() {
     return value > subBenefits.maxItemValue;
   }) : undefined;
   const hasExpensiveItem = !!expensiveItem;
+
+  // Calculate if the cart contains any rental items
+  const hasRentals = useMemo(() => {
+    if (buyoutOrderId) return false;
+    return validCartEntries.some(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+  }, [validCartEntries, buyoutOrderId]);
+
+  // Derive rental duration for slot calculation fallback
+  const rentalDurationDays = useMemo(() => {
+    if (validCartEntries.length === 0) return 3;
+    const rentalEntry = validCartEntries.find(([, data]) => ['1d', '2d', '3d'].includes(data.plan));
+    if (!rentalEntry) return 0;
+    const plan = rentalEntry[1].plan;
+    return plan === '1d' ? 1 : plan === '2d' ? 2 : 3;
+  }, [validCartEntries]);
 
   // Removed subscription error logic
   const subscriptionError = null;
@@ -557,7 +591,7 @@ export default function CheckoutPage() {
           .select("id")
           .single();
 
-        if (addrErr || !newAddr) throw new Error("Could not save delivery address");
+        if (addrErr || !newAddr) throw new Error(addrErr?.message || "Could not save delivery address");
         addressId = newAddr.id;
       }
 
@@ -607,6 +641,24 @@ export default function CheckoutPage() {
         .single();
 
       if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order record");
+
+      // NEW: Link pre-scheduled return to return_requests table for warehouse visibility
+      if (returnSchedule?.pickupSlotIso) {
+        const { error: rrErr } = await supabase
+          .from('return_requests')
+          .insert({
+            order_id: order.id,
+            status: 'approved',
+            reason: 'pre_scheduled',
+            pickup_slot: returnSchedule.pickupSlotIso,
+            pickup_address_id: addressId
+          });
+        
+        if (rrErr) {
+          console.warn('[Checkout] Failed to create return request record:', rrErr.message);
+          // Non-blocking for the main order flow, but logged for debugging
+        }
+      }
 
       const { data: realProducts } = await supabase.from('products').select('id').limit(1);
       const fallbackUuid = realProducts?.[0]?.id;
@@ -777,36 +829,65 @@ export default function CheckoutPage() {
           {/* Removed Plan Access UI Block */}
 
           {/* Scheduled Return Info */}
-          {returnSchedule?.pickupSlotIso && (() => {
-            const slotDate = new Date(returnSchedule.pickupSlotIso);
-            const dateStr = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short' }).format(slotDate);
-            const timeStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(slotDate);
-            return (
-              <div className="mt-9">
+          {!isNoDeliveryFlow && hasRentals && (
+            <div className="mt-9">
+              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
-                <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
-                  <div className="flex items-center gap-3 relative z-10">
-                    <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-[#f2546d]" />
+                {returnSchedule?.pickupSlotIso && (
+                  <button 
+                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                    className="text-xs font-bold text-[#f2546d] uppercase"
+                  >
+                    Change
+                  </button>
+                )}
+              </div>
+
+              {returnSchedule?.pickupSlotIso ? (() => {
+                const slotDate = new Date(returnSchedule.pickupSlotIso);
+                const dateStr = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short' }).format(slotDate);
+                const timeStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(slotDate);
+                return (
+                  <div className="p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
+                    <div className="flex items-center gap-3 relative z-10">
+                      <div className="w-10 h-10 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-[#f2546d]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white" style={dmSans}>{dateStr}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">{timeStr} • Return pickup</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white" style={dmSans}>{dateStr}</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">{timeStr} • Return pickup</p>
+                    {deliveryAddress?.formattedAddress && (
+                      <div className="mt-4 pt-4 border-t border-white/5 relative z-10">
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
+                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
+                          {deliveryAddress.formattedAddress}
+                        </p>
+                      </div>
+                    )}
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
+                  </div>
+                );
+              })() : (
+                <button 
+                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                  className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-[#f2546d] flex items-center justify-center shadow-lg shadow-[#f2546d]/20">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Choose a slot for post-rental pickup</p>
                     </div>
                   </div>
-                  {deliveryAddress?.formattedAddress && (
-                    <div className="mt-4 pt-4 border-t border-white/5 relative z-10">
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
-                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
-                        {deliveryAddress.formattedAddress}
-                      </p>
-                    </div>
-                  )}
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
-                </div>
-              </div>
-            );
-          })()}
+                  <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-[#f2546d] transition-colors" />
+                </button>
+              )}
+            </div>
+          )}
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Payment Method</h3>
           <button

@@ -81,7 +81,7 @@ export default function LoginPage() {
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) navigate('/home');
+    if (!authLoading && user) navigate('/home', { replace: true });
   }, [user, authLoading, navigate]);
 
   const handlePhoneLogin = useCallback(async () => {

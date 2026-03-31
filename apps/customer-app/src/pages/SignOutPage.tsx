@@ -34,7 +34,7 @@ const SignOutPage: React.FC = () => {
     useEffect(() => {
         if (!isSigningOut) {
             const timer = setTimeout(() => {
-                navigate("/auth/login");
+                navigate("/auth/login", { replace: true });
             }, 3000);
             return () => clearTimeout(timer);
         }
@@ -94,7 +94,7 @@ const SignOutPage: React.FC = () => {
 
                             <div className="space-y-3 pt-4">
                                 <button
-                                    onClick={() => navigate("/auth/login")}
+                                    onClick={() => navigate("/auth/login", { replace: true })}
                                     className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
                                     Sign In Now

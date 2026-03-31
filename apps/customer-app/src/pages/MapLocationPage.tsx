@@ -220,61 +220,8 @@ export default function MapLocationPage() {
                 }
             }
 
-            // Strategy 5: Direct Nominatim geocode (always works — no API key needed)
-            if (!resolved && addr.formattedAddress) {
-                try {
-                    const nomQuery = encodeURIComponent(addr.formattedAddress);
-                    const nomRes = await fetch(
-                        `https://nominatim.openstreetmap.org/search?q=${nomQuery}&format=json&countrycodes=in&limit=1`,
-                        { headers: { 'Accept': 'application/json' } }
-                    );
-                    if (nomRes.ok) {
-                        const nomData = await nomRes.json();
-                        if (Array.isArray(nomData) && nomData.length > 0) {
-                            const nLat = parseFloat(nomData[0].lat);
-                            const nLng = parseFloat(nomData[0].lon);
-                            if (!isNaN(nLat) && !isNaN(nLng) && (Math.abs(nLat) > 0.01 || Math.abs(nLng) > 0.01)) {
-                                resolvedLat = nLat;
-                                resolvedLng = nLng;
-                                resolved = true;
-                                console.log('[MapLocation] ✓ Strategy 5 — Nominatim geocode:', resolvedLat, resolvedLng);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[MapLocation] Strategy 5 failed (Nominatim):', e);
-                }
-            }
-
-            // Strategy 6: Iterative Relaxed Nominatim (Removes specific building/flat names until it finds a match)
-            if (!resolved && addr.formattedAddress && addr.formattedAddress.includes(',')) {
-                let chunks = addr.formattedAddress.split(',');
-                while (chunks.length > 1 && !resolved) {
-                    chunks.shift(); // Remove the most specific part
-                    const relaxedQuery = encodeURIComponent(chunks.join(',').trim());
-                    try {
-                        const nomRes = await fetch(
-                            `https://nominatim.openstreetmap.org/search?q=${relaxedQuery}&format=json&countrycodes=in&limit=1`,
-                            { headers: { 'Accept': 'application/json' } }
-                        );
-                        if (nomRes.ok) {
-                            const nomData = await nomRes.json();
-                            if (Array.isArray(nomData) && nomData.length > 0) {
-                                const nLat = parseFloat(nomData[0].lat);
-                                const nLng = parseFloat(nomData[0].lon);
-                                if (!isNaN(nLat) && !isNaN(nLng) && (Math.abs(nLat) > 0.01 || Math.abs(nLng) > 0.01)) {
-                                    resolvedLat = nLat;
-                                    resolvedLng = nLng;
-                                    resolved = true;
-                                    console.log('[MapLocation] ✓ Strategy 6 — Relaxed Nominatim geocode:', resolvedLat, resolvedLng);
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[MapLocation] Strategy 6 chunk failed:', e);
-                    }
-                }
-            }
+            // Strategy 5 & 6 (Nominatim) removed: direct frontend calls triggered CORS errors.
+            // Support is now fully handled securely and efficiently by Strategy 3 (backend proxy)!
 
         } finally {
             setResolvingAddress(false);

@@ -22,21 +22,20 @@ import {
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
 const STATUS_ORDER = ['return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'];
+const DISPLAY_ORDER = ['return_scheduled', 'return_dispatched', 'return_picked_up'];
 
 const STATUS_STEPS = [
     { key: 'return_scheduled',    label: 'Return Scheduled',  Icon: Clock },
-    { key: 'return_dispatched',   label: 'Rider Assigned',    Icon: Truck },
-    { key: 'return_picked_up',    label: 'Items Collected',   Icon: Package },
-    { key: 'return_at_warehouse', label: 'At Warehouse',      Icon: Building2 },
-    { key: 'returned',            label: 'Return Complete',   Icon: CheckCircle2 },
+    { key: 'return_dispatched',   label: 'Rider On the Way',  Icon: Truck },
+    { key: 'return_picked_up',    label: 'Item Handover',     Icon: Package },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
     return_scheduled:    'Pickup Scheduled',
     return_dispatched:   'Rider On the Way',
-    return_picked_up:    'Items Collected',
-    return_at_warehouse: 'Arrived at Warehouse',
-    returned:            'Return Complete',
+    return_picked_up:    'Handover Complete',
+    return_at_warehouse: 'Handover Complete',
+    returned:            'Handover Complete',
 };
 
 export default function PickupTrackingPage() {
@@ -199,7 +198,9 @@ export default function PickupTrackingPage() {
         );
     }
 
-    const currentStatusIdx = STATUS_ORDER.indexOf(order?.status ?? '');
+    const rawStatusIdx = STATUS_ORDER.indexOf(order?.status ?? '');
+    // Clamp the status index to the DISPLAY_ORDER range (0-2)
+    const currentStatusIdx = rawStatusIdx > 2 ? 2 : rawStatusIdx;
 
     // OTP is only shown when:
     // 1. The order has an otp_return value
@@ -209,7 +210,7 @@ export default function PickupTrackingPage() {
     const riderIsNearby = riderProximity === 'nearby';
     const showOtp = order?.otp_return && (
         (order?.status === 'return_dispatched' && riderIsNearby) ||
-        order?.status === 'return_picked_up'
+        (rawStatusIdx >= 2 && rawStatusIdx < 5) // return_picked_up, return_at_warehouse
     );
 
     // Show the rider-approaching card when dispatched but not yet nearby
@@ -244,7 +245,7 @@ export default function PickupTrackingPage() {
                 {/* ── Status Timeline ── */}
                 <section className="px-5 pt-6 pb-2">
                     {STATUS_STEPS.map((step, idx) => {
-                        const stepIdx = STATUS_ORDER.indexOf(step.key);
+                        const stepIdx = DISPLAY_ORDER.indexOf(step.key);
                         const isDone    = currentStatusIdx >= stepIdx && currentStatusIdx !== -1;
                         const isCurrent = currentStatusIdx === stepIdx;
                         const { Icon } = step;
@@ -269,7 +270,7 @@ export default function PickupTrackingPage() {
                                         {step.label}
                                     </p>
                                     {isCurrent && (
-                                        <p className="text-xs text-[#f2546d] mt-0.5 font-medium">Current Status</p>
+                                        <p className="text-xs text-[#f2546d] mt-0.5 font-medium">{isDone && currentStatusIdx === 2 ? 'Completed' : 'Current Status'}</p>
                                     )}
                                 </div>
                             </div>

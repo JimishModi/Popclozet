@@ -78,10 +78,8 @@ app.get("/api/location/search", async (req, res) => {
             res.json(results);
         } catch (nomError: any) {
             console.error("[API] Both Mappls and Nominatim failed:", nomError.message);
-            res.status(500).json({
-                error: "Search failed completely",
-                detail: nomError.message
-            });
+            // Return empty array instead of 500 error so the UI shows 'No results' instead of crashing
+            res.json([]);
         }
     }
 });
@@ -257,16 +255,75 @@ app.get("/api/location/geocode", async (req, res) => {
     }
 
     try {
-        // Nominatim (OpenStreetMap) — free, no key, no domain restrictions.
-        // Problem: full addresses like "Pizza By The Bay, Churchgate, Ground Floor, 143, ..."
-        // include establishment names that Nominatim doesn't recognise.
+        // Replace regional commas (like Arabic comma '،') with standard commas to ensure
+        // APIs and fallback chunking logic can properly segment the text.
+        const rawAddress = address as string;
+        const fullAddress = rawAddress.replace(/،/g, ',');
+
+        // --- 1. First try Mappls Geocode ---
+        if (REST_KEY && REST_KEY !== 'your_mapmyindia_rest_key_here') {
+            try {
+                const mapplsUrl = `https://atlas.mappls.com/api/places/geocode?address=${encodeURIComponent(fullAddress)}&access_token=${REST_KEY}`;
+                console.log(`[GeoAPI] Mappls trying: "${fullAddress}"`);
+                
+                const mbRes = await axios.get(mapplsUrl, {
+                    headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' },
+                    timeout: 5000
+                });
+
+                const result = mbRes.data;
+                const data = Array.isArray(result) ? result[0] : (result.copResults ? result.copResults[0] : (result.results ? result.results[0] : result));
+                
+                if (data && (data.latitude || data.lat)) {
+                    const lat = parseFloat(data.latitude || data.lat);
+                    const lng = parseFloat(data.longitude || data.lng);
+                    
+                    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                        console.log(`[GeoAPI] ✓ Resolved via Mappls: lat=${lat} lng=${lng}`);
+                        return res.json({
+                            lat,
+                            lng,
+                            eLoc: data.eLoc || data.eloc || data.mapplsPin || null,
+                            displayAddress: data.formatted_address || data.placeName || data.address || fullAddress
+                        });
+                    }
+                }
+            } catch (err: any) {
+                console.warn("[GeoAPI] Mappls geocode failed, falling back to Nominatim:", err.message);
+            }
+        }
+
+        // --- 2. Fallback to Mapbox Geocoding ---
+        if (MAPBOX_TOKEN) {
+            try {
+                // Mapbox is highly forgiving with complex/messy addresses
+                const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(fullAddress)}.json?access_token=${MAPBOX_TOKEN}&country=in&limit=1`;
+                console.log(`[GeoAPI] Mapbox trying: "${fullAddress}"`);
+                const mbRes = await axios.get(mapboxUrl, { timeout: 5000 });
+                const features = mbRes.data.features;
+                
+                if (features && features.length > 0) {
+                    const feat = features[0];
+                    const lng = feat.center[0];
+                    const lat = feat.center[1];
+                    console.log(`[GeoAPI] ✓ Resolved via Mapbox: lat=${lat} lng=${lng}`);
+                    return res.json({
+                        lat,
+                        lng,
+                        eLoc: null,
+                        displayAddress: feat.place_name || fullAddress
+                    });
+                }
+            } catch (err: any) {
+                console.warn("[GeoAPI] Mapbox geocode failed, falling back to Nominatim:", err.message);
+            }
+        }
+
+        // --- 3. Fallback to Nominatim (OpenStreetMap) ---
+        // Problem: full addresses like "Pizza By The Bay, Churchgate..." include establishment names that Nominatim doesn't recognise.
         // Fix: retry with progressively shorter address tails (drop leading components).
-        const fullAddress = address as string;
         const parts = fullAddress.split(',').map((p: string) => p.trim()).filter(Boolean);
 
-        // Build candidate queries from most-specific to least-specific.
-        // Skipping 0 (full), 1, 2 leading parts gives: "Marine Drive, Church Gate, Mumbai..."
-        // We stop as soon as we get a result.
         const candidates: string[] = [
             fullAddress,
             parts.slice(1).join(', '),   // skip establishment name
@@ -281,15 +338,25 @@ app.get("/api/location/geocode", async (req, res) => {
             const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=in`;
             console.log(`[GeoAPI] Nominatim trying: "${query}"`);
 
-            const response = await axios.get(nominatimUrl, {
-                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
-            });
+            try {
+                // Throttle Nominatim fallback sequentially to respect the absolute 1 req/sec API constraint.
+                // Required to avoid "429 Too Many Requests" bans from OSM.
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const results = response.data;
-            if (Array.isArray(results) && results.length > 0) {
-                best = results[0];
-                usedQuery = query;
-                break;
+                const response = await axios.get(nominatimUrl, {
+                    headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' },
+                    timeout: 5000
+                });
+
+                const results = response.data;
+                if (Array.isArray(results) && results.length > 0) {
+                    best = results[0];
+                    usedQuery = query;
+                    break;
+                }
+            } catch (nomErr: any) {
+                console.warn(`[GeoAPI] Nominatim request failed for "${query}":`, nomErr.message);
+                // Continue to the next shorter query instead of throwing 500 immediately
             }
             console.log(`[GeoAPI] No results for: "${query}", trying shorter form...`);
         }
@@ -306,7 +373,7 @@ app.get("/api/location/geocode", async (req, res) => {
             return res.status(404).json({ error: "Geocoding returned invalid coordinates" });
         }
 
-        console.log(`[GeoAPI] ✓ Resolved via "${usedQuery}": lat=${lat} lng=${lng}`);
+        console.log(`[GeoAPI] ✓ Resolved via nominatim "${usedQuery}": lat=${lat} lng=${lng}`);
         res.json({
             lat,
             lng,
