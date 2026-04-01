@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, MapPin, CalendarDays, Package } from 'lucide-react';
 
 import { MobileShell } from '@/components/layout/MobileShell';
-import { getAvailableTimeSlots, type TimeSlot } from '@/services/deliveryService';
+import { getReturnTimeSlots, type TimeSlot } from '@/services/deliveryService';
 import { useCart } from '@/context/CartContext';
 import type { ValidatedAddress } from '@/services/addressService';
 
@@ -21,6 +21,7 @@ const CheckoutReturnSchedulePage: React.FC = () => {
 
     const { cartItems } = useCart();
     const [selectedSlotIso, setSelectedSlotIso] = useState<string>('');
+    const [selectedDate, setSelectedDate] = useState<string>('');
 
     // Derive rental duration from the first cart item's plan
     const rentalDays = useMemo(() => {
@@ -30,11 +31,23 @@ const CheckoutReturnSchedulePage: React.FC = () => {
         return firstPlan === '1d' ? 1 : firstPlan === '2d' ? 2 : firstPlan === 'buy' ? 0 : 3;
     }, [cartItems]);
 
-    // Get time slots starting after rental period ends, show 4-day window
+    // Get 1-hour return slots from (now + 2hr) to (rental end date 7 PM)
     const slotGroups = useMemo(
-        () => getAvailableTimeSlots(rentalDays).slice(0, 1),
+        () => getReturnTimeSlots(rentalDays),
         [rentalDays]
     );
+
+    // Auto-select first date when slot groups load
+    React.useEffect(() => {
+        if (slotGroups.length > 0 && !selectedDate) {
+            setSelectedDate(slotGroups[0].date);
+        }
+    }, [slotGroups, selectedDate]);
+
+    // Slots for the currently selected date
+    const activeDateSlots = useMemo(() => {
+        return slotGroups.find(g => g.date === selectedDate)?.slots || [];
+    }, [slotGroups, selectedDate]);
 
     const selectedSlot = useMemo(() => {
         for (const group of slotGroups) {
@@ -87,7 +100,7 @@ const CheckoutReturnSchedulePage: React.FC = () => {
                         Schedule Your Return
                     </h1>
                     <p className="text-sm text-zinc-400 mt-1">
-                        Pre-schedule a return pickup slot for after your rental.
+                        Select a return pickup slot before placing your order.
                     </p>
                 </div>
             </header>
@@ -122,58 +135,84 @@ const CheckoutReturnSchedulePage: React.FC = () => {
                                     {rentalDays}-day rental plan
                                 </p>
                                 <p className="text-sm text-zinc-300 mt-1">
-                                    Return slots start from day {rentalDays} after delivery.
-                                    Select a convenient time below.
+                                    Choose a return pickup time. Slots are available until 7 PM on day {rentalDays}.
                                 </p>
                             </div>
                         </div>
                     </section>
                 )}
 
-                {/* Slot picker */}
+                {/* Date selector tabs */}
                 <section>
                     <div className="flex items-center gap-2 mb-3">
                         <CalendarDays className="w-4 h-4 text-[#f2546d]" />
                         <h3 className="text-sm font-semibold text-white uppercase tracking-[0.2em]">
-                            Pickup Slot
+                            Select Date
+                        </h3>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                        {slotGroups.map((group) => {
+                            const isActive = group.date === selectedDate;
+                            return (
+                                <button
+                                    key={group.date}
+                                    onClick={() => setSelectedDate(group.date)}
+                                    className={`flex-shrink-0 px-4 py-3 rounded-2xl border text-center transition-all ${
+                                        isActive
+                                            ? 'bg-[#f2546d] border-[#ff8597] text-white'
+                                            : 'bg-white/[0.03] border-white/10 text-zinc-400'
+                                    }`}
+                                >
+                                    <p className="text-xs font-bold uppercase">
+                                        {format(new Date(`${group.date}T00:00:00`), 'EEE')}
+                                    </p>
+                                    <p className="text-sm font-semibold mt-0.5">
+                                        {format(new Date(`${group.date}T00:00:00`), 'dd MMM')}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* Time slot picker for selected date */}
+                <section>
+                    <div className="flex items-center gap-2 mb-3">
+                        <CalendarDays className="w-4 h-4 text-[#f2546d]" />
+                        <h3 className="text-sm font-semibold text-white uppercase tracking-[0.2em]">
+                            Select Time
                         </h3>
                     </div>
 
-                    <div className="space-y-5">
-                        {slotGroups.map((group) => (
-                            <div key={group.date}>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 mb-3">
-                                    {format(new Date(`${group.date}T00:00:00`), 'EEE, dd MMM')}
-                                </p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {group.slots.map((slot) => {
-                                        const slotIso = buildSlotIso(slot);
-                                        const isSelected = slotIso === selectedSlotIso;
+                    {activeDateSlots.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2">
+                            {activeDateSlots.map((slot) => {
+                                const slotIso = buildSlotIso(slot);
+                                const isSelected = slotIso === selectedSlotIso;
 
-                                        return (
-                                            <motion.button
-                                                key={slotIso}
-                                                whileTap={{ scale: 0.98 }}
-                                                onClick={() => setSelectedSlotIso(slotIso)}
-                                                className={`rounded-2xl border px-4 py-3 text-left transition-all ${
-                                                    isSelected
-                                                        ? 'bg-[#f2546d] border-[#ff8597] text-white'
-                                                        : 'bg-white/[0.03] border-white/10 text-zinc-300'
-                                                }`}
-                                            >
-                                                <p className="text-sm font-semibold">
-                                                    {slot.start} - {slot.end}
-                                                </p>
-                                                <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-zinc-500'}`}>
-                                                    Return pickup
-                                                </p>
-                                            </motion.button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                                return (
+                                    <motion.button
+                                        key={slotIso}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => setSelectedSlotIso(slotIso)}
+                                        className={`rounded-2xl border px-3 py-3 text-center transition-all ${
+                                            isSelected
+                                                ? 'bg-[#f2546d] border-[#ff8597] text-white'
+                                                : 'bg-white/[0.03] border-white/10 text-zinc-300'
+                                        }`}
+                                    >
+                                        <p className="text-sm font-semibold">
+                                            {slot.start} - {slot.end}
+                                        </p>
+                                    </motion.button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-zinc-500 text-center py-6">
+                            No slots available for this date
+                        </p>
+                    )}
                 </section>
 
                 {/* Selected summary */}

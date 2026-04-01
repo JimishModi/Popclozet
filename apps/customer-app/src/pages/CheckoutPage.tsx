@@ -100,6 +100,11 @@ export default function CheckoutPage() {
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
+  // KYC States
+  const [kycVerified, setKycVerified] = useState<boolean>(false);
+  const [showKycGate, setShowKycGate] = useState<boolean>(false);
+  const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
+
   // Fetch IP address for legal logging
   useEffect(() => {
     fetch("https://api.ipify.org?format=json")
@@ -107,6 +112,37 @@ export default function CheckoutPage() {
       .then(data => setUserIp(data.ip))
       .catch(err => console.error("Failed to fetch IP:", err));
   }, []);
+
+  // Check URL params for KYC callback
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+    if (kycCallback === "success" && user?.id) {
+      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", user.id)
+        .then(({ error }) => {
+          if (error) {
+            console.error("[KYC] Failed to persist verification:", error);
+            toast.error("Verification recorded but failed to save. Please try again.");
+            return;
+          }
+          setKycVerified(true);
+          toast.success("Identity verified successfully!");
+        });
+      // Optionally clean up the URL
+      searchParams.delete("kyc_callback");
+      const newUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, user?.id]);
+  // Fetch initial KYC status
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from("customer_profiles").select("kyc_verified").eq("user_id", user.id).single().then(({ data }) => {
+        if (data?.kyc_verified) {
+          setKycVerified(true);
+        }
+      });
+    }
+  }, [user?.id]);
 
   // Save payment method preference
   useEffect(() => {
@@ -504,6 +540,12 @@ export default function CheckoutPage() {
   /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
   const handlePlaceOrder = async () => {
+    // KYC Gate
+    if (!kycVerified) {
+      setShowKycGate(true);
+      return;
+    }
+
     // Only gate on email if they actually have a real email set
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
@@ -519,6 +561,13 @@ export default function CheckoutPage() {
 
     if (!paymentMethod) {
       setShowPaymentMethodSelector(true);
+      return;
+    }
+
+    // Return schedule is mandatory for rental orders
+    if (hasRentals && !returnSchedule?.pickupSlotIso) {
+      toast.error("Please select a return pickup slot before placing your order.");
+      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } });
       return;
     }
 
@@ -599,10 +648,10 @@ export default function CheckoutPage() {
       const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
 
       // Ensure start and end dates make sense
-      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0 
-                        : 3;
+      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1
+        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2
+          : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0
+            : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
@@ -879,8 +928,8 @@ export default function CheckoutPage() {
                       <Clock className="w-6 h-6 text-white" />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Choose a slot for post-rental pickup</p>
+                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup <span className="text-[#f2546d]">*</span></p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Required — choose a return slot to continue</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-[#f2546d] transition-colors" />
@@ -976,7 +1025,7 @@ export default function CheckoutPage() {
                 {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
-              {/* Removed Pop Insurance Row */}
+            {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
               <span>₹ {total}</span>
@@ -1016,11 +1065,11 @@ export default function CheckoutPage() {
                   ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
                   : selectedOrderType === 'home_try_on'
                     ? "BOOK TRY-ON"
-                  : paymentMethod === 'upi'
-                    ? "PAY VIA UPI"
-                    : paymentMethod === 'cod'
-                      ? "PLACE ORDER"
-                      : "PAY"
+                    : paymentMethod === 'upi'
+                      ? "PAY VIA UPI"
+                      : paymentMethod === 'cod'
+                        ? "PLACE ORDER"
+                        : "PAY"
               }
             </button>
           </div>
@@ -1132,6 +1181,66 @@ export default function CheckoutPage() {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+
+      {/* KYC Verification Gate */}
+      <AnimatePresence>
+        {showKycGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowKycGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-[#f2546d]/10 flex items-center justify-center mx-auto mb-6">
+                <Check className="w-10 h-10 text-[#f2546d]" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Identity Verification</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                Before placing an order, we need to quickly verify your identity. This is a one-time process.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsKycLoading(true);
+                      const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                        body: { callbackParams: { user_id: user?.id } }
+                      });
+                      if (error) throw error;
+                      if (data?.url) {
+                        window.location.href = data.url;
+                      } else {
+                        window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      }
+                    } catch (err: any) {
+                      console.error('KYC Error:', err);
+                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    } finally {
+                      setIsKycLoading(false);
+                    }
+                  }}
+                  disabled={isKycLoading}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-lg shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+                </button>
+                <button onClick={() => setShowKycGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Email Verification Gate */}
       <AnimatePresence>

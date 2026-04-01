@@ -29,6 +29,7 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         // Reset immediately so the previous user's data isn't visible
         setWishlistItems([]);
+        let cancelled = false;
 
         async function init() {
             if (userId) {
@@ -38,13 +39,16 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
                     console.error("Wishlist migration failed:", e);
                 }
             }
+            if (cancelled) return;
             await loadWishlistFromDB();
         }
 
         init();
+        return () => {
+            cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
-
     const loadWishlistFromDB = async () => {
         try {
             const items = await getWishlistItemsDB(userId);

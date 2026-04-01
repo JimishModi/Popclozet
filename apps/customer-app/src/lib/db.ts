@@ -211,8 +211,10 @@ export async function migrateAnonymousCartDB(userId: string) {
             const size = parts[2];
             const plan = parts[3];
             await addToCartDB(rawProductId, size, plan, item.quantity, userId);
+            await db.delete('cart', item.productId);
+        } else {
+            console.warn('Skipping malformed anonymous cart entry:', item.productId);
         }
-        await db.delete('cart', item.productId);
     }
 }
 

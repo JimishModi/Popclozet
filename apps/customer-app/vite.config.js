@@ -4,17 +4,12 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(function (_a) {
     var mode = _a.mode;
-    // Load env file from the monorepo root
-    var envDir = path.resolve(__dirname, "../..");
-    var env = loadEnv(mode, envDir, '');
-    console.log("🔍 [Vite Config] Mode:", mode);
-    console.log("🔍 [Vite Config] Working Directory:", process.cwd());
-    console.log("🔍 [Vite Config] MSG91 Widget ID present:", !!env.VITE_MSG91_WIDGET_ID);
-    console.log("🔍 [Vite Config] Supabase URL present:", !!env.VITE_SUPABASE_URL);
+    // Load env file from the current directory
+    var env = loadEnv(mode, path.resolve(__dirname, '../../'), '');
     return {
         base: "/",
-        // Load .env from monorepo root
-        envDir: envDir,
+        // Point specifically to the current directory for .env files
+        envDir: "../../",
         server: {
             host: "localhost",
             port: 5500,

@@ -171,7 +171,7 @@ const CartPage = () => {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [checkoutBlocked, setCheckoutBlocked] = useState(false);
   const [citySelectorOpen, setCitySelectorOpen] = useState(false);
-  
+
   // Drawer states
   const [sizeDrawerOpen, setSizeDrawerOpen] = useState(false);
   const [selectedItemForSize, setSelectedItemForSize] = useState<{ productId: string, plan: string, currentSize: string } | null>(null);
@@ -385,8 +385,8 @@ const CartPage = () => {
   /* ---------------------------------- */
   const handleCheckout = () => {
     if (!user) {
-        navigate('/auth/login');
-        return;
+      navigate('/auth/login');
+      return;
     }
     navigate("/checkout/address");
   };
@@ -420,7 +420,7 @@ const CartPage = () => {
         </button>
 
         {/* Product Image */}
-        <div 
+        <div
           onClick={() => navigate(`/product/${productId}`)}
           className="w-24 h-24 rounded-2xl bg-zinc-800 flex-shrink-0 overflow-hidden border border-white/5 cursor-pointer hover:opacity-80 transition-opacity"
         >
@@ -499,13 +499,13 @@ const CartPage = () => {
                 <span className="text-[10px] font-black text-white min-w-[12px] text-center">{quantity}</span>
                 <button
                   onClick={() => {
-                     const currentInv = cartInventory[productId]?.find((i: any) => i.size === size);
-                     const maxQty = currentInv?.available_stock || 0;
-                     if (quantity < maxQty) {
-                        updateQuantity(productId, size, plan, quantity + 1);
-                     } else {
-                        toast.error('Maximum available stock reached');
-                     }
+                    const currentInv = cartInventory[productId]?.find((i: any) => i.size === size);
+                    const maxQty = currentInv?.available_stock || 0;
+                    if (quantity < maxQty) {
+                      updateQuantity(productId, size, plan, quantity + 1);
+                    } else {
+                      toast.error('Maximum available stock reached');
+                    }
                   }}
                   className={cn("text-xs font-bold px-1 transition-colors", quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0) ? "text-white/20 cursor-not-allowed" : "text-white/60 hover:text-white")}
                   disabled={quantity >= (cartInventory[productId]?.find((i: any) => i.size === size)?.available_stock || 0)}
@@ -517,13 +517,23 @@ const CartPage = () => {
           </div>
 
           {/* Pricing */}
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex flex-wrap items-baseline gap-2">
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              ₹ {(product.originalPrice || itemPrice * 5) * quantity}
-            </span>
+            {isRental ? (
+              <>
+                <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  ₹ {(product.originalPrice || itemPrice) * planDays(plan) * quantity}
+                </span>
+                <span className="text-xs text-zinc-500 font-medium ml-1">
+                  (₹{product.originalPrice || itemPrice}/day)
+                </span>              </>
+            ) : (
+              <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                ₹ {(product.originalPrice || itemPrice * 5) * quantity}
+              </span>
+            )}
           </div>
         </div>
       </motion.div>
@@ -607,126 +617,126 @@ const CartPage = () => {
           <div className="lg:flex lg:gap-8 lg:items-start lg:mt-6 w-full flex-1 min-w-0">
             {/* Left Column */}
             <div className="lg:flex-1 min-w-0">
-            {/* ─── RENTAL ITEMS ─── */}
-            <section className="px-5 lg:px-0 space-y-4">
-              <AnimatePresence>
-                {validCartEntries.map(([key, data], i) => {
-                  const bgColors = ['#1A1A1E', '#1C1C20', '#181820'];
-                  return renderCartItem(key, data, bgColors[i % bgColors.length]);
-                })}
-              </AnimatePresence>
-            </section>
+              {/* ─── RENTAL ITEMS ─── */}
+              <section className="px-5 lg:px-0 space-y-4">
+                <AnimatePresence>
+                  {validCartEntries.map(([key, data], i) => {
+                    const bgColors = ['#1A1A1E', '#1C1C20', '#181820'];
+                    return renderCartItem(key, data, bgColors[i % bgColors.length]);
+                  })}
+                </AnimatePresence>
+              </section>
 
-            {/* ─── ADD-ONS ─── */}
-            {addOnProducts.length > 0 && (
-              <AddOnsCarousel
-                addOnProducts={addOnProducts}
-                primaryRentalDays={primaryRentalDays}
-                addToCart={addToCart}
-              />
-            )}
+              {/* ─── ADD-ONS ─── */}
+              {addOnProducts.length > 0 && (
+                <AddOnsCarousel
+                  addOnProducts={addOnProducts}
+                  primaryRentalDays={primaryRentalDays}
+                  addToCart={addToCart}
+                />
+              )}
             </div>
 
             {/* Right Column */}
             <div className="lg:w-[340px] lg:flex-shrink-0 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
-            {/* ─── COUPON SECTION ─── */}
-            <section className="px-5 lg:px-0">
-              <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Coupons
-              </h2>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter code (e.g. POP20)"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
-                />
-                <button
-                  onClick={handleApplyCoupon}
-                  className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors"
-                >
-                  Apply
-                </button>
-              </div>
-              {appliedCoupon && (
-                <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-                  <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
-                  <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
-                    <X className="w-4 h-4" />
+              {/* ─── COUPON SECTION ─── */}
+              <section className="px-5 lg:px-0">
+                <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Coupons
+                </h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter code (e.g. POP20)"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
+                  />
+                  <button
+                    onClick={handleApplyCoupon}
+                    className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors"
+                  >
+                    Apply
                   </button>
                 </div>
-              )}
-            </section>
-
-            {/* ─── PRICE DETAILS ─── */}
-            <section className="px-5 lg:px-0">
-              <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                Price details
-              </h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Order value
-                  </span>
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    ₹ {originalTotal || 4000}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Discount
-                  </span>
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    -₹ {discount + couponDiscount}
-                  </span>
-                </div>
-
                 {appliedCoupon && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      Coupon ({appliedCoupon.id})
-                    </span>
-                    <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      -₹ {couponDiscount}
-                    </span>
+                  <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
+                    <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
+                    <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
+              </section>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    Delivery fee
-                  </span>
-                  <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                    ₹ {deliveryFee}
-                  </span>
+              {/* ─── PRICE DETAILS ─── */}
+              <section className="px-5 lg:px-0">
+                <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Price details
+                </h2>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Order value
+                    </span>
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      ₹ {originalTotal || 4000}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Discount
+                    </span>
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      -₹ {discount + couponDiscount}
+                    </span>
+                  </div>
+
+                  {appliedCoupon && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        Coupon ({appliedCoupon.id})
+                      </span>
+                      <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        -₹ {couponDiscount}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Delivery fee
+                    </span>
+                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      ₹ {deliveryFee}
+                    </span>
+                  </div>
                 </div>
+
+                <div className="w-full h-px bg-white/5 mt-6" />
+
+                <div className="flex items-center justify-between mt-6">
+                  <span className="text-xl font-black text-white">Total</span>
+                  <span className="text-xl font-black text-white">₹ {grandTotal}</span>
+                </div>
+              </section>
+
+              {/* Desktop Checkout Footer inside Right Column */}
+              <div className="hidden lg:block bg-[#232323] rounded-2xl px-6 py-6 space-y-5 shadow-2xl">
+                <button
+                  onClick={canCheckout ? handleCheckout : undefined}
+                  disabled={!canCheckout}
+                  className={cn(
+                    "w-full h-14 flex items-center justify-center rounded-2xl font-bold text-lg text-white tracking-tight transition-colors",
+                    canCheckout ? "bg-[#f2546d] hover:bg-[#e04860] shadow-xl shadow-[#f2546d]/20" : "bg-white/10 text-white/40 cursor-not-allowed"
+                  )}
+                  style={{ fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  {!deliveryAddress ? "Select Address" : "Check Out"}
+                </button>
               </div>
-
-              <div className="w-full h-px bg-white/5 mt-6" />
-
-              <div className="flex items-center justify-between mt-6">
-                <span className="text-xl font-black text-white">Total</span>
-                <span className="text-xl font-black text-white">₹ {grandTotal}</span>
-              </div>
-            </section>
-
-            {/* Desktop Checkout Footer inside Right Column */}
-            <div className="hidden lg:block bg-[#232323] rounded-2xl px-6 py-6 space-y-5 shadow-2xl">
-              <button
-                onClick={canCheckout ? handleCheckout : undefined}
-                disabled={!canCheckout}
-                className={cn(
-                  "w-full h-14 flex items-center justify-center rounded-2xl font-bold text-lg text-white tracking-tight transition-colors",
-                  canCheckout ? "bg-[#f2546d] hover:bg-[#e04860] shadow-xl shadow-[#f2546d]/20" : "bg-white/10 text-white/40 cursor-not-allowed"
-                )}
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                {!deliveryAddress ? "Select Address" : "Check Out"}
-              </button>
-            </div>
 
             </div>
           </div>
@@ -770,13 +780,12 @@ const CartPage = () => {
                           updateSize(selectedItemForSize.productId, selectedItemForSize.currentSize, inv.size, selectedItemForSize.plan as any);
                           setSizeDrawerOpen(false);
                         }}
-                        className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${
-                          isSelected
+                        className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${isSelected
                             ? "bg-[#E95466] border-[#E95466] text-white"
                             : isAvailable
-                            ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
-                            : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
-                        }`}
+                              ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
+                              : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
+                          }`}
                       >
                         <span className="font-bold text-lg">{inv.size}</span>
                         {!isAvailable && <span className="text-[10px] mt-1">Sold out</span>}
