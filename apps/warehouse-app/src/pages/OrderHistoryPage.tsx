@@ -26,6 +26,8 @@ import {
 import { clsx } from 'clsx';
 import { getOrderHistory, type OrderWithItems } from '../services/fulfillmentService';
 
+import { RotateCcw } from 'lucide-react';
+
 const statusFilters = [
     { key: 'all', label: 'All Orders', icon: History, color: 'text-zinc-400' },
     { key: 'pending', label: 'Pending', icon: Clock, color: 'text-amber-400' },
@@ -33,6 +35,8 @@ const statusFilters = [
     { key: 'packed', label: 'Packed', icon: Package, color: 'text-warehouse-400' },
     { key: 'dispatched', label: 'Dispatched', icon: Truck, color: 'text-emerald-400' },
     { key: 'delivered', label: 'Delivered', icon: CheckCircle2, color: 'text-emerald-500' },
+    { key: 'returns', label: 'Returns', icon: RotateCcw, color: 'text-orange-400' },
+    { key: 'return_completed', label: 'Completed', icon: CheckCircle2, color: 'text-cyan-400' },
     { key: 'cancelled', label: 'Cancelled', icon: XCircle, color: 'text-red-400' },
 ];
 
@@ -86,11 +90,27 @@ export function OrderHistoryPage() {
             case 'packed': return 'bg-warehouse-500/10 text-warehouse-500 border-warehouse-500/20';
             case 'ready_for_pickup': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
             case 'rider_assigned': return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
-            case 'dispatched': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+            case 'dispatched': 
+            case 'return_dispatched': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
             case 'delivered': return 'bg-green-500/10 text-green-500 border-green-500/20';
             case 'cancelled': return 'bg-red-500/10 text-red-500 border-red-500/20';
+            case 'return_requested':
+            case 'return_scheduled':
+            case 'return_assigned':
+            case 'return_picked_up':
+            case 'return_at_warehouse':
+            case 'returned': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
+            case 'return_completed':
+            case 'completed': return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
             default: return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
         }
+    };
+    
+    const getStatusDisplay = (status: string) => {
+        if (status === 'return_completed') return 'Completed';
+        if (status === 'returned') return 'Returned';
+        if (status.startsWith('return_')) return 'Return ' + status.replace('return_', '').replace(/_/g, ' ');
+        return status.replace(/_/g, ' ');
     };
 
     return (
@@ -217,7 +237,7 @@ export function OrderHistoryPage() {
                                             "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
                                             getStatusStyle(order.status)
                                         )}>
-                                            {order.status.replace(/_/g, ' ')}
+                                            {getStatusDisplay(order.status)}
                                         </div>
                                     </div>
 

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import logoImage from "@/logo/logo.png";
+import logoImage from "@/logo/popclozet-logo.svg";
 
 /**
  * Welcome Grid Page – 3-column masonry with scrolling animation

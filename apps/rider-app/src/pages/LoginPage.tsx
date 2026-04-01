@@ -11,6 +11,7 @@ import { useAuth } from '@popclozet/auth';
 import { Phone, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { sendOtp } from '../services/msg91OtpService';
+import logoImage from '../assets/popclozet-logo.svg';
 
 export function LoginPage() {
     const navigate = useNavigate();
@@ -60,11 +61,9 @@ export function LoginPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     className="flex items-center gap-3"
                 >
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                        <span className="text-white text-xl font-bold">Q</span>
-                    </div>
+                    <img src={logoImage} alt="Popclozet" className="h-10 w-auto object-contain" />
                     <div>
-                        <h1 className="text-xl font-bold text-white">Qikwil Rider</h1>
+                        <h1 className="text-xl font-bold text-white">Popclozet Rider</h1>
                         <p className="text-xs text-zinc-500">Delivery Partner</p>
                     </div>
                 </motion.div>

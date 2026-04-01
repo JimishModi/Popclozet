@@ -66,7 +66,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                 {/* Optional brand logo for Desktop Sidebar */}
                 <div className="hidden lg:block mb-8 px-4">
                     <span className="text-xl font-bold bg-gradient-to-r from-primary to-[#ff8ba7] bg-clip-text text-transparent">
-                        popclozet
+                        Popclozet
                     </span>
                 </div>
 

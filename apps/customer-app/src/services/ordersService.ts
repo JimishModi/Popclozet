@@ -273,8 +273,7 @@ export async function getMyActiveRentals() {
       "pending", "confirmed", "packed", "ready_for_pickup", "rider_assigned",
       "driver_arrived_warehouse", "order_picked_up",
       "dispatched", "out_for_delivery", "delivered", "in_use",
-      "return_requested", "return_scheduled", "return_dispatched",
-      "return_picked_up", "returned"
+      "return_requested", "return_scheduled", "return_dispatched"
     ])
     .order("created_at", { ascending: false });
 
@@ -348,6 +347,24 @@ export async function requestImmediateReturn(
 
   if (error) {
     console.error("requestImmediateReturn error:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Assign a rider for a return pickup.
+ * Atomically sets rider_id, transitions to return_dispatched, and generates OTP.
+ */
+export async function assignReturnRider(orderId: string, riderId: string) {
+  const { data, error } = await supabase.rpc("assign_return_rider", {
+    p_order_id: orderId,
+    p_rider_id: riderId,
+  });
+
+  if (error) {
+    console.error("assignReturnRider error:", error);
     throw error;
   }
 

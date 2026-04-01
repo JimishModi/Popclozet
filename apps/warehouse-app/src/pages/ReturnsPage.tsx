@@ -16,6 +16,10 @@ import {
     Clock,
     AlertTriangle,
     Zap,
+    UserPlus,
+    Truck,
+    Navigation,
+    Phone
 } from 'lucide-react';
 import { supabase } from '@popclozet/api-client';
 import { clsx } from 'clsx';
@@ -26,6 +30,7 @@ import {
     approveReturn,
     getReturnRequests,
     receiveReturnAtWarehouse,
+    completeReturnFlow
 } from '../services/fulfillmentService';
 import { sendUnitToWash, returnUnitFromWash } from '../services/washService';
 import { flagUnitAsDamaged } from '../services/productProfileService';
@@ -56,6 +61,9 @@ export function ReturnsPage() {
     const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [damageModal, setDamageModal] = useState<{ individualId: string; productName: string } | null>(null);
     const [damageNotes, setDamageNotes] = useState('');
+    const [riders, setRiders] = useState<{ user_id: string; full_name: string }[]>([]);
+    const [selectedReturnRiders, setSelectedReturnRiders] = useState<Record<string, string>>({});
+    const [assigningRider, setAssigningRider] = useState<string | null>(null);
 
     // Fetch OTP expiry and start countdown whenever the modal opens
     useEffect(() => {
@@ -97,8 +105,17 @@ export function ReturnsPage() {
 
     const loadData = useCallback(async () => {
         try {
-            const data = await getReturnRequests();
+            const [data, ridersRes] = await Promise.all([
+                getReturnRequests(),
+                supabase.from('profiles').select('user_id, full_name').eq('role', 'rider'),
+            ]);
             setRequests(data);
+            if (ridersRes.data) {
+                setRiders(ridersRes.data.map((r: any) => ({
+                    user_id: r.user_id,
+                    full_name: r.full_name || 'Rider',
+                })));
+            }
         } catch (error) {
             console.error('Failed to load return requests:', error);
             setRequests([]);
@@ -138,6 +155,7 @@ export function ReturnsPage() {
         }
     };
 
+
     const handleReceive = async (orderId: string) => {
         if (!user?.id) return;
         if (!otpValue || otpValue.length !== 6) {
@@ -161,7 +179,7 @@ export function ReturnsPage() {
         }
     };
 
-    const handleUnitAction = async (individualId: string, currentStatus: string) => {
+    const handleUnitAction = async (individualId: string, currentStatus: string, order: any, requestId: string, allUnits: any[]) => {
         if (!user?.id) return;
         const actionKey = `unit:${individualId}`;
         setProcessingKey(actionKey);
@@ -169,6 +187,18 @@ export function ReturnsPage() {
             if (currentStatus === 'washing') {
                 await returnUnitFromWash(individualId, user.id);
                 showToast(`Unit ${individualId} marked available`);
+                
+                // Check if this was the last remaining unit to be made available/damaged
+                const allCompleted = allUnits.every((item: any) => {
+                    if (item.individual_id === individualId) return true; // Just processed
+                    const status = item.unit?.status;
+                    return ['available', 'damaged', 'archived'].includes(status);
+                });
+
+                if (allCompleted && order) {
+                    await completeReturnFlow(order.id, requestId);
+                    showToast('All units processed! Order completed and moved to History.');
+                }
             } else {
                 await sendUnitToWash(individualId, user.id);
                 showToast(`Unit ${individualId} moved to washing`);
@@ -182,13 +212,28 @@ export function ReturnsPage() {
         }
     };
 
-    const handleFlagDamaged = async () => {
+    const handleFlagDamaged = async (order?: any, requestId?: string, allUnits?: any[]) => {
         if (!user?.id || !damageModal) return;
         const actionKey = `unit:${damageModal.individualId}`;
         setProcessingKey(actionKey);
         try {
             await flagUnitAsDamaged(damageModal.individualId, damageNotes, user.id);
             showToast(`Unit ${damageModal.individualId} flagged as damaged`, 'info');
+            
+            // Check if this was the last remaining unit
+            if (order && requestId && allUnits) {
+                const allCompleted = allUnits.every((item: any) => {
+                    if (item.individual_id === damageModal.individualId) return true; // Just processed
+                    const status = item.unit?.status;
+                    return ['available', 'damaged', 'archived'].includes(status);
+                });
+
+                if (allCompleted) {
+                    await completeReturnFlow(order.id, requestId);
+                    showToast('All units processed! Order completed and moved to History.');
+                }
+            }
+            
             setDamageModal(null);
             setDamageNotes('');
             await loadData();
@@ -287,14 +332,44 @@ export function ReturnsPage() {
                                                 Order state: {order?.status?.replace(/_/g, ' ')}
                                             </p>
                                             {order?.rider_id && (
-                                                <p className="text-[11px] text-zinc-500 mt-1">
-                                                    Rider: {order.rider_id.slice(0, 8)}
-                                                </p>
+                                                <div className="mt-2 text-right flex flex-col items-end gap-1 border-t border-surface-border/50 pt-2">
+                                                    <p className="text-[11px] font-medium text-zinc-300">
+                                                        {order.riders?.full_name || order.riders?.name || 'Assigned Rider'}
+                                                    </p>
+                                                    {order.riders?.phone && (
+                                                        <div className="flex items-center gap-1.5 text-zinc-400 text-[10px]">
+                                                            <Phone size={10} />
+                                                            <a href={`tel:${order.riders.phone}`} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
 
+                                    {/* ── Assign Rider (for return_scheduled with no rider) ── */}
+                                    {order?.status === 'return_scheduled' && !order?.rider_id && (
+                                        <div className="flex items-center justify-center gap-2 mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                            <Zap size={14} className="text-amber-400 animate-pulse shrink-0" />
+                                            <p className="text-xs font-semibold text-amber-500 uppercase tracking-widest text-center">
+                                                Broadcasting to Riders...
+                                            </p>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                                        {/* Rider Live Location Link */}
+                                        {['return_dispatched', 'return_picked_up'].includes(order?.status ?? '') && (
+                                            <a
+                                                href={`/track/${order?.id}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-all"
+                                            >
+                                                <Navigation size={12} /> Live Tracker
+                                            </a>
+                                        )}
+
                                         {request.status === 'requested' && (
                                             <button
                                                 disabled={approveBusy}
@@ -384,7 +459,7 @@ export function ReturnsPage() {
                                                                     {canWash && (
                                                                         <button
                                                                             disabled={unitActionBusy}
-                                                                            onClick={() => handleUnitAction(item.individual_id, unitStatus)}
+                                                                            onClick={() => handleUnitAction(item.individual_id, unitStatus, order, request.id, linkedUnits)}
                                                                             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition-all disabled:opacity-60"
                                                                         >
                                                                             {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
@@ -399,7 +474,8 @@ export function ReturnsPage() {
                                                                                 setDamageModal({
                                                                                     individualId: item.individual_id,
                                                                                     productName: item.product?.name || item.individual_id,
-                                                                                });
+                                                                                    orderContext: { order, request, linkedUnits } // Pass context for later
+                                                                                } as any);
                                                                             }}
                                                                             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-60"
                                                                         >
@@ -557,7 +633,14 @@ export function ReturnsPage() {
                                         Cancel
                                     </button>
                                     <button
-                                        onClick={handleFlagDamaged}
+                                        onClick={() => {
+                                            if (damageModal && (damageModal as any).orderContext) {
+                                                const { order, request, linkedUnits } = (damageModal as any).orderContext;
+                                                handleFlagDamaged(order, request.id, linkedUnits);
+                                            } else {
+                                                handleFlagDamaged();
+                                            }
+                                        }}
                                         disabled={processingKey === `unit:${damageModal.individualId}`}
                                         className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
                                     >

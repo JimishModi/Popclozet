@@ -76,7 +76,6 @@ const ClosetPage: React.FC = () => {
                 const isInTransit = ['out_for_delivery', 'dispatched'].includes(order.status);
                 const isReturnInProgress = [
                     'return_requested', 'return_scheduled', 'return_dispatched',
-                    'return_picked_up', 'return_at_warehouse', 'returned',
                 ].includes(order.status);
 
                 const type = (isDelivered || isInTransit || isReturnInProgress) ? 'current' : 'future';

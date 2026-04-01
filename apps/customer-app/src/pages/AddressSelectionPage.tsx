@@ -5,8 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { locationStorage } from "@/lib/locationStorage";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { ChevronLeft, MapPin, Plus, Check } from "lucide-react";
-import { getLocalAddresses, ValidatedAddress } from "@/services/addressService";
+import { ChevronLeft, MapPin, Plus, Check, Trash2 } from "lucide-react";
+import { getLocalAddresses, ValidatedAddress, deleteRecentAddress } from "@/services/addressService";
 import { cn } from "@/lib/utils";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -36,6 +36,7 @@ const AddressSelectionPage = () => {
         
         if (data) {
           dbAddresses = data.map(addr => ({
+            id: addr.id,
             lat: addr.latitude,
             lng: addr.longitude,
             formattedAddress: addr.full_address,
@@ -62,6 +63,44 @@ const AddressSelectionPage = () => {
 
     fetchAddresses();
   }, [user]);
+
+  const handleDeleteAddress = async (e: React.MouseEvent, addr: ValidatedAddress, idx: number) => {
+    e.stopPropagation();
+    
+    if (!window.confirm("Are you sure you want to delete this address?")) return;
+
+    try {
+      // 1. Delete from Supabase if it's a saved address
+      if (addr.id && user) {
+        const { error } = await supabase
+          .from('addresses')
+          .delete()
+          .eq('id', addr.id)
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
+      }
+
+      // 2. Always try to delete from local storage (just in case)
+      deleteRecentAddress(addr.formattedAddress);
+
+      // 3. Update state
+      const updatedAddresses = addresses.filter((_, i) => i !== idx);
+      setAddresses(updatedAddresses);
+
+      // 4. Handle selection reset
+      if (selectedIdx === idx) {
+        setSelectedIdx(null);
+      } else if (selectedIdx !== null && selectedIdx > idx) {
+        setSelectedIdx(selectedIdx - 1);
+      }
+
+      console.log('✅ Address deleted successfully');
+    } catch (err) {
+      console.error('❌ Failed to delete address:', err);
+      alert("Failed to delete address. Please try again.");
+    }
+  };
 
   const handleProceed = async () => {
     if (selectedIdx !== null) {
@@ -184,17 +223,25 @@ const AddressSelectionPage = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-                        Home / Other
+                        {addr.label || 'Home / Other'}
                       </p>
                       <p className="text-xs md:text-sm font-bold text-white leading-relaxed line-clamp-2" style={dmSans}>
                         {addr.formattedAddress}
                       </p>
                     </div>
-                    {selectedIdx === idx && (
-                      <div className="w-6 h-6 rounded-full bg-[#f2546d] flex items-center justify-center shrink-0">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0 self-center">
+                      <button
+                        onClick={(e) => handleDeleteAddress(e, addr, idx)}
+                        className="p-2 rounded-xl bg-white/5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-all active:scale-90"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      {selectedIdx === idx && (
+                        <div className="w-6 h-6 rounded-full bg-[#f2546d] flex items-center justify-center">
+                          <Check className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))}

@@ -8,6 +8,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { clearAllNotifications, markAllAsRead, markAsRead } from "@/services/notificationService";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface SupabaseNotification {
@@ -46,6 +47,8 @@ const NotificationsPage: React.FC = () => {
     // Supabase notifications
     const [supaNotifs, setSupaNotifs] = useState<SupabaseNotification[]>([]);
     const [notifsLoading, setNotifsLoading] = useState(true);
+    const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+    const [isClearingAll, setIsClearingAll] = useState(false);
 
     // In-app notification toggles – persisted to localStorage
     const [orderUpdates, setOrderUpdates] = useState(() => localStorage.getItem("notif_orders") !== "false");
@@ -56,6 +59,8 @@ const NotificationsPage: React.FC = () => {
         setter(val);
         localStorage.setItem(key, String(val));
     };
+
+    const unreadSupaCount = supaNotifs.reduce((acc, notif) => acc + (notif.is_read ? 0 : 1), 0);
 
     // Handle push toggle
     const handlePushToggle = async () => {
@@ -109,6 +114,35 @@ const NotificationsPage: React.FC = () => {
                     setSupaNotifs((prev) => [payload.new as SupabaseNotification, ...prev]);
                 }
             )
+            .on(
+                "postgres_changes",
+                {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "notifications",
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    const updated = payload.new as SupabaseNotification;
+                    setSupaNotifs((prev) =>
+                        prev.map((notif) => (notif.id === updated.id ? { ...notif, ...updated } : notif))
+                    );
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "DELETE",
+                    schema: "public",
+                    table: "notifications",
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    const deletedId = (payload.old as { id?: string })?.id;
+                    if (!deletedId) return;
+                    setSupaNotifs((prev) => prev.filter((notif) => notif.id !== deletedId));
+                }
+            )
             .subscribe();
 
         channelRef.current = channel;
@@ -119,6 +153,48 @@ const NotificationsPage: React.FC = () => {
             }
         };
     }, [user?.id]);
+
+    const handleMarkNotificationRead = async (notificationId: string, isRead: boolean) => {
+        if (isRead) return;
+        setSupaNotifs((prev) =>
+            prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
+        );
+        try {
+            await markAsRead(notificationId);
+        } catch {
+            setSupaNotifs((prev) =>
+                prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: false } : notif))
+            );
+        }
+    };
+
+    const handleMarkAllRead = async () => {
+        if (isMarkingAllRead || unreadSupaCount === 0) return;
+        setIsMarkingAllRead(true);
+        const previous = supaNotifs;
+        setSupaNotifs((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
+        try {
+            await markAllAsRead();
+        } catch {
+            setSupaNotifs(previous);
+        } finally {
+            setIsMarkingAllRead(false);
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (isClearingAll || supaNotifs.length === 0) return;
+        setIsClearingAll(true);
+        const previous = supaNotifs;
+        setSupaNotifs([]);
+        try {
+            await clearAllNotifications();
+        } catch {
+            setSupaNotifs(previous);
+        } finally {
+            setIsClearingAll(false);
+        }
+    };
 
     // Build order-based notifications
     const orderNotifs = orders.slice(0, 5).map(o => ({
@@ -156,7 +232,29 @@ const NotificationsPage: React.FC = () => {
 
                 {/* Rider / Dispatch Notifications — from Supabase */}
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-                    <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">Delivery Updates</h2>
+                    <div className="flex items-center justify-between gap-2 mb-3 pl-1">
+                        <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em]">Delivery Updates</h2>
+                        <div className="flex items-center gap-3 pr-1">
+                            {unreadSupaCount > 0 && (
+                                <button
+                                    onClick={handleMarkAllRead}
+                                    disabled={isMarkingAllRead}
+                                    className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#f2546d] disabled:text-zinc-600"
+                                >
+                                    {isMarkingAllRead ? "Marking..." : "Mark all read"}
+                                </button>
+                            )}
+                            {supaNotifs.length > 0 && (
+                                <button
+                                    onClick={handleClearAll}
+                                    disabled={isClearingAll}
+                                    className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600"
+                                >
+                                    {isClearingAll ? "Clearing..." : "Clear all"}
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     {notifsLoading ? (
                         <div className="space-y-3">
                             {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-white/5 rounded-2xl animate-pulse" />)}
@@ -179,7 +277,8 @@ const NotificationsPage: React.FC = () => {
                                 return (
                                     <div
                                         key={notif.id}
-                                        className={`flex items-start gap-3 px-3 md:px-4 py-3 md:py-4 ${!notif.is_read ? "bg-white/[0.03]" : ""} ${i < supaNotifs.length - 1 ? "border-b border-white/5" : ""}`}
+                                        onClick={() => handleMarkNotificationRead(notif.id, notif.is_read)}
+                                        className={`flex items-start gap-3 px-3 md:px-4 py-3 md:py-4 ${!notif.is_read ? "bg-white/[0.03] cursor-pointer" : ""} ${i < supaNotifs.length - 1 ? "border-b border-white/5" : ""}`}
                                     >
                                         <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl ${iconConfig.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                                             <Icon className={`w-4 h-4 md:w-5 md:h-5 ${iconConfig.color}`} />

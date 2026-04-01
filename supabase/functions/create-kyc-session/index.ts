@@ -36,11 +36,13 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
+    const callbackPath = callbackParams?.callback_path || '/checkout'
+
     const origin =
       req.headers.get('origin') ||
       Deno.env.get('PUBLIC_APP_ORIGIN') ||
       'http://localhost:5500'
-    const callbackUrl = `${origin}/checkout?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
+    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
     console.log("Creating Didit session with callback:", callbackUrl)
 
@@ -54,6 +56,7 @@ Deno.serve(async (req: Request) => {
         client_id: DIDIT_CLIENT_ID,
         workflow_id: DIDIT_WORKFLOW_ID,
         callback: callbackUrl,
+        vendor_data: userId,
       }),
     })
 

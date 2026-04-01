@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import logoImage from "@/logo/popclozet-logo.svg";
 
 const brandPink = "#F2546D";
 
@@ -47,44 +48,12 @@ export default function WelcomeGridPage2() {
 
                 {/* Popclozet Logo */}
                 <motion.div
-                    className="flex items-start justify-center mb-10"
+                    className="flex items-center justify-center mb-10"
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4 }}
                 >
-                    {/* Logo icon with pink background */}
-                    <div className="relative w-[21px] h-[33px] mr-1">
-                        <div className="absolute inset-0 bg-[#F2546D] rounded-sm" style={{ transform: 'scale(1.3)' }}></div>
-                        <svg
-                            className="relative z-10 w-full h-full"
-                            viewBox="0 0 21 33"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                        >
-                            <path d="M2 8C2 8 2 4 6 4C10 4 10 8 10 8M6 4V2M2 8L6 22L10 8H2Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </div>
-
-                    {/* OPCLOZET text */}
-                    <div className="relative flex items-center">
-                        <span
-                            className="text-[44px] leading-none relative z-10"
-                            style={{
-                                fontFamily: 'Bebas Neue, Impact, sans-serif',
-                                color: '#09446C',
-                                letterSpacing: '0px'
-                            }}
-                        >
-                            <span className="relative">
-                                <span className="absolute inset-0 bg-[#F2546D]" style={{ transform: 'scale(1.2)', zIndex: -1 }}></span>
-                                <span className="relative z-10 text-white">OP</span>
-                            </span>
-                            <span className="relative">
-                                <span className="absolute inset-0 bg-[#F2546D]" style={{ transform: 'scale(1.2)', zIndex: -1 }}></span>
-                                <span className="relative z-10 text-[#09446C]">CLOZET</span>
-                            </span>
-                        </span>
-                    </div>
+                    <img src={logoImage} alt="Popclozet" className="h-10 w-auto object-contain" />
                 </motion.div>
 
                 {/* Masonry Grid — different layout from Page 1 */}

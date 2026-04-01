@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin, Package } from 'lucide-react';
+import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin, Package, User, Phone } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
 import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
@@ -242,6 +242,32 @@ export function OrderFulfillmentPage() {
                                             </button>
                                         ))}
                                     </div>
+
+                                    {/* Rider Information (if assigned) */}
+                                    {order.rider_id && (
+                                        <div className="mb-3 pt-2 border-t border-surface-border space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <User size={12} className="text-purple-400" />
+                                                    <span className="text-[11px] font-medium text-zinc-300">{order.rider_name || 'Rider Assigned'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                {order.riders?.phone ? (
+                                                    <div className="flex items-center gap-1.5 text-zinc-400 text-[10px]">
+                                                        <Phone size={10} />
+                                                        <a href={`tel:${order.riders.phone}`} onClick={e => e.stopPropagation()} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
+                                                    </div>
+                                                ) : <div />}
+                                                <div className="flex items-center gap-1 text-[9px]">
+                                                    <span className="text-zinc-500">Track at</span>
+                                                    <Link to="/map" onClick={e => e.stopPropagation()} className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 font-medium">
+                                                        Live Map <MapPin size={8} className="inline"/>
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex items-center justify-between">
                                         <p className="text-[10px] text-zinc-500">

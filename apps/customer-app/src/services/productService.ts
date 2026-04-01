@@ -436,18 +436,21 @@ class ProductService {
 
     // Get products by gender AND event
     async getProductsByGenderAndEvent(gender: GenderCategory, event: EventCategory): Promise<Product[]> {
+        // Map app gender ('womens'/'mens') → DB gender ('women'/'men')
+        const dbGender = gender === 'womens' ? 'women' : gender === 'mens' ? 'men' : gender;
+
         if (this.isOnline()) {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock)')
-                    .in('gender', [gender, 'unisex'])
+                    .in('gender', [dbGender, 'unisex'])
                     .eq('event_category', event)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                return (data || []).map(this.transformFromDB);
+                return (data || []).map((p: any) => this.transformFromDB(p));
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();

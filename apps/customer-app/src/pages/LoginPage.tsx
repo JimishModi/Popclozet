@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { loadAndInitMsg91, sendOtp } from '@/services/msg91OtpService';
-import logoImage from '@/logo/logo.png';
+import logoImage from '@/logo/popclozet-logo.svg';
 import { Loader2, ChevronRight, Phone } from 'lucide-react';
 
 import imgCasuals from '@/moodboards/casuals.jpg';
@@ -115,7 +115,7 @@ export default function LoginPage() {
       <div className="flex flex-col min-h-screen">
         <div className="relative h-[45vh] overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <img src={logoImage} alt="Popclozet" className="h-14 drop-shadow-2xl" style={{ filter: 'drop-shadow(0 0 20px rgba(242,84,109,0.4))' }} />
+            <img src={logoImage} alt="Popclozet" className="h-12 drop-shadow-2xl" style={{ filter: 'drop-shadow(0 0 20px rgba(242,84,109,0.4))' }} />
           </div>
           <div className="absolute inset-0 z-10 overflow-hidden opacity-50">
             <ScrollingPhotoGrid />

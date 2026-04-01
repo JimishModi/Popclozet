@@ -145,6 +145,24 @@ export async function deleteNotification(notificationId: string): Promise<void> 
 }
 
 /**
+ * Delete all notifications for current user
+ */
+export async function clearAllNotifications(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.error("Error clearing all notifications:", error);
+    throw error;
+  }
+}
+
+/**
  * Get notification preferences
  */
 export async function getNotificationPreferences(): Promise<NotificationPreferences | null> {
@@ -194,7 +212,9 @@ export async function updateNotificationPreferences(
  */
 export async function subscribeToNotifications(
   onNewNotification: (notification: Notification) => void,
-  instanceId?: string
+  instanceId?: string,
+  onNotificationUpdate?: (notification: Notification) => void,
+  onNotificationDelete?: (notificationId: string) => void
 ): Promise<RealtimeChannel> {
   const { data } = await supabase.auth.getSession();
   if (!data.session?.user.id) {
@@ -217,6 +237,31 @@ export async function subscribeToNotifications(
       },
       (payload) => {
         onNewNotification(payload.new as Notification);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${data.session.user.id}`,
+      },
+      (payload) => {
+        onNotificationUpdate?.(payload.new as Notification);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${data.session.user.id}`,
+      },
+      (payload) => {
+        const deletedId = (payload.old as { id?: string })?.id;
+        if (deletedId) onNotificationDelete?.(deletedId);
       }
     )
     .subscribe();

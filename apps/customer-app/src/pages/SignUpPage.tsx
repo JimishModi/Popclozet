@@ -5,7 +5,7 @@ import { MobileShell } from '@/components/layout/MobileShell';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, User, Phone, CheckCircle2, Sparkles } from 'lucide-react';
 import { supabase } from '@popclozet/api-client';
-import logo from '@/logo/logo.png';
+import logo from '@/logo/popclozet-logo.svg';
 
 const SignUpPage: React.FC = () => {
     const navigate = useNavigate();
@@ -145,7 +145,7 @@ const SignUpPage: React.FC = () => {
                 >
                     <ArrowLeft className="w-5 h-5 text-white" />
                 </button>
-                <img src={logo} alt="Popclozet" className="h-5 w-auto object-contain ml-3" />
+                <img src={logo} alt="Popclozet" className="h-10 w-auto object-contain ml-3" />
             </div>
 
             <main className="flex-1 overflow-y-auto px-4 py-6">

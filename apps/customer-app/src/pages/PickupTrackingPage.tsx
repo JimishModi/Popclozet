@@ -3,11 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronLeft, Package, Phone, MessageCircle,
-    MapPin, KeyRound, Truck, Clock, CheckCircle2,
-    Navigation, Loader2, ExternalLink, Building2,
+    MapPin, KeyRound, Truck, Clock,
+    Navigation, Loader2, ExternalLink,
+    Zap, RefreshCw,
 } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { getOrderById } from "@/services/ordersService";
+import { getOrderById, requestImmediateReturn } from "@/services/ordersService";
+import { toast } from "sonner";
 import { supabase } from "@popclozet/api-client";
 import { OrderChat } from "@/components/map/OrderChat";
 import { notifyOrderStatusChange } from "@/services/notificationService";
@@ -21,17 +23,18 @@ import {
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
-const STATUS_ORDER = ['return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'];
-const DISPLAY_ORDER = ['return_scheduled', 'return_dispatched', 'return_picked_up'];
+const STATUS_ORDER = ['return_requested', 'return_scheduled', 'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'];
+const DISPLAY_ORDER = ['return_requested', 'return_dispatched', 'return_picked_up'];
 
 const STATUS_STEPS = [
-    { key: 'return_scheduled',    label: 'Return Scheduled',  Icon: Clock },
+    { key: 'return_requested',    label: 'Return Requested',  Icon: Clock },
     { key: 'return_dispatched',   label: 'Rider On the Way',  Icon: Truck },
     { key: 'return_picked_up',    label: 'Item Handover',     Icon: Package },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-    return_scheduled:    'Pickup Scheduled',
+    return_requested:    'Pending Approval',
+    return_scheduled:    'Finding Rider',
     return_dispatched:   'Rider On the Way',
     return_picked_up:    'Handover Complete',
     return_at_warehouse: 'Handover Complete',
@@ -50,6 +53,11 @@ export default function PickupTrackingPage() {
     const [riderProximity,  setRiderProximity] = useState<ProximityStatus>('far');
     const [riderDistanceKm, setRiderDistanceKm] = useState<number | null>(null);
     const [riderLocation,   setRiderLocation]   = useState<{ lat: number; lng: number } | null>(null);
+
+    const [instantReturnLoading, setInstantReturnLoading] = useState(false);
+    const [findingDrivers, setFindingDrivers] = useState(false);
+    const [noRidersAvailable, setNoRidersAvailable] = useState(false);
+    const [warehouseNotified, setWarehouseNotified] = useState(false);
 
     const previousStatusRef = useRef<string | null>(null);
     const geofenceCleanupRef = useRef<(() => void) | null>(null);
@@ -188,6 +196,56 @@ export default function PickupTrackingPage() {
         };
     }, [order?.rider_id, order?.status, order?.delivery_address]);
 
+// AUTO-ASSIGN REMOVED - Relies on warehouse approval and broadcasting.
+
+    // ── Notify warehouse to manually assign a rider ──
+    const handleNotifyWarehouse = async () => {
+        if (!pickupId) return;
+        try {
+            // Re-broadcast to all riders (in case new ones came online)
+            await supabase.rpc('notify_order_to_available_riders', { p_order_id: pickupId });
+
+            // Log to warehouse activity so the warehouse team sees this order needs attention
+            await supabase.from('warehouse_activity_log').insert({
+                action: 'rider_assignment_requested',
+                entity_type: 'order',
+                entity_id: pickupId,
+                actor_id: order?.user_id ?? null,
+                details: {
+                    reason: 'no_riders_available',
+                    customer_requested: true,
+                    order_status: order?.status,
+                },
+            });
+
+            setWarehouseNotified(true);
+            toast.success('Request sent! Warehouse will assign a rider shortly.');
+        } catch (err: any) {
+            console.error('Notify warehouse error:', err);
+            toast.error('Failed to send request — please try again');
+        }
+    };
+
+    // ── Instant Return handler ──
+    const handleInstantReturn = async () => {
+        if (!pickupId) return;
+        const status = order?.status;
+        if (status !== 'delivered' && status !== 'in_use') return;
+
+        try {
+            setInstantReturnLoading(true);
+            await requestImmediateReturn(pickupId, order?.delivery_address?.id ?? null);
+            toast.success('Finding a rider for your return...');
+            // Realtime subscription will update order to return_scheduled,
+            // which triggers auto-assignment via the useEffect below
+        } catch (err: any) {
+            console.error('Instant return error:', err);
+            toast.error(err?.message || 'Failed to request instant return');
+        } finally {
+            setInstantReturnLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <MobileShell className="bg-[#111111] text-white" hideBottomNav>
@@ -216,7 +274,17 @@ export default function PickupTrackingPage() {
     // Show the rider-approaching card when dispatched but not yet nearby
     const showRiderApproaching = order?.status === 'return_dispatched' && !riderIsNearby && order?.otp_return;
 
-    const statusLabel = STATUS_LABEL[order?.status] ?? 'Return in Progress';
+    const isPreReturn = ['delivered', 'in_use'].includes(order?.status ?? '');
+    const isPendingApproval = order?.status === 'return_requested';
+    const needsRiderAssignment = order?.status === 'return_scheduled' && !order?.rider_id;
+
+    const statusLabel = isPreReturn
+        ? 'Ready to Return'
+        : isPendingApproval
+            ? 'Waiting for Approval'
+            : needsRiderAssignment
+                ? 'Finding Rider'
+                : STATUS_LABEL[order?.status] ?? 'Return in Progress';
     const pickupAddress = order?.delivery_address?.full_address ?? '—';
     const returnDate    = order?.return_pickup_date ?? null;
     const returnSlot    = order?.return_time_slot ?? null;
@@ -241,6 +309,65 @@ export default function PickupTrackingPage() {
             </header>
 
             <main className="flex-1 overflow-y-auto pb-24 no-scrollbar">
+
+
+
+                {/* ── Finding Drivers (when return_scheduled but no rider yet) ── */}
+                {needsRiderAssignment && (
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mx-5 mt-6 mb-6 p-6 rounded-3xl bg-gradient-to-br from-amber-500/15 to-amber-900/10 border border-amber-500/25 shadow-xl"
+                    >
+                        {noRidersAvailable ? (
+                            warehouseNotified ? (
+                                <div className="flex flex-col items-center py-4">
+                                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center mb-4">
+                                        <Clock className="w-7 h-7 text-emerald-400" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-white mb-1" style={dmSans}>Request Sent!</h3>
+                                    <p className="text-xs text-zinc-400 text-center mb-4">
+                                        Our warehouse team has been notified and will assign a rider shortly.
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
+                                        <p className="text-xs text-emerald-300/70 font-medium">Waiting for rider assignment...</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                                            <RefreshCw className="w-6 h-6 text-amber-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white" style={dmSans}>No Riders Available</h3>
+                                            <p className="text-xs text-zinc-400 mt-0.5">All riders are busy right now</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleNotifyWarehouse}
+                                        className="w-full h-14 rounded-2xl bg-amber-500 flex items-center justify-center gap-3 shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all"
+                                    >
+                                        <Truck className="w-5 h-5 text-white" />
+                                        <span className="text-base font-bold text-white" style={dmSans}>Request Rider from Warehouse</span>
+                                    </button>
+                                </>
+                            )
+                        ) : (
+                            <div className="flex flex-col items-center py-4">
+                                <div className="relative mb-5">
+                                    <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center">
+                                        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+                                    </div>
+                                    <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-amber-400/20 animate-ping" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white mb-1" style={dmSans}>Finding Drivers...</h3>
+                                <p className="text-xs text-zinc-400 text-center">Looking for the best rider near your location</p>
+                            </div>
+                        )}
+                    </motion.section>
+                )}
 
                 {/* ── Status Timeline ── */}
                 <section className="px-5 pt-6 pb-2">
@@ -278,39 +405,27 @@ export default function PickupTrackingPage() {
                     })}
                 </section>
 
-                {/* ── Rider Live Location Map (shown during return_dispatched) ── */}
-                {order?.status === 'return_dispatched' && riderLocation && (
-                    <motion.section
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="mx-5 mb-6 rounded-3xl overflow-hidden border border-zinc-800 shadow-xl"
-                    >
-                        <div className="flex items-center justify-between px-4 pt-4 pb-2 bg-zinc-900">
-                            <div className="flex items-center gap-2">
-                                <Navigation className="w-4 h-4 text-[#f2546d]" />
-                                <span className="text-xs font-black text-white uppercase tracking-[0.15em]">
-                                    Rider Live Location
-                                </span>
-                            </div>
-                            <a
-                                href={`https://www.google.com/maps?q=${riderLocation.lat},${riderLocation.lng}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-[10px] font-bold text-[#f2546d] uppercase tracking-widest"
-                            >
-                                Open Maps <ExternalLink className="w-3 h-3" />
-                            </a>
-                        </div>
-                        <iframe
-                            src={`https://maps.google.com/maps?q=${riderLocation.lat},${riderLocation.lng}&zoom=15&output=embed`}
-                            width="100%"
-                            height="200"
-                            style={{ border: 0, display: 'block' }}
-                            loading="lazy"
-                            title="Rider location"
-                        />
-                    </motion.section>
+                {/* ── Instant Return (Small right-aligned button) ── */}
+                {isPreReturn && (
+                    <div className="mx-5 mb-6 flex justify-end">
+                        <button
+                            onClick={handleInstantReturn}
+                            disabled={instantReturnLoading}
+                            className="px-4 py-2.5 rounded-xl bg-[#f2546d]/10 border border-[#f2546d]/30 flex items-center gap-2 active:scale-95 transition-all text-[#f2546d] hover:bg-[#f2546d]/20 disabled:opacity-50 shadow-sm shadow-[#f2546d]/10"
+                        >
+                            {instantReturnLoading ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Zap className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <span className="text-xs font-bold tracking-wide" style={dmSans}>
+                                {instantReturnLoading ? "Requesting..." : "Instant Return"}
+                            </span>
+                        </button>
+                    </div>
                 )}
+
+                {/* ── LIVE LOCATION MAP REMOVED ── */}
 
                 {/* ── Rider Approaching Card (before OTP is revealed) ── */}
                 {showRiderApproaching && (

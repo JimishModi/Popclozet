@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
-import logo from '@/logo/logo.png';
+import logo from '@/logo/popclozet-logo.svg';
 
 interface MobileHeaderProps {
     className?: string;
@@ -34,8 +34,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                     <Link to="/home" className="flex items-center">
                         <img
                             src={logo}
-                            alt="popclozet"
-                            className="h-7 w-auto object-contain mix-blend-screen"
+                            alt="Popclozet"
+                            className="h-10 w-auto object-contain"
                         />
                     </Link>
                     <div className="flex items-center gap-1 text-xs text-zinc-500 mt-1">

@@ -14,7 +14,7 @@ import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
-import popclozetLogo from "@/logo/logo.png";
+import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
 
 const FEATURED_SLIDES = [
@@ -280,10 +280,9 @@ const MobileHome: React.FC = () => {
 
     return (
         <div className="bg-black text-white min-h-screen">
-            <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 pb-2 md:py-3 md:pb-8 flex items-center justify-between">
-                {/* ─── LOGO ─── */}
-                <div className="px-3 pt-2 pb-0.5 md:px-5 md:pt-5 md:pb-1 flex items-center">
-                    <img src={popclozetLogo} alt="Popclozet" className="h-5 md:h-7 object-contain" />
+            <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 md:py-3 flex items-center justify-between">
+                <div className="flex items-center">
+                    <img src={popclozetLogo} alt="Popclozet" className="h-10 w-auto object-contain" />
                 </div>
             </header>
 

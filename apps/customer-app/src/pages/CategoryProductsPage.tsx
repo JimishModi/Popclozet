@@ -308,9 +308,9 @@ const CategoryProductsPage: React.FC = () => {
             filtered = filtered.filter((p: any) => p.category === category);
         }
 
-        // Filter by gender if applicable
+        // Filter by gender if applicable — include unisex in both mens and womens
         if (genderFromPath && genderFromPath !== 'all') {
-            filtered = filtered.filter((p: any) => !p.gender || p.gender === genderFromPath);
+            filtered = filtered.filter((p: any) => !p.gender || p.gender === genderFromPath || p.gender === 'unisex');
         }
         // Filter by name query
         if (nameQuery.trim() !== "") {

@@ -61,10 +61,19 @@ export function useNotifications({
         let cancelled = false;
 
         (async () => {
-            const channel = await subscribeToNotifications((newNotif) => {
-                setNotifications((prev) => [newNotif, ...prev].slice(0, limit));
-                setUnreadCount((prev) => prev + 1);
-            }, instanceIdRef.current);
+            const channel = await subscribeToNotifications(
+                (newNotif) => {
+                    setNotifications((prev) => [newNotif, ...prev].slice(0, limit));
+                    setUnreadCount((prev) => prev + 1);
+                },
+                instanceIdRef.current,
+                () => {
+                    fetchNotifications();
+                },
+                () => {
+                    fetchNotifications();
+                }
+            );
 
             if (cancelled) {
                 if (channel) unsubscribeFromNotifications(channel);
@@ -81,7 +90,7 @@ export function useNotifications({
                 channelRef.current = null;
             }
         };
-    }, [autoSubscribe, limit]);
+    }, [autoSubscribe, limit, fetchNotifications]);
 
     // Mark single notification as read
     const handleMarkAsRead = useCallback(async (notificationId: string) => {

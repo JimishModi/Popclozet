@@ -44,6 +44,7 @@ export interface OrderWithItems {
     riders?: {
         name?: string | null;
         full_name?: string | null;
+        phone?: string | null;
     } | null;
 }
 
@@ -211,6 +212,7 @@ export async function getReturnRequests() {
                     id, user_id, total_amount, status, lifecycle_state, rider_id,
                     return_pickup_date, return_time_slot,
                     addresses:delivery_address_id (full_address, latitude, longitude),
+                    riders:rider_id (name, full_name, phone),
                     order_items (
                         id,
                         product_id,
@@ -280,6 +282,29 @@ export async function receiveReturnAtWarehouse(orderId: string, actorId: string,
     }
 
     return data;
+}
+
+/**
+ * Complete a return workflow fully, when all items are made available again or flagged.
+ */
+export async function completeReturnFlow(orderId: string, requestId: string) {
+    // 1. Update order
+    const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'return_completed', lifecycle_state: 'return_completed' })
+        .eq('id', orderId);
+
+    if (orderError) throw orderError;
+
+    // 2. Update return request
+    const { error: reqError } = await supabase
+        .from('return_requests')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', requestId);
+
+    if (reqError) throw reqError;
+
+    return true;
 }
 
 /**
@@ -373,7 +398,7 @@ export async function getActivePickups(): Promise<OrderWithItems[]> {
                 *,
                 order_items (*),
                 addresses:delivery_address_id (full_address, latitude, longitude),
-                riders:rider_id (name, full_name)
+                riders:rider_id (name, full_name, phone)
             `)
             .in('status', ['ready_for_pickup', 'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched'])
             .order('updated_at', { ascending: false });
@@ -453,11 +478,18 @@ export async function getOrderHistory(options?: { status?: string, searchQuery?:
                     products (id, name, images)
                 ),
                 addresses:delivery_address_id (full_address, latitude, longitude),
-                riders:rider_id (name, full_name)
+                riders:rider_id (name, full_name, phone)
             `);
 
         if (options?.status && options.status !== 'all') {
-            query = query.or(`status.eq.${options.status},lifecycle_state.eq.${options.status}`);
+            if (options.status === 'returns') {
+                query = query.in('status', [
+                    'return_requested', 'return_scheduled', 'return_assigned', 
+                    'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'
+                ]);
+            } else {
+                query = query.or(`status.eq.${options.status},lifecycle_state.eq.${options.status}`);
+            }
         }
 
         if (options?.searchQuery) {

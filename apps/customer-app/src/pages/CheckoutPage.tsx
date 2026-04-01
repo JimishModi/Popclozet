@@ -116,20 +116,30 @@ export default function CheckoutPage() {
   // Check URL params for KYC callback
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
-    if (kycCallback === "success" && user?.id) {
-      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", user.id)
+    const urlUserId = searchParams.get("user_id");
+    const effectiveUserId = user?.id || urlUserId;
+
+    if (kycCallback === "success" && effectiveUserId) {
+      // Set verified immediately so UI updates right away
+      setKycVerified(true);
+
+      // Persist to database
+      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", effectiveUserId)
         .then(({ error }) => {
           if (error) {
             console.error("[KYC] Failed to persist verification:", error);
-            toast.error("Verification recorded but failed to save. Please try again.");
+            toast.error("Verification failed to save. Please try again.");
+            setKycVerified(false);
             return;
           }
-          setKycVerified(true);
           toast.success("Identity verified successfully!");
         });
-      // Optionally clean up the URL
-      searchParams.delete("kyc_callback");
-      const newUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
+
+      // Clean up URL after processing
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("kyc_callback");
+      newParams.delete("user_id");
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams, user?.id]);

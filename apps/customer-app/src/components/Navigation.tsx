@@ -14,7 +14,7 @@ import ThemeToggle from "./ThemeToggle";
 import SignupModal from "./SignupModal";
 import SmartSearchOverlay from "./SmartSearchOverlay";
 // new   use this
-import logoSrc from "../logo/logo.png";
+import logoSrc from "../logo/popclozet-logo.svg";
 
 import { useNavigate, useLocation } from "react-router-dom";
 
