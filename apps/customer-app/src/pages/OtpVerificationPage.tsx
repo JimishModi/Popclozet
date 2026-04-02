@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { useAuth } from '@/context/SupabaseAuthContext';
-import { verifyOtp } from '@/services/msg91OtpService';
+import { loadAndInitMsg91, sendOtp, verifyOtp } from '@/services/msg91OtpService';
 import { supabase } from '@popclozet/api-client';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Button } from '@/components/ui/button';
@@ -11,35 +11,64 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 export default function OtpVerificationPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const phoneNumber = location.state?.phone || '';
+  const routeState = (location.state as { phone?: string } | null) || null;
+  const queryParams = new URLSearchParams(location.search);
+  const queryPhone = (queryParams.get('phone') || '').replace(/\D/g, '').slice(-10);
+  const phoneNumber = (routeState?.phone || queryPhone || '').replace(/\D/g, '').slice(-10);
+  const sendOnLoad = queryParams.get('send') === '1';
   // FIX: Removed checkAndRoute — AuthGate handles all routing based on needsOnboarding.
   // Using needsOnboarding directly from context instead.
   const { user, needsOnboarding, loading } = useAuth();
 
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isBootstrappingOtp, setIsBootstrappingOtp] = useState(sendOnLoad);
   const [error, setError] = useState('');
   const [verified, setVerified] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
+  const didBootstrapRef = useRef(false);
 
   useEffect(() => {
     if (!phoneNumber) {
-      navigate('/auth/login');
+      navigate('/auth/login', { replace: true });
       return;
     }
 
+    if (didBootstrapRef.current) return;
+    didBootstrapRef.current = true;
+
+    let cancelled = false;
+
     // Ensure SDK is initialized with the correct formatted identifier
     const initSdk = async () => {
+      setIsBootstrappingOtp(true);
       try {
-        const { loadAndInitMsg91 } = await import('@/services/msg91OtpService');
-        // autoSend: false — only init, don't trigger a redundant SMS on page load
-        await loadAndInitMsg91(`91${phoneNumber}`, false);
-      } catch (err) {
+        await loadAndInitMsg91(`91${phoneNumber}`, sendOnLoad);
+      } catch (err: any) {
         console.error('[OTP] Failed to init SDK:', err);
+        if (!cancelled) {
+          setError(err?.message || 'Failed to send OTP. Please tap resend and try again.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBootstrappingOtp(false);
+          // Strip "send=1" from URL so back-nav doesn't re-send OTP
+          // Done AFTER init so iOS doesn't re-mount mid-initialization
+          if (sendOnLoad) {
+            navigate(`/auth/otp?phone=${phoneNumber}`, {
+              replace: true,
+              state: { phone: phoneNumber },
+            });
+          }
+        }
       }
     };
     initSdk();
-  }, [phoneNumber, navigate]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phoneNumber, sendOnLoad, navigate]);
 
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -117,15 +146,17 @@ export default function OtpVerificationPage() {
   }, [verified, user, loading, needsOnboarding, navigate]);
 
   const handleResend = async () => {
-    if (resendTimer > 0) return;
+    if (resendTimer > 0 || isBootstrappingOtp) return;
+    setIsBootstrappingOtp(true);
     try {
-      const { sendOtp } = await import('@/services/msg91OtpService');
       // FIX: Pass identifier in correct format — 91XXXXXXXXXX (no +)
       await sendOtp(`91${phoneNumber}`);
       setResendTimer(30);
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to resend OTP.');
+    } finally {
+      setIsBootstrappingOtp(false);
     }
   };
 
@@ -167,18 +198,18 @@ export default function OtpVerificationPage() {
           <div className="space-y-4">
             <Button
               onClick={handleVerify}
-              disabled={isLoading || otp.length !== 6}
+              disabled={isLoading || isBootstrappingOtp || otp.length !== 6}
               className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Continue'}
+              {isLoading || isBootstrappingOtp ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Continue'}
             </Button>
 
             <button
               onClick={handleResend}
-              disabled={resendTimer > 0}
+              disabled={resendTimer > 0 || isBootstrappingOtp}
               className="w-full py-2 text-zinc-500 text-sm font-medium disabled:opacity-50"
             >
-              {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+              {isBootstrappingOtp ? 'Sending OTP...' : resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
             </button>
           </div>
         </div>

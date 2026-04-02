@@ -16,7 +16,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { riders, loading } = useActiveRiders();
     const mapInstanceRef = useRef<any>(null);
     const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
-    const token = getMapboxToken();
+    const token = import.meta.env.VITE_MAPPLS_REST_KEY || getMapboxToken();
 
     useEffect(() => {
         // Create a hidden persistent container for the map

@@ -361,8 +361,6 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
                 addresses:delivery_address_id (full_address, latitude, longitude)
             `)
             .in('status', [
-                'pending',
-                'pending_payment',
                 'confirmed',
                 'packed',
                 'ready_for_pickup',

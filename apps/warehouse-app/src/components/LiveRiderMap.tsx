@@ -34,9 +34,9 @@ export const LiveRiderMap: React.FC<Props> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef       = useRef<any>(null);
     const entriesRef   = useRef<Map<string, RiderEntry>>(new Map());
-    const token        = getMapboxToken();
+    const token        = import.meta.env.VITE_MAPPLS_REST_KEY || getMapboxToken();
 
-    // Draw / update Mapbox Directions route for one rider
+    // Draw / update Mappls Route for one rider
     const drawRiderRoute = useCallback(async (
         map: any,
         orderId: string,
@@ -46,10 +46,10 @@ export const LiveRiderMap: React.FC<Props> = ({
     ) => {
         if (!token) return;
         try {
-            const res  = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${rLng},${rLat};${dLng},${dLat}?geometries=geojson&access_token=${token}`);
-            const json = await res.json();
-            if (!json.routes?.length) return;
-            updateRouteSource(map, `route-${orderId}`, `route-layer-${orderId}`, json.routes[0].geometry.coordinates, color);
+            const { fetchMapplsRoute } = await import('@popclozet/map-core');
+            const coords = await fetchMapplsRoute(rLng, rLat, dLng, dLat);
+            if (!coords || !coords.length) return;
+            updateRouteSource(map, `route-${orderId}`, `route-layer-${orderId}`, coords as any, color);
         } catch { /* silent */ }
     }, [token]);
 

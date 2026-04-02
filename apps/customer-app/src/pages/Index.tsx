@@ -8,6 +8,7 @@ import QuickFilters from "@/components/QuickFilters";
 import SignupModal from "@/components/SignupModal";
 import AnnouncementTicker from "@/components/AnnouncementTicker";
 import { submitEmail } from "@/utils/emailSignup";
+import { clearReloadGuard, hasReloadGuard, setReloadGuard } from "@/lib/reloadGuard";
 
 import heroParty from "@/assets/hero-party.png";
 import heroBusiness from "@/assets/hero-business.png";
@@ -18,13 +19,12 @@ import heroWedding from "@/assets/hero-wedding.png";
 function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType<unknown> }>) {
   return lazy(() =>
     importFn().catch((error) => {
-      const hasReloaded = sessionStorage.getItem("chunk_reload");
-      if (!hasReloaded) {
-        sessionStorage.setItem("chunk_reload", "1");
+      if (!hasReloadGuard("chunk_reload")) {
+        setReloadGuard("chunk_reload");
         window.location.reload();
         return new Promise(() => {});
       }
-      sessionStorage.removeItem("chunk_reload");
+      clearReloadGuard("chunk_reload");
       throw error;
     })
   );

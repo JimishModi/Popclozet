@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { useAuth } from '@/context/SupabaseAuthContext';
-import { loadAndInitMsg91, sendOtp } from '@/services/msg91OtpService';
 import logoImage from '@/logo/popclozet-logo.svg';
 import { Loader2, ChevronRight, Phone } from 'lucide-react';
 
@@ -92,9 +91,14 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const identifier = `91${phoneNumber}`;
-      await sendOtp(identifier);
-      navigate('/auth/otp', { state: { phone: phoneNumber } });
+      const nextPhone = phoneNumber.trim();
+      const params = new URLSearchParams({
+        phone: nextPhone,
+        send: '1',
+      });
+      navigate(`/auth/otp?${params.toString()}`, {
+        state: { phone: nextPhone },
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP. Please try again.');
     } finally {

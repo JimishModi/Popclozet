@@ -10,7 +10,7 @@ import PageTransition from "./components/PageTransition";
 import ScrollProgress from "./components/ScrollProgress";
 import MobileHome from "./pages/MobileHome";
 import LandingPage from "./pages/LandingPage";
-import { lazy, useEffect, useState, Suspense } from "react";
+import React, { lazy, useEffect, useState, Suspense } from "react";
 import { MobileShell } from "./components/layout/MobileShell";
 import { BottomNavBar } from "./components/layout/BottomNavBar";
 
@@ -24,22 +24,61 @@ import { InstallPrompt } from "./components/InstallPrompt";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
+import { clearReloadGuard, hasReloadGuard, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
 
 
 // Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
+// iOS Safari PWA (standalone mode) can throw on sessionStorage access — wrap in try/catch
 function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType<unknown> }>) {
   return lazy(() =>
     importFn().catch((error) => {
-      const hasReloaded = sessionStorage.getItem("chunk_reload");
-      if (!hasReloaded) {
-        sessionStorage.setItem("chunk_reload", "1");
+      if (!hasReloadGuard("chunk_reload")) {
+        setReloadGuard("chunk_reload");
         window.location.reload();
         return new Promise(() => {}); // never resolves — page is reloading
       }
-      sessionStorage.removeItem("chunk_reload");
-      throw error; // re-throw if reload already attempted
+
+      clearReloadGuard("chunk_reload");
+      throw error;
     })
   );
+}
+
+// ErrorBoundary — prevents the entire app from going white on unhandled errors (iOS Safari)
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[AppErrorBoundary]', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: 18, fontWeight: 700 }}>Something went wrong</p>
+          <p style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', maxWidth: 300 }}>{this.state.error?.message || 'An unexpected error occurred.'}</p>
+          <button
+            onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/home'; }}
+            style={{ marginTop: 8, padding: '12px 28px', borderRadius: 14, background: '#f2546d', color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer' }}
+          >
+            Go Home
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // Lazy pages
@@ -119,13 +158,20 @@ function App() {
 
   useEffect(() => {
     if (!showWelcome && typeof window !== "undefined") {
-      sessionStorage.setItem("welcomeSeen", "true");
+      safeSetSessionStorageItem("welcomeSeen", "true");
     }
   }, [showWelcome]);
 
   useEffect(() => {
-    const hasGps = localStorage.getItem("user_location");
-    const hasManual = localStorage.getItem("service_availability");
+    let hasGps: string | null = null;
+    let hasManual: string | null = null;
+
+    try {
+      hasGps = localStorage.getItem("user_location");
+      hasManual = localStorage.getItem("service_availability");
+    } catch {
+      return;
+    }
 
     if (!hasGps && !hasManual) {
       setShowCitySelector(true);
@@ -159,6 +205,7 @@ function App() {
 
                   {/* ROUTES */}
                   {/* ROUTES CONTAINER with persistent background to prevent flashes */}
+                  <AppErrorBoundary>
                   <GlobalLayout>
                     <AnimatePresence mode="popLayout" initial={false}>
                       <motion.div
@@ -244,6 +291,7 @@ function App() {
                     </motion.div>
                   </AnimatePresence>
                 </GlobalLayout>
+                </AppErrorBoundary>
                 </TooltipProvider>
               </FlyToCartProvider>
             </WishlistProvider>

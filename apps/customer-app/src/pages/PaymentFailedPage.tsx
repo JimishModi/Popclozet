@@ -1,13 +1,25 @@
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { XCircle, RotateCcw, ShoppingBag } from "lucide-react";
+import { cancelOrder } from "@/services/ordersService";
 
 export default function PaymentFailedPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
     const orderId = searchParams.get("orderId");
+
+    useEffect(() => {
+        // Automatically mark the order as cancelled since payment failed.
+        // This triggers the DB to release any reserved inventory locks.
+        if (orderId) {
+            cancelOrder(orderId).catch(err => {
+                console.error("Failed to cancel abandoned order:", err);
+            });
+        }
+    }, [orderId]);
 
     return (
         <MobileShell className="bg-black text-white" hideBottomNav>
@@ -29,7 +41,7 @@ export default function PaymentFailedPage() {
                     transition={{ delay: 0.2 }}
                 >
                     <h1 className="text-3xl font-black tracking-tighter mb-3" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        Payment <span className="text-red-500">Cancelled</span>
+                        Payment <span className="text-red-500">Failed</span>
                     </h1>
                     <p className="text-zinc-400 font-medium mb-10 leading-relaxed">
                         Your payment was not completed.{"\n"}No amount has been charged.

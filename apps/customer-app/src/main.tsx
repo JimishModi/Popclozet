@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 import { initTheme } from "./utils/theme";
+import { hasReloadGuard, setReloadGuard } from "./lib/reloadGuard";
 // Apply theme before first paint (correct)
 initTheme();
 
@@ -18,8 +19,8 @@ registerSW({
       // On fresh install the new SW activates immediately, which fires onNeedRefresh.
       // Without this guard the page reloads → SW re-claims → fires again → loop.
       const RELOAD_KEY = "sw_reload_done";
-      if (!sessionStorage.getItem(RELOAD_KEY)) {
-        sessionStorage.setItem(RELOAD_KEY, "1");
+      if (!hasReloadGuard(RELOAD_KEY)) {
+        setReloadGuard(RELOAD_KEY);
         console.log("🔄 New service worker — reloading once to apply assets");
         window.location.reload();
       } else {

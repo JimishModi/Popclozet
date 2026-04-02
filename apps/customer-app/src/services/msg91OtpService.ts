@@ -43,10 +43,20 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
         script.type = 'text/javascript';
         script.src = MSG91_SCRIPT_URL;
         script.async = true;
+        // iOS Safari PWA: crossOrigin helps avoid opaque response blocks
+        script.crossOrigin = 'anonymous';
+
+        // Safety timeout — iOS standalone mode can silently stall script loads
+        const loadTimeout = setTimeout(() => {
+            sdkInitPromise = null;
+            reject(new Error('MSG91 script load timed out (15s). Please check your network and try again.'));
+        }, 15000);
 
         script.onload = () => {
+            clearTimeout(loadTimeout);
             try {
                 if (typeof (window as any).initSendOTP !== 'function') {
+                    sdkInitPromise = null;
                     reject(new Error('initSendOTP not found after script load'));
                     return;
                 }
@@ -64,23 +74,35 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
                         return;
                     }
                     if (Date.now() - start >= 10000) {
-                        reject(new Error('MSG91 SDK timed out'));
+                        sdkInitPromise = null;
+                        reject(new Error('MSG91 SDK timed out waiting for sendOtp method'));
                         return;
                     }
                     setTimeout(poll, 150);
                 };
                 poll();
             } catch (err) {
+                sdkInitPromise = null;
                 reject(err);
             }
         };
 
         script.onerror = () => {
+            clearTimeout(loadTimeout);
             sdkInitPromise = null;
-            reject(new Error('Failed to load MSG91 OTP script'));
+            reject(new Error('Failed to load MSG91 OTP script. This can happen on iOS if the app is offline or the script is blocked.'));
         };
 
-        document.head.appendChild(script);
+        // iOS Safari: ensure the script is appended to body if head isn't writable
+        try {
+            document.head.appendChild(script);
+        } catch {
+            try { document.body.appendChild(script); } catch (e2) {
+                clearTimeout(loadTimeout);
+                sdkInitPromise = null;
+                reject(new Error('Cannot inject MSG91 script into the page.'));
+            }
+        }
     });
 
     return sdkInitPromise;

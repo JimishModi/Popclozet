@@ -115,6 +115,7 @@ registerRoute(
 // Cache JS files (skip Mappls SDK scripts)
 registerRoute(
     ({ url }) =>
+        url.origin === self.location.origin &&
         /\.js$/i.test(url.pathname) &&
         !url.hostname.includes('mappls.com') &&
         !url.hostname.includes('mapmyindia.com'),
