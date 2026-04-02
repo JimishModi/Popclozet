@@ -48,9 +48,8 @@ export function useRazorpayCheckout() {
 
     try {
       // Step 1: Create Razorpay order via edge function
-      const amountInPaise = Math.round(amountInRupees * 100);
+      // Amount is resolved server-side from the order's total_amount
       const rzpOrder = await createRazorpayOrder({
-        amount: amountInPaise,
         receipt: internalOrderId,
         notes: {
           supabase_order_id: internalOrderId,

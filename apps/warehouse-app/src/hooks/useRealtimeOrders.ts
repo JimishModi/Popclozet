@@ -1,12 +1,11 @@
 /**
  * useRealtimeOrders Hook
  * Subscribes to postgres_changes on orders table.
- * Shows toast notification on new orders and calls onChange.
+ * Calls onChange to trigger data refresh on pages.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@popclozet/api-client';
-import { useToast } from '../contexts/ToastContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UseRealtimeOrdersOptions {
@@ -17,7 +16,6 @@ interface UseRealtimeOrdersOptions {
 }
 
 export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrdersOptions) {
-    const { showToast } = useToast();
     const channelRef = useRef<RealtimeChannel | null>(null);
     // Unique name per hook instance so navigating between pages doesn't cause one
     // page's cleanup to remove another page's still-active channel.
@@ -43,8 +41,7 @@ export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrder
                     table: 'orders',
                 },
                 (payload) => {
-                    console.log('[Realtime] New order:', payload.new);
-                    showToast('🆕 New order received!', 'info');
+                    console.log('[Realtime] New order for data refresh:', payload.new.id);
                     stableOnChange();
                 }
             )
@@ -56,7 +53,7 @@ export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrder
                     table: 'orders',
                 },
                 (payload) => {
-                    console.log('[Realtime] Order updated:', payload.new);
+                    console.log('[Realtime] Order updated for data refresh:', payload.new.id);
                     stableOnChange();
                 }
             )
@@ -68,15 +65,11 @@ export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrder
                     table: 'return_requests',
                 },
                 (payload) => {
-                    console.log('[Realtime] Return request changed:', payload.eventType);
-                    if (payload.eventType === 'INSERT') {
-                        showToast('📦 New return request!', 'info');
-                    }
+                    console.log('[Realtime] Return request changed for data refresh', payload.eventType);
                     stableOnChange();
                 }
             )
             .subscribe((status) => {
-                console.log('[Realtime] Orders channel status:', status);
                 if (status === 'SUBSCRIBED') {
                     stableOnChange();
                 }
@@ -86,7 +79,6 @@ export function useRealtimeOrders({ onChange, enabled = true }: UseRealtimeOrder
 
         // Fallback polling: every 15 seconds, just in case websocket events are missed
         const pollInterval = setInterval(() => {
-            console.log('[Realtime] Polling fallback - orders');
             stableOnChange();
         }, 15000);
 

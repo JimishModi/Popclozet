@@ -77,11 +77,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Unauthorized' }, 401, req);
     }
 
-    const { amount, receipt, notes } = await req.json();
-
-    if (!amount || typeof amount !== 'number' || amount < 100) {
-      return jsonResponse({ error: 'Invalid amount. Must be in paise (min 100).' }, 400, req);
-    }
+    const { receipt, notes } = await req.json();
 
     if (!receipt) {
       return jsonResponse({ error: 'Missing receipt (order ID)' }, 400, req);
@@ -115,11 +111,12 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be paid` }, 409, req);
     }
 
-    // Verify the amount matches the order's total (in paise)
+    // ── Use DB total_amount as the ONLY source of truth for the charge ──
+    // We never trust the client-sent amount — it may differ by rounding.
+    // The amount saved by place_order RPC is authoritative.
     const expectedPaise = Math.round(order.total_amount * 100);
-    if (amount !== expectedPaise) {
-      console.error('[create-razorpay-order] Amount mismatch:', { sent: amount, expected: expectedPaise });
-      return jsonResponse({ error: 'Amount mismatch — does not match order total' }, 400, req);
+    if (expectedPaise < 100) {
+      return jsonResponse({ error: 'Order total is too low to charge' }, 400, req);
     }
 
     // Idempotent: if a Razorpay order was already created, return it
@@ -151,7 +148,7 @@ Deno.serve(async (req: Request) => {
         'Authorization': `Basic ${credentials}`,
       },
       body: JSON.stringify({
-        amount: Math.round(amount),
+        amount: expectedPaise,
         currency: 'INR',
         receipt: receipt,
         notes: notes || {},

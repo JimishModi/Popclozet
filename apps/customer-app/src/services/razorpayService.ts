@@ -5,7 +5,6 @@ import { supabase } from '@popclozet/api-client';
 import type { RazorpayPaymentResponse } from '@/lib/razorpay';
 
 interface CreateOrderParams {
-  amount: number;          // in PAISE (e.g., ₹500 = 50000)
   receipt: string;         // your internal order ID
   notes?: Record<string, string>;
 }
@@ -19,12 +18,12 @@ interface CreateOrderResult {
 
 /**
  * Step 1: Create a Razorpay order via secure server-side function.
+ * Amount is resolved server-side from the order's total_amount (never sent by client).
  * Returns the Razorpay order ID and public key for use in the checkout modal.
  */
 export async function createRazorpayOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
   const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
     body: {
-      amount: params.amount,
       receipt: params.receipt,
       notes: params.notes,
     },
