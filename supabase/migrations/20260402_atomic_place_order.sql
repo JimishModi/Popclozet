@@ -164,7 +164,7 @@ BEGIN
     p_payment_method,
     p_delivery_fee,
     p_route_distance_km,
-    p_return_pickup_date,
+    NULLIF(p_return_pickup_date, '')::DATE,
     p_return_time_slot,
     p_idempotency_key
   )

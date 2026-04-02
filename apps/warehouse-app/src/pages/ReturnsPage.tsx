@@ -56,7 +56,6 @@ export function ReturnsPage() {
     const [otpExpiresAt, setOtpExpiresAt] = useState<Date | null>(null);
     const [otpSecondsLeft, setOtpSecondsLeft] = useState<number | null>(null);
     const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const [damageNotes, setDamageNotes] = useState('');
     const [riders, setRiders] = useState<{ user_id: string; full_name: string }[]>([]);
     const [selectedReturnRiders, setSelectedReturnRiders] = useState<Record<string, string>>({});
     const [assigningRider, setAssigningRider] = useState<string | null>(null);
@@ -533,85 +532,6 @@ export function ReturnsPage() {
                 )}
             </AnimatePresence>
 
-            {/* Damage Flag Modal */}
-            <AnimatePresence>
-                {damageModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
-                        >
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                                <h3 className="font-semibold text-white flex items-center gap-2">
-                                    <AlertTriangle size={18} className="text-red-400" />
-                                    Flag Unit as Damaged
-                                </h3>
-                                <button
-                                    onClick={() => {
-                                        if (processingKey !== `unit:${damageModal.individualId}`) {
-                                            setDamageModal(null);
-                                            setDamageNotes('');
-                                        }
-                                    }}
-                                    disabled={processingKey === `unit:${damageModal.individualId}`}
-                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                                >
-                                    <X size={20} />
-                                </button>                        </div>
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <p className="text-sm text-zinc-400">Unit: <span className="text-white font-medium">{damageModal.individualId}</span></p>
-                                    <p className="text-sm text-zinc-400 mt-0.5">Item: <span className="text-white font-medium">{damageModal.productName}</span></p>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                                        Damage Description <span className="text-zinc-600 font-normal normal-case">(optional)</span>
-                                    </label>
-                                    <textarea
-                                        value={damageNotes}
-                                        onChange={(e) => setDamageNotes(e.target.value)}
-                                        placeholder="e.g. Torn seam, stain on back panel, broken zipper..."
-                                        className="w-full bg-black border border-zinc-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 min-h-[100px] resize-y placeholder:text-zinc-600"
-                                    />
-                                </div>
-                                <div className="flex gap-3 mt-2">
-                                    <button
-                                        onClick={() => { setDamageModal(null); setDamageNotes(''); }}
-                                        disabled={processingKey === `unit:${damageModal.individualId}`}
-                                        className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition-all disabled:opacity-50"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (damageModal && (damageModal as any).orderContext) {
-                                                const { order, request, linkedUnits } = (damageModal as any).orderContext;
-                                                handleFlagDamaged(order, request.id, linkedUnits);
-                                            } else {
-                                                handleFlagDamaged();
-                                            }
-                                        }}
-                                        disabled={processingKey === `unit:${damageModal.individualId}`}
-                                        className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
-                                    >
-                                        {processingKey === `unit:${damageModal.individualId}`
-                                            ? <><RefreshCw size={14} className="animate-spin" /> Saving...</>
-                                            : <><AlertTriangle size={14} /> Confirm Damage</>
-                                        }
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div >
     );
 }

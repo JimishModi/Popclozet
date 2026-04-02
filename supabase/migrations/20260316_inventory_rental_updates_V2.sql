@@ -35,7 +35,7 @@ BEGIN
             'auto_inventory_deduction', 
             'order', 
             NEW.id, 
-            COALESCE(NEW.rider_id, '00000000-0000-0000-0000-000000000000'::UUID),
+            NEW.rider_id,  -- NULL when no rider assigned — no fake UUID
             jsonb_build_object('status', 'out_for_delivery')
         );
     END IF;
