@@ -107,6 +107,7 @@ export default function OrderConfirmedPage() {
     const firstItem = order?.order_items?.[0];
     const product = firstItem?.products;
     const itemsCount = order?.order_items?.length || 0;
+    const isBuyoutOrder = order?.order_type === 'buyout';
 
     // Data calculated from existing backend columns
     const deliveryFee = Number(order?.delivery_fee) || 0;
@@ -192,8 +193,17 @@ export default function OrderConfirmedPage() {
                 {/* ─── STATUS BANNER ─── */}
                 <div className="w-full py-6 bg-[#f2546d] text-center shadow-[0_4px_30px_rgba(242,84,109,0.3)] z-10">
                     <h1 className="text-[32px] font-black text-white tracking-tight uppercase" style={dmSans}>
-                        {order?.status === 'pending' || order?.status === 'confirmed' ? 'Order Confirmed' : order?.status?.replace(/_/g, ' ') || 'Order Confirmed'}
+                        {isBuyoutOrder
+                            ? 'Purchase Confirmed'
+                            : (order?.status === 'pending' || order?.status === 'confirmed'
+                                ? 'Order Confirmed'
+                                : order?.status?.replace(/_/g, ' ') || 'Order Confirmed')}
                     </h1>
+                    {isBuyoutOrder && (
+                        <p className="text-white/80 text-sm font-medium mt-2" style={dmSans}>
+                            It's yours forever — no return needed!
+                        </p>
+                    )}
                 </div>
 
                 {/* ─── ORDER DETAILS ─── */}
@@ -218,7 +228,7 @@ export default function OrderConfirmedPage() {
                                             {p?.name || "Premium Item"}
                                         </h3>
                                         <p className="text-[#a1a1a1] mt-1 text-xs font-bold uppercase tracking-widest" style={dmSans}>
-                                            {p?.brand || "Collection"} • Size: {item?.size || 'S'} • Plan: {item?.pricing_plan || (item?.rental_duration_days + 'd')} • Qty: 1
+                                            {p?.brand || "Collection"} • Size: {item?.size || 'S'} • Plan: {isBuyoutOrder ? 'buy' : (item?.pricing_plan || (item?.rental_duration_days + 'd'))} • Qty: 1
                                         </p>
                                     </div>
                                     <div className="text-white font-black text-lg" style={dmSans}>
@@ -229,13 +239,18 @@ export default function OrderConfirmedPage() {
                         })}
                     </div>
 
-                    <h3 className="text-xl font-black text-white mb-3" style={dmSans}>Address</h3>
-                    <div className="text-[#8e8e93] text-sm font-medium leading-relaxed max-w-[280px]" style={dmSans}>
-                        {order?.addresses?.full_address || "Delivery address loading or unavailable"}
-                    </div>
+                    {/* Address — only for non-buyout orders */}
+                    {!isBuyoutOrder && (
+                        <>
+                            <h3 className="text-xl font-black text-white mb-3" style={dmSans}>Address</h3>
+                            <div className="text-[#8e8e93] text-sm font-medium leading-relaxed max-w-[280px]" style={dmSans}>
+                                {order?.addresses?.full_address || "Delivery address loading or unavailable"}
+                            </div>
+                        </>
+                    )}
 
-                    {/* Scheduled Return Pickup */}
-                    {order?.return_pickup_date && (
+                    {/* Scheduled Return Pickup — only for non-buyout orders */}
+                    {!isBuyoutOrder && order?.return_pickup_date && (
                         <div className="mt-8">
                             <h3 className="text-xl font-black text-white mb-3" style={dmSans}>Scheduled Return</h3>
                             <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
@@ -272,10 +287,12 @@ export default function OrderConfirmedPage() {
                             <span className="font-medium">Discount</span>
                             <span className="text-zinc-600 font-bold">-₹ {Math.round(discount)}</span>
                         </div>
-                        <div className="flex justify-between items-center text-lg text-[#8e8e93]" style={dmSans}>
-                            <span className="font-medium">Delivery fee</span>
-                            <span className="text-white font-bold">₹ {Math.round(deliveryFee)}</span>
-                        </div>
+                        {!isBuyoutOrder && (
+                            <div className="flex justify-between items-center text-lg text-[#8e8e93]" style={dmSans}>
+                                <span className="font-medium">Delivery fee</span>
+                                <span className="text-white font-bold">₹ {Math.round(deliveryFee)}</span>
+                            </div>
+                        )}
 
                         <div className="w-full h-px bg-white/5 mt-8" />
 
@@ -287,30 +304,61 @@ export default function OrderConfirmedPage() {
 
                     {/* ACTIONS */}
                     <div className="flex flex-col gap-4 mt-6 pb-12">
-                        <button
-                            onClick={() => navigate(`/tracking/${orderId}`)}
-                            className="w-full py-4.5 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-[0_8px_30px_rgba(242,84,109,0.2)] active:scale-95 transition-all uppercase"
-                            style={dmSans}
-                        >
-                            Track My Ride
-                        </button>
-                        <div className="flex gap-4">
-                            <button
-                                onClick={handleDownloadInvoice}
-                                disabled={isGeneratingPdf}
-                                className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50"
-                                style={dmSans}
-                            >
-                                {isGeneratingPdf ? "Generating..." : "Invoice"}
-                            </button>
-                            <button
-                                onClick={() => navigate("/home")}
-                                className="flex-1 py-4.5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg shadow-lg active:scale-95 transition-all"
-                                style={dmSans}
-                            >
-                                Home
-                            </button>
-                        </div>
+                        {isBuyoutOrder ? (
+                            <>
+                                <button
+                                    onClick={() => navigate('/closet')}
+                                    className="w-full py-4.5 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-[0_8px_30px_rgba(242,84,109,0.2)] active:scale-95 transition-all uppercase"
+                                    style={dmSans}
+                                >
+                                    View My Closet
+                                </button>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={handleDownloadInvoice}
+                                        disabled={isGeneratingPdf}
+                                        className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                                        style={dmSans}
+                                    >
+                                        {isGeneratingPdf ? "Generating..." : "Invoice"}
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/home')}
+                                        className="flex-1 py-4.5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                                        style={dmSans}
+                                    >
+                                        Home
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => navigate(`/tracking/${orderId}`)}
+                                    className="w-full py-4.5 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-[0_8px_30px_rgba(242,84,109,0.2)] active:scale-95 transition-all uppercase"
+                                    style={dmSans}
+                                >
+                                    Track My Ride
+                                </button>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={handleDownloadInvoice}
+                                        disabled={isGeneratingPdf}
+                                        className="flex-1 py-4.5 rounded-2xl bg-[#1c0a0c] border border-[#3d121a] text-white font-black text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                                        style={dmSans}
+                                    >
+                                        {isGeneratingPdf ? "Generating..." : "Invoice"}
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/home')}
+                                        className="flex-1 py-4.5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg shadow-lg active:scale-95 transition-all"
+                                        style={dmSans}
+                                    >
+                                        Home
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </section>
             </main>

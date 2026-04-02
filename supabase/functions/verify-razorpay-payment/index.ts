@@ -4,7 +4,7 @@
 //
 // Verifies the Razorpay payment signature using HMAC-SHA256.
 // This is critical for security — never skip this step.
-// On success, it marks the order as 'paid' in the database.
+// On success, it marks the order as confirmed in the database.
 //
 // Deploy:  supabase functions deploy verify-razorpay-payment
 // Use supabase secrets set to configure credentials
@@ -85,11 +85,24 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Update order status
+    // Check if this is a buyout order — buyout orders skip delivery entirely
+    const { data: orderRow } = await adminClient
+      .from('orders')
+      .select('order_type')
+      .eq('id', internal_order_id)
+      .maybeSingle();
+
+    const isBuyout = orderRow?.order_type === 'buyout';
+
+    // Buyout → completed (customer already has the item, no delivery)
+    // Regular → confirmed (enters the delivery pipeline)
+    const newStatus = isBuyout ? 'completed' : 'confirmed';
+
     const { error: orderErr } = await adminClient
       .from('orders')
       .update({
-        status: 'paid',
+        status: newStatus,
+        lifecycle_state: newStatus,
         payment_method: 'razorpay',
       })
       .eq('id', internal_order_id);
@@ -105,7 +118,7 @@ Deno.serve(async (req: Request) => {
       .upsert({
         order_id: internal_order_id,
         provider: 'razorpay',
-        status: 'paid',
+        status: 'confirmed', // Updated from paid to confirmed!
         razorpay_order_id,
         razorpay_payment_id,
         amount: 0, // Will be updated from order
