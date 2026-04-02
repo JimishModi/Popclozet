@@ -59,7 +59,7 @@ const MAX_FAKE_ABSOLUTE = 20;
 // Prevents fake products from rotating on every page reload.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FAKE_CACHE_KEY = 'pclz_fake_cache';
+const FAKE_CACHE_KEY = 'pclz_fake_cache_v2'; // v2 = real storage images
 const FAKE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function getCachedFakes(cacheKey: string): ProductWithMixMeta[] | null {
@@ -136,6 +136,10 @@ function mapFakeRow(row: Record<string, unknown>): Product {
     rawGender
   ) as GenderCategory;
 
+  // Prefer storage images array, fall back to image_url field
+  const imagesArr = row.images as string[] | null;
+  const primaryImage = imagesArr?.[0] || (row.image_url as string) || '';
+
   return {
     id:            row.id as string,
     name:          row.name as string,
@@ -145,8 +149,9 @@ function mapFakeRow(row: Record<string, unknown>): Product {
     mrp:           row.mrp ? parseFloat(row.mrp as string) : undefined,
     category:      row.category as string,
     gender,
-    eventCategory: row.category as EventCategory,     // category maps to eventCategory
-    imageUrl:      (row.images as string[])?.[0] ?? '',
+    eventCategory: row.category as EventCategory,
+    imageUrl:      primaryImage,
+    images:        imagesArr ?? [],
     videoUrl:      row.video_url as string | undefined,
     color:         (row.color as string) ?? '',
     sizes:         [],

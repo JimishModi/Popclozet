@@ -510,7 +510,7 @@ export function ProductProfilePage() {
 
     const handleAddImage = async (e: React.ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
         const files = e.target.files;
-        if (!files || files.length === 0 || !editForm) return;
+        if (!files || files.length === 0 || !editForm || !product) return;
         if (replaceIndex !== undefined && files.length > 1) {
             showToast('Only one image can be replaced at a time', 'error');
             return;
@@ -519,14 +519,23 @@ export function ProductProfilePage() {
         setIsUploading(true);
         try {
             const newUrls: string[] = [];
-            for (const file of Array.from(files)) {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Math.random()}.${fileExt}`;
-                const filePath = `products/${fileName}`;
+            // Determine start index for naming (front, back, side_1, side_2...)
+            const existingCount = editForm.images?.length ?? 0;
+            const nameMap: Record<number, string> = { 0: 'front', 1: 'back', 2: 'side_1', 3: 'side_2' };
+
+            for (const [i, file] of Array.from(files).entries()) {
+                const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+                // ✅ CORRECT: productId is the FOLDER, fileName is the FILE inside it
+                // Result: product-images/{productId}/front.jpg
+                const nameIndex = replaceIndex !== undefined ? replaceIndex : existingCount + i;
+                const baseName = nameMap[nameIndex] ?? `photo_${nameIndex}`;
+                const fileName = `${baseName}.${fileExt}`;
+                const filePath = `${product.id}/${fileName}`;
 
                 const { data, error } = await supabase.storage
                     .from('product-images')
-                    .upload(filePath, file);
+                    .upload(filePath, file, { upsert: true, cacheControl: '3600' });
 
                 if (error) throw error;
                 const { data: { publicUrl } } = supabase.storage

@@ -51,16 +51,30 @@ interface CreatedUnit {
 
 /**
  * Upload image to Supabase Storage → public URL.
+ * 
+ * Supabase does NOT have real folders — folders are simulated via path separators.
+ * Correct path format: `{productId}/{filename}`  →  creates a virtual folder per product.
+ * 
+ * @param file     The image file to upload
+ * @param productId  The product UUID — used as the folder name in storage
+ * @param index    Optional index for naming (front, back, etc.) or timestamp fallback
  */
-async function uploadImage(file: File): Promise<string | null> {
+async function uploadImage(file: File, productId: string, index: number = 0): Promise<string | null> {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const filePath = `items/${fileName}`;
+    // Use descriptive filenames: front, back, side_1, side_2, etc.
+    const nameMap: Record<number, string> = { 0: 'front', 1: 'back', 2: 'side_1', 3: 'side_2' };
+    const baseName = nameMap[index] ?? `photo_${index}`;
+    const fileName = `${baseName}.${ext}`;
+    
+    // ✅ CORRECT: productId is the FOLDER, fileName is the FILE inside it
+    // Result: product-images/{productId}/front.jpg
+    const filePath = `${productId}/${fileName}`;
 
     try {
         const { error } = await supabase.storage
             .from('product-images')
-            .upload(filePath, file, { cacheControl: '3600', upsert: false });
+            // upsert: true allows replacing existing front.jpg if re-uploaded
+            .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
         if (error) {
             console.error('Storage upload failed:', error);
@@ -171,32 +185,21 @@ export function ProductIntakePage() {
         ));
     };
 
+    // Store raw File objects so we can upload them AFTER we have the productId
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
     const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        // 1. Add to previews with uploading state
+        // Show local previews immediately (no upload yet — we need productId first)
         const newPreviews = files.map(file => ({
             id: Math.random().toString(36).slice(2, 9),
             url: URL.createObjectURL(file),
-            uploading: true
+            uploading: false
         }));
         setPreviews(prev => [...prev, ...newPreviews]);
-
-        // 2. Upload them in parallel
-        files.forEach(async (file, idx) => {
-            const previewId = newPreviews[idx].id;
-            try {
-                const url = await uploadImage(file);
-                if (url) {
-                    setImageUrls(prev => [...prev, url]);
-                    setPreviews(prev => prev.map(p => p.id === previewId ? { ...p, uploading: false, url } : p));
-                }
-            } catch (err: any) {
-                showToast(`Failed to upload ${file.name}`, 'error');
-                setPreviews(prev => prev.filter(p => p.id !== previewId));
-            }
-        });
+        setPendingFiles(prev => [...prev, ...files]);
 
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -234,6 +237,7 @@ export function ProductIntakePage() {
                 if (configError) throw configError;
             }
 
+            // 2. Create product FIRST (we need the productId for storage folder path)
             const productData: Record<string, any> = {
                 name: name.trim(),
                 brand: brand.trim() || 'Unknown',
@@ -245,7 +249,7 @@ export function ProductIntakePage() {
                 rental_price_2d: parseFloat(rentalPrice2d) || null,
                 rental_price_3d: parseFloat(rentalPrice3d) || null,
                 buy_price: parseFloat(buyPrice) || null,
-                images: imageUrls,
+                images: [],  // Will be updated after image upload
                 is_available: true,
             };
 
@@ -257,10 +261,30 @@ export function ProductIntakePage() {
 
             if (insertError) throw insertError;
 
-            // Create inventory rows + Individual Items (all_products)
+            // 3. Now upload images into {productId}/ folder
+            //    Structure:  product-images/{productId}/front.jpg
+            //                product-images/{productId}/back.jpg  etc.
+            let finalImageUrls: string[] = [];
+            if (pendingFiles.length > 0) {
+                showToast('Uploading images...');
+                const uploadResults = await Promise.all(
+                    pendingFiles.map((file, index) => uploadImage(file, product.id, index))
+                );
+                finalImageUrls = uploadResults.filter(Boolean) as string[];
+
+                // Update product with the uploaded image URLs
+                if (finalImageUrls.length > 0) {
+                    await supabase
+                        .from('products')
+                        .update({ images: finalImageUrls })
+                        .eq('id', product.id);
+                }
+            }
+
+            // 4. Create inventory rows + Individual Items (all_products)
             if (product) {
                 for (const s of selectedSizes) {
-                    // 1. Create/Update inventory row
+                    // Create/Update inventory row
                     const { data: inv, error: invError } = await supabase
                         .from('inventory')
                         .upsert({
@@ -272,7 +296,7 @@ export function ProductIntakePage() {
 
                     if (invError) throw invError;
 
-                    // 2. Create individual units
+                    // Create individual units
                     for (let i = 0; i < s.qty; i++) {
                         const individualId = `PC-${product.id.split('-')[0].toUpperCase()}-${s.size}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
                         const { error: unitError } = await supabase
@@ -421,6 +445,7 @@ export function ProductIntakePage() {
         setBuyPrice('');
         setImageUrls([]);
         setPreviews([]);
+        setPendingFiles([]);
         setCustomCategory('');
         setCustomSizes('');
         setIsCustomCat(false);
