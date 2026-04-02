@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@popclozet/api-client";
 import { OrderChat } from "@/components/map/OrderChat";
 import { notifyOrderStatusChange } from "@/services/notificationService";
+import { InstantBuyDrawer } from "@/components/returns/InstantBuyDrawer";
 import {
     subscribeToRiderProximity,
     checkDeliveryProximity,
@@ -50,6 +51,7 @@ export default function PickupTrackingPage() {
     const [riderProfile,    setRiderProfile]   = useState<{ name: string; phone: string } | null>(null);
     const [loading,         setLoading]        = useState(true);
     const [showChat,        setShowChat]       = useState(false);
+    const [showInstantBuy,  setShowInstantBuy] = useState(false);
     const [riderProximity,  setRiderProximity] = useState<ProximityStatus>('far');
     const [riderDistanceKm, setRiderDistanceKm] = useState<number | null>(null);
     const [riderLocation,   setRiderLocation]   = useState<{ lat: number; lng: number } | null>(null);
@@ -519,6 +521,22 @@ export default function PickupTrackingPage() {
                                 </div>
                             ))}
                         </div>
+
+                        {/* ── Instant Buy CTA ── */}
+                        {(order?.status === 'return_scheduled' || (riderDistanceKm === null || riderDistanceKm >= 2.5)) && (
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => setShowInstantBuy(true)}
+                                    className="w-full flex items-center justify-center py-3.5 rounded-2xl bg-gradient-to-r from-[#f2546d]/10 to-pink-500/10 border border-[#f2546d]/20 text-[#f2546d] font-bold text-sm tracking-tight hover:from-[#f2546d]/20 hover:to-pink-500/20 hover:border-[#f2546d]/40 transition-all active:scale-95 shadow-[0_4px_20px_rgba(242,84,109,0.05)]"
+                                    style={dmSans}
+                                >
+                                    Instant Buy & Keep Items
+                                </button>
+                                <p className="text-[10px] text-center text-zinc-500 font-bold uppercase tracking-widest mt-2 px-6">
+                                    Option available until rider is 2.5km away
+                                </p>
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -631,6 +649,14 @@ export default function PickupTrackingPage() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <InstantBuyDrawer
+                isOpen={showInstantBuy}
+                onClose={() => setShowInstantBuy(false)}
+                orderId={pickupId!}
+                items={items}
+                onSuccess={() => setShowInstantBuy(false)}
+            />
         </MobileShell>
     );
 }

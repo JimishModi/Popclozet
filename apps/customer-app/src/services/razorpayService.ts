@@ -48,25 +48,67 @@ interface VerifyPaymentParams extends RazorpayPaymentResponse {
 /**
  * Step 3: Verify payment signature server-side after user completes payment.
  * This is the critical security step — only call this AFTER the Razorpay modal closes successfully.
+ *
+ * Retries up to 3 times on network failures because money has already been deducted
+ * at this point — we MUST NOT lose the verification due to a transient error.
  */
 export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promise<{ success: boolean; payment_id: string }> {
-  const { data, error } = await supabase.functions.invoke('verify-razorpay-payment', {
-    body: {
+  const MAX_RETRIES = 3;
+
+  // Persist payment response to localStorage so support can reconcile even if all retries fail
+  try {
+    localStorage.setItem(`rzp_pending_verify:${params.internal_order_id}`, JSON.stringify({
       razorpay_order_id: params.razorpay_order_id,
       razorpay_payment_id: params.razorpay_payment_id,
-      razorpay_signature: params.razorpay_signature,
       internal_order_id: params.internal_order_id,
-    },
-  });
+      timestamp: Date.now(),
+    }));
+  } catch { /* best-effort */ }
 
-  if (error) {
-    console.error('[razorpayService] verifyRazorpayPayment failed:', error);
-    throw new Error(error.message || 'Payment verification failed');
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-razorpay-payment', {
+        body: {
+          razorpay_order_id: params.razorpay_order_id,
+          razorpay_payment_id: params.razorpay_payment_id,
+          razorpay_signature: params.razorpay_signature,
+          internal_order_id: params.internal_order_id,
+        },
+      });
+
+      if (error) {
+        // Network/server errors — retry
+        throw new Error(error.message || 'Payment verification failed');
+      }
+
+      if (!data?.success) {
+        // Signature mismatch is a definitive failure — don't retry
+        throw new Error('Payment signature mismatch. Possible fraud attempt.');
+      }
+
+      // Success — clear pending verification record
+      try { localStorage.removeItem(`rzp_pending_verify:${params.internal_order_id}`); } catch { }
+
+      return data as { success: boolean; payment_id: string };
+    } catch (err: any) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Don't retry signature mismatches — that's a real failure
+      if (lastError.message.includes('signature mismatch')) {
+        throw lastError;
+      }
+
+      if (attempt < MAX_RETRIES) {
+        console.warn(`[razorpayService] Verification retry ${attempt + 1}/${MAX_RETRIES}...`);
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      }
+    }
   }
 
-  if (!data?.success) {
-    throw new Error('Payment signature mismatch. Possible fraud attempt.');
-  }
-
-  return data as { success: boolean; payment_id: string };
+  throw new Error(
+    'Payment was processed but verification failed after multiple attempts. ' +
+    'Your payment is safe — please contact support with your order ID.'
+  );
 }

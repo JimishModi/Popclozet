@@ -107,7 +107,12 @@ export function useRazorpayCheckout() {
             }
           } catch (verifyErr: any) {
             console.error('[useRazorpayCheckout] Verification failed:', verifyErr);
-            toast.error('Payment verification failed. Please contact support.');
+            const msg = verifyErr?.message || '';
+            if (msg.includes('signature mismatch')) {
+              toast.error('Payment verification failed. Please contact support.');
+            } else {
+              toast.error('Payment was processed but verification failed. Please contact support with your order ID — your payment is safe.');
+            }
             if (onFailure) {
               onFailure(verifyErr);
             } else {

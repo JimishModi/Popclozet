@@ -164,33 +164,69 @@ export interface PlaceOrderResult {
  * - Prices fetched from the products table server-side (never from client)
  * - Idempotency key prevents duplicate orders on double-click / retry
  * - On ANY failure the entire transaction rolls back (no partial data)
+ * - Retries transient network errors up to 2 times (safe due to idempotency key)
  */
 export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderResult> {
-  const { data, error } = await supabase.rpc("place_order", {
-    p_idempotency_key: params.idempotencyKey,
-    p_address_id: params.addressId,
-    p_start_date: params.startDate,
-    p_end_date: params.endDate,
-    p_payment_method: params.paymentMethod,
-    p_delivery_fee: params.deliveryFee,
-    p_route_distance_km: params.routeDistanceKm,
-    p_delivery_eta: params.deliveryEta,
-    p_return_pickup_date: params.returnPickupDate,
-    p_return_time_slot: params.returnTimeSlot,
-    p_items: params.items,
-  });
+  const MAX_RETRIES = 2;
+  let lastError: Error | null = null;
 
-  if (error) {
-    console.error("placeOrder RPC error:", error);
-    throw new Error(error.message || "Failed to place order");
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await supabase.rpc("place_order", {
+        p_idempotency_key: params.idempotencyKey,
+        p_address_id: params.addressId,
+        p_start_date: params.startDate,
+        p_end_date: params.endDate,
+        p_payment_method: params.paymentMethod,
+        p_delivery_fee: params.deliveryFee,
+        p_route_distance_km: params.routeDistanceKm,
+        p_delivery_eta: params.deliveryEta,
+        p_return_pickup_date: params.returnPickupDate,
+        p_return_time_slot: params.returnTimeSlot,
+        p_items: params.items,
+      });
+
+      if (error) {
+        // Business logic errors (validation, auth) — don't retry
+        if (error.code && !isTransientError(error)) {
+          console.error("placeOrder RPC error:", error);
+          throw new Error(error.message || "Failed to place order");
+        }
+        throw error; // Transient — will be retried
+      }
+
+      const result = data as PlaceOrderResult;
+      if (!result.success) {
+        throw new Error(result.message || `Order failed: ${result.code}`);
+      }
+
+      return result;
+    } catch (err: any) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Only retry transient/network errors
+      const isRetryable = isTransientError(err) || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError');
+      if (!isRetryable || attempt === MAX_RETRIES) {
+        throw lastError;
+      }
+
+      // Exponential backoff: 1s, 2s
+      console.warn(`[placeOrder] Transient error, retrying (${attempt + 1}/${MAX_RETRIES})...`);
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
   }
 
-  const result = data as PlaceOrderResult;
-  if (!result.success) {
-    throw new Error(result.message || `Order failed: ${result.code}`);
-  }
+  throw lastError || new Error("Failed to place order");
+}
 
-  return result;
+function isTransientError(err: any): boolean {
+  if (!err) return false;
+  const code = err.code || err.statusCode;
+  // Postgres/Supabase transient codes
+  if (['PGRST301', '08006', '08001', '57P01'].includes(code)) return true;
+  // HTTP 5xx or network errors
+  if (typeof code === 'number' && code >= 500) return true;
+  return false;
 }
 
 /**

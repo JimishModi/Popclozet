@@ -23,13 +23,14 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { TimeSlotPicker } from "@/components/map/TimeSlotPicker";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
 import { placeOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
-import { clearCartDB } from "@/lib/db";
+import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -70,6 +71,26 @@ const getSavedHub = () => {
   }
 };
 
+const getKycStorageKey = (userId: string) => `popclozet_kyc_verified:${userId}`;
+
+const readStoredKycVerified = (userId?: string | null) => {
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(getKycStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const writeStoredKycVerified = (userId?: string | null, value: boolean = true) => {
+  if (!userId) return;
+  try {
+    localStorage.setItem(getKycStorageKey(userId), value ? "true" : "false");
+  } catch {
+    // Ignore storage failures; DB persistence is still attempted below.
+  }
+};
+
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
 export default function CheckoutPage() {
@@ -82,6 +103,7 @@ export default function CheckoutPage() {
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
+  const isOnline = useOnlineStatus();
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -106,52 +128,97 @@ export default function CheckoutPage() {
   const [showKycGate, setShowKycGate] = useState<boolean>(false);
   const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
 
-  // Fetch IP address for legal logging
+  // Fetch IP address for legal logging (with timeout — non-blocking)
   useEffect(() => {
-    fetch("https://api.ipify.org?format=json")
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    fetch("https://api.ipify.org?format=json", { signal: controller.signal })
       .then(res => res.json())
       .then(data => setUserIp(data.ip))
-      .catch(err => console.error("Failed to fetch IP:", err));
+      .catch(() => { /* IP is best-effort — falls back to 'unknown' */ })
+      .finally(() => clearTimeout(timeout));
+    return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
   // Check URL params for KYC callback
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
-    const urlUserId = searchParams.get("user_id");
-    const effectiveUserId = user?.id || urlUserId;
+    const callbackUserId = searchParams.get("user_id");
+    const targetUserId = user?.id || callbackUserId;
 
-    if (kycCallback === "success" && effectiveUserId) {
-      // Set verified immediately so UI updates right away
+    if (kycCallback === "success" && targetUserId) {
+      writeStoredKycVerified(targetUserId, true);
       setKycVerified(true);
+      setShowKycGate(false);
 
-      // Persist to database
-      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", effectiveUserId)
-        .then(({ error }) => {
-          if (error) {
-            console.error("[KYC] Failed to persist verification:", error);
-            toast.error("Verification failed to save. Please try again.");
-            setKycVerified(false);
-            return;
-          }
-          toast.success("Identity verified successfully!");
-        });
+      if (user?.id) {
+        const fullName = profile?.full_name || user.user_metadata?.full_name || "User";
+        const phone = profile?.phone || user.phone || `pending-${user.id.slice(0, 12)}`;
 
-      // Clean up URL after processing
+        supabase
+          .from("customer_profiles")
+          .upsert({
+            user_id: user.id,
+            full_name: fullName,
+            phone,
+            kyc_verified: true,
+          } as any, { onConflict: "user_id" })
+          .then(({ error }) => {
+            if (error) {
+              console.error("[KYC] Failed to persist verification:", error);
+              toast.success("Identity verified. Proceeding with stored confirmation.");
+              return;
+            }
+              toast.success("Identity verified successfully!");
+            });
+      } else {
+        supabase
+          .from("customer_profiles")
+          .update({ kyc_verified: true })
+          .eq("user_id", targetUserId)
+          .then(({ error }) => {
+            if (error) {
+              console.error("[KYC] Failed to persist verification:", error);
+              toast.error("Verification failed to save. Please try again.");
+              setKycVerified(false);
+              return;
+            }
+            toast.success("Identity verified successfully!");
+          });
+      }
+
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete("kyc_callback");
       newParams.delete("user_id");
       const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams, user?.id]);
+  }, [searchParams, user?.id, profile?.full_name, profile?.phone, user?.phone, user?.user_metadata]);
+
   // Fetch initial KYC status
   useEffect(() => {
     if (user?.id) {
-      supabase.from("customer_profiles").select("kyc_verified").eq("user_id", user.id).single().then(({ data }) => {
-        if (data?.kyc_verified) {
-          setKycVerified(true);
-        }
-      });
+      if (readStoredKycVerified(user.id)) {
+        setKycVerified(true);
+      }
+
+      supabase
+        .from("customer_profiles")
+        .select("kyc_verified")
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error) {
+            console.warn("[KYC] Failed to fetch persisted KYC status:", error);
+            return;
+          }
+
+          const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
+          if (isVerified) {
+            writeStoredKycVerified(user.id, true);
+            setKycVerified(true);
+          }
+        });
     }
   }, [user?.id]);
 
@@ -264,8 +331,16 @@ export default function CheckoutPage() {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
         console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
 
+        // Abort after 10s to prevent hanging on slow connections
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
         // FIX 3: Use env-based API_BASE_URL
-        const response = await fetch(`${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`);
+        const response = await fetch(
+          `${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
 
         if (response.ok) {
           const data = await response.json();
@@ -552,8 +627,16 @@ export default function CheckoutPage() {
   /* ---------------------------------- */
   // Idempotency key ref — generated once per checkout attempt to prevent duplicate orders
   const idempotencyKeyRef = useRef<string | null>(null);
+  // Synchronous lock to prevent double-submit (React state is async and can't block rapid clicks)
+  const placingOrderLockRef = useRef(false);
 
   const handlePlaceOrder = async () => {
+    // Network check — fail fast on offline
+    if (!isOnline) {
+      toast.error("You're offline. Please check your internet connection and try again.");
+      return;
+    }
+
     // KYC Gate
     if (!kycVerified) {
       setShowKycGate(true);
@@ -585,8 +668,10 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Prevent double-submit: if already placing, bail out
-    if (isPlacingOrder) return;
+    // Prevent double-submit: synchronous ref check blocks rapid clicks immediately
+    // (React state `isPlacingOrder` is async and can't prevent two near-simultaneous calls)
+    if (placingOrderLockRef.current || isPlacingOrder) return;
+    placingOrderLockRef.current = true;
 
     console.log('[Checkout] Starting order placement...', { paymentMethod });
     setError(null);
@@ -611,7 +696,8 @@ export default function CheckoutPage() {
           if (confirmErr) throw new Error(confirmErr.message);
           if (confirmResult && !confirmResult.success) throw new Error(confirmResult.message || "Could not confirm buyout order");
 
-          await clearCartDB().catch(() => { });
+          // Clear only this user's cart (not all users on shared device)
+          await (userId ? clearUserCartDB(userId) : clearCartDB()).catch(() => { });
           for (const [key, data] of validCartEntries) {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
@@ -619,6 +705,7 @@ export default function CheckoutPage() {
           navigate(`/order-confirmed/${targetId}`);
         } else {
           setIsPlacingOrder(false);
+          placingOrderLockRef.current = false;
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
@@ -763,9 +850,9 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // Clear cart for COD orders
+      // Clear cart for COD orders — scope to this user only
       if (paymentMethod === 'cod') {
-        await clearCartDB().catch(() => { });
+        await (userId ? clearUserCartDB(userId) : clearCartDB()).catch(() => { });
         for (const [key, data] of validCartEntries) {
           const parts = key.split('_');
           removeFromCart(parts[0], data.size, data.plan);
@@ -788,6 +875,7 @@ export default function CheckoutPage() {
       idempotencyKeyRef.current = null;
     } finally {
       setIsPlacingOrder(false);
+      placingOrderLockRef.current = false;
     }
   };
 

@@ -54,9 +54,10 @@ SET search_path = public
 AS $$
 DECLARE
   v_order RECORD;
+  v_new_status TEXT;
 BEGIN
   -- Lock the order row to prevent concurrent verification
-  SELECT id, user_id, status, total_amount, razorpay_order_id
+  SELECT id, user_id, status, total_amount, razorpay_order_id, order_type
   INTO v_order
   FROM orders
   WHERE id = p_order_id
@@ -90,9 +91,13 @@ BEGIN
     );
   END IF;
 
+  -- Buyout orders → completed (customer already has the item, no delivery needed)
+  -- Regular orders → confirmed (enters the delivery pipeline)
+  v_new_status := CASE WHEN v_order.order_type = 'buyout' THEN 'completed' ELSE 'confirmed' END;
+
   -- Update order status
   UPDATE orders
-  SET status = 'confirmed',
+  SET status = v_new_status,
       razorpay_order_id = p_razorpay_order_id,
       updated_at = NOW()
   WHERE id = p_order_id;
@@ -119,7 +124,7 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'order_id', p_order_id,
-    'new_status', 'confirmed',
+    'new_status', v_new_status,
     'payment_id', p_razorpay_payment_id
   );
 

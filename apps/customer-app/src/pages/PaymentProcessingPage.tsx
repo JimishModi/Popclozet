@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useCart } from "@/context/CartContext";
-import { clearCartDB } from "@/lib/db";
+import { clearCartDB, clearUserCartDB } from "@/lib/db";
 
 export default function PaymentProcessingPage() {
     const navigate = useNavigate();
@@ -38,17 +38,30 @@ export default function PaymentProcessingPage() {
     useEffect(() => {
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible' && hasInitiated.current && !paymentSettled.current) {
-                // Give ondismiss 500ms to fire first before we force-navigate
+                // Give ondismiss 2s to fire first before we force-navigate
+                // (500ms was too aggressive — Razorpay modal teardown can be slow on low-end devices)
                 setTimeout(() => {
                     if (!paymentSettled.current) {
                         handleCancel();
                     }
-                }, 500);
+                }, 2000);
             }
         };
         document.addEventListener('visibilitychange', onVisibilityChange);
         return () => document.removeEventListener('visibilitychange', onVisibilityChange);
     }, [handleCancel]);
+
+    // Safety timeout: if nothing settles within 3 minutes, something is stuck
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (!paymentSettled.current) {
+                console.error('[PaymentProcessing] Safety timeout reached — navigating to failure');
+                paymentSettled.current = true;
+                navigate(`/payment-failed?orderId=${orderId || ''}&reason=timeout`, { replace: true });
+            }
+        }, 180000); // 3 minutes
+        return () => clearTimeout(timer);
+    }, [navigate, orderId]);
 
     useEffect(() => {
         // Prevent multiple initiations if the effect runs twice
@@ -74,8 +87,9 @@ export default function PaymentProcessingPage() {
                     userPhone: profile?.phone || user?.phone || "",
                     onSuccess: async () => {
                         paymentSettled.current = true;
-                        // Clear cart on successful payment
-                        await clearCartDB().catch(() => { });
+                        // Clear cart on successful payment (user-scoped)
+                        const uid = user?.id;
+                        await (uid ? clearUserCartDB(uid) : clearCartDB()).catch(() => { });
                         const cartEntries = Object.entries(cartItems);
                         for (const [key, data] of cartEntries) {
                             const parts = key.split('_');

@@ -56,20 +56,27 @@ export async function openRazorpayCheckout(options: RazorpayOptions): Promise<vo
 }
 
 /**
- * Dynamically loads the Razorpay checkout.js script
+ * Dynamically loads the Razorpay checkout.js script with a timeout
  */
-function loadRazorpayScript(): Promise<void> {
+function loadRazorpayScript(timeoutMs = 15000): Promise<void> {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      console.error('[Razorpay] SDK load timed out');
+      reject(new Error('Payment gateway is taking too long to load. Please check your internet connection and try again.'));
+    }, timeoutMs);
+
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     script.onload = () => {
+      clearTimeout(timer);
       console.log('[Razorpay] SDK loaded successfully');
       resolve();
     };
     script.onerror = () => {
+      clearTimeout(timer);
       console.error('[Razorpay] Failed to load SDK');
-      reject(new Error('Razorpay SDK failed to load'));
+      reject(new Error('Payment gateway failed to load. Please check your internet connection and try again.'));
     };
     document.body.appendChild(script);
   });
