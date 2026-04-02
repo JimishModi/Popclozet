@@ -27,6 +27,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
+import { placeOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -549,6 +550,9 @@ export default function CheckoutPage() {
   /* ---------------------------------- */
   /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
+  // Idempotency key ref — generated once per checkout attempt to prevent duplicate orders
+  const idempotencyKeyRef = useRef<string | null>(null);
+
   const handlePlaceOrder = async () => {
     // KYC Gate
     if (!kycVerified) {
@@ -581,6 +585,9 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Prevent double-submit: if already placing, bail out
+    if (isPlacingOrder) return;
+
     console.log('[Checkout] Starting order placement...', { paymentMethod });
     setError(null);
     setIsPlacingOrder(true);
@@ -592,13 +599,18 @@ export default function CheckoutPage() {
       if (!userId) throw new Error("Please sign in to place an order");
 
       // --- Buyout Flow (keep-it) ---
+      // Uses state machine RPC instead of direct status updates
       if (buyoutOrderId) {
         const targetId = buyoutOrderId;
-        await supabase.from('orders').update({ status: 'pending_payment' }).eq('id', buyoutOrderId);
 
         if (paymentMethod === 'cod') {
-          await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
-          // FIX 6: Clear cart on buyout COD path too
+          // Use confirm_order_payment RPC for safe state transition
+          const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_order_payment", {
+            p_order_id: buyoutOrderId,
+          });
+          if (confirmErr) throw new Error(confirmErr.message);
+          if (confirmResult && !confirmResult.success) throw new Error(confirmResult.message || "Could not confirm buyout order");
+
           await clearCartDB().catch(() => { });
           for (const [key, data] of validCartEntries) {
             const parts = key.split('_');
@@ -654,10 +666,7 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-
-      const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
-
-      // Ensure start and end dates make sense
+      // Compute rental dates
       const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1
         : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2
           : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0
@@ -671,106 +680,79 @@ export default function CheckoutPage() {
       let returnTimeSlot: string | null = null;
       if (returnSchedule?.pickupSlotIso) {
         const slotDate = new Date(returnSchedule.pickupSlotIso);
-        // Convert to IST date string (YYYY-MM-DD)
         returnPickupDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' })
-          .format(slotDate); // yields "YYYY-MM-DD"
-        // Format as "HH:MM AM/PM"
+          .format(slotDate);
         returnTimeSlot = new Intl.DateTimeFormat('en-US', {
           timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
         }).format(slotDate);
       }
 
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          delivery_address_id: addressId,
-          rental_start_date: startDate.toISOString(),
-          rental_end_date: endDate.toISOString(),
-          total_amount: total,
-          delivery_eta: deliveryEtaStr,
-          status: orderStatus,
-          payment_method: paymentMethod,
-          delivery_fee: deliveryFee,
-          route_distance_km: actualDistance || profile?.delivery_distance_km || 0,
-          ...(returnPickupDate ? { return_pickup_date: returnPickupDate } : {}),
-          ...(returnTimeSlot ? { return_time_slot: returnTimeSlot } : {}),
-        })
-        .select("id")
-        .single();
-
-      if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order record");
-
-      // NEW: Link pre-scheduled return to return_requests table for warehouse visibility
-      if (returnSchedule?.pickupSlotIso) {
-        const { error: rrErr } = await supabase
-          .from('return_requests')
-          .insert({
-            order_id: order.id,
-            status: 'approved',
-            reason: 'pre_scheduled',
-            pickup_slot: returnSchedule.pickupSlotIso,
-            pickup_address_id: addressId
-          });
-        
-        if (rrErr) {
-          console.warn('[Checkout] Failed to create return request record:', rrErr.message);
-          // Non-blocking for the main order flow, but logged for debugging
-        }
-      }
-
-      const { data: realProducts } = await supabase.from('products').select('id').limit(1);
-      const fallbackUuid = realProducts?.[0]?.id;
-
-      const orderItemsToInsert = validCartEntries.map(([key, data]) => {
-        const parts = key.split('_');
-        const rawBaseId = parts[0];
-        const { quantity, size, plan } = data;
-        const product = cartProducts[rawBaseId] || cartProducts[key];
-
+      // Build order items — only IDs, sizes, plans, quantities. NO prices.
+      // Prices are resolved server-side from the products table.
+      const orderItems = validCartEntries.map(([key, data]) => {
+        const rawBaseId = key.split('_')[0];
         const likelyRealUuid = rawBaseId.includes('-');
-        const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
 
-        if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", key);
-          throw new Error("Invalid product ID in cart");
+        if (!likelyRealUuid) {
+          throw new Error("Cannot order non-catalog items");
         }
-
-        const planDays = plan === '1d' ? 1 : plan === '2d' ? 2 : plan === '3d' ? 3 : 0;
-        const itemPrice = getPlanPrice(product, plan);
 
         return {
-          order_id: order.id,
-          product_id: baseId,
-          size: size,
-          rental_price: itemPrice * quantity,
-          rental_duration_days: planDays || rentalDays,
-          pricing_plan: plan,
+          product_id: rawBaseId,
+          size: data.size || 'One Size',
+          plan: data.plan || '3d',
+          quantity: data.quantity || 1,
         };
       });
 
-      const { error: insertItemsErr } = await supabase.from("order_items").insert(orderItemsToInsert);
-      if (insertItemsErr) throw new Error(insertItemsErr.message);
+      // Generate idempotency key (once per click — survives retries within the same attempt)
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
+      }
 
-      const createdOrderId = order.id;
-      const createdOrderTotal = total;
+      // ATOMIC order placement — order + items in a single DB transaction.
+      // Server fetches prices from DB, computes total, prevents duplicates.
+      const orderResult = await placeOrder({
+        idempotencyKey: idempotencyKeyRef.current,
+        addressId: addressId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        paymentMethod: paymentMethod,
+        deliveryFee: deliveryFee,
+        routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
+        deliveryEta: deliveryEtaStr,
+        returnPickupDate: returnPickupDate,
+        returnTimeSlot: returnTimeSlot,
+        items: orderItems,
+      });
 
-      // 2b) Create pre-scheduled return request if return slot was selected at checkout
+      const createdOrderId = orderResult.order_id;
+
+      // Reset idempotency key after successful creation
+      idempotencyKeyRef.current = null;
+
+      if (orderResult.idempotent) {
+        console.warn("[Checkout] Duplicate order prevented — returning existing order:", createdOrderId);
+      }
+
+      // Create pre-scheduled return request (single insert — was duplicated before)
       if (returnSchedule?.pickupSlotIso && createdOrderId) {
-        const { error: returnReqErr } = await supabase.from("return_requests").insert({
-          order_id: createdOrderId,
-          reason: 'pre_scheduled',
-          pickup_address_id: addressId,
-          pickup_slot: returnSchedule.pickupSlotIso,
-          status: 'approved',
-          approved_at: new Date().toISOString(),
-        });
-        if (returnReqErr) {
-          console.warn("[Checkout] Pre-scheduled return request failed:", returnReqErr);
+        const { error: rrErr } = await supabase
+          .from('return_requests')
+          .insert({
+            order_id: createdOrderId,
+            status: 'approved',
+            reason: 'pre_scheduled',
+            pickup_slot: returnSchedule.pickupSlotIso,
+            pickup_address_id: addressId,
+            approved_at: new Date().toISOString(),
+          });
+        if (rrErr) {
+          console.warn('[Checkout] Return request insert failed (non-blocking):', rrErr.message);
         }
       }
 
-      // 3) Insert Legal Acceptance Log
+      // Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
         user_id: user?.id,
         order_id: createdOrderId,
@@ -781,9 +763,8 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 4) Clear cart (if not buyout and if COD)
-      // For UPI, the cart is cleared on the PaymentProcessingPage or OrderConfirmedPage fallback
-      if (!buyoutOrderId && paymentMethod === 'cod') {
+      // Clear cart for COD orders
+      if (paymentMethod === 'cod') {
         await clearCartDB().catch(() => { });
         for (const [key, data] of validCartEntries) {
           const parts = key.split('_');
@@ -791,18 +772,20 @@ export default function CheckoutPage() {
         }
       }
 
-      // 5) Navigate based on payment method
-      const targetId = createdOrderId;
-      const finalAmount = createdOrderTotal;
+      // Navigate based on payment method
+      // Use server-computed total for payment amount (not client-side total)
+      const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate(`/order-confirmed/${targetId}`);
+        navigate(`/order-confirmed/${createdOrderId}`);
       } else {
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi`);
+        navigate(`/payment-processing?type=order&orderId=${createdOrderId}&amount=${serverTotal}&method=upi`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
       toast.error(err.message || "Failed to place order. Please try again.");
       setError(err.message || "Failed to place order. Please try again.");
+      // Reset idempotency key on error so user can retry
+      idempotencyKeyRef.current = null;
     } finally {
       setIsPlacingOrder(false);
     }

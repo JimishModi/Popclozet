@@ -1,6 +1,11 @@
 /**
  * Orders Service
  * Handles order creation, retrieval, and payment flow
+ *
+ * SECURITY NOTES:
+ * - Order creation uses atomic DB function (no partial inserts)
+ * - All mutations verify user ownership via DB RPCs
+ * - State transitions go through the state machine — never direct updates
  */
 
 import { supabase } from "@popclozet/api-client";
@@ -11,8 +16,8 @@ export interface Order {
   delivery_address_id?: string;
   rental_start_date: string;
   rental_end_date: string;
-  total_amount: number,
-  status?: string,
+  total_amount: number;
+  status?: string;
   lifecycle_state?: string;
   delivery_eta?: string;
   rider_id?: string | null;
@@ -29,8 +34,8 @@ export interface OrderItem {
   order_id: string;
   product_id: string;
   size?: string;
-  rental_price: number,
-  rental_duration_days?: number,
+  rental_price: number;
+  rental_duration_days?: number;
   created_at?: string;
   product?: {
     id: string;
@@ -72,9 +77,12 @@ export async function getMyOrders(): Promise<Order[]> {
 }
 
 /**
- * Get order by ID with items
+ * Get order by ID with items — enforces user ownership
  */
 export async function getOrderById(orderId: string): Promise<(Order & { items?: OrderItem[] }) | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
   const { data, error } = await supabase
     .from("orders")
     .select(
@@ -100,6 +108,7 @@ export async function getOrderById(orderId: string): Promise<(Order & { items?: 
     `
     )
     .eq("id", orderId)
+    .eq("user_id", user.id)  // FIX: enforce ownership
     .maybeSingle();
 
   if (error) {
@@ -111,82 +120,105 @@ export async function getOrderById(orderId: string): Promise<(Order & { items?: 
 }
 
 /**
- * Create an order from cart
- * This initiates the checkout flow
+ * Items to include in an order — only IDs, sizes, plans, and quantities.
+ * Prices are NEVER sent from the client; the server resolves them from the DB.
  */
-export async function createOrder(
-  deliveryAddressId: string,
-  rentalStartDate: string,
-  rentalEndDate: string,
-  totalAmount: number,
-  cartItems: any[]
-): Promise<Order> {
+export interface PlaceOrderItem {
+  product_id: string;
+  size: string;
+  plan: string;      // '1d' | '2d' | '3d' | 'buy'
+  quantity: number;
+}
+
+export interface PlaceOrderParams {
+  idempotencyKey: string;
+  addressId: string;
+  startDate: string;         // ISO string
+  endDate: string;           // ISO string
+  paymentMethod: string;     // 'cod' | 'upi' | 'razorpay'
+  deliveryFee: number;
+  routeDistanceKm: number;
+  deliveryEta: string | null;
+  returnPickupDate: string | null;
+  returnTimeSlot: string | null;
+  items: PlaceOrderItem[];
+}
+
+export interface PlaceOrderResult {
+  success: boolean;
+  order_id?: string;
+  status?: string;
+  subtotal?: number;
+  delivery_fee?: number;
+  total?: number;
+  item_count?: number;
+  idempotent?: boolean;
+  code?: string;
+  message?: string;
+}
+
+/**
+ * Place an order atomically via server-side RPC.
+ *
+ * - Order + items created in a single DB transaction
+ * - Prices fetched from the products table server-side (never from client)
+ * - Idempotency key prevents duplicate orders on double-click / retry
+ * - On ANY failure the entire transaction rolls back (no partial data)
+ */
+export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderResult> {
+  const { data, error } = await supabase.rpc("place_order", {
+    p_idempotency_key: params.idempotencyKey,
+    p_address_id: params.addressId,
+    p_start_date: params.startDate,
+    p_end_date: params.endDate,
+    p_payment_method: params.paymentMethod,
+    p_delivery_fee: params.deliveryFee,
+    p_route_distance_km: params.routeDistanceKm,
+    p_delivery_eta: params.deliveryEta,
+    p_return_pickup_date: params.returnPickupDate,
+    p_return_time_slot: params.returnTimeSlot,
+    p_items: params.items,
+  });
+
+  if (error) {
+    console.error("placeOrder RPC error:", error);
+    throw new Error(error.message || "Failed to place order");
+  }
+
+  const result = data as PlaceOrderResult;
+  if (!result.success) {
+    throw new Error(result.message || `Order failed: ${result.code}`);
+  }
+
+  return result;
+}
+
+/**
+ * Confirm payment via secure DB function (validates ownership + state via auth.uid())
+ */
+export async function confirmOrderPayment(orderId: string): Promise<void> {
+  const { data, error } = await supabase.rpc("confirm_order_payment", {
+    p_order_id: orderId,
+  });
+
+  if (error) {
+    console.error("confirmOrderPayment RPC error:", error);
+    throw error;
+  }
+
+  const result = data as { success: boolean; code?: string; message?: string };
+  if (!result.success) {
+    throw new Error(result.message || `Payment confirmation failed: ${result.code}`);
+  }
+}
+
+/**
+ * Get order with delivery info — enforces user ownership
+ */
+export async function getOrderWithDelivery(orderId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Start transaction - create order first
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      user_id: user.id,
-      delivery_address_id: deliveryAddressId,
-      rental_start_date: rentalStartDate,
-      rental_end_date: rentalEndDate,
-      total_amount: totalAmount,
-      status: "pending",
-      lifecycle_state: "placed",
-    })
-    .select()
-    .single();
-
-  if (orderError) {
-    console.error("createOrder error:", orderError);
-    throw orderError;
-  }
-
-  // Add items to order
-  const orderItemsData = cartItems.map((item) => ({
-    order_id: order.id,
-    product_id: item.item_id,
-    size: item.size || "One Size",
-    rental_price: item.item?.rental_price_per_day || 0,
-    rental_duration_days: item.days || 3,
-  }));
-
-  const { error: itemsError } = await supabase
-    .from("order_items")
-    .insert(orderItemsData);
-
-  if (itemsError) {
-    // Rollback order if items fail
-    await supabase.from("orders").delete().eq("id", order.id);
-    console.error("createOrder items error:", itemsError);
-    throw itemsError;
-  }
-
-  return order;
-}
-
-/**
- * Confirm payment and transition order to processing
- * Updates order status directly (RPC may not be available)
- */
-export async function confirmOrderPayment(orderId: string): Promise<void> {
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "confirmed", lifecycle_state: "confirmed" })
-    .eq("id", orderId);
-
-  if (error) {
-    console.error("confirmOrderPayment error:", error);
-    throw error;
-  }
-}
-
-/**
- * Get order with delivery info
- */
-export async function getOrderWithDelivery(orderId: string) {
   const { data, error } = await supabase
     .from("orders")
     .select(
@@ -212,6 +244,7 @@ export async function getOrderWithDelivery(orderId: string) {
     `
     )
     .eq("id", orderId)
+    .eq("user_id", user.id)  // FIX: enforce ownership
     .maybeSingle();
 
   if (error) {
@@ -223,27 +256,26 @@ export async function getOrderWithDelivery(orderId: string) {
 }
 
 /**
- * Cancel an order (only in certain states)
+ * Cancel an order via secure DB function (validates state + ownership)
  */
-export async function cancelOrder(orderId: string): Promise<Order> {
-  const { data, error } = await supabase
-    .from("orders")
-    .update({ status: "cancelled" })
-    .eq("id", orderId)
-    .select()
-    .single();
+export async function cancelOrder(orderId: string): Promise<void> {
+  const { data, error } = await supabase.rpc("cancel_order_safe", {
+    p_order_id: orderId,
+  });
 
   if (error) {
-    console.error("cancelOrder error:", error);
+    console.error("cancelOrder RPC error:", error);
     throw error;
   }
 
-  return data;
+  const result = data as { success: boolean; code?: string; message?: string };
+  if (!result.success) {
+    throw new Error(result.message || `Cancel failed: ${result.code}`);
+  }
 }
 
 /**
  * Get active rentals for the Closet page.
- * Returns orders that are currently active (placed, confirmed, delivered, in_use).
  */
 export async function getMyActiveRentals() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -333,8 +365,6 @@ export async function scheduleReturn(
 
 /**
  * Request an immediate return (Return Now).
- * Auto-approves and transitions to return_scheduled so riders can claim it right away.
- * If no pickupAddressId is provided, the server falls back to the delivery address.
  */
 export async function requestImmediateReturn(
   orderId: string,
@@ -355,7 +385,6 @@ export async function requestImmediateReturn(
 
 /**
  * Assign a rider for a return pickup.
- * Atomically sets rider_id, transitions to return_dispatched, and generates OTP.
  */
 export async function assignReturnRider(orderId: string, riderId: string) {
   const { data, error } = await supabase.rpc("assign_return_rider", {
@@ -372,17 +401,20 @@ export async function assignReturnRider(orderId: string, riderId: string) {
 }
 
 /**
- * Keep an item (buy it out at the fixed price).
+ * Keep an item (buyout) via secure DB function (validates state + ownership)
  */
-export async function keepItem(orderId: string) {
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "completed" })
-    .eq("id", orderId);
+export async function keepItem(orderId: string): Promise<void> {
+  const { data, error } = await supabase.rpc("keep_item_safe", {
+    p_order_id: orderId,
+  });
 
   if (error) {
-    console.error("keepItem error:", error);
+    console.error("keepItem RPC error:", error);
     throw error;
   }
-}
 
+  const result = data as { success: boolean; code?: string; message?: string };
+  if (!result.success) {
+    throw new Error(result.message || `Keep item failed: ${result.code}`);
+  }
+}

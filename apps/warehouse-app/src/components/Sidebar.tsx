@@ -3,7 +3,7 @@ import { useAuth } from '@popclozet/auth';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
-    LayoutDashboard, Package, Droplets, ClipboardList, RotateCcw,
+    LayoutDashboard, Package, ClipboardList, RotateCcw,
     Truck, PlusCircle, Settings, LogOut
 } from 'lucide-react';
 import logoImage from '../assets/popclozet-logo.svg';
@@ -11,7 +11,6 @@ import logoImage from '../assets/popclozet-logo.svg';
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/inventory', icon: Package, label: 'Inventory' },
-    { to: '/wash', icon: Droplets, label: 'Wash Cycle' },
     { to: '/orders', icon: ClipboardList, label: 'Order Fulfillment' },
     { to: '/returns', icon: RotateCcw, label: 'Returns' },
     { to: '/dispatch', icon: Truck, label: 'Rider Dispatch' },

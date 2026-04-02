@@ -321,10 +321,8 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
 
     const statusColor = (s: string) => ({
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-        washing: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-        rented: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-        returned: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
-        archived: 'text-red-400 bg-red-500/10 border-red-500/20',
+        rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        sold:      'text-red-400 bg-red-500/10 border-red-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
@@ -389,17 +387,16 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {unit.status !== 'archived' && (
+                                             {unit.status !== 'sold' && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm(`Archive unit ${unit.individual_id}?`)) {
+                                                        if (confirm(`Mark unit ${unit.individual_id} as SOLD? This removes it from active stock.`)) {
                                                             try {
                                                                 await archivePhysicalUnit(unit.individual_id, user?.id);
-                                                                showToast('Unit archived');
-                                                                // Reload data
-                                                                window.location.reload(); // Simple refresh for now
+                                                                showToast('Unit marked as sold');
+                                                                window.location.reload();
                                                             } catch (err: any) {
-                                                                showToast(err.message || 'Failed to archive', 'error');
+                                                                showToast(err.message || 'Failed to mark as sold', 'error');
                                                             }
                                                         }
                                                     }}
