@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Package, ChevronRight, BarChart3, AlertTriangle } from 'lucide-react';
+import { Search, Package, ChevronRight, BarChart3, AlertTriangle, ShoppingBag } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getAllProductProfiles } from '../services/productProfileService';
 import { useRealtimeInventory } from '../hooks/useRealtimeInventory';
@@ -126,6 +126,12 @@ export function InventoryPage() {
                                                 <div className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
                                                     <BarChart3 size={10} />
                                                     {product.total_wash} Washing
+                                                </div>
+                                            )}
+                                            {product.total_instantly_bought > 0 && (
+                                                <div className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1">
+                                                    <ShoppingBag size={10} />
+                                                    {product.total_instantly_bought} Instant Buy
                                                 </div>
                                             )}
                                         </div>

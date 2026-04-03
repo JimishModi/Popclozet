@@ -33,6 +33,7 @@ export interface InventorySubProfile {
     size: string;
     available_stock: number;
     went_for_wash: number;
+    instantly_bought: number;
     total_stock: number;
     units: PhysicalUnitInProfile[];
 }
@@ -118,15 +119,15 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 
     if (discErr) throw discErr;
 
-    // Build inventory subprofiles using ground-truth from allUnits
     const inventory: InventorySubProfile[] = (inventoryRows || []).map((row: any) => {
         const unitsForSize = allUnits.filter(u => u.inventory_id === row.id);
         return {
             id: row.id,
             size: row.size,
             available_stock: unitsForSize.filter(u => u.status === 'available').length,
-            went_for_wash: 0,  // No washing state in simplified system
-            total_stock: unitsForSize.filter(u => u.status !== 'sold').length, // sold units excluded from active stock
+            went_for_wash: 0,
+            instantly_bought: unitsForSize.filter(u => u.status === 'instantly_bought').length,
+            total_stock: unitsForSize.filter(u => u.status !== 'sold' && u.status !== 'instantly_bought').length,
             units: unitsForSize as any,
         };
     });
@@ -170,6 +171,7 @@ export async function getAllProductProfiles(): Promise<{
     total_available: number;
     total_wash: number;
     total_stock: number;
+    total_instantly_bought: number;
 }[]> {
     // Fetch products
     const { data: products, error: prodErr } = await supabase
@@ -192,25 +194,27 @@ export async function getAllProductProfiles(): Promise<{
 
     if (itemsErr) throw itemsErr;
 
-    // Create a map of product_id -> { available, wash, total }
-    const stockMap = new Map<string, { available: number, wash: number, total: number }>();
+    // Create a map of product_id -> { available, wash, total, instantly_bought }
+    const stockMap = new Map<string, { available: number, wash: number, total: number, instantly_bought: number }>();
     (allItems || []).forEach((item: any) => {
         const pid = item.inventory.product_id;
-        const current = stockMap.get(pid) || { available: 0, wash: 0, total: 0 };
+        const current = stockMap.get(pid) || { available: 0, wash: 0, total: 0, instantly_bought: 0 };
         stockMap.set(pid, {
             available: current.available + (item.status === 'available' ? 1 : 0),
-            wash: 0,  // No washing state in simplified system
-            total: current.total + (item.status !== 'sold' ? 1 : 0), // exclude sold
+            wash: 0,
+            instantly_bought: current.instantly_bought + (item.status === 'instantly_bought' ? 1 : 0),
+            total: current.total + (item.status !== 'sold' && item.status !== 'instantly_bought' ? 1 : 0),
         });
     });
 
     return products.map(p => {
-        const stock = stockMap.get(p.id) || { available: 0, wash: 0, total: 0 };
+        const stock = stockMap.get(p.id) || { available: 0, wash: 0, total: 0, instantly_bought: 0 };
         return {
             ...p,
             total_available: stock.available,
             total_wash: stock.wash,
-            total_stock: stock.total
+            total_stock: stock.total,
+            total_instantly_bought: stock.instantly_bought
         };
     });
 }

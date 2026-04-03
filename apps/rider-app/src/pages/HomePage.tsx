@@ -17,7 +17,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
-import { Zap, Bell, X } from 'lucide-react';
+import { Zap, Bell, X, ScanLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -26,6 +26,7 @@ import { EarningsCard, BonusCard } from '../components/EarningsCard';
 import { OrderCard } from '../components/OrderCard';
 import { SwipeToAccept } from '../components/SwipeToAccept';
 import { BottomNavigation } from '../components/BottomNavigation';
+import { QRScannerOverlay } from '../components/QRScannerOverlay';
 import { RiderShell } from '../components/layout/RiderShell';
 import { useToast } from '../contexts/ToastContext';
 import { useLocation } from '../contexts/LocationContext';
@@ -175,6 +176,7 @@ export function HomePage() {
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [unreadNotifications, setUnread] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [showQRScanner, setShowQRScanner] = useState(false);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -674,10 +676,38 @@ export function HomePage() {
                                 <span className="text-white font-bold text-sm tracking-tight">History</span>
                                 <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Past deliveries</span>
                             </button>
+                            <button
+                                onClick={() => setShowQRScanner(true)}
+                                className="p-5 rounded-3xl bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 active:scale-95 transition-all text-left group col-span-2"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <span className="text-3xl group-hover:scale-110 transition-transform"><ScanLine size={28} className="text-blue-400" /></span>
+                                    <div>
+                                        <span className="text-white font-bold text-sm tracking-tight block">Scan Product</span>
+                                        <span className="block text-[10px] text-zinc-500 mt-0.5 uppercase tracking-widest font-medium">Verify items via QR code</span>
+                                    </div>
+                                </div>
+                            </button>
                         </div>
                     </>
                 )}
             </main>
+
+            {/* Floating QR Scan button when online */}
+            {isOnline && !pendingOrder && !showQRScanner && (
+                <button
+                    onClick={() => setShowQRScanner(true)}
+                    className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-blue-600 shadow-lg shadow-blue-500/30 flex items-center justify-center active:scale-90 transition-all hover:bg-blue-500"
+                    aria-label="Scan Product QR"
+                >
+                    <ScanLine size={24} className="text-white" />
+                </button>
+            )}
+
+            {/* QR Scanner Overlay */}
+            {showQRScanner && (
+                <QRScannerOverlay onClose={() => setShowQRScanner(false)} />
+            )}
 
             <BottomNavigation />
         </RiderShell>

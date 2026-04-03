@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import { QrCode, User } from 'lucide-react';
 import { useAuth } from '@popclozet/auth';
 import { QRScannerOverlay } from '../QRScannerOverlay';
+import { subscribeToPush } from '../../services/pushNotificationService';
 
 interface WarehouseShellProps {
     children: React.ReactNode;
@@ -17,6 +18,13 @@ export const WarehouseShell: React.FC<WarehouseShellProps> = ({
 }) => {
     const { user, profile } = useAuth();
     const [scannerOpen, setScannerOpen] = useState(false);
+
+    // Auto-subscribe to push notifications when warehouse staff logs in
+    useEffect(() => {
+        if (user) {
+            subscribeToPush().catch(err => console.warn('[WarehouseShell] Push sub failed:', err));
+        }
+    }, [user]);
 
     return (
         <div className="min-h-screen bg-black flex justify-center">
