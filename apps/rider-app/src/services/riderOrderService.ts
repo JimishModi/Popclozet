@@ -197,6 +197,7 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
         .from('orders')
         .select(`
             id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
+            route_distance_km,
             customer_profiles!orders_user_id_fkey1(full_name),
             addresses:delivery_address_id (full_address, latitude, longitude),
             order_items (
@@ -243,6 +244,11 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
                 lng: addr?.longitude ?? 0,
             };
 
+        const estimatedKm = order.route_distance_km ?? 0;
+        const etaMinutes = order.delivery_eta
+            ? Math.max(1, Math.round((new Date(order.delivery_eta).getTime() - Date.now()) / 60000))
+            : (estimatedKm > 0 ? Math.round(estimatedKm * 3) : undefined);
+
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
             customerName: order.customer_profiles?.full_name, orderType: isReturn ? 'return' as const : 'delivery' as const,
@@ -256,6 +262,8 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
             })),
             totalAmount: order.total_amount ?? 0,
             deliveryFee: order.delivery_fee ?? Math.round((order.total_amount ?? 0) * 0.15),
+            distanceKm: order.route_distance_km,
+            etaMinutes,
             assignedAt: order.created_at,
             createdAt: order.created_at,
         };

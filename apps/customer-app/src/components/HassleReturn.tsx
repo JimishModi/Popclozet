@@ -23,7 +23,14 @@ const HassleReturn = () => {
       iconBg: "from-emerald-200 to-green-100",
       iconColor: "text-emerald-600",
       title: "Rent It ASAP",
-      description: "Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.",
+      description: (() => {
+        try {
+          const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+          return loc.delivery_estimate === 'delayed' ? 'Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear with our delayed delivery service.' : 'Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.';
+        } catch {
+          return 'Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.';
+        }
+      })(),
     },
     {
       icon: Leaf,

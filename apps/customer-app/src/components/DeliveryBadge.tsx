@@ -15,7 +15,14 @@ export const DeliveryBadge = () => {
             </div>
             <span className="text-sm font-semibold text-primary flex items-center gap-1">
                 <Truck className="w-4 h-4" />
-                Delivered in 60 minutes
+                {(() => {
+                    try {
+                        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                        return loc.delivery_estimate === 'delayed' ? 'Delayed Delivery' : 'Delivered in 60 minutes';
+                    } catch {
+                        return 'Delivered in 60 minutes';
+                    }
+                })()}
             </span>
         </motion.div>
     );

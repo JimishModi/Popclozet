@@ -2,10 +2,21 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { locationStorage } from "@/lib/locationStorage";
 
 import heroImg from "@/images/formal/formal.jpg";
 
 const CoutureHero = () => {
+    const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed' | null>(null);
+
+    useEffect(() => {
+        const stored = locationStorage.get();
+        if (stored && (stored as any).delivery_estimate) {
+            setDeliveryEstimate((stored as any).delivery_estimate);
+        }
+    }, []);
+
     return (
         <section className="min-h-screen bg-[#F9F8F6] border-b border-black pt-20 overflow-hidden relative">
 
@@ -35,7 +46,11 @@ const CoutureHero = () => {
                         className="text-6xl md:text-7xl lg:text-8xl font-playfair text-black leading-tight tracking-tight mb-6"
                     >
                         New Outfit Everyday! <br />
-                        <span className="text-5xl md:text-6xl lg:text-7xl text-purple-600 block mt-2">Delivered in 60 Minutes!</span>
+                        <span className="text-5xl md:text-6xl lg:text-7xl text-purple-600 block mt-2">
+                            {deliveryEstimate === 'delayed' 
+                                ? "Expected Delayed Delivery!" 
+                                : "Delivered in 60 Minutes!"}
+                        </span>
                     </motion.h1>
 
                     {/* Subtitle */}

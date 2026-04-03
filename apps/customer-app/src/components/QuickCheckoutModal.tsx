@@ -52,7 +52,16 @@ export const QuickCheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClo
                                         <p className="text-sm font-medium">Home</p>
                                         <p className="text-xs text-muted-foreground">123 Fashion Ave, NY</p>
                                     </div>
-                                    <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">60 min</span>
+                                    <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">
+                                        {(() => {
+                                            try {
+                                                const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                                                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '60 min';
+                                            } catch {
+                                                return '60 min';
+                                            }
+                                        })()}
+                                    </span>
                                 </div>
                             </div>
 

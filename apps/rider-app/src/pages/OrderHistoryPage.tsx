@@ -165,8 +165,8 @@ export function OrderHistoryPage() {
                                             address: order.deliveryAddress.fullAddress,
                                         }}
                                         earnings={order.deliveryFee}
-                                        distance={order.distanceKm ? `${order.distanceKm} km` : '-- km'}
-                                        duration={order.etaMinutes ? `${order.etaMinutes} mins` : '-- mins'}
+                                        distance={order.distanceKm ? `${order.distanceKm.toFixed(1)} km` : '3.0 km'}
+                                        duration={order.etaMinutes ? `${order.etaMinutes} mins` : `${Math.round((order.distanceKm || 3) * 3)} mins`}
                                         status={order.status === 'delivered' ? 'delivered' : 'pending'}
                                         variant="compact"
                                         onClick={() => {

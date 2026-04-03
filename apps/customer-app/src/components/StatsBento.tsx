@@ -77,7 +77,16 @@ const StatsBento = () => {
                             <Clock className="w-10 h-10 opacity-80" />
                         </div>
                         <div>
-                            <h3 className="text-3xl font-bold">60 min</h3>
+                            <h3 className="text-3xl font-bold">
+                                {(() => {
+                                    try {
+                                        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                                        return loc.delivery_estimate === 'delayed' ? 'Delayed' : '60 min';
+                                    } catch {
+                                        return '60 min';
+                                    }
+                                })()}
+                            </h3>
                             <p className="text-sm opacity-90 font-medium">Delivery Promise</p>
                         </div>
                     </motion.div>

@@ -122,7 +122,16 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
                 productImage={normalizeSrc(product.image)}
               />
               <DeliveryStatusTile />
-              <p className="text-xs text-center text-muted-foreground">Free delivery within 60 mins</p>
+              <p className="text-xs text-center text-muted-foreground">
+                {(() => {
+                    try {
+                        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                        return loc.delivery_estimate === 'delayed' ? 'Delayed delivery' : 'Free delivery within 60 mins';
+                    } catch {
+                        return 'Free delivery within 60 mins';
+                    }
+                })()}
+              </p>
             </div>
           </div>
         </div>
