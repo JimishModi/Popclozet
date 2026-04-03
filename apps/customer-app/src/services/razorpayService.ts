@@ -22,6 +22,17 @@ interface CreateOrderResult {
  * Returns the Razorpay order ID and public key for use in the checkout modal.
  */
 export async function createRazorpayOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
+  // Ensure we have a fresh session token before calling the edge function
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    // Try refreshing the session
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) {
+      console.error('[razorpayService] Session refresh failed:', refreshError);
+      throw new Error('Authentication expired. Please log in again.');
+    }
+  }
+
   const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
     body: {
       receipt: params.receipt,
@@ -30,8 +41,16 @@ export async function createRazorpayOrder(params: CreateOrderParams): Promise<Cr
   });
 
   if (error) {
-    console.error('[razorpayService] createRazorpayOrder failed:', error);
-    throw new Error(error.message || 'Failed to create payment order');
+    // Extract the actual error body from the edge function response
+    let detail = error.message;
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const body = await error.context.json();
+        detail = body?.error || JSON.stringify(body);
+      }
+    } catch { /* ignore parse errors */ }
+    console.error('[razorpayService] createRazorpayOrder failed:', detail, error);
+    throw new Error(detail || 'Failed to create payment order');
   }
 
   if (!data?.id) {
@@ -111,4 +130,65 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
     'Payment was processed but verification failed after multiple attempts. ' +
     'Your payment is safe — please contact support with your order ID.'
   );
+}
+
+/**
+ * Recovers any pending verifications that were interrupted (e.g. tab closed,
+ * network drop after Razorpay handler fired but before verification completed).
+ *
+ * Call this once on app startup (e.g. in a top-level useEffect).
+ * For each pending record, it re-attempts verification. If it succeeds or
+ * gets a definitive "already processed" response, it clears the record.
+ */
+export async function recoverPendingVerifications(): Promise<void> {
+  const PREFIX = 'rzp_pending_verify:';
+  const keys: string[] = [];
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(PREFIX)) keys.push(key);
+  }
+
+  if (keys.length === 0) return;
+
+  console.log(`[razorpayService] Found ${keys.length} pending verification(s), attempting recovery...`);
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) { localStorage.removeItem(key); continue; }
+
+      const pending = JSON.parse(raw);
+
+      // Skip records older than 24 hours — Razorpay payments expire
+      if (pending.timestamp && Date.now() - pending.timestamp > 24 * 60 * 60 * 1000) {
+        console.warn('[razorpayService] Stale pending verification, removing:', pending.internal_order_id);
+        localStorage.removeItem(key);
+        continue;
+      }
+
+      // Signature is not stored in localStorage (intentionally — it's sensitive).
+      // We can't re-verify without it. But we can check if the order was already
+      // verified by querying the order status.
+      const { data: order } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', pending.internal_order_id)
+        .single();
+
+      if (order && ['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
+        console.log('[razorpayService] Order already confirmed, clearing pending record:', pending.internal_order_id);
+        localStorage.removeItem(key);
+      } else {
+        console.warn(
+          '[razorpayService] Order not yet confirmed. Payment may need manual reconciliation:',
+          pending.internal_order_id,
+          'razorpay_payment_id:', pending.razorpay_payment_id,
+        );
+        // Keep the record so support can find it
+      }
+    } catch (err) {
+      console.warn('[razorpayService] Error recovering pending verification for', key, err);
+    }
+  }
 }

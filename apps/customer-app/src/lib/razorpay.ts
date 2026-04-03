@@ -23,6 +23,8 @@ export interface RazorpayOptions {
   modal?: {
     ondismiss?: () => void;
     confirm_close?: boolean;
+    escape?: boolean;
+    backdropclose?: boolean;
   };
 }
 
@@ -32,27 +34,46 @@ export interface RazorpayPaymentResponse {
   razorpay_signature: string;
 }
 
+export interface RazorpayFailedResponse {
+  error: {
+    code: string;
+    description: string;
+    source: string;
+    step: string;
+    reason: string;
+    metadata: {
+      order_id?: string;
+      payment_id?: string;
+    };
+  };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  close: () => void;
+  on: (event: string, callback: (response: RazorpayFailedResponse) => void) => void;
+}
+
 declare global {
   interface Window {
-    Razorpay: new (options: RazorpayOptions) => {
-      open: () => void;
-      close: () => void;
-    };
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
   }
 }
 
 /**
  * Opens the Razorpay checkout modal.
  * Dynamically loads the SDK if not already present.
+ * Returns the instance so callers can attach event listeners (e.g. payment.failed).
  */
-export async function openRazorpayCheckout(options: RazorpayOptions): Promise<void> {
+export async function openRazorpayCheckout(options: RazorpayOptions): Promise<RazorpayInstance> {
   if (typeof window.Razorpay === 'undefined') {
     console.log('[Razorpay] SDK not found, loading...');
     await loadRazorpayScript();
   }
-  
+
   const rzp = new window.Razorpay(options);
   rzp.open();
+  return rzp;
 }
 
 /**

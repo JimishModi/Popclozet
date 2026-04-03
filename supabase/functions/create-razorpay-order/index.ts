@@ -23,11 +23,15 @@ const ALLOWED_ORIGINS = [
   'https://www.popclozet.com',
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ];
 
 function getAllowedOrigin(req: Request): string {
   const origin = req.headers.get('Origin') ?? '';
-  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return ALLOWED_ORIGINS.includes(origin) ? origin : 'null';
 }
 
 function corsHeaders(req: Request): Record<string, string> {
