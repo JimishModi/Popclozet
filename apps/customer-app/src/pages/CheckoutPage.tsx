@@ -45,6 +45,8 @@ const isRealEmail = (email?: string | null): email is string => {
 
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
+import { callLocationFn } from "@/utils/env";
+import { haversineDistance } from "@/utils/haversine";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -57,8 +59,6 @@ const WAREHOUSE_LOCATION = {
 const MAX_DELIVERY_DISTANCE_KM = 6;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// FIX 3: Use env variable instead of hardcoded localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -333,7 +333,7 @@ export default function CheckoutPage() {
   }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
 
 
-  // Distance Check Effect (Strictly MapmyIndia API)
+  // Distance Check Effect (Supabase Edge Function + Haversine fallback)
   useEffect(() => {
     const fetchDistance = async (destination: string) => {
       setDistanceLoading(true);
@@ -341,30 +341,39 @@ export default function CheckoutPage() {
 
       try {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
-        console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
+        console.log(`[Checkout] Calling distance edge function: ${origin} to ${destination}`);
 
         // Abort after 10s to prevent hanging on slow connections
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
 
-        // FIX 3: Use env-based API_BASE_URL
-        const response = await fetch(
-          `${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`,
-          { signal: controller.signal }
+        const data = await callLocationFn(
+          { action: "distance", origin, destination },
+          controller.signal
         );
         clearTimeout(timeout);
 
-        if (response.ok) {
-          const data = await response.json();
-          const distance = data.distance;
-
-          console.log("[DistanceCheck] API verified distance:", distance);
-          setActualDistance(distance);
-        } else {
-          throw new Error("MapmyIndia API service error");
-        }
+        const distance = data.distance;
+        console.log("[DistanceCheck] API verified distance:", distance);
+        setActualDistance(distance);
       } catch (error) {
-        console.warn("[Checkout] Strict Distance API failed:", error);
+        console.warn("[Checkout] Edge function distance failed, trying Haversine fallback:", error);
+
+        // Haversine fallback: parse destination coords if available
+        try {
+          const parts = destination.split(",");
+          if (parts.length === 2) {
+            const dLng = parseFloat(parts[0]);
+            const dLat = parseFloat(parts[1]);
+            if (!isNaN(dLat) && !isNaN(dLng)) {
+              const km = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, dLat, dLng);
+              console.log(`[DistanceCheck] Haversine fallback: ${km.toFixed(2)}km`);
+              setActualDistance(km);
+              return;
+            }
+          }
+        } catch { /* ignore parse errors */ }
+
         setDistanceError("Distance service temporarily unavailable");
         setActualDistance(null);
       } finally {

@@ -117,6 +117,7 @@ registerRoute(
     ({ url }) =>
         url.origin === self.location.origin &&
         /\.js$/i.test(url.pathname) &&
+        !url.pathname.endsWith('/sw.js') &&
         !url.pathname.includes('otp-provider') &&
         !url.hostname.includes('mappls.com') &&
         !url.hostname.includes('mapmyindia.com'),

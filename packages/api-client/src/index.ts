@@ -18,14 +18,26 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('⚠️ [api-client] CRITICAL: Supabase environment variables are missing.');
+    console.error('[api-client] CRITICAL: Supabase environment variables are missing.');
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...', {
-    url: supabaseUrl.substring(0, 15) + '...',
-    hasKey: !!supabaseAnonKey
-});
+// Supabase URL must use HTTPS in production to avoid insecure WebSocket (ws://) errors.
+// The Supabase JS client derives wss:// from https:// URLs automatically.
+if (!supabaseUrl.startsWith('https://') && import.meta.env.PROD) {
+    console.error(
+        '[api-client] CRITICAL: VITE_SUPABASE_URL must use https:// in production. ' +
+        `Current value starts with: "${supabaseUrl.substring(0, 10)}...". ` +
+        'This will cause "WebSocket not available: The operation is insecure" errors.'
+    );
+}
+
+if (import.meta.env.DEV) {
+    console.log('[api-client] Initializing Supabase client...', {
+        url: supabaseUrl.substring(0, 30) + '...',
+        hasKey: !!supabaseAnonKey
+    });
+}
 
 let client: SupabaseClient;
 try {
@@ -42,7 +54,9 @@ try {
             },
         },
     });
-    console.log('✅ [@popclozet/api-client] Supabase client created successfully.');
+    if (import.meta.env.DEV) {
+        console.log('[api-client] Supabase client created successfully.');
+    }
 } catch (e) {
     console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
     throw e;

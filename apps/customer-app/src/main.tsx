@@ -18,7 +18,7 @@ registerSW({
       // Guard: only reload ONCE per browser session to prevent infinite loops.
       // On fresh install the new SW activates immediately, which fires onNeedRefresh.
       // Without this guard the page reloads → SW re-claims → fires again → loop.
-      const RELOAD_KEY = "sw_reload_done";
+      const RELOAD_KEY = `sw_reload_${__SW_VERSION__}`;
       if (!hasReloadGuard(RELOAD_KEY)) {
         setReloadGuard(RELOAD_KEY);
         console.log("🔄 New service worker — reloading once to apply assets");

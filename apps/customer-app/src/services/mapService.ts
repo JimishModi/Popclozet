@@ -2,6 +2,7 @@
 // Mappls integration for customer app via map-core
 
 import { initializeMap, mapboxgl } from '@popclozet/map-core';
+import { callLocationFn } from '@/utils/env';
 
 // Types for map service
 export interface MapConfig {
@@ -183,16 +184,14 @@ export async function calculateRoute(
     destination: { lat: number; lng: number }
 ): Promise<RouteResult | null> {
     try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-        const url = `${API_URL}/api/location/directions?origin=${origin.lng},${origin.lat}&destination=${destination.lng},${destination.lat}`;
+        const originStr = `${origin.lng},${origin.lat}`;
+        const destStr = `${destination.lng},${destination.lat}`;
 
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.error('Routing request failed:', response.status);
-            return null;
-        }
-
-        const data = await response.json();
+        const data = await callLocationFn({
+            action: 'directions',
+            origin: originStr,
+            destination: destStr,
+        });
 
         if (!data.routes || data.routes.length === 0) {
             console.error('No routes found');
