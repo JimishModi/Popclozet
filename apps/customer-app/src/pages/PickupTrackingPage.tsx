@@ -609,6 +609,30 @@ export default function PickupTrackingPage() {
                     </div>
                 </section>
 
+                {/* ── Warehouse Location ── */}
+                {(rawStatusIdx < 3 || isPreReturn) && (
+                    <section className="mx-5 mb-6 p-5 rounded-3xl bg-blue-500/10 border border-blue-500/20">
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-start gap-3">
+                                <MapPin className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-xs font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Warehouse Location</p>
+                                    <p className="text-sm text-white font-medium" style={dmSans}>Hostel No. 2, IIT Bombay</p>
+                                </div>
+                            </div>
+                            <a 
+                                href={`https://www.google.com/maps/dir/?api=1${pickupAddress !== '—' ? `&origin=${encodeURIComponent(pickupAddress)}` : ''}&destination=${encodeURIComponent('Hostel No 2, IIT Bombay')}&travelmode=driving`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-500/20 text-blue-400 font-bold hover:bg-blue-500/30 transition-all border border-blue-500/30"
+                            >
+                                <Navigation className="w-4 h-4" />
+                                Open in Google Maps
+                            </a>
+                        </div>
+                    </section>
+                )}
+
                 {/* ── Need Help ── */}
                 <section className="mx-5 mb-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
                     <h3 className="text-sm font-semibold text-white mb-3">Need Help?</h3>
