@@ -20,8 +20,12 @@ export default defineConfig(({ mode }) => {
         "/api/otp-provider": {
           target: "https://verify.msg91.com",
           changeOrigin: true,
-          rewrite: (path: string) => '/otp-provider.js',
+          rewrite: () => '/otp-provider.js',
           secure: true,
+          configure: (proxy: any) => {
+            proxy.on('error', (err: any) => console.error('[proxy] otp-provider error:', err.message));
+            proxy.on('proxyRes', (proxyRes: any) => console.log('[proxy] otp-provider response:', proxyRes.statusCode));
+          },
         },
         "/api": {
           target: "http://localhost:3001",
