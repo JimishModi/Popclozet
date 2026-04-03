@@ -43,9 +43,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('PUBLIC_APP_ORIGIN') ||
       'http://localhost:5500'
       
-    // IMPORTANT: Since the React app uses HashRouter, the callback URL MUST include /# before the path.
-    // Otherwise, HashRouter ignores query parameters placed before the hash.
-    const callbackUrl = `${origin}/#${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
+    // Reverting to normal path because Didit API strictly rejects callback URLs containing '#' fragments.
+    // The query param preservation will be handled by the frontend main.tsx instead.
+    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
     console.log("Creating Didit session with callback:", callbackUrl)
 

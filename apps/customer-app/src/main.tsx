@@ -5,6 +5,22 @@ import App from "./App";
 import "./index.css";
 import { initTheme } from "./utils/theme";
 import { hasReloadGuard, setReloadGuard } from "./lib/reloadGuard";
+
+// === HashRouter Query Param Rescue ===
+// Because we use HashRouter, incoming redirects (like Didit KYC callbacks or Payment callbacks)
+// that hit `/?kyc_callback=success` will get stripped when HashRouter mounts and defaults to `/#/`.
+// We intercept it before React mounts and rewrite the URL so the params move into the hash.
+if (window.location.search && !window.location.hash.includes(window.location.search)) {
+  const currentSearch = window.location.search;
+  const hashPath = window.location.hash || '#/';
+  // Only redirect if there actually are query params
+  if (currentSearch.length > 1) {
+    const cleanHash = hashPath.split('?')[0]; // strip existing hash queries if any
+    const newUrl = window.location.origin + window.location.pathname + cleanHash + currentSearch;
+    window.history.replaceState(null, '', newUrl);
+  }
+}
+
 // Apply theme before first paint (correct)
 initTheme();
 

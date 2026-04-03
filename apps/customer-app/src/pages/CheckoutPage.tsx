@@ -1007,7 +1007,7 @@ export default function CheckoutPage() {
                     }
                   } catch (err: any) {
                     console.error('KYC Error:', err);
-                    window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
                   } finally {
                     setIsKycLoading(false);
                   }
@@ -1425,7 +1425,7 @@ export default function CheckoutPage() {
                       }
                     } catch (err: any) {
                       console.error('KYC Error:', err);
-                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
                     } finally {
                       setIsKycLoading(false);
                     }
