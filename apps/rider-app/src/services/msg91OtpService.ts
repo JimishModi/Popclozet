@@ -3,18 +3,43 @@
  * Handles all interactions with MSG91's browser-side OTP SDK.
  */
 
-const MSG91_SCRIPT_URL = 'https://verify.msg91.com/otp-provider.js';
+/** URLs to try, in order of preference */
+const FETCH_URLS = [
+    '/msg91-otp-sdk.js',                            // Local static file (most reliable)
+    'https://verify.msg91.com/otp-provider.js',     // Direct CDN (fallback)
+];
+
 const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
 const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
 
 let sdkReady = false;
 let sdkInitPromise: Promise<void> | null = null;
 
+async function fetchScriptText(): Promise<string> {
+    let lastError: Error | null = null;
+    for (const url of FETCH_URLS) {
+        try {
+            console.info(`[MSG91] Fetching script from ${url}...`);
+            const res = await fetch(`${url}?cb=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const text = await res.text();
+            if (!text || text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+                throw new Error('Response is HTML, not JavaScript');
+            }
+            return text;
+        } catch (err: any) {
+            console.warn(`[MSG91] Failed to fetch from ${url}:`, err.message);
+            lastError = err;
+        }
+    }
+    throw lastError || new Error('All MSG91 script fetch attempts failed');
+}
+
 function loadAndInit(identifier: string, autoSend = true): Promise<void> {
     if (sdkReady) return Promise.resolve();
     if (sdkInitPromise) return sdkInitPromise;
 
-    sdkInitPromise = new Promise<void>((resolve, reject) => {
+    sdkInitPromise = new Promise<void>(async (resolve, reject) => {
         if (!WIDGET_ID || !TOKEN_AUTH) {
             reject(new Error('MSG91 Configuration Missing: Please set VITE_MSG91_WIDGET_ID and VITE_MSG91_TOKEN_AUTH in your .env file.'));
             return;
@@ -30,47 +55,58 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             failure: (error: any) => console.error('[MSG91] init failure', error),
         };
 
-        const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`);
-        if (existing) existing.remove();
+        try {
+            const scriptText = await fetchScriptText();
+            const blob = new Blob([scriptText], { type: 'application/javascript' });
+            const blobUrl = URL.createObjectURL(blob);
 
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = MSG91_SCRIPT_URL;
-        script.async = true;
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = blobUrl;
+            script.async = true;
 
-        script.onload = () => {
-            try {
-                if (typeof (window as any).initSendOTP !== 'function') {
-                    reject(new Error('initSendOTP not found after script load'));
-                    return;
+            script.onload = () => {
+                URL.revokeObjectURL(blobUrl);
+                try {
+                    if (typeof (window as any).initSendOTP !== 'function') {
+                        sdkInitPromise = null;
+                        reject(new Error('initSendOTP not found after script load'));
+                        return;
+                    }
+                    (window as any).initSendOTP(configuration);
+
+                    const start = Date.now();
+                    const poll = () => {
+                        if (typeof (window as any).sendOtp === 'function') {
+                            sdkReady = true;
+                            resolve();
+                            return;
+                        }
+                        if (Date.now() - start >= 10000) {
+                            sdkInitPromise = null;
+                            reject(new Error('MSG91 SDK timed out'));
+                            return;
+                        }
+                        setTimeout(poll, 150);
+                    };
+                    poll();
+                } catch (err) {
+                    sdkInitPromise = null;
+                    reject(err);
                 }
-                (window as any).initSendOTP(configuration);
+            };
 
-                const start = Date.now();
-                const poll = () => {
-                    if (typeof (window as any).sendOtp === 'function') {
-                        sdkReady = true;
-                        resolve();
-                        return;
-                    }
-                    if (Date.now() - start >= 10000) {
-                        reject(new Error('MSG91 SDK timed out'));
-                        return;
-                    }
-                    setTimeout(poll, 150);
-                };
-                poll();
-            } catch (err) {
-                reject(err);
-            }
-        };
+            script.onerror = () => {
+                URL.revokeObjectURL(blobUrl);
+                sdkInitPromise = null;
+                reject(new Error('Failed to load MSG91 OTP script'));
+            };
 
-        script.onerror = () => {
+            document.head.appendChild(script);
+        } catch (err: any) {
             sdkInitPromise = null;
-            reject(new Error('Failed to load MSG91 OTP script'));
-        };
-
-        document.head.appendChild(script);
+            reject(new Error(`Failed to load MSG91 OTP script: ${err.message}`));
+        }
     });
 
     return sdkInitPromise;

@@ -12,9 +12,8 @@
 
 /** URLs to try, in order of preference */
 const FETCH_URLS = [
-    '/api/otp-provider',                           // Vercel serverless function
-    '/otp-provider.js',                             // Vercel rewrite
-    'https://verify.msg91.com/otp-provider.js',     // Direct CDN (last resort)
+    '/msg91-otp-sdk.js',                            // Local static file (most reliable)
+    'https://verify.msg91.com/otp-provider.js',     // Direct CDN (fallback)
 ];
 
 // Environment variables - must be set in .env file
