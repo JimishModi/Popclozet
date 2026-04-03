@@ -4,7 +4,8 @@
  * Script: https://verify.msg91.com/otp-provider.js
  */
 
-const MSG91_SCRIPT_URL = 'https://verify.msg91.com/otp-provider.js';
+const MSG91_SCRIPT_PROXY_URL = '/otp-provider.js';
+const MSG91_SCRIPT_DIRECT_URL = 'https://verify.msg91.com/otp-provider.js';
 
 // Environment variables with hardcoded fallbacks for the current environment
 // Environment variables - must be set in .env file
@@ -42,8 +43,16 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
         };
 
         const removeExistingScript = () => {
-            const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`) as HTMLScriptElement | null;
-            if (existing) existing.remove();
+            const selectors = [
+                `script[src="${MSG91_SCRIPT_PROXY_URL}"]`,
+                `script[src^="${MSG91_SCRIPT_PROXY_URL}?"]`,
+                `script[src="${MSG91_SCRIPT_DIRECT_URL}"]`,
+                `script[src^="${MSG91_SCRIPT_DIRECT_URL}?"]`,
+            ];
+            for (const selector of selectors) {
+                const existing = document.querySelector(selector) as HTMLScriptElement | null;
+                if (existing) existing.remove();
+            }
         };
 
         const appendScript = (script: HTMLScriptElement) => {
@@ -60,11 +69,11 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             script.async = true;
 
             if (attempt === 1) {
-                // Load as a classic third-party script (no CORS mode).
-                script.src = MSG91_SCRIPT_URL;
+                // Attempt 1: same-origin Vercel rewrite to avoid CORS issues.
+                script.src = `${MSG91_SCRIPT_PROXY_URL}?cb=${Date.now()}`;
             } else {
-                // Attempt 2: retry without crossOrigin and with cache-buster.
-                script.src = `${MSG91_SCRIPT_URL}?cb=${Date.now()}`;
+                // Attempt 2: direct provider URL fallback with cache-buster.
+                script.src = `${MSG91_SCRIPT_DIRECT_URL}?cb=${Date.now()}`;
             }
 
             const loadTimeout = setTimeout(() => {
