@@ -8,6 +8,7 @@ export interface Order {
     status: string;
     orderType: "delivery" | "pickup" | "return" | "rental" | "home_try_on";
     createdAt: string;
+    updatedAt?: string;
     itemCount: number;
     totalAmount: number;
     deliveryFee: number;
@@ -39,6 +40,7 @@ function mapToOrder(raw: any): Order {
         status: raw.status,
         orderType: raw.order_type || 'rental',
         createdAt: raw.created_at,
+        updatedAt: raw.updated_at || raw.created_at,
         itemCount: Array.isArray(raw.order_items) ? raw.order_items.length : 0,
         totalAmount: raw.total_amount || 0,
         deliveryFee: raw.delivery_fee || 0,

@@ -10,11 +10,34 @@ import { LayoutDashboard, Package, Droplets, ClipboardList, MoreHorizontal, Rota
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
+import { useWarehouseBadges } from '../contexts/WarehouseBadgeContext';
+import { formatWarehouseBadgeCount } from '../services/warehouseBadgeService';
 
 interface NavItem {
     path: string;
     icon: React.ReactNode;
     label: string;
+}
+
+function NavCountBadge({ count }: { count: number }) {
+    const badgeLabel = formatWarehouseBadgeCount(count);
+
+    return (
+        <AnimatePresence>
+            {badgeLabel && (
+                <motion.div
+                    key={badgeLabel}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="pointer-events-none absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#f2546d] flex items-center justify-center text-[9px] font-bold text-white shadow-sm ring-2 ring-surface-card"
+                >
+                    {badgeLabel}
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
 }
 
 const mainTabs: NavItem[] = [
@@ -38,12 +61,18 @@ export function BottomNavigation() {
     const navigate = useNavigate();
     const location = useLocation();
     const { signOut } = useAuth();
+    const { counts } = useWarehouseBadges();
     const [showMore, setShowMore] = useState(false);
 
     // Hide on login
     if (location.pathname === '/login') return null;
 
     const isMoreActive = moreTabs.some(t => location.pathname === t.path);
+    const badgeCountByPath: Record<string, number> = {
+        '/orders': counts.orders,
+        '/returns': counts.returns,
+        '/wash': counts.wash,
+    };
 
     return (
         <>
@@ -133,6 +162,7 @@ export function BottomNavigation() {
                         {mainTabs.map((item) => {
                             const isActive = location.pathname === item.path ||
                                 (item.path !== '/' && location.pathname.startsWith(item.path));
+                            const badgeCount = badgeCountByPath[item.path] ?? 0;
 
                             return (
                                 <button
@@ -140,7 +170,7 @@ export function BottomNavigation() {
                                     onClick={() => navigate(item.path)}
                                     className={clsx(
                                         "relative flex flex-col items-center justify-center",
-                                        "flex-1 h-full",
+                                        "flex-1 h-full pt-1.5",
                                         "transition-colors duration-200",
                                         isActive ? "text-warehouse-400" : "text-zinc-500"
                                     )}
@@ -155,13 +185,18 @@ export function BottomNavigation() {
                                         />
                                     )}
 
-                                    <motion.div
-                                        whileTap={{ scale: 0.9 }}
-                                        animate={{ scale: isActive ? 1.1 : 1 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                                    >
-                                        {item.icon}
-                                    </motion.div>
+                                    <div className="relative flex items-center justify-center">
+                                        <motion.div
+                                            whileTap={{ scale: 0.9 }}
+                                            animate={{ scale: isActive ? 1.1 : 1 }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                        >
+                                            {item.icon}
+                                        </motion.div>
+                                        
+                                        {/* Dynamic Badge */}
+                                        <NavCountBadge count={badgeCount} />
+                                    </div>
 
                                     <span className={clsx(
                                         "text-[10px] mt-1 font-medium",
@@ -178,7 +213,7 @@ export function BottomNavigation() {
                             onClick={() => setShowMore(true)}
                             className={clsx(
                                 "relative flex flex-col items-center justify-center",
-                                "flex-1 h-full",
+                                "flex-1 h-full pt-1.5",
                                 "transition-colors duration-200",
                                 isMoreActive || showMore ? "text-warehouse-400" : "text-zinc-500"
                             )}

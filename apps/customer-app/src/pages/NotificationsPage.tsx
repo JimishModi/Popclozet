@@ -35,11 +35,15 @@ const NOTIF_ICON_MAP: Record<string, { icon: any; color: string; bg: string }> =
     return_completed: { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/20" },
 };
 
+const getOrderActivityStorageKey = (userId?: string) =>
+    userId ? `notifications_order_activity_cleared_at:${userId}` : null;
+
 const NotificationsPage: React.FC = () => {
     const navigate = useNavigate();
     const { orders } = useOrders();
     const { user } = useAuth();
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const orderActivityStorageKey = getOrderActivityStorageKey(user?.id);
 
     // ─── Web Push ───────────────────────────────────────────
     const push = usePushNotifications();
@@ -49,6 +53,7 @@ const NotificationsPage: React.FC = () => {
     const [notifsLoading, setNotifsLoading] = useState(true);
     const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
     const [isClearingAll, setIsClearingAll] = useState(false);
+    const [orderActivityClearedAt, setOrderActivityClearedAt] = useState<string | null>(null);
 
     // In-app notification toggles – persisted to localStorage
     const [orderUpdates, setOrderUpdates] = useState(() => localStorage.getItem("notif_orders") !== "false");
@@ -60,7 +65,54 @@ const NotificationsPage: React.FC = () => {
         localStorage.setItem(key, String(val));
     };
 
+    const persistOrderActivityClearedAt = (value: string | null) => {
+        if (!orderActivityStorageKey) return;
+
+        if (value) {
+            localStorage.setItem(orderActivityStorageKey, value);
+            return;
+        }
+
+        localStorage.removeItem(orderActivityStorageKey);
+    };
+
     const unreadSupaCount = supaNotifs.reduce((acc, notif) => acc + (notif.is_read ? 0 : 1), 0);
+    const orderActivityClearedAtMs = orderActivityClearedAt ? Date.parse(orderActivityClearedAt) : null;
+
+    const orderNotifs = orders
+        .filter((order) => {
+            if (orderActivityClearedAtMs === null) return true;
+
+            const activityAtMs = Date.parse(order.updatedAt || order.createdAt);
+            return Number.isNaN(activityAtMs) || activityAtMs > orderActivityClearedAtMs;
+        })
+        .sort((a, b) => {
+            const aActivityAtMs = Date.parse(a.updatedAt || a.createdAt);
+            const bActivityAtMs = Date.parse(b.updatedAt || b.createdAt);
+            const safeAActivityAtMs = Number.isNaN(aActivityAtMs) ? 0 : aActivityAtMs;
+            const safeBActivityAtMs = Number.isNaN(bActivityAtMs) ? 0 : bActivityAtMs;
+
+            return safeBActivityAtMs - safeAActivityAtMs;
+        })
+        .slice(0, 5)
+        .map((order) => {
+            const activityAt = order.updatedAt || order.createdAt;
+
+            return {
+                id: order.id,
+                icon: Package,
+                color: "text-blue-400",
+                bg: "bg-blue-500/20",
+                title: `Order #${order.id.slice(-6).toUpperCase()}`,
+                body: `Status: ${order.status.replace(/_/g, " ")}`,
+                time: new Date(activityAt).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                }),
+            };
+        });
 
     // Handle push toggle
     const handlePushToggle = async () => {
@@ -75,6 +127,15 @@ const NotificationsPage: React.FC = () => {
             await push.subscribe();
         }
     };
+
+    useEffect(() => {
+        if (!orderActivityStorageKey) {
+            setOrderActivityClearedAt(null);
+            return;
+        }
+
+        setOrderActivityClearedAt(localStorage.getItem(orderActivityStorageKey));
+    }, [orderActivityStorageKey]);
 
     // Fetch notifications from Supabase
     useEffect(() => {
@@ -183,29 +244,30 @@ const NotificationsPage: React.FC = () => {
     };
 
     const handleClearAll = async () => {
-        if (isClearingAll || supaNotifs.length === 0) return;
+        if (isClearingAll || (supaNotifs.length === 0 && orderNotifs.length === 0)) return;
+
         setIsClearingAll(true);
-        const previous = supaNotifs;
+        const previousSupaNotifs = supaNotifs;
+        const previousOrderActivityClearedAt = orderActivityClearedAt;
+        const clearedAt = new Date().toISOString();
+        const hadSupaNotifs = supaNotifs.length > 0;
+
         setSupaNotifs([]);
+        setOrderActivityClearedAt(clearedAt);
+        persistOrderActivityClearedAt(clearedAt);
+
         try {
-            await clearAllNotifications();
+            if (hadSupaNotifs) {
+                await clearAllNotifications();
+            }
         } catch {
-            setSupaNotifs(previous);
+            setSupaNotifs(previousSupaNotifs);
+            setOrderActivityClearedAt(previousOrderActivityClearedAt);
+            persistOrderActivityClearedAt(previousOrderActivityClearedAt);
         } finally {
             setIsClearingAll(false);
         }
     };
-
-    // Build order-based notifications
-    const orderNotifs = orders.slice(0, 5).map(o => ({
-        id: o.id,
-        icon: Package,
-        color: "text-blue-400",
-        bg: "bg-blue-500/20",
-        title: `Order #${o.id.slice(-6).toUpperCase()}`,
-        body: `Status: ${o.status.replace(/_/g, " ")}`,
-        time: new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
-    }));
 
     const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
         <button
@@ -220,11 +282,22 @@ const NotificationsPage: React.FC = () => {
         <MobileShell className="bg-black text-white">
             {/* Header */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all active:scale-95">
-                        <ChevronLeft className="w-5 h-5 text-zinc-400" />
-                    </button>
-                    <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Notifications</h1>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all active:scale-95">
+                            <ChevronLeft className="w-5 h-5 text-zinc-400" />
+                        </button>
+                        <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Notifications</h1>
+                    </div>
+                    {(supaNotifs.length > 0 || orderNotifs.length > 0) && (
+                        <button
+                            onClick={handleClearAll}
+                            disabled={isClearingAll}
+                            className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600"
+                        >
+                            {isClearingAll ? "Clearing..." : "Clear all"}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -242,15 +315,6 @@ const NotificationsPage: React.FC = () => {
                                     className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#f2546d] disabled:text-zinc-600"
                                 >
                                     {isMarkingAllRead ? "Marking..." : "Mark all read"}
-                                </button>
-                            )}
-                            {supaNotifs.length > 0 && (
-                                <button
-                                    onClick={handleClearAll}
-                                    disabled={isClearingAll}
-                                    className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600"
-                                >
-                                    {isClearingAll ? "Clearing..." : "Clear all"}
                                 </button>
                             )}
                         </div>
