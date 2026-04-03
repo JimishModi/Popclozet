@@ -38,6 +38,18 @@ registerSW({
   },
 });
 
+// Listen for the new service worker taking control
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      console.log('🔄 Service Worker updated. Reloading page...');
+      window.location.reload();
+    }
+  });
+}
+
 const container = document.getElementById("root");
 
 if (!container) {

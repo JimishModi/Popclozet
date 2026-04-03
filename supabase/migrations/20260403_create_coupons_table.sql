@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS public.coupons (
   min_order_value NUMERIC(10,2) DEFAULT 0,
   max_discount NUMERIC(10,2) DEFAULT NULL,
   is_active BOOLEAN NOT NULL DEFAULT true,
-  usage_limit INT DEFAULT NULL,
-  used_count INT NOT NULL DEFAULT 0,
+  max_uses INT DEFAULT NULL,
+  times_used INT NOT NULL DEFAULT 0,
   valid_from TIMESTAMPTZ DEFAULT NOW(),
   valid_until TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
