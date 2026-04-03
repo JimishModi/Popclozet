@@ -107,7 +107,7 @@ const ScheduleReturnPage: React.FC = () => {
             setReturnNowSubmitting(true);
             await requestImmediateReturn(orderId, selectedAddressId || null);
             toast.success('Immediate return requested — a rider will be assigned shortly');
-            navigate(`/pickup-tracking/${orderId}`);
+            navigate('/home', { replace: true });
         } catch (error: any) {
             console.error('Return Now error:', error);
             toast.error(error?.message || 'Failed to request immediate return');
@@ -131,7 +131,7 @@ const ScheduleReturnPage: React.FC = () => {
             setSubmitting(true);
             await scheduleReturn(orderId, selectedAddressId, selectedSlotIso);
             toast.success('Return pickup scheduled');
-            navigate(`/pickup-tracking/${orderId}`);
+            navigate('/home', { replace: true });
         } catch (error: any) {
             console.error('Schedule return error:', error);
             toast.error(error?.message || 'Failed to schedule return');

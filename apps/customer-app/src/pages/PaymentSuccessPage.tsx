@@ -38,7 +38,7 @@ export default function PaymentSuccessPage() {
                     if (error) throw error;
                     toast.success("Order confirmed successfully!");
                     // Navigate to order confirmed page
-                    navigate(`/order-confirmed/${orderId}`, { replace: true });
+                    navigate('/home', { replace: true });
                     return;
                 }
                 /*

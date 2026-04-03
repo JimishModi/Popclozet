@@ -238,8 +238,7 @@ export default function PickupTrackingPage() {
             setInstantReturnLoading(true);
             await requestImmediateReturn(pickupId, order?.delivery_address?.id ?? null);
             toast.success('Finding a rider for your return...');
-            // Realtime subscription will update order to return_scheduled,
-            // which triggers auto-assignment via the useEffect below
+            navigate('/home', { replace: true });
         } catch (err: any) {
             console.error('Instant return error:', err);
             toast.error(err?.message || 'Failed to request instant return');

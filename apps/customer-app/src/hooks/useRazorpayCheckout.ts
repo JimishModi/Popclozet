@@ -157,7 +157,7 @@ export function useRazorpayCheckout() {
             if (onSuccess) {
               onSuccess(response.razorpay_payment_id);
             } else {
-              navigate(`/order-confirmed/${internalOrderId}`, { replace: true });
+              navigate('/home', { replace: true });
             }
           } catch (verifyErr: any) {
             console.error('[useRazorpayCheckout] Verification failed:', verifyErr);

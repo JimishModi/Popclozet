@@ -702,7 +702,7 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
-          navigate(`/order-confirmed/${targetId}`);
+          navigate('/home', { replace: true });
         } else {
           setIsPlacingOrder(false);
           placingOrderLockRef.current = false;
@@ -863,7 +863,7 @@ export default function CheckoutPage() {
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate(`/order-confirmed/${createdOrderId}`);
+        navigate('/home', { replace: true });
       } else {
         navigate(`/payment-processing?type=order&orderId=${createdOrderId}&amount=${serverTotal}&method=upi`);
       }
