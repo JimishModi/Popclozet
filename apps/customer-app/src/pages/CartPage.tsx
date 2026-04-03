@@ -326,17 +326,18 @@ const CartPage = () => {
     }, 0);
   }, [validCartEntries, cartProducts]);
 
-  // Original total = sum of MRP from DB for each item
+  // Original total = sum of MRP (if available) or plan price for each item
   const originalTotal = useMemo(() => {
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const mrp = product?.mrp || 0;
-      return total + mrp * data.quantity;
+      const planPrice = getPlanPrice(product, data.plan) || 0;
+      const mrp = product?.mrp || planPrice;
+      return total + Math.max(mrp, planPrice) * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts]);
 
-  const discount = originalTotal - subtotal;
+  const discount = Math.max(0, originalTotal - subtotal);
 
   // Calculate delivery pricing
   const deliveryInfo = useMemo(() => {

@@ -644,12 +644,13 @@ export default function CheckoutPage() {
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const mrp = product?.mrp || 0;
-      return total + mrp * data.quantity;
+      const planPrice = getPlanPrice(product, data.plan) || 0;
+      const mrp = product?.mrp || planPrice;
+      return total + Math.max(mrp, planPrice) * data.quantity;
     }, 0);
   })();
 
-  const discount = serverPricing?.discount ?? (originalTotal - subtotal);
+  const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
   const couponDiscount = serverPricing?.coupon_discount ?? 0;
 
   const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
