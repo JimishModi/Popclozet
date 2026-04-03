@@ -42,7 +42,10 @@ Deno.serve(async (req: Request) => {
       req.headers.get('origin') ||
       Deno.env.get('PUBLIC_APP_ORIGIN') ||
       'http://localhost:5500'
-    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
+      
+    // IMPORTANT: Since the React app uses HashRouter, the callback URL MUST include /# before the path.
+    // Otherwise, HashRouter ignores query parameters placed before the hash.
+    const callbackUrl = `${origin}/#${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
     console.log("Creating Didit session with callback:", callbackUrl)
 

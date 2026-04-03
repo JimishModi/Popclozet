@@ -177,8 +177,8 @@ export default function CheckoutPage() {
               toast.success("Identity verified. Proceeding with stored confirmation.");
               return;
             }
-              toast.success("Identity verified successfully!");
-            });
+            toast.success("Identity verified successfully!");
+          });
       } else {
         supabase
           .from("customer_profiles")
@@ -1032,7 +1032,7 @@ export default function CheckoutPage() {
               {deliveryAddress ? (
                 <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
                   <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
-                  
+
                   <div className="mt-3 flex items-center gap-2 relative z-10">
                     {/* Delayed Delivery Badge */}
                     {actualDistance !== null && actualDistance > 6 && !distanceLoading && !isResolvingAddress && (
@@ -1080,7 +1080,7 @@ export default function CheckoutPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
                 {returnSchedule?.pickupSlotIso && (
-                  <button 
+                  <button
                     onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
                     className="text-xs font-bold text-[#f2546d] uppercase"
                   >
@@ -1116,7 +1116,7 @@ export default function CheckoutPage() {
                   </div>
                 );
               })() : (
-                <button 
+                <button
                   onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
                   className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
                 >
