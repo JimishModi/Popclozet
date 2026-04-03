@@ -3,10 +3,28 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import logoImage from "@/logo/popclozet-logo.svg";
 import mockupBg from "@/logo/main mockup 2 1.png";
+import heroBusiness from "@/assets/hero-business.png";
+import heroParty from "@/assets/hero-party.png";
+import heroVacation from "@/assets/hero-vacation.png";
+import heroWedding from "@/assets/hero-wedding.png";
+import storyChoice from "@/assets/story-choice.png";
+import storyPanic from "@/assets/story-panic.png";
+import storyPromise from "@/assets/story-promise.png";
+import trendyOutfits from "@/assets/trendy-outfits.webp";
 
 const brandPink = "#F2546D";
 const tileCount = 12;
 const TOTAL_SLIDES = 2;
+const TILE_IMAGES = [
+  heroBusiness,
+  heroParty,
+  heroVacation,
+  heroWedding,
+  storyChoice,
+  storyPanic,
+  storyPromise,
+  trendyOutfits,
+];
 
 /**
  * Landing page – 2-slide auto-transitioning onboarding.
@@ -65,10 +83,10 @@ function SlideHeader() {
   return (
     <div className="text-center mb-4">
       <p
-        className="text-white text-2xl font-semibold tracking-tight mb-2"
-        style={{ letterSpacing: "-0.72px" }}
+        className="text-white text-xl font-bold tracking-wide mb-2"
+        style={{ fontFamily: "DM Sans, sans-serif" }}
       >
-        WELCOME TO
+        Welcome To
       </p>
       <img src={logoImage} alt="Popclozet" className="h-10 mx-auto" />
     </div>
@@ -177,9 +195,12 @@ function WelcomeGridSlide(props: SlideProps) {
               {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                 <div
                   key={`c1-${i}`}
-                  className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
+                  className="relative rounded-xl border border-[#f2546d]/50 overflow-hidden bg-[#2a2a2a]"
                   style={{ height: i % 3 === 0 ? "160px" : i % 3 === 1 ? "200px" : "140px" }}
-                />
+                >
+                  <img src={TILE_IMAGES[i % TILE_IMAGES.length]} alt="" className="w-full h-full object-cover opacity-70" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/25 to-black/50" />
+                </div>
               ))}
             </motion.div>
           </div>
@@ -195,9 +216,12 @@ function WelcomeGridSlide(props: SlideProps) {
               {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                 <div
                   key={`c2-${i}`}
-                  className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
+                  className="relative rounded-xl border border-[#f2546d]/50 overflow-hidden bg-[#2a2a2a]"
                   style={{ height: i % 3 === 0 ? "200px" : i % 3 === 1 ? "140px" : "180px" }}
-                />
+                >
+                  <img src={TILE_IMAGES[(i + 2) % TILE_IMAGES.length]} alt="" className="w-full h-full object-cover opacity-70" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/25 to-black/50" />
+                </div>
               ))}
             </motion.div>
           </div>
@@ -212,9 +236,12 @@ function WelcomeGridSlide(props: SlideProps) {
               {[...Array(tileCount), ...Array(tileCount)].map((_, i) => (
                 <div
                   key={`c3-${i}`}
-                  className="rounded-xl border border-[#f2546d]/50 bg-[#2a2a2a]"
+                  className="relative rounded-xl border border-[#f2546d]/50 overflow-hidden bg-[#2a2a2a]"
                   style={{ height: i % 3 === 0 ? "140px" : i % 3 === 1 ? "180px" : "200px" }}
-                />
+                >
+                  <img src={TILE_IMAGES[(i + 4) % TILE_IMAGES.length]} alt="" className="w-full h-full object-cover opacity-70" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/25 to-black/50" />
+                </div>
               ))}
             </motion.div>
           </div>

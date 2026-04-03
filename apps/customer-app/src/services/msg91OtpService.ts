@@ -25,6 +25,12 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             return;
         }
 
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            sdkInitPromise = null;
+            reject(new Error('Device appears offline. Please reconnect and try again.'));
+            return;
+        }
+
         const configuration: Record<string, any> = {
             widgetId: WIDGET_ID,
             tokenAuth: TOKEN_AUTH,
@@ -35,74 +41,108 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             failure: (error: any) => console.error('[MSG91] init failure callback', error),
         };
 
-        // Remove any existing script to avoid duplicates
-        const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`);
-        if (existing) existing.remove();
+        const removeExistingScript = () => {
+            const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`) as HTMLScriptElement | null;
+            if (existing) existing.remove();
+        };
 
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = MSG91_SCRIPT_URL;
-        script.async = true;
-        // iOS Safari PWA: crossOrigin helps avoid opaque response blocks
-        script.crossOrigin = 'anonymous';
-
-        // Safety timeout — iOS standalone mode can silently stall script loads
-        const loadTimeout = setTimeout(() => {
-            sdkInitPromise = null;
-            reject(new Error('MSG91 script load timed out (15s). Please check your network and try again.'));
-        }, 15000);
-
-        script.onload = () => {
-            clearTimeout(loadTimeout);
+        const appendScript = (script: HTMLScriptElement) => {
             try {
-                if (typeof (window as any).initSendOTP !== 'function') {
-                    sdkInitPromise = null;
-                    reject(new Error('initSendOTP not found after script load'));
-                    return;
-                }
-
-                (window as any).initSendOTP(configuration);
-                console.info('[MSG91] initSendOTP called');
-
-                // Poll until SDK methods appear on window (max 10s)
-                const start = Date.now();
-                const poll = () => {
-                    if (typeof (window as any).sendOtp === 'function') {
-                        sdkReady = true;
-                        console.info('[MSG91] SDK ready');
-                        resolve();
-                        return;
-                    }
-                    if (Date.now() - start >= 10000) {
-                        sdkInitPromise = null;
-                        reject(new Error('MSG91 SDK timed out waiting for sendOtp method'));
-                        return;
-                    }
-                    setTimeout(poll, 150);
-                };
-                poll();
-            } catch (err) {
-                sdkInitPromise = null;
-                reject(err);
+                document.head.appendChild(script);
+            } catch {
+                document.body.appendChild(script);
             }
         };
 
-        script.onerror = () => {
-            clearTimeout(loadTimeout);
-            sdkInitPromise = null;
-            reject(new Error('Failed to load MSG91 OTP script. This can happen on iOS if the app is offline or the script is blocked.'));
-        };
+        const tryLoadScript = (attempt: 1 | 2) => {
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.async = true;
 
-        // iOS Safari: ensure the script is appended to body if head isn't writable
-        try {
-            document.head.appendChild(script);
-        } catch {
-            try { document.body.appendChild(script); } catch (e2) {
+            if (attempt === 1) {
+                // Attempt 1: keep crossOrigin for iOS/webview compatibility.
+                script.crossOrigin = 'anonymous';
+                script.src = MSG91_SCRIPT_URL;
+            } else {
+                // Attempt 2: retry without crossOrigin and with cache-buster.
+                script.src = `${MSG91_SCRIPT_URL}?cb=${Date.now()}`;
+            }
+
+            const loadTimeout = setTimeout(() => {
+                script.remove();
+                if (attempt === 1) {
+                    removeExistingScript();
+                    tryLoadScript(2);
+                    return;
+                }
+                sdkInitPromise = null;
+                reject(new Error('MSG91 script load timed out (15s). Please check your network and try again.'));
+            }, 15000);
+
+            script.onload = () => {
+                clearTimeout(loadTimeout);
+                try {
+                    if (typeof (window as any).initSendOTP !== 'function') {
+                        if (attempt === 1) {
+                            script.remove();
+                            removeExistingScript();
+                            tryLoadScript(2);
+                            return;
+                        }
+                        sdkInitPromise = null;
+                        reject(new Error('initSendOTP not found after script load'));
+                        return;
+                    }
+
+                    (window as any).initSendOTP(configuration);
+                    console.info('[MSG91] initSendOTP called');
+
+                    // Poll until SDK methods appear on window (max 10s)
+                    const start = Date.now();
+                    const poll = () => {
+                        if (typeof (window as any).sendOtp === 'function') {
+                            sdkReady = true;
+                            console.info('[MSG91] SDK ready');
+                            resolve();
+                            return;
+                        }
+                        if (Date.now() - start >= 10000) {
+                            sdkInitPromise = null;
+                            reject(new Error('MSG91 SDK timed out waiting for sendOtp method'));
+                            return;
+                        }
+                        setTimeout(poll, 150);
+                    };
+                    poll();
+                } catch (err) {
+                    sdkInitPromise = null;
+                    reject(err);
+                }
+            };
+
+            script.onerror = () => {
+                clearTimeout(loadTimeout);
+                script.remove();
+                if (attempt === 1) {
+                    removeExistingScript();
+                    tryLoadScript(2);
+                    return;
+                }
+                sdkInitPromise = null;
+                reject(new Error('Failed to load MSG91 OTP script. This can happen on iOS if the app is offline or the script is blocked.'));
+            };
+
+            try {
+                appendScript(script);
+            } catch {
                 clearTimeout(loadTimeout);
                 sdkInitPromise = null;
                 reject(new Error('Cannot inject MSG91 script into the page.'));
             }
-        }
+        };
+
+        removeExistingScript();
+        tryLoadScript(1);
     });
 
     return sdkInitPromise;
@@ -133,7 +173,10 @@ export async function sendOtp(identifier: string): Promise<any> {
         }
         (window as any).sendOtp(
             identifier,
-            (data: any) => { console.info('[MSG91] OTP sent', data); resolve(data); },
+            (data: any) => {
+                console.info('[MSG91] OTP sent', data);
+                resolve(data);
+            },
             (error: any) => {
                 const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to send OTP';
                 reject(new Error(msg));
@@ -157,7 +200,10 @@ export async function verifyOtp(otpValue: string): Promise<{ message: string; ty
         }
         (window as any).verifyOtp(
             otpValue,
-            (data: any) => { console.info('[MSG91] OTP verified', data); resolve(data); },
+            (data: any) => {
+                console.info('[MSG91] OTP verified', data);
+                resolve(data);
+            },
             (error: any) => {
                 const msg = typeof error === 'string' ? error : error?.message || error?.error || 'OTP verification failed';
                 reject(new Error(msg));
@@ -176,7 +222,10 @@ export function resendOtp(): Promise<any> {
         }
         (window as any).retryOtp(
             1, // 1 = SMS channel
-            (data: any) => { console.info('[MSG91] OTP resent', data); resolve(data); },
+            (data: any) => {
+                console.info('[MSG91] OTP resent', data);
+                resolve(data);
+            },
             (error: any) => {
                 const msg = typeof error === 'string' ? error : error?.message || error?.error || 'Failed to resend OTP';
                 reject(new Error(msg));

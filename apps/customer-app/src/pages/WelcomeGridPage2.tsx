@@ -1,8 +1,26 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import logoImage from "@/logo/popclozet-logo.svg";
+import heroBusiness from "@/assets/hero-business.png";
+import heroParty from "@/assets/hero-party.png";
+import heroVacation from "@/assets/hero-vacation.png";
+import heroWedding from "@/assets/hero-wedding.png";
+import storyChoice from "@/assets/story-choice.png";
+import storyPanic from "@/assets/story-panic.png";
+import storyPromise from "@/assets/story-promise.png";
+import trendyOutfits from "@/assets/trendy-outfits.webp";
 
 const brandPink = "#F2546D";
+const TILE_IMAGES = [
+    heroBusiness,
+    heroParty,
+    heroVacation,
+    heroWedding,
+    storyChoice,
+    storyPanic,
+    storyPromise,
+    trendyOutfits,
+];
 
 /**
  * Welcome Grid Page 2 - Second onboarding screen
@@ -41,8 +59,8 @@ export default function WelcomeGridPage2() {
             <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-10 text-white">
                 {/* WELCOME TO */}
                 <div className="text-center mb-2">
-                    <p className="text-white text-2xl font-semibold tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif', letterSpacing: '-0.72px' }}>
-                        WELCOME TO
+                    <p className="text-white text-xl font-bold tracking-wide mb-1" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                        Welcome To
                     </p>
                 </div>
 
@@ -65,13 +83,20 @@ export default function WelcomeGridPage2() {
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.4, delay: tile.delay }}
-                                className="rounded-xl border-2 bg-[#2a2a2a]"
+                                className="relative rounded-xl border-2 bg-[#2a2a2a] overflow-hidden"
                                 style={{
                                     height: `${tile.height}px`,
                                     borderColor: brandPink,
                                     boxShadow: `0 0 20px ${brandPink}40`
                                 }}
-                            />
+                            >
+                                <img
+                                    src={TILE_IMAGES[index % TILE_IMAGES.length]}
+                                    alt=""
+                                    className="w-full h-full object-cover opacity-70"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/25 to-black/50" />
+                            </motion.div>
                         ))}
                     </div>
 
