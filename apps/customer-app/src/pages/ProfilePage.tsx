@@ -358,9 +358,9 @@ const ProfilePage: React.FC = () => {
                         <User className="w-7 h-7 md:w-10 md:h-10 text-white/80 group-hover/avatar:text-white transition-colors" />
                       </div>
                     </motion.div>
-                    {user && (
+                    {user && kycVerified && (
                       <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-zinc-900 shadow-[0_0_12px_rgba(34,197,94,0.6)] flex items-center justify-center">
-                        <Sparkles className="w-2.5 h-2.5 text-white" />
+                        <Check className="w-2.5 h-2.5 text-white" />
                       </div>
                     )}
                   </div>

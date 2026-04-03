@@ -15,7 +15,9 @@ import {
   Wifi,
   Mail,
   Banknote,
-  CreditCard
+  CreditCard,
+  Shield,
+  Loader2
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
@@ -968,6 +970,48 @@ export default function CheckoutPage() {
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Contact Details</h3>
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
           <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
+
+          {/* KYC Verification Banner — shown upfront when not verified */}
+          {!kycVerified && (
+            <div className="mt-6 bg-[#1C1C1E] border border-amber-500/20 rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5 text-amber-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white" style={dmSans}>Verify your profile</p>
+                  <p className="text-[11px] text-zinc-500" style={dmSans}>Complete verification to place orders</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setIsKycLoading(true);
+                    const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                      body: { callbackParams: { user_id: user?.id } }
+                    });
+                    if (error) throw error;
+                    if (data?.url) {
+                      window.location.href = data.url;
+                    } else {
+                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    }
+                  } catch (err: any) {
+                    console.error('KYC Error:', err);
+                    window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                  } finally {
+                    setIsKycLoading(false);
+                  }
+                }}
+                disabled={isKycLoading}
+                className="w-full py-3 rounded-xl bg-white text-black text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                style={dmSans}
+              >
+                {isKycLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+              </button>
+            </div>
+          )}
 
           {/* Address section — hide when isNoDeliveryFlow (user already has the item) */}
           {!isNoDeliveryFlow && (
