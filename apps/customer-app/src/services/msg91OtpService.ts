@@ -60,8 +60,7 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             script.async = true;
 
             if (attempt === 1) {
-                // Attempt 1: keep crossOrigin for iOS/webview compatibility.
-                script.crossOrigin = 'anonymous';
+                // Load as a classic third-party script (no CORS mode).
                 script.src = MSG91_SCRIPT_URL;
             } else {
                 // Attempt 2: retry without crossOrigin and with cache-buster.
