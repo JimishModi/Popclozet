@@ -14,12 +14,16 @@ import type { OrderStatus, ActorRole, TransitionResult, UserRole } from '@popclo
 // SUPABASE CLIENT
 // ==========================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('[api-client] CRITICAL: Supabase environment variables are missing.');
     throw new Error('Missing Supabase environment variables');
+}
+
+if (import.meta.env.PROD && supabaseUrl.startsWith('http://')) {
+    supabaseUrl = supabaseUrl.replace('http://', 'https://');
 }
 
 // Supabase URL must use HTTPS in production to avoid insecure WebSocket (ws://) errors.
