@@ -36,6 +36,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ className }) => {
                             src={logo}
                             alt="Popclozet"
                             className="h-10 w-auto object-contain"
+                            style={{ filter: "brightness(0) saturate(100%) invert(52%) sepia(79%) saturate(2166%) hue-rotate(316deg) brightness(100%) contrast(95%)" }}
                         />
                     </Link>
                     <div className="flex items-center gap-1 text-xs text-zinc-500 mt-1">

@@ -59,8 +59,8 @@ export const SERVICE_AREAS: ServiceArea[] = [
 
 // Warehouse location (same as IIT Bombay center for demo)
 export const WAREHOUSE_LOCATION = {
-  lat: 19.1334,
-  lng: 72.9133,
-  address: "Popclozet Warehouse, Near IIT Main Gate, Powai",
+  lat: 19.1305,
+  lng: 72.9135,
+  address: "Hostel 2, IIT Bombay, Powai, Mumbai",
 };
 

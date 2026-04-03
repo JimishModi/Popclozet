@@ -310,34 +310,6 @@ const ScheduleReturnPage: React.FC = () => {
                     )}
                 </section>
 
-                {/* ── Warehouse Location ── */}
-                {canSchedule && (
-                    <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <MapPin className="w-4 h-4 text-blue-400" />
-                            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.2em]">
-                                Warehouse Location
-                            </h3>
-                        </div>
-                        <div className="rounded-[24px] border border-blue-500/20 bg-blue-500/5 p-5">
-                            <p className="text-sm font-semibold text-white">
-                                Central Warehouse
-                            </p>
-                            <p className="text-sm text-zinc-400 mt-1 mb-4">
-                                Hostel No. 2, IIT Bombay
-                            </p>
-                            <a 
-                                href={`https://www.google.com/maps/dir/?api=1${selectedAddressId ? `&origin=${encodeURIComponent(addresses.find(a => a.id === selectedAddressId)?.full_address || '')}` : ''}&destination=${encodeURIComponent('Hostel No 2, IIT Bombay')}&travelmode=driving`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-500/20 text-blue-400 font-bold hover:bg-blue-500/30 transition-all border border-blue-500/30"
-                            >
-                                <MapPin className="w-4 h-4" />
-                                Open in Google Maps
-                            </a>
-                        </div>
-                    </section>
-                )}
 
                 <section>
                     <div className="flex items-center gap-2 mb-3">

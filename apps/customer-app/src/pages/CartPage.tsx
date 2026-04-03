@@ -227,23 +227,18 @@ const CartPage = () => {
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
-          const originalPriceValue = parseFloat(p.rental_price ?? p.price ?? '0');
-          const disc = p.product_discounts?.[0];
-
-          let finalPrice = originalPriceValue;
-          if (disc) {
-            if (disc.discount_type === 'percentage') {
-              finalPrice = originalPriceValue - (originalPriceValue * (disc.discount_value / 100));
-            } else if (disc.discount_type === 'fixed_amount') {
-              finalPrice = Math.max(0, originalPriceValue - disc.discount_value);
-            }
-          }
-          finalPrice = Math.round(finalPrice);
+          // MRP comes from the DB — this is the true retail price
+          const mrp = parseFloat(p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
-            price: finalPrice,
-            originalPrice: originalPriceValue,
+            mrp,
+            rental_price_1d: parseFloat(p.rental_price_1d ?? '0'),
+            rental_price_2d: parseFloat(p.rental_price_2d ?? '0'),
+            rental_price_3d: parseFloat(p.rental_price_3d ?? p.rental_price ?? p.price ?? '0'),
+            buy_price: parseFloat(p.buy_price ?? '0'),
+            price: parseFloat(p.rental_price ?? p.price ?? '0'),
+            originalPrice: mrp,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -330,12 +325,12 @@ const CartPage = () => {
     }, 0);
   }, [validCartEntries, cartProducts]);
 
-  // Original total (using MRP or 5x 3d rental as baseline)
+  // Original total = sum of MRP from DB for each item
   const originalTotal = useMemo(() => {
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const mrp = product?.mrp || (getPlanPrice(product, '3d') * 5);
+      const mrp = product?.mrp || 0;
       return total + mrp * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts]);
@@ -366,17 +361,36 @@ const CartPage = () => {
     return appliedCoupon.discount;
   }, [appliedCoupon, subtotal]);
 
-  const grandTotal = subtotal - couponDiscount;
+  const grandTotal = subtotal - couponDiscount + deliveryFee;
 
-  const handleApplyCoupon = () => {
-    if (couponCode.toUpperCase() === 'POP20') {
-      setAppliedCoupon({ id: 'POP20', discount: 20, type: 'percent' });
-      toast.success("Coupon applied! 20% off");
-    } else if (couponCode.toUpperCase() === 'FIRST100') {
-      setAppliedCoupon({ id: 'FIRST100', discount: 100, type: 'fixed' });
-      toast.success("Coupon applied! ₹100 off");
-    } else {
-      toast.error("Invalid coupon code");
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('id, code, discount_value, discount_type, min_order_value, is_active')
+        .eq('code', couponCode.trim().toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error || !data) {
+        toast.error("Invalid coupon code");
+        return;
+      }
+
+      if (data.min_order_value && subtotal < data.min_order_value) {
+        toast.error(`Minimum order value ₹${data.min_order_value} required`);
+        return;
+      }
+
+      const type = data.discount_type === 'percentage' ? 'percent' : 'fixed';
+      setAppliedCoupon({ id: data.code, discount: data.discount_value, type });
+      toast.success(`Coupon applied! ${type === 'percent' ? `${data.discount_value}% off` : `₹${data.discount_value} off`}`);
+    } catch {
+      toast.error("Failed to validate coupon. Try again.");
     }
   };
 
@@ -521,17 +535,14 @@ const CartPage = () => {
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            {isRental ? (
-              <>
-                <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  ₹ {(product.originalPrice || itemPrice) * planDays(plan) * quantity}
-                </span>
-                <span className="text-xs text-zinc-500 font-medium ml-1">
-                  (₹{product.originalPrice || itemPrice}/day)
-                </span>              </>
-            ) : (
+            {product.mrp > 0 && product.mrp !== itemPrice && (
               <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                ₹ {(product.originalPrice || itemPrice * 5) * quantity}
+                ₹ {product.mrp * quantity}
+              </span>
+            )}
+            {isRental && (
+              <span className="text-xs text-zinc-500 font-medium ml-1">
+                ({planDays(plan)}d rental)
               </span>
             )}
           </div>
@@ -681,7 +692,7 @@ const CartPage = () => {
                       Order value
                     </span>
                     <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      ₹ {originalTotal || 4000}
+                      ₹ {originalTotal}
                     </span>
                   </div>
 

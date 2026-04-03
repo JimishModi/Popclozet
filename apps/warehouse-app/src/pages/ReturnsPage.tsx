@@ -17,7 +17,8 @@ import {
     Zap,
     Truck,
     Navigation,
-    Phone
+    Phone,
+    Droplets
 } from 'lucide-react';
 import { supabase } from '@popclozet/api-client';
 import { clsx } from 'clsx';
@@ -30,6 +31,7 @@ import {
     receiveReturnAtWarehouse,
     completeReturnFlow
 } from '../services/fulfillmentService';
+import { sendUnitToWash } from '../services/washService';
 import { markUnitAsSold, setUnitStatus } from '../services/productProfileService';
 
 type ReturnRequestRow = any;
@@ -174,28 +176,30 @@ export function ReturnsPage() {
         }
     };
 
-    const handleUnitMarkAvailable = async (individualId: string, order: any, requestId: string, allUnits: any[]) => {
+    const handleSendToWash = async (individualId: string, order: any, requestId: string, allUnits: any[]) => {
         if (!user?.id) return;
         const actionKey = `unit:${individualId}`;
         setProcessingKey(actionKey);
         try {
-            await setUnitStatus(individualId, 'available', user.id);
-            showToast(`Unit ${individualId} marked available`);
+            await sendUnitToWash(individualId, user.id);
+            showToast(`Unit ${individualId} sent to wash`);
 
-            // Check if all units are now available/sold
-            const allCompleted = allUnits.every((item: any) => {
+            // Check if all units are now washing/sold/available
+            // (Note: completeReturnFlow might need to be deferred until available, 
+            // but for now we follow the user's lead on when the return flow is "processed")
+            const allItemsProcessed = allUnits.every((item: any) => {
                 if (item.individual_id === individualId) return true;
                 const status = item.unit?.status;
-                return ['available', 'sold'].includes(status);
+                return ['washing', 'available', 'sold'].includes(status);
             });
 
-            if (allCompleted && order) {
+            if (allItemsProcessed && order) {
                 await completeReturnFlow(order.id, requestId);
                 showToast('All units processed! Order completed and moved to History.');
             }
             await loadData();
         } catch (error: any) {
-            showToast(error?.message || 'Failed to update unit status', 'error');
+            showToast(error?.message || 'Failed to send to wash', 'error');
         } finally {
             setProcessingKey(null);
         }
@@ -396,9 +400,10 @@ export function ReturnsPage() {
                                                                     <span className={clsx(
                                                                         'text-[10px] font-semibold px-2 py-0.5 rounded-full',
                                                                         unitStatus === 'available' && 'bg-emerald-500/15 text-emerald-400',
+                                                                        unitStatus === 'washing'   && 'bg-amber-500/15 text-amber-400',
                                                                         unitStatus === 'rented'    && 'bg-blue-500/15 text-blue-400',
                                                                         unitStatus === 'sold'      && 'bg-red-500/15 text-red-400',
-                                                                        !['available', 'rented', 'sold'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
+                                                                        !['available', 'washing', 'rented', 'sold'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
                                                                     )}>
                                                                         {unitStatus}
                                                                     </span>
@@ -407,15 +412,21 @@ export function ReturnsPage() {
 
                                                             {(canMarkAvailable || canMarkSold) && (
                                                                 <div className="mt-3 flex flex-wrap gap-2">
-                                                                    {canMarkAvailable && (
+                                                                    {unitStatus === 'rented' && order?.status === 'returned' && (
                                                                         <button
                                                                             disabled={unitActionBusy}
-                                                                            onClick={() => handleUnitMarkAvailable(item.individual_id, order, request.id, linkedUnits)}
-                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-all disabled:opacity-60"
+                                                                            onClick={() => handleSendToWash(item.individual_id, order, request.id, linkedUnits)}
+                                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/10 transition-all disabled:opacity-60"
                                                                         >
-                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                                                                            Mark as Available
+                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
+                                                                            Send to Wash
                                                                         </button>
+                                                                    )}
+                                                                    {unitStatus === 'washing' && (
+                                                                        <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-800/50 text-zinc-400 border border-zinc-700/50">
+                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                            In Wash Cycle...
+                                                                        </div>
                                                                     )}
                                                                     {canMarkSold && (
                                                                         <button

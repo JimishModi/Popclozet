@@ -48,9 +48,9 @@ import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionSe
 /* Constants                          */
 /* ---------------------------------- */
 const WAREHOUSE_LOCATION = {
-  name: "Hostel 5, IIT Bombay",
-  lat: 19.1306,
-  lng: 72.9155
+  name: "Hostel 2, IIT Bombay",
+  lat: 19.1305,
+  lng: 72.9135
 };
 const MAX_DELIVERY_DISTANCE_KM = 6;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -294,20 +294,24 @@ export default function CheckoutPage() {
     const hub = getSavedHub();
     if (hub) setSelectedHub(hub);
 
-    const checkSub = async () => {
-      const benefits = await getSubscriptionBenefits();
-      if (benefits) {
-        setSubBenefits(benefits);
-        setHasFreeDeliveryBenefit(benefits.freeDelivery);
-        setHasInsuranceBenefit(benefits.insuranceIncluded);
-        if (benefits.insuranceIncluded) setPopInsurance(true);
-      } else {
-        setSubBenefits(null);
-        setHasFreeDeliveryBenefit(false);
-        setHasInsuranceBenefit(false);
-      }
-    };
-    checkSub();
+    // Subscription model commented out — not enforced currently
+    // const checkSub = async () => {
+    //   const benefits = await getSubscriptionBenefits();
+    //   if (benefits) {
+    //     setSubBenefits(benefits);
+    //     setHasFreeDeliveryBenefit(benefits.freeDelivery);
+    //     setHasInsuranceBenefit(benefits.insuranceIncluded);
+    //     if (benefits.insuranceIncluded) setPopInsurance(true);
+    //   } else {
+    //     setSubBenefits(null);
+    //     setHasFreeDeliveryBenefit(false);
+    //     setHasInsuranceBenefit(false);
+    //   }
+    // };
+    // checkSub();
+    setSubBenefits(null);
+    setHasFreeDeliveryBenefit(false);
+    setHasInsuranceBenefit(false);
   }, []);
 
   useEffect(() => {
@@ -464,14 +468,16 @@ export default function CheckoutPage() {
       let productMap: Record<string, any> = {};
       if (data && !error) {
         data.forEach((p: any) => {
+          const mrp = parseFloat(p.mrp ?? '0');
           productMap[p.id] = {
             ...p,
+            mrp,
             rental_price_1d: p.rental_price_1d,
             rental_price_2d: p.rental_price_2d,
             rental_price_3d: p.rental_price_3d,
             buy_price: p.buy_price,
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: parseFloat(p.price ?? '0'),
+            originalPrice: mrp,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -580,12 +586,13 @@ export default function CheckoutPage() {
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
 
+  // Original total = sum of MRP from DB for each item
   const originalTotal = useMemo(() => {
     if (buyoutOrderData) return buyoutOrderData.total_amount;
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const mrp = product?.mrp || (getPlanPrice(product, '3d') * 5);
+      const mrp = product?.mrp || 0;
       return total + mrp * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts, buyoutOrderData]);
@@ -606,14 +613,11 @@ export default function CheckoutPage() {
   // FIX 5: Single source of truth for distance surcharge — removed as per request
   const distanceSurcharge = 0;
 
+  // Subscription free delivery commented out — always charge delivery fee
   const deliveryFee = isNoDeliveryFlow
     ? 0  // No delivery needed — user already has the item
-    : selectedOrderType === 'home_try_on'
-      ? 0
-      : hasFreeDeliveryBenefit
-        ? 0
-        : deliveryFeeBase;
-  const isDeliveryFeeWaived = isNoDeliveryFlow || selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
+    : deliveryFeeBase;
+  const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
   const total = subtotal + deliveryFee + insuranceFee;
 

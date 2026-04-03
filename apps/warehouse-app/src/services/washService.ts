@@ -1,32 +1,83 @@
 /**
- * Wash Service — DEPRECATED
- * Washing state has been removed from the simplified 3-status system:
- * all_products.status is now only: 'available' | 'rented' | 'sold'
- *
- * This file is kept as a stub to avoid import errors.
- * Use setUnitStatus() in productProfileService.ts to change unit status.
+ * Wash Service
+ * Handles unit status transitions for the wash cycle.
  */
 
-export async function sendToWash(_inventoryId: string, _actorId?: string) {
-    throw new Error('Wash cycle removed. Use setUnitStatus() to mark items as available/rented/sold.');
-}
+import { supabase } from '@popclozet/api-client';
+import { setUnitStatus } from './productProfileService';
 
-export async function returnFromWash(_inventoryId: string, _actorId?: string) {
-    throw new Error('Wash cycle removed. Use setUnitStatus() to mark items as available.');
-}
-
-export async function sendUnitToWash(_individualId: string, _actorId?: string) {
-    throw new Error('Wash cycle removed. Use setUnitStatus() to mark items as available/rented/sold.');
-}
-
-export async function returnUnitFromWash(_individualId: string, _actorId?: string) {
-    throw new Error('Wash cycle removed. Use setUnitStatus() to mark items as available.');
-}
-
+/**
+ * Get all units currently in the wash (status: washing)
+ */
 export async function getWashQueue(): Promise<any[]> {
-    return [];
+    const { data, error } = await supabase
+        .from('all_products')
+        .select(`
+            individual_id,
+            status,
+            inventory:inventory_id (
+                id,
+                size,
+                products (
+                    id,
+                    name,
+                    images
+                )
+            )
+        `)
+        .eq('status', 'washing')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
 }
 
+/**
+ * Get units available to be sent to wash (e.g. rented units that just came back)
+ * For simplification, we allow any 'rented' item to be manually sent to wash from the manual tab.
+ */
 export async function getWashableUnits(): Promise<any[]> {
-    return [];
+    const { data, error } = await supabase
+        .from('all_products')
+        .select(`
+            individual_id,
+            status,
+            inventory:inventory_id (
+                id,
+                size,
+                products (
+                    id,
+                    name,
+                    images
+                )
+            )
+        `)
+        .eq('status', 'rented')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Send a physical unit to wash
+ */
+export async function sendUnitToWash(individualId: string, actorId: string = 'system') {
+    return setUnitStatus(individualId, 'washing', actorId);
+}
+
+/**
+ * Return a physical unit from wash
+ */
+export async function returnUnitFromWash(individualId: string, actorId: string = 'system') {
+    return setUnitStatus(individualId, 'available', actorId);
+}
+
+// Legacy function stubs for compatibility
+export async function sendToWash(individualId: string, actorId: string = 'system') {
+    return sendUnitToWash(individualId, actorId);
+}
+
+export async function returnFromWash(individualId: string, actorId: string = 'system') {
+    return returnUnitFromWash(individualId, actorId);
 }

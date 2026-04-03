@@ -2,7 +2,7 @@
 // Real-time delivery tracking page
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound } from 'lucide-react';
+import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound, Home } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { DeliveryTracker, TrackingData } from '@/components/map/DeliveryTracker';
 import { OrderChat } from '@/components/map/OrderChat';
@@ -21,8 +21,8 @@ export default function DeliveryTrackingPage() {
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
 
-    // Warehouse location: Hostel No 2, IIT Bombay
-    const WAREHOUSE_LOCATION = { lat: 19.1315, lng: 72.9157 };
+    // Warehouse location: Hostel 2, IIT Bombay
+    const WAREHOUSE_LOCATION = { lat: 19.1305, lng: 72.9135 };
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
@@ -293,6 +293,23 @@ export default function DeliveryTrackingPage() {
                         Report an Issue
                     </a>
                 </div>
+
+                {/* Home Option - shown when delivered */}
+                {order?.status === 'delivered' && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-6"
+                    >
+                        <button 
+                            onClick={() => navigate('/home')}
+                            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-[#f2546d] text-white text-base font-black uppercase tracking-tighter shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                        >
+                            <Home className="w-5 h-5" />
+                            Home
+                        </button>
+                    </motion.div>
+                )}
             </main>
 
             {/* Chat Drawer */}

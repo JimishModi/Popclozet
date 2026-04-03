@@ -140,9 +140,9 @@ export const drawRouteFromCoords = drawRoute;
 // IIT BOMBAY GEOFENCING
 // ==========================================
 export const SERVICE_CONFIG = {
-    center: { lat: 19.1334, lng: 72.9133 }, // IIT Bombay
+    center: { lat: 19.1305, lng: 72.9135 }, // Hostel 2, IIT Bombay
     radiusKm: 6,
-    warehouseLocation: { lat: 19.1334, lng: 72.9133 },
+    warehouseLocation: { lat: 19.1305, lng: 72.9135 },
 };
 
 export const calculateDistance = (from: { lat: number; lng: number }, to: { lat: number; lng: number }): number => {

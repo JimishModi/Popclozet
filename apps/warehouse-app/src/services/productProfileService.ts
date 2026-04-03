@@ -125,7 +125,7 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
             id: row.id,
             size: row.size,
             available_stock: unitsForSize.filter(u => u.status === 'available').length,
-            went_for_wash: 0,  // No washing state in simplified system
+            went_for_wash: unitsForSize.filter(u => u.status === 'washing').length,
             total_stock: unitsForSize.filter(u => u.status !== 'sold').length, // sold units excluded from active stock
             units: unitsForSize as any,
         };
@@ -199,7 +199,7 @@ export async function getAllProductProfiles(): Promise<{
         const current = stockMap.get(pid) || { available: 0, wash: 0, total: 0 };
         stockMap.set(pid, {
             available: current.available + (item.status === 'available' ? 1 : 0),
-            wash: 0,  // No washing state in simplified system
+            wash: current.wash + (item.status === 'washing' ? 1 : 0),
             total: current.total + (item.status !== 'sold' ? 1 : 0), // exclude sold
         });
     });
@@ -338,7 +338,7 @@ export async function updateProductProfile(productId: string, update: ProductUpd
  */
 export async function setUnitStatus(
     individualId: string,
-    newStatus: 'available' | 'rented' | 'sold',
+    newStatus: 'available' | 'rented' | 'sold' | 'washing',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase

@@ -113,7 +113,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("3d");
+    const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("1d");
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
@@ -523,7 +523,7 @@ const MobileProductDetailPage: React.FC = () => {
                             <motion.div 
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/30 flex items-center gap-3 shadow-2xl"
+                                className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/50 flex items-center gap-3 shadow-2xl"
                             >
                                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                                 <span className="text-sm font-black uppercase tracking-widest text-white">Currently Rented Out</span>
