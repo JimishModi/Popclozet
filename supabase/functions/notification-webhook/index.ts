@@ -55,44 +55,152 @@ Deno.serve(async (req: Request) => {
 
   const sendPush = async (user_id: string, title: string, body: string, url: string = "/") => {
     if (!user_id) return;
-    try {
-      await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-        method: "POST",
-        headers: {
-          "x-internal-call": "true",
-          "Authorization": `Bearer ${internalSecret}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ user_id, title, body, url, type: "system_event" })
-      });
-      console.log(`Sent to ${user_id}: ${title}`);
-    } catch (e) {
-      console.error(`Failed pushing to ${user_id}:`, e);
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: "POST",
+          headers: {
+            "x-internal-call": "true",
+            "Authorization": `Bearer ${internalSecret}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ user_id, title, body, url, type: "system_event" })
+        });
+        if (!res.ok && attempt < MAX_RETRIES) {
+          console.warn(`[webhook] Push attempt ${attempt + 1} failed (HTTP ${res.status}) for ${user_id}, retrying...`);
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        console.log(`[webhook] Push sent to ${user_id}: ${title}`);
+        return;
+      } catch (e) {
+        if (attempt < MAX_RETRIES) {
+          console.warn(`[webhook] Push attempt ${attempt + 1} error for ${user_id}, retrying...`, e);
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        } else {
+          console.error(`[webhook] Push FAILED after ${MAX_RETRIES + 1} attempts for ${user_id}:`, e);
+        }
+      }
     }
   };
 
   const shortId = (id: string) => id ? id.slice(0, 6).toUpperCase() : "UNKNOWN";
 
+  // Helper: send "order confirmed" notifications to customer + warehouse
+  const notifyOrderConfirmed = async (orderRecord: any, paymentType: string) => {
+    const label = paymentType === 'cod' ? '(COD)' : '(Paid)';
+    // Customer
+    await sendPush(
+      orderRecord.user_id,
+      "🛍️ Order Confirmed!",
+      `Your order ${label} has been confirmed. We're preparing it now.`,
+      `/orders`
+    );
+    // All warehouse staff
+    for (const w of (warehouseUsers || [])) {
+      await sendPush(
+        w.id,
+        "📦 New Order Received",
+        `Order #${shortId(orderRecord.id)} ${label} — ready to fulfill.`,
+        "/warehouse/orders"
+      );
+    }
+    // In-app notification for customer
+    await supabase.from("notifications").insert({
+      user_id: orderRecord.user_id,
+      type: "order_confirmed",
+      title: "✅ Order Confirmed",
+      message: `Your order ${label} has been confirmed and is being prepared.`,
+      order_id: orderRecord.id,
+      is_read: false,
+    });
+    console.log(`[webhook] Notified order confirmed: ${orderRecord.id} ${label}`);
+  };
+
   // ==========================================
   // TABLE: ORDERS
   // ==========================================
   if (table === "orders") {
-    // 1. Order Placed (INSERT)
+    // ── INSERT: Only notify for immediately-confirmed orders (COD) ──
+    // Online payment orders are created with status='pending_payment'
+    // and must NOT trigger notifications until payment is verified.
     if (type === "INSERT") {
-      // Customer
-      await sendPush(record.user_id, "🛍️ Order Placed!", "Your order has been successfully placed. We're processing it now.", `/orders`);
-      // Warehouse
-      for (const w of (warehouseUsers || [])) {
-        await sendPush(w.id, "📦 New Order Received", `Order #${shortId(record.id)} was perfectly placed.`, "/warehouse/orders");
+      if (record.status === "confirmed") {
+        // COD order — confirmed immediately, notify now
+        await notifyOrderConfirmed(record, record.payment_method || 'cod');
+      } else {
+        console.log(`[webhook] INSERT order ${record.id} with status=${record.status} — skipping notification (awaiting payment)`);
       }
     }
 
-    // UPDATE Events
+    // ── UPDATE Events ──
     if (type === "UPDATE" && old_record) {
-      // 2. Driver Assigned (rider_id changes from null to something)
+      // 1. Payment verified: pending/pending_payment → confirmed
+      //    This is the critical path for online payments.
+      if (
+        (old_record.status === "pending_payment" || old_record.status === "pending") &&
+        record.status === "confirmed"
+      ) {
+        await notifyOrderConfirmed(record, record.payment_method || 'online');
+      }
+
+      // 2. Payment failed
+      if (
+        (old_record.status === "pending_payment" || old_record.status === "pending") &&
+        record.status === "payment_failed"
+      ) {
+        await sendPush(
+          record.user_id,
+          "❌ Payment Failed",
+          "Your payment could not be processed. Please try again or use a different payment method.",
+          `/orders`
+        );
+        await supabase.from("notifications").insert({
+          user_id: record.user_id,
+          type: "order_update",
+          title: "❌ Payment Failed",
+          message: "Your payment could not be processed. Please try again.",
+          order_id: record.id,
+          is_read: false,
+        });
+      }
+
+      // 3. Status-based in-app notifications for customer
+      //    These replace the client-side notifyOrderStatusChange function.
+      const statusNotifications: Record<string, { type: string; title: string; message: string }> = {
+        packed: { type: "order_update", title: "📦 Order Packed", message: "Your order has been packed and is ready for pickup by a rider." },
+        ready_for_pickup: { type: "order_update", title: "🏭 Ready for Pickup", message: "Your package is ready and a rider has been assigned to collect it." },
+        dispatched: { type: "order_dispatched", title: "📦 Package Dispatched!", message: "Your package has been dispatched from the warehouse. A rider is on the way!" },
+        out_for_delivery: { type: "order_update", title: "🚗 Out for Delivery!", message: "Your package is out for delivery. The rider is heading to your location." },
+        delivered: { type: "order_update", title: "🎉 Package Delivered!", message: "Your package has been delivered. Enjoy!" },
+        cancelled: { type: "order_update", title: "🚫 Order Cancelled", message: "Your order has been cancelled." },
+      };
+
+      if (old_record.status !== record.status && statusNotifications[record.status]) {
+        const cfg = statusNotifications[record.status];
+        await supabase.from("notifications").insert({
+          user_id: record.user_id,
+          type: cfg.type,
+          title: cfg.title,
+          message: cfg.message,
+          order_id: record.id,
+          is_read: false,
+        });
+      }
+
+      // 4. Driver Assigned (rider_id changes from null to something)
       if (!old_record.rider_id && record.rider_id) {
         // Customer
         await sendPush(record.user_id, "🚗 Driver Assigned", "A driver has been assigned and is heading out for your order!", `/orders`);
+        await supabase.from("notifications").insert({
+          user_id: record.user_id,
+          type: "order_update",
+          title: "🚗 Rider Assigned!",
+          message: "A rider has been assigned to pick up your package.",
+          order_id: record.id,
+          is_read: false,
+        });
         // Warehouse
         for (const w of (warehouseUsers || [])) {
           await sendPush(w.id, "🚗 Driver Dispatched", `Driver assigned to Order #${shortId(record.id)}.`, "/warehouse/orders");
@@ -101,14 +209,25 @@ Deno.serve(async (req: Request) => {
         await sendPush(record.rider_id, "🔥 New Delivery Assigned!", `You have been assigned to deliver Order #${shortId(record.id)}. Make haste!`, "/rider/deliveries");
       }
 
-      // 3. Order Delivered
+      // 5. Order Delivered — push (in-app handled by statusNotifications above)
       if (old_record.status !== "delivered" && record.status === "delivered") {
-        // Customer
         await sendPush(record.user_id, "✅ Order Delivered", "Your order has safely arrived! Enjoy.", `/orders`);
-        // Warehouse
         for (const w of (warehouseUsers || [])) {
           await sendPush(w.id, "✅ Order Delivered", `Order #${shortId(record.id)} completed delivery.`, "/warehouse/orders");
         }
+      }
+
+      // 6. Order Cancelled — push (in-app handled by statusNotifications above)
+      if (old_record.status !== "cancelled" && record.status === "cancelled") {
+        await sendPush(record.user_id, "🚫 Order Cancelled", "Your order has been cancelled.", `/orders`);
+      }
+
+      // 7. Dispatched / Out for Delivery — push to customer
+      if (old_record.status !== "dispatched" && record.status === "dispatched") {
+        await sendPush(record.user_id, "📦 Package Dispatched!", "Your package has been dispatched. A rider is on the way!", `/orders`);
+      }
+      if (old_record.status !== "out_for_delivery" && record.status === "out_for_delivery") {
+        await sendPush(record.user_id, "🚗 Out for Delivery!", "Your package is out for delivery.", `/orders`);
       }
     }
   }

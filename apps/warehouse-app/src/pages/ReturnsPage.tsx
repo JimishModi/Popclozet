@@ -9,14 +9,12 @@ import {
     ChevronDown,
     ChevronUp,
     ScanLine,
-    Droplets,
     PackageCheck,
     KeyRound,
     X,
     Clock,
     AlertTriangle,
     Zap,
-    UserPlus,
     Truck,
     Navigation,
     Phone
@@ -32,8 +30,7 @@ import {
     receiveReturnAtWarehouse,
     completeReturnFlow
 } from '../services/fulfillmentService';
-import { sendUnitToWash, returnUnitFromWash } from '../services/washService';
-import { flagUnitAsDamaged } from '../services/productProfileService';
+import { markUnitAsSold, setUnitStatus } from '../services/productProfileService';
 
 type ReturnRequestRow = any;
 
@@ -59,8 +56,6 @@ export function ReturnsPage() {
     const [otpExpiresAt, setOtpExpiresAt] = useState<Date | null>(null);
     const [otpSecondsLeft, setOtpSecondsLeft] = useState<number | null>(null);
     const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const [damageModal, setDamageModal] = useState<{ individualId: string; productName: string } | null>(null);
-    const [damageNotes, setDamageNotes] = useState('');
     const [riders, setRiders] = useState<{ user_id: string; full_name: string }[]>([]);
     const [selectedReturnRiders, setSelectedReturnRiders] = useState<Record<string, string>>({});
     const [assigningRider, setAssigningRider] = useState<string | null>(null);
@@ -179,67 +174,28 @@ export function ReturnsPage() {
         }
     };
 
-    const handleUnitAction = async (individualId: string, currentStatus: string, order: any, requestId: string, allUnits: any[]) => {
+    const handleUnitMarkAvailable = async (individualId: string, order: any, requestId: string, allUnits: any[]) => {
         if (!user?.id) return;
         const actionKey = `unit:${individualId}`;
         setProcessingKey(actionKey);
         try {
-            if (currentStatus === 'washing') {
-                await returnUnitFromWash(individualId, user.id);
-                showToast(`Unit ${individualId} marked available`);
-                
-                // Check if this was the last remaining unit to be made available/damaged
-                const allCompleted = allUnits.every((item: any) => {
-                    if (item.individual_id === individualId) return true; // Just processed
-                    const status = item.unit?.status;
-                    return ['available', 'damaged', 'archived'].includes(status);
-                });
+            await setUnitStatus(individualId, 'available', user.id);
+            showToast(`Unit ${individualId} marked available`);
 
-                if (allCompleted && order) {
-                    await completeReturnFlow(order.id, requestId);
-                    showToast('All units processed! Order completed and moved to History.');
-                }
-            } else {
-                await sendUnitToWash(individualId, user.id);
-                showToast(`Unit ${individualId} moved to washing`);
+            // Check if all units are now available/sold
+            const allCompleted = allUnits.every((item: any) => {
+                if (item.individual_id === individualId) return true;
+                const status = item.unit?.status;
+                return ['available', 'sold'].includes(status);
+            });
+
+            if (allCompleted && order) {
+                await completeReturnFlow(order.id, requestId);
+                showToast('All units processed! Order completed and moved to History.');
             }
             await loadData();
         } catch (error: any) {
-            console.error('Unit wash action failed:', error);
             showToast(error?.message || 'Failed to update unit status', 'error');
-        } finally {
-            setProcessingKey(null);
-        }
-    };
-
-    const handleFlagDamaged = async (order?: any, requestId?: string, allUnits?: any[]) => {
-        if (!user?.id || !damageModal) return;
-        const actionKey = `unit:${damageModal.individualId}`;
-        setProcessingKey(actionKey);
-        try {
-            await flagUnitAsDamaged(damageModal.individualId, damageNotes, user.id);
-            showToast(`Unit ${damageModal.individualId} flagged as damaged`, 'info');
-            
-            // Check if this was the last remaining unit
-            if (order && requestId && allUnits) {
-                const allCompleted = allUnits.every((item: any) => {
-                    if (item.individual_id === damageModal.individualId) return true; // Just processed
-                    const status = item.unit?.status;
-                    return ['available', 'damaged', 'archived'].includes(status);
-                });
-
-                if (allCompleted) {
-                    await completeReturnFlow(order.id, requestId);
-                    showToast('All units processed! Order completed and moved to History.');
-                }
-            }
-            
-            setDamageModal(null);
-            setDamageNotes('');
-            await loadData();
-        } catch (error: any) {
-            console.error('flagUnitAsDamaged failed:', error);
-            showToast(error?.message || 'Failed to flag unit as damaged', 'error');
         } finally {
             setProcessingKey(null);
         }
@@ -414,8 +370,9 @@ export function ReturnsPage() {
                                                     const unit = item.unit;
                                                     const unitStatus = unit?.status || 'unknown';
                                                     const unitActionBusy = processingKey === `unit:${item.individual_id}`;
-                                                    const canWash = order?.status === 'returned' && ['rented', 'washing'].includes(unitStatus);
-                                                    const canFlagDamaged = order?.status === 'returned' && !['damaged', 'archived'].includes(unitStatus);
+                                                    const isReturned = order?.status === 'returned';
+                                                    const canMarkAvailable = isReturned && unitStatus === 'rented';
+                                                    const canMarkSold    = isReturned && unitStatus !== 'sold';
 
                                                     return (
                                                         <div
@@ -433,54 +390,53 @@ export function ReturnsPage() {
                                                                     <p className="text-xs text-zinc-500 mt-1">
                                                                         Size: {item.size || unit?.inventory?.size || 'N/A'}
                                                                     </p>
-                                                                    {unitStatus === 'damaged' && unit?.damage_notes && (
-                                                                        <p className="text-xs text-red-400/80 mt-1 italic">
-                                                                            "{unit.damage_notes}"
-                                                                        </p>
-                                                                    )}
                                                                 </div>
 
                                                                 <div className="text-right">
                                                                     <span className={clsx(
                                                                         'text-[10px] font-semibold px-2 py-0.5 rounded-full',
                                                                         unitStatus === 'available' && 'bg-emerald-500/15 text-emerald-400',
-                                                                        unitStatus === 'washing' && 'bg-cyan-500/15 text-cyan-400',
-                                                                        unitStatus === 'rented' && 'bg-amber-500/15 text-amber-400',
-                                                                        unitStatus === 'damaged' && 'bg-red-500/15 text-red-400',
-                                                                        !['available', 'washing', 'rented', 'damaged'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
+                                                                        unitStatus === 'rented'    && 'bg-blue-500/15 text-blue-400',
+                                                                        unitStatus === 'sold'      && 'bg-red-500/15 text-red-400',
+                                                                        !['available', 'rented', 'sold'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
                                                                     )}>
-                                                                        {unitStatus === 'damaged' && '⚠ '}{unitStatus}
+                                                                        {unitStatus}
                                                                     </span>
                                                                 </div>
                                                             </div>
 
-                                                            {(canWash || canFlagDamaged) && (
+                                                            {(canMarkAvailable || canMarkSold) && (
                                                                 <div className="mt-3 flex flex-wrap gap-2">
-                                                                    {canWash && (
+                                                                    {canMarkAvailable && (
                                                                         <button
                                                                             disabled={unitActionBusy}
-                                                                            onClick={() => handleUnitAction(item.individual_id, unitStatus, order, request.id, linkedUnits)}
-                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition-all disabled:opacity-60"
+                                                                            onClick={() => handleUnitMarkAvailable(item.individual_id, order, request.id, linkedUnits)}
+                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-all disabled:opacity-60"
                                                                         >
-                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
-                                                                            {unitStatus === 'washing' ? 'Mark Available Again' : 'Send To Wash'}
+                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                                                                            Mark as Available
                                                                         </button>
                                                                     )}
-                                                                    {canFlagDamaged && (
+                                                                    {canMarkSold && (
                                                                         <button
                                                                             disabled={unitActionBusy}
-                                                                            onClick={() => {
-                                                                                setDamageNotes('');
-                                                                                setDamageModal({
-                                                                                    individualId: item.individual_id,
-                                                                                    productName: item.product?.name || item.individual_id,
-                                                                                    orderContext: { order, request, linkedUnits } // Pass context for later
-                                                                                } as any);
+                                                                            onClick={async () => {
+                                                                                if (!user?.id) return;
+                                                                                setProcessingKey(`unit:${item.individual_id}`);
+                                                                                try {
+                                                                                    await markUnitAsSold(item.individual_id, user.id);
+                                                                                    showToast(`Unit ${item.individual_id} marked as sold`);
+                                                                                    await loadData();
+                                                                                } catch (e: any) {
+                                                                                    showToast(e.message || 'Failed', 'error');
+                                                                                } finally {
+                                                                                    setProcessingKey(null);
+                                                                                }
                                                                             }}
                                                                             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-60"
                                                                         >
                                                                             <AlertTriangle size={12} />
-                                                                            Flag as Damaged
+                                                                            Mark as Sold
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -576,85 +532,6 @@ export function ReturnsPage() {
                 )}
             </AnimatePresence>
 
-            {/* Damage Flag Modal */}
-            <AnimatePresence>
-                {damageModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
-                        >
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                                <h3 className="font-semibold text-white flex items-center gap-2">
-                                    <AlertTriangle size={18} className="text-red-400" />
-                                    Flag Unit as Damaged
-                                </h3>
-                                <button
-                                    onClick={() => {
-                                        if (processingKey !== `unit:${damageModal.individualId}`) {
-                                            setDamageModal(null);
-                                            setDamageNotes('');
-                                        }
-                                    }}
-                                    disabled={processingKey === `unit:${damageModal.individualId}`}
-                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                                >
-                                    <X size={20} />
-                                </button>                        </div>
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <p className="text-sm text-zinc-400">Unit: <span className="text-white font-medium">{damageModal.individualId}</span></p>
-                                    <p className="text-sm text-zinc-400 mt-0.5">Item: <span className="text-white font-medium">{damageModal.productName}</span></p>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                                        Damage Description <span className="text-zinc-600 font-normal normal-case">(optional)</span>
-                                    </label>
-                                    <textarea
-                                        value={damageNotes}
-                                        onChange={(e) => setDamageNotes(e.target.value)}
-                                        placeholder="e.g. Torn seam, stain on back panel, broken zipper..."
-                                        className="w-full bg-black border border-zinc-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 min-h-[100px] resize-y placeholder:text-zinc-600"
-                                    />
-                                </div>
-                                <div className="flex gap-3 mt-2">
-                                    <button
-                                        onClick={() => { setDamageModal(null); setDamageNotes(''); }}
-                                        disabled={processingKey === `unit:${damageModal.individualId}`}
-                                        className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition-all disabled:opacity-50"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (damageModal && (damageModal as any).orderContext) {
-                                                const { order, request, linkedUnits } = (damageModal as any).orderContext;
-                                                handleFlagDamaged(order, request.id, linkedUnits);
-                                            } else {
-                                                handleFlagDamaged();
-                                            }
-                                        }}
-                                        disabled={processingKey === `unit:${damageModal.individualId}`}
-                                        className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
-                                    >
-                                        {processingKey === `unit:${damageModal.individualId}`
-                                            ? <><RefreshCw size={14} className="animate-spin" /> Saving...</>
-                                            : <><AlertTriangle size={14} /> Confirm Damage</>
-                                        }
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div >
     );
 }

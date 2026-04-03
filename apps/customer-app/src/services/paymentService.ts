@@ -1,9 +1,17 @@
 import { supabase } from '@popclozet/api-client';
 
+/**
+ * Get payments for the CURRENT user only.
+ * RLS also enforces this at the DB level, but we filter explicitly for defense-in-depth.
+ */
 export async function getMyPayments() {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Not authenticated');
+
   const { data, error } = await supabase
     .from('payments')
     .select('*')
+    .eq('user_id', user.id)  // FIX: was missing — returned ALL users' payments
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -49,4 +57,3 @@ export async function createPayment(
 
   return data;
 }
-

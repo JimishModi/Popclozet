@@ -340,104 +340,24 @@ async function createNotification(
    ORDER STATUS HELPER
 ================================ */
 
+/**
+ * Notify about order status changes.
+ *
+ * IMPORTANT: In-app notifications (DB inserts into `notifications` table) are
+ * now handled by the backend notification-webhook, which fires on DB triggers
+ * for order status changes. This function only triggers a best-effort client-side
+ * push notification as a fallback — the primary notification path is server-side.
+ *
+ * Do NOT insert into the `notifications` table here to avoid duplicates.
+ */
 export async function notifyOrderStatusChange(
     userId: string,
     orderId: string,
     status: string
 ): Promise<void> {
-    const notifications: Record<string, { type: string; title: string; message: string }> = {
-        confirmed: {
-            type: 'order_update',
-            title: '✅ Order Confirmed',
-            message: 'Your order has been confirmed and is being prepared.',
-        },
-        packed: {
-            type: 'order_update',
-            title: '📦 Order Packed',
-            message: 'Your order has been packed and is ready for pickup by a rider.',
-        },
-        ready_for_pickup: {
-            type: 'order_update',
-            title: '🏭 Ready for Pickup',
-            message: 'Your package is ready and a rider has been assigned to collect it.',
-        },
-        rider_assigned: {
-            type: 'order_update',
-            title: '🚗 Rider Assigned!',
-            message: 'A rider has been assigned to pick up your package. They are on their way to the warehouse!',
-        },
-        driver_arrived_warehouse: {
-            type: 'order_update',
-            title: '🚗 Rider at Warehouse',
-            message: 'Your assigned rider has arrived at the warehouse to collect your package.',
-        },
-        order_picked_up: {
-            type: 'order_update',
-            title: '✅ Package Picked Up!',
-            message: 'Your package has been collected from the warehouse and is being prepared for delivery.',
-        },
-        dispatched: {
-            type: 'order_dispatched',
-            title: '📦 Package Dispatched!',
-            message: 'Your package has been dispatched from the warehouse. A rider is on the way!',
-        },
-        out_for_delivery: {
-            type: 'order_update',
-            title: '🚗 Out for Delivery!',
-            message: 'Your package is out for delivery. The rider is heading to your location.',
-        },
-        delivered: {
-            type: 'order_update',
-            title: '🎉 Package Delivered!',
-            message: 'Your package has been delivered. Enjoy!',
-        },
-        return_scheduled: {
-            type: 'return_scheduled',
-            title: '📅 Return Pickup Scheduled',
-            message: 'Your return pickup has been scheduled. A rider will be assigned shortly.',
-        },
-        return_dispatched: {
-            type: 'return_scheduled',
-            title: '🚗 Rider On The Way!',
-            message: 'A rider has been assigned and is heading to your location to collect your items.',
-        },
-        return_picked_up: {
-            type: 'return_completed',
-            title: '✅ Items Collected!',
-            message: 'Your items have been collected by the rider. They are heading back to the warehouse.',
-        },
-        returned: {
-            type: 'return_completed',
-            title: '🎉 Return Complete!',
-            message: 'Your return has been completed and processed at the warehouse.',
-        },
-    };
-
-    const notifConfig = notifications[status];
-    if (!notifConfig) return;
-
-    try {
-        const { error } = await supabase
-            .from('notifications')
-            .insert({
-                user_id: userId,
-                type: notifConfig.type,
-                title: notifConfig.title,
-                message: notifConfig.message,
-                order_id: orderId,
-                is_read: false,
-            });
-
-        if (error) {
-            console.error('Failed to create order status notification:', error);
-        }
-
-        // Trigger push notification for key order statuses
-        // (fires only for important ones like delivery, pickup, etc.)
-        triggerPushForOrderStatus(userId, orderId, status).catch((err) =>
-            console.warn('Push notification trigger failed (non-blocking):', err)
-        );
-    } catch (error) {
-        console.error('Failed to create order status notification:', error);
-    }
+    // Best-effort push notification as client-side fallback.
+    // The backend webhook is the primary notification source.
+    triggerPushForOrderStatus(userId, orderId, status).catch((err) =>
+        console.warn('Push notification trigger failed (non-blocking):', err)
+    );
 }

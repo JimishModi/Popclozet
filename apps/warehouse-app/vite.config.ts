@@ -75,7 +75,7 @@ export default defineConfig({
         }),
     ],
     optimizeDeps: {
-        include: ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client'],
+        include: ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', 'pdfjs-dist'],
         exclude: [
             '@popclozet/api-client',
             '@popclozet/auth',

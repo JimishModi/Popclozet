@@ -21,6 +21,7 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { recoverPendingVerifications } from "./services/razorpayService";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
@@ -176,6 +177,11 @@ function App() {
     if (!hasGps && !hasManual) {
       setShowCitySelector(true);
     }
+  }, []);
+
+  // Recover any payment verifications interrupted by tab close / network drop
+  useEffect(() => {
+    recoverPendingVerifications();
   }, []);
 
   return (
