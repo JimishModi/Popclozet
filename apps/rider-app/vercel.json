@@ -36,6 +36,10 @@
     ],
     "rewrites": [
         {
+            "source": "/otp-provider.js",
+            "destination": "https://verify.msg91.com/otp-provider.js"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

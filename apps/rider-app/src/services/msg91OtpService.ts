@@ -6,8 +6,11 @@
 /** URLs to try, in order of preference */
 const FETCH_URLS = [
     '/msg91-otp-sdk.js',                            // Local static file (most reliable)
-    'https://verify.msg91.com/otp-provider.js',     // Direct CDN (fallback)
+    '/otp-provider.js',                              // Same-origin Vercel proxy
 ];
+
+/** Direct remote URL — used ONLY as a last-resort <script> tag (bypasses CORS) */
+const REMOTE_SCRIPT_URL = 'https://verify.msg91.com/otp-provider.js';
 
 const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
 const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
@@ -104,8 +107,62 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
 
             document.head.appendChild(script);
         } catch (err: any) {
-            sdkInitPromise = null;
-            reject(new Error(`Failed to load MSG91 OTP script: ${err.message}`));
+            // ── Fallback: direct <script> tag injection (bypasses CORS) ──
+            console.warn(`[MSG91] Blob approach failed: ${err.message}. Trying direct script tag...`);
+            try {
+                await new Promise<void>((res, rej) => {
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.type = 'text/javascript';
+                    fallbackScript.async = true;
+                    fallbackScript.src = `${REMOTE_SCRIPT_URL}?cb=${Date.now()}`;
+
+                    const fallbackTimeout = setTimeout(() => {
+                        fallbackScript.remove();
+                        rej(new Error('Direct script tag timed out (15s)'));
+                    }, 15000);
+
+                    fallbackScript.onload = () => {
+                        clearTimeout(fallbackTimeout);
+                        console.info('[MSG91] Script loaded via direct script tag fallback');
+                        res();
+                    };
+                    fallbackScript.onerror = () => {
+                        clearTimeout(fallbackTimeout);
+                        fallbackScript.remove();
+                        rej(new Error('Direct script tag also failed'));
+                    };
+                    document.head.appendChild(fallbackScript);
+                });
+
+                // Script loaded via fallback — now init
+                if (typeof (window as any).initSendOTP !== 'function') {
+                    sdkInitPromise = null;
+                    reject(new Error('initSendOTP not found after fallback script load'));
+                    return;
+                }
+                (window as any).initSendOTP(configuration);
+                console.info('[MSG91] initSendOTP called (fallback path)');
+
+                const start = Date.now();
+                const poll = () => {
+                    if (typeof (window as any).sendOtp === 'function') {
+                        sdkReady = true;
+                        console.info('[MSG91] SDK ready (fallback path)');
+                        resolve();
+                        return;
+                    }
+                    if (Date.now() - start >= 10000) {
+                        sdkInitPromise = null;
+                        reject(new Error('MSG91 SDK timed out (fallback)'));
+                        return;
+                    }
+                    setTimeout(poll, 150);
+                };
+                poll();
+            } catch (fallbackErr: any) {
+                sdkInitPromise = null;
+                reject(new Error(`Failed to load MSG91 OTP script. ${err.message}. Fallback: ${fallbackErr.message}`));
+            }
         }
     });
 
