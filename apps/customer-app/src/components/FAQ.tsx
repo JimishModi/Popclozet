@@ -11,9 +11,23 @@ import ContactSupportButton from "@/components/ContactSupportButton"; // new imp
 
 const faqs = [
   {
-    question: "How does the 60-minute delivery work?",
-    answer:
-      "Once you place your order, our team picks, quality-checks, and packs your outfit from our local micro-warehouse. We partner with reliable delivery services to ensure your outfit arrives within 60 minutes. You'll get real-time tracking so you know exactly when it's arriving!",
+    question: (() => {
+      try {
+        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+        return loc.delivery_estimate === 'delayed' ? "How does the delivery work?" : "How does the 60-minute delivery work?";
+      } catch {
+        return "How does the 60-minute delivery work?";
+      }
+    })(),
+    answer: (() => {
+      try {
+        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+        const estimate = loc.delivery_estimate === 'delayed' ? "reliable" : "60-minute";
+        return `Once you place your order, our team picks, quality-checks, and packs your outfit from our local micro-warehouse. We partner with reliable delivery services to ensure your outfit arrives ${loc.delivery_estimate === 'delayed' ? 'as quickly as possible' : 'within 60 minutes'}. You'll get real-time tracking so you know exactly when it's arriving!`;
+      } catch {
+        return "Once you place your order, our team picks, quality-checks, and packs your outfit from our local micro-warehouse. We partner with reliable delivery services to ensure your outfit arrives within 60 minutes. You'll get real-time tracking so you know exactly when it's arriving!";
+      }
+    })(),
   },
   {
     question: "What about hygiene and cleaning?",

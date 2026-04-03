@@ -14,6 +14,7 @@ import heroParty from "@/assets/hero-party.png";
 import heroBusiness from "@/assets/hero-business.png";
 import heroVacation from "@/assets/hero-vacation.png";
 import heroWedding from "@/assets/hero-wedding.png";
+import { locationStorage } from "@/lib/locationStorage";
 
 // Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
 function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType<unknown> }>) {
@@ -52,7 +53,15 @@ const Index = () => {
   const [heroEmail, setHeroEmail] = useState("");
   const [heroSubmitting, setHeroSubmitting] = useState(false);
   const [heroSuccess, setHeroSuccess] = useState(false);
-  const [heroError, setHeroError] = useState<string | null>(null);
+  const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed' | null>(null);
+
+  useEffect(() => {
+    const stored = locationStorage.get();
+    if (stored && (stored as any).delivery_estimate) {
+      setDeliveryEstimate((stored as any).delivery_estimate);
+    }
+  }, []);
+
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -162,7 +171,9 @@ const Index = () => {
                 >
                   New Outfit Everyday!
                   <br />
-                  Delivered in 60 Minutes!
+                  {deliveryEstimate === 'delayed' 
+                    ? "Expected Delayed Delivery!" 
+                    : "Delivered in 60 Minutes!"}
                 </span>
               </motion.h1>
 

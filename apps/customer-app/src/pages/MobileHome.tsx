@@ -66,8 +66,8 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Show delayed delivery only when delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
-    const isDelayed = selectedHub ? selectedHub.distance_km > 6 : false;
+    // Show delayed delivery only when delivery address is outside 6km radius of warehouse OR the delivery estimate is explicitly 'delayed'
+    const isDelayed = (selectedHub ? selectedHub.distance_km > 6 : false) || deliveryEstimate === 'delayed';
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
@@ -175,7 +175,7 @@ const MobileHome: React.FC = () => {
                     // Recalculate Road Distance for New Detection
                     try {
                         const { getRoadDistance } = await import("@/services/mapServices");
-                        const WAREHOUSE_COORDS = { lat: 19.1305, lng: 72.9135 };
+                        const WAREHOUSE_COORDS = { lat: 19.1306, lng: 72.9155 }; // Hostel 5, IIT Bombay
                         const distRes = await getRoadDistance(WAREHOUSE_COORDS, {
                             lat: result.lat,
                             lng: result.lng

@@ -809,7 +809,11 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
+      const actualDistance = selectedHub?.distance_km ?? 0;
+      const isDelayed = actualDistance > 6;
+      const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
+      const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
+      const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
 
       // Parse pre-scheduled return slot if provided
       let returnPickupDate: string | null = null;
@@ -975,7 +979,16 @@ export default function CheckoutPage() {
               {deliveryAddress ? (
                 <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
                   <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                  
                   <div className="mt-3 flex items-center gap-2 relative z-10">
+                    {/* Delayed Delivery Badge */}
+                    {actualDistance !== null && actualDistance > 6 && !distanceLoading && !isResolvingAddress && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                        <Clock className="w-3 h-3" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Delayed Delivery</span>
+                      </div>
+                    )}
+
                     {isResolvingAddress ? (
                       <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>

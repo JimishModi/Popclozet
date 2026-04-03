@@ -793,7 +793,19 @@ const MobileProductDetailPage: React.FC = () => {
                                 </svg>
                             </div>
                             <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider leading-tight">
-                                60-Min<br />Delivery
+                                {(() => {
+                                    try {
+                                        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                                        return loc.delivery_estimate === 'delayed' ? 'Delayed\nDelivery' : '60-Min\nDelivery';
+                                    } catch {
+                                        return '60-Min\nDelivery';
+                                    }
+                                })().split('\n').map((line, i) => (
+                                    <React.Fragment key={i}>
+                                        {line}
+                                        {i === 0 && <br />}
+                                    </React.Fragment>
+                                ))}
                             </span>
                         </div>
                         <div className="flex flex-col items-center gap-3 text-center border-x border-white/5">

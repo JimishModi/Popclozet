@@ -7,7 +7,18 @@ const QuickFilters = () => {
     const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
 
     const occasions = ["Casual", "Party", "Pop", "Street", "Vacation"];
-    const deliveryTimes = ["< 30 min", "< 60 min", "< 2 hrs"];
+    const deliveryTimes = [
+        "< 30 min",
+        (() => {
+            try {
+                const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '< 60 min';
+            } catch {
+                return '< 60 min';
+            }
+        })(),
+        "< 2 hrs"
+    ];
     const priceRanges = ["Under ₹500", "₹500-₹1000", "Above ₹1000"];
     const colors = [
         { name: "Red", hex: "#EF4444" },

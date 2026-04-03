@@ -43,7 +43,14 @@ const FEATURES = [
     id: "rent-asap",
     title: "Rent It ASAP",
     body:
-      "Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.",
+      (() => {
+        try {
+          const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+          return loc.delivery_estimate === 'delayed' ? "Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear with our delayed delivery service." : "Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.";
+        } catch {
+          return "Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.";
+        }
+      })(),
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path d="M12 8v5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

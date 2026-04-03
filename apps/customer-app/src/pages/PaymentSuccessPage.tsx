@@ -163,7 +163,16 @@ export default function PaymentSuccessPage() {
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="text-zinc-500 font-bold">Estimated Arrival</span>
-                                    <span className="text-white font-black uppercase">45-60 MINS</span>
+                                    <span className="text-white font-black uppercase">
+                                        {(() => {
+                                            try {
+                                                const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                                                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '45-60 MINS';
+                                            } catch {
+                                                return '45-60 MINS';
+                                            }
+                                        })()}
+                                    </span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="text-zinc-500 font-bold">Items Rented</span>
