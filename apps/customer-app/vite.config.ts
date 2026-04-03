@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => {
       host: "localhost",
       port: 5500,
       proxy: {
+        "/api/otp-provider": {
+          target: "https://verify.msg91.com",
+          changeOrigin: true,
+          rewrite: (path: string) => '/otp-provider.js',
+          secure: true,
+        },
         "/api": {
           target: "http://localhost:3001",
           changeOrigin: true,

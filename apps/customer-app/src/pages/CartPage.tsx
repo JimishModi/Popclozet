@@ -25,6 +25,7 @@ import { getLocalAddresses, SavedAddress } from "@/services/addressService";
 import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
@@ -369,26 +370,33 @@ const CartPage = () => {
       return;
     }
     try {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('id, code, discount_value, discount_type, min_order_value, is_active')
-        .eq('code', couponCode.trim().toUpperCase())
-        .eq('is_active', true)
-        .maybeSingle();
+      // Validate coupon via server-side preview_order RPC (never trust client-only checks)
+      const previewItems = validCartEntries.map(([key, data]) => ({
+        product_id: key.split('_')[0],
+        plan: data.plan || '3d',
+        quantity: data.quantity || 1,
+      }));
 
-      if (error || !data) {
-        toast.error("Invalid coupon code");
+      const result = await previewOrder({
+        items: previewItems,
+        couponCode: couponCode.trim(),
+        distanceKm: 0,
+      });
+
+      if (!result.success) {
+        toast.error("Failed to validate coupon");
         return;
       }
 
-      if (data.min_order_value && subtotal < data.min_order_value) {
-        toast.error(`Minimum order value ₹${data.min_order_value} required`);
+      if (!result.coupon?.valid) {
+        toast.error(result.coupon?.message || "Invalid coupon code");
         return;
       }
 
-      const type = data.discount_type === 'percentage' ? 'percent' : 'fixed';
-      setAppliedCoupon({ id: data.code, discount: data.discount_value, type });
-      toast.success(`Coupon applied! ${type === 'percent' ? `${data.discount_value}% off` : `₹${data.discount_value} off`}`);
+      const serverDiscount = result.coupon_discount ?? 0;
+      const type = result.coupon?.discount_type === 'percentage' ? 'percent' : 'fixed';
+      setAppliedCoupon({ id: couponCode.trim().toUpperCase(), discount: serverDiscount, type });
+      toast.success(`Coupon applied! -₹${serverDiscount} off`);
     } catch {
       toast.error("Failed to validate coupon. Try again.");
     }
@@ -402,7 +410,9 @@ const CartPage = () => {
       navigate('/auth/login');
       return;
     }
-    navigate("/checkout/address");
+    navigate("/checkout/address", {
+      state: { couponCode: appliedCoupon?.id || null },
+    });
   };
 
   const renderCartItem = (key: string, data: any, bgColor: string) => {

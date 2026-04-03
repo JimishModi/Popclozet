@@ -28,7 +28,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder } from "@/services/ordersService";
+import { placeOrder, previewOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -104,6 +104,12 @@ export default function CheckoutPage() {
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
   const isOnline = useOnlineStatus();
+
+  // Coupon code passed from CartPage via location state or search params
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
+    () => location.state?.couponCode || searchParams.get("coupon") || null
+  );
+
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -572,22 +578,68 @@ export default function CheckoutPage() {
   // Removed subscription error logic
   const subscriptionError = null;
 
-  // Calculate totals
-  const subtotal = useMemo(() => {
-    if (buyoutOrderData) {
-      // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
-      return Math.round(buyoutOrderData.total_amount * 0.7);
-    }
+  // ── Server-side pricing (source of truth) ──
+  // preview_order RPC computes all prices from the DB.
+  // Client-side estimates are only used as instant fallbacks while the RPC loads.
+  const [serverPricing, setServerPricing] = useState<{
+    original_total: number; subtotal: number; discount: number;
+    coupon_discount: number; delivery_fee: number; total: number;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+
+  // Build preview items from cart (no prices — just IDs/plans/quantities)
+  const previewItems = useMemo(() => {
+    if (buyoutOrderData) return [];
+    return validCartEntries.map(([key, data]) => ({
+      product_id: key.split('_')[0],
+      plan: data.plan || '3d',
+      quantity: data.quantity || 1,
+    }));
+  }, [validCartEntries, buyoutOrderData]);
+
+  // Fetch server-side pricing whenever cart items, distance, or coupon change
+  useEffect(() => {
+    if (previewItems.length === 0 || buyoutOrderData) return;
+    let cancelled = false;
+    setPricingLoading(true);
+    previewOrder({
+      items: previewItems,
+      couponCode: appliedCouponCode,
+      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance || 0),
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setServerPricing({
+          original_total: result.original_total ?? 0,
+          subtotal: result.subtotal ?? 0,
+          discount: result.discount ?? 0,
+          coupon_discount: result.coupon_discount ?? 0,
+          delivery_fee: isNoDeliveryFlow ? 0 : (result.delivery_fee ?? 40),
+          total: isNoDeliveryFlow
+            ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
+            : (result.total ?? 0),
+        });
+      }
+    }).catch((err) => {
+      if (!cancelled) console.warn("[Checkout] preview_order failed, using client estimates:", err);
+    }).finally(() => {
+      if (!cancelled) setPricingLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [previewItems, appliedCouponCode, actualDistance, isNoDeliveryFlow, buyoutOrderData]);
+
+  // ── Display values: prefer server pricing, fall back to client estimates ──
+  const subtotal = serverPricing?.subtotal ?? (() => {
+    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const price = getPlanPrice(product, data.plan);
       return total + (price || 0) * data.quantity;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
+  })();
 
-  // Original total = sum of MRP from DB for each item
-  const originalTotal = useMemo(() => {
+  const originalTotal = serverPricing?.original_total ?? (() => {
     if (buyoutOrderData) return buyoutOrderData.total_amount;
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
@@ -595,31 +647,23 @@ export default function CheckoutPage() {
       const mrp = product?.mrp || 0;
       return total + mrp * data.quantity;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData]);
+  })();
 
-  const discount = originalTotal - subtotal;
+  const discount = serverPricing?.discount ?? (originalTotal - subtotal);
+  const couponDiscount = serverPricing?.coupon_discount ?? 0;
 
-  // Compute delivery fee from the LIVE distance check, not stale profile data.
-  // If the distance API hasn't responded yet, fall back to profile value.
-  const deliveryFeeBase = useMemo(() => {
+  const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
     if (actualDistance !== null && actualDistance > 0) {
-      // Import inline to avoid circular deps — same formula as deliveryService
-      const fee = actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
-      return fee;
+      return actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
     }
     return profile?.delivery_fee ?? 40;
-  }, [actualDistance, profile?.delivery_fee]);
-
-  // FIX 5: Single source of truth for distance surcharge — removed as per request
+  })();
   const distanceSurcharge = 0;
 
-  // Subscription free delivery commented out — always charge delivery fee
-  const deliveryFee = isNoDeliveryFlow
-    ? 0  // No delivery needed — user already has the item
-    : deliveryFeeBase;
+  const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
-  const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
-  const total = subtotal + deliveryFee + insuranceFee;
+  const insuranceFee = 0;
+  const total = serverPricing?.total ?? (subtotal - couponDiscount + deliveryFee + insuranceFee);
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -802,14 +846,15 @@ export default function CheckoutPage() {
       }
 
       // ATOMIC order placement — order + items in a single DB transaction.
-      // Server fetches prices from DB, computes total, prevents duplicates.
+      // Server fetches prices from DB, computes delivery fee & coupon discount.
+      // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
       const orderResult = await placeOrder({
         idempotencyKey: idempotencyKeyRef.current,
         addressId: addressId,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         paymentMethod: paymentMethod,
-        deliveryFee: deliveryFee,
+        couponCode: appliedCouponCode || null,
         routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
         deliveryEta: deliveryEtaStr,
         returnPickupDate: returnPickupDate,
@@ -1096,6 +1141,12 @@ export default function CheckoutPage() {
               <span>Discount</span>
               <span>-₹ {discount}</span>
             </div>
+            {couponDiscount > 0 && (
+              <div className="flex justify-between text-lg text-green-500" style={dmSans}>
+                <span>Coupon ({appliedCouponCode})</span>
+                <span>-₹ {couponDiscount}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
               <div className="flex flex-col">
                 <span>{selectedOrderType === 'home_try_on' ? 'Home try-on delivery' : 'Delivery fee'}</span>

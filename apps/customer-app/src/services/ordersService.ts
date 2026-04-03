@@ -136,7 +136,7 @@ export interface PlaceOrderParams {
   startDate: string;         // ISO string
   endDate: string;           // ISO string
   paymentMethod: string;     // 'cod' | 'upi' | 'razorpay'
-  deliveryFee: number;
+  couponCode?: string | null;
   routeDistanceKm: number;
   deliveryEta: string | null;
   returnPickupDate: string | null;
@@ -149,12 +149,52 @@ export interface PlaceOrderResult {
   order_id?: string;
   status?: string;
   subtotal?: number;
+  coupon_discount?: number;
   delivery_fee?: number;
   total?: number;
   item_count?: number;
   idempotent?: boolean;
   code?: string;
   message?: string;
+}
+
+export interface PreviewOrderParams {
+  items: { product_id: string; plan: string; quantity: number }[];
+  couponCode?: string | null;
+  distanceKm?: number;
+}
+
+export interface PreviewOrderResult {
+  success: boolean;
+  original_total?: number;
+  subtotal?: number;
+  discount?: number;
+  coupon?: { valid: boolean; reason?: string; message?: string; discount?: number; discount_type?: string; discount_value?: number };
+  coupon_discount?: number;
+  delivery_fee?: number;
+  total?: number;
+  items?: { product_id: string; unit_price: number; quantity: number; line_total: number; mrp: number }[];
+  code?: string;
+  message?: string;
+}
+
+/**
+ * Preview order pricing — read-only, no side effects.
+ * All prices computed server-side. Use this to display totals before placing.
+ */
+export async function previewOrder(params: PreviewOrderParams): Promise<PreviewOrderResult> {
+  const { data, error } = await supabase.rpc("preview_order", {
+    p_items: params.items,
+    p_coupon_code: params.couponCode || null,
+    p_distance_km: params.distanceKm ?? 0,
+  });
+
+  if (error) {
+    console.error("previewOrder RPC error:", error);
+    throw new Error(error.message || "Failed to preview order");
+  }
+
+  return data as PreviewOrderResult;
 }
 
 /**
@@ -178,7 +218,7 @@ export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderRe
         p_start_date: params.startDate,
         p_end_date: params.endDate,
         p_payment_method: params.paymentMethod,
-        p_delivery_fee: params.deliveryFee,
+        p_coupon_code: params.couponCode || null,
         p_route_distance_km: params.routeDistanceKm,
         p_delivery_eta: params.deliveryEta,
         p_return_pickup_date: params.returnPickupDate,

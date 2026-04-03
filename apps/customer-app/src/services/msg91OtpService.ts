@@ -4,8 +4,9 @@
  * Script: https://verify.msg91.com/otp-provider.js
  */
 
-const MSG91_SCRIPT_PROXY_URL = '/otp-provider.js';
-const MSG91_SCRIPT_DIRECT_URL = 'https://verify.msg91.com/otp-provider.js';
+const MSG91_SCRIPT_API_PROXY = '/api/otp-provider';   // Vercel serverless function (most reliable)
+const MSG91_SCRIPT_REWRITE_URL = '/otp-provider.js';   // Vercel rewrite (fallback #1)
+const MSG91_SCRIPT_DIRECT_URL = 'https://verify.msg91.com/otp-provider.js'; // Direct CDN (fallback #2)
 
 // Environment variables with hardcoded fallbacks for the current environment
 // Environment variables - must be set in .env file
@@ -44,8 +45,9 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
 
         const removeExistingScript = () => {
             const selectors = [
-                `script[src="${MSG91_SCRIPT_PROXY_URL}"]`,
-                `script[src^="${MSG91_SCRIPT_PROXY_URL}?"]`,
+                `script[src^="${MSG91_SCRIPT_API_PROXY}"]`,
+                `script[src="${MSG91_SCRIPT_REWRITE_URL}"]`,
+                `script[src^="${MSG91_SCRIPT_REWRITE_URL}?"]`,
                 `script[src="${MSG91_SCRIPT_DIRECT_URL}"]`,
                 `script[src^="${MSG91_SCRIPT_DIRECT_URL}?"]`,
             ];
@@ -63,24 +65,27 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             }
         };
 
-        const tryLoadScript = (attempt: 1 | 2) => {
+        const tryLoadScript = (attempt: 1 | 2 | 3) => {
             const script = document.createElement('script');
             script.type = 'text/javascript';
             script.async = true;
 
             if (attempt === 1) {
-                // Attempt 1: same-origin Vercel rewrite to avoid CORS issues.
-                script.src = `${MSG91_SCRIPT_PROXY_URL}?cb=${Date.now()}`;
+                // Attempt 1: Vercel serverless API proxy (most reliable — no CORS)
+                script.src = `${MSG91_SCRIPT_API_PROXY}?cb=${Date.now()}`;
+            } else if (attempt === 2) {
+                // Attempt 2: Vercel rewrite proxy
+                script.src = `${MSG91_SCRIPT_REWRITE_URL}?cb=${Date.now()}`;
             } else {
-                // Attempt 2: direct provider URL fallback with cache-buster.
+                // Attempt 3: direct MSG91 CDN (may hit CORS on some deployments)
                 script.src = `${MSG91_SCRIPT_DIRECT_URL}?cb=${Date.now()}`;
             }
 
             const loadTimeout = setTimeout(() => {
                 script.remove();
-                if (attempt === 1) {
+                if (attempt < 3) {
                     removeExistingScript();
-                    tryLoadScript(2);
+                    tryLoadScript((attempt + 1) as 1 | 2 | 3);
                     return;
                 }
                 sdkInitPromise = null;
@@ -91,10 +96,10 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
                 clearTimeout(loadTimeout);
                 try {
                     if (typeof (window as any).initSendOTP !== 'function') {
-                        if (attempt === 1) {
+                        if (attempt < 3) {
                             script.remove();
                             removeExistingScript();
-                            tryLoadScript(2);
+                            tryLoadScript((attempt + 1) as 1 | 2 | 3);
                             return;
                         }
                         sdkInitPromise = null;
@@ -131,9 +136,9 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             script.onerror = () => {
                 clearTimeout(loadTimeout);
                 script.remove();
-                if (attempt === 1) {
+                if (attempt < 3) {
                     removeExistingScript();
-                    tryLoadScript(2);
+                    tryLoadScript((attempt + 1) as 1 | 2 | 3);
                     return;
                 }
                 sdkInitPromise = null;
