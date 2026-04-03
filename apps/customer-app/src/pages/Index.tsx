@@ -53,6 +53,7 @@ const Index = () => {
   const [heroEmail, setHeroEmail] = useState("");
   const [heroSubmitting, setHeroSubmitting] = useState(false);
   const [heroSuccess, setHeroSuccess] = useState(false);
+  const [heroError, setHeroError] = useState<string | null>(null);
   const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed' | null>(null);
 
   useEffect(() => {
