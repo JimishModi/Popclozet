@@ -34,8 +34,34 @@ export function GlobalOrderListener() {
     useEffect(() => {
         if (!supabase) return;
 
+        // Helper: fetch full order details and show notification overlay
+        const showOrderNotification = async (orderId: string) => {
+            try {
+                const { data, error } = await supabase
+                    .from('orders')
+                    .select(`
+                        *,
+                        order_items (
+                            id, product_id, size, rental_price, individual_id,
+                            products (id, name, images)
+                        ),
+                        addresses:delivery_address_id (full_address, latitude, longitude)
+                    `)
+                    .eq('id', orderId)
+                    .single();
+
+                if (!error && data) {
+                    setActiveNotification(data as OrderWithItems);
+                }
+            } catch {
+                // Silently fail — warehouse can refresh manually
+            }
+            playNotificationSound();
+        };
+
         const channel = supabase
             .channel(channelNameRef.current)
+            // COD orders: arrive as INSERT with status='confirmed'
             .on(
                 'postgres_changes',
                 {
@@ -44,36 +70,37 @@ export function GlobalOrderListener() {
                     table: 'orders',
                 },
                 async (payload) => {
-                    console.log('[GlobalOrderListener] New order received:', payload.new);
                     const rawOrder = payload.new as OrderWithItems;
-
-                    // Fetch full order with items and address
-                    try {
-                        const { data, error } = await supabase
-                            .from('orders')
-                            .select(`
-                                *,
-                                order_items (
-                                    id, product_id, size, rental_price, individual_id,
-                                    products (id, name, images)
-                                ),
-                                addresses:delivery_address_id (full_address, latitude, longitude)
-                            `)
-                            .eq('id', rawOrder.id)
-                            .single();
-
-                        if (!error && data) {
-                            setActiveNotification(data as OrderWithItems);
-                        } else {
-                            // Fallback to raw payload if fetch fails
-                            setActiveNotification(rawOrder);
-                        }
-                    } catch {
-                        setActiveNotification(rawOrder);
+                    // Only show notification for confirmed orders (COD).
+                    // Online payment orders start as 'pending_payment' and
+                    // should NOT trigger warehouse notification until paid.
+                    if (rawOrder.status === 'confirmed') {
+                        console.log('[GlobalOrderListener] New confirmed (COD) order:', rawOrder.id);
+                        await showOrderNotification(rawOrder.id);
+                    } else {
+                        console.log(`[GlobalOrderListener] Skipping INSERT with status=${rawOrder.status}:`, rawOrder.id);
                     }
-
-                    // Play sound
-                    playNotificationSound();
+                }
+            )
+            // Online payment orders: arrive as UPDATE from pending_payment → confirmed
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                },
+                async (payload) => {
+                    const oldOrder = payload.old as Partial<OrderWithItems>;
+                    const newOrder = payload.new as OrderWithItems;
+                    // Notify warehouse when online payment is verified
+                    if (
+                        (oldOrder.status === 'pending_payment' || oldOrder.status === 'pending') &&
+                        newOrder.status === 'confirmed'
+                    ) {
+                        console.log('[GlobalOrderListener] Online payment confirmed:', newOrder.id);
+                        await showOrderNotification(newOrder.id);
+                    }
                 }
             )
             .subscribe();

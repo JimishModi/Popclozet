@@ -23,12 +23,14 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { TimeSlotPicker } from "@/components/map/TimeSlotPicker";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/SupabaseAuthContext";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } from "@/services/addressService";
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
+import { placeOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
-import { clearCartDB } from "@/lib/db";
+import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -69,6 +71,26 @@ const getSavedHub = () => {
   }
 };
 
+const getKycStorageKey = (userId: string) => `popclozet_kyc_verified:${userId}`;
+
+const readStoredKycVerified = (userId?: string | null) => {
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(getKycStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const writeStoredKycVerified = (userId?: string | null, value: boolean = true) => {
+  if (!userId) return;
+  try {
+    localStorage.setItem(getKycStorageKey(userId), value ? "true" : "false");
+  } catch {
+    // Ignore storage failures; DB persistence is still attempted below.
+  }
+};
+
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
 export default function CheckoutPage() {
@@ -81,6 +103,7 @@ export default function CheckoutPage() {
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
+  const isOnline = useOnlineStatus();
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -100,13 +123,104 @@ export default function CheckoutPage() {
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
-  // Fetch IP address for legal logging
+  // KYC States
+  const [kycVerified, setKycVerified] = useState<boolean>(false);
+  const [showKycGate, setShowKycGate] = useState<boolean>(false);
+  const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
+
+  // Fetch IP address for legal logging (with timeout — non-blocking)
   useEffect(() => {
-    fetch("https://api.ipify.org?format=json")
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    fetch("https://api.ipify.org?format=json", { signal: controller.signal })
       .then(res => res.json())
       .then(data => setUserIp(data.ip))
-      .catch(err => console.error("Failed to fetch IP:", err));
+      .catch(() => { /* IP is best-effort — falls back to 'unknown' */ })
+      .finally(() => clearTimeout(timeout));
+    return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
+
+  // Check URL params for KYC callback
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+    const callbackUserId = searchParams.get("user_id");
+    const targetUserId = user?.id || callbackUserId;
+
+    if (kycCallback === "success" && targetUserId) {
+      writeStoredKycVerified(targetUserId, true);
+      setKycVerified(true);
+      setShowKycGate(false);
+
+      if (user?.id) {
+        const fullName = profile?.full_name || user.user_metadata?.full_name || "User";
+        const phone = profile?.phone || user.phone || `pending-${user.id.slice(0, 12)}`;
+
+        supabase
+          .from("customer_profiles")
+          .upsert({
+            user_id: user.id,
+            full_name: fullName,
+            phone,
+            kyc_verified: true,
+          } as any, { onConflict: "user_id" })
+          .then(({ error }) => {
+            if (error) {
+              console.error("[KYC] Failed to persist verification:", error);
+              toast.success("Identity verified. Proceeding with stored confirmation.");
+              return;
+            }
+              toast.success("Identity verified successfully!");
+            });
+      } else {
+        supabase
+          .from("customer_profiles")
+          .update({ kyc_verified: true })
+          .eq("user_id", targetUserId)
+          .then(({ error }) => {
+            if (error) {
+              console.error("[KYC] Failed to persist verification:", error);
+              toast.error("Verification failed to save. Please try again.");
+              setKycVerified(false);
+              return;
+            }
+            toast.success("Identity verified successfully!");
+          });
+      }
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("kyc_callback");
+      newParams.delete("user_id");
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, user?.id, profile?.full_name, profile?.phone, user?.phone, user?.user_metadata]);
+
+  // Fetch initial KYC status
+  useEffect(() => {
+    if (user?.id) {
+      if (readStoredKycVerified(user.id)) {
+        setKycVerified(true);
+      }
+
+      supabase
+        .from("customer_profiles")
+        .select("kyc_verified")
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error) {
+            console.warn("[KYC] Failed to fetch persisted KYC status:", error);
+            return;
+          }
+
+          const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
+          if (isVerified) {
+            writeStoredKycVerified(user.id, true);
+            setKycVerified(true);
+          }
+        });
+    }
+  }, [user?.id]);
 
   // Save payment method preference
   useEffect(() => {
@@ -217,8 +331,16 @@ export default function CheckoutPage() {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
         console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
 
+        // Abort after 10s to prevent hanging on slow connections
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
         // FIX 3: Use env-based API_BASE_URL
-        const response = await fetch(`${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`);
+        const response = await fetch(
+          `${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
 
         if (response.ok) {
           const data = await response.json();
@@ -503,7 +625,24 @@ export default function CheckoutPage() {
   /* ---------------------------------- */
   /* Place Order (Razorpay + COD)        */
   /* ---------------------------------- */
+  // Idempotency key ref — generated once per checkout attempt to prevent duplicate orders
+  const idempotencyKeyRef = useRef<string | null>(null);
+  // Synchronous lock to prevent double-submit (React state is async and can't block rapid clicks)
+  const placingOrderLockRef = useRef(false);
+
   const handlePlaceOrder = async () => {
+    // Network check — fail fast on offline
+    if (!isOnline) {
+      toast.error("You're offline. Please check your internet connection and try again.");
+      return;
+    }
+
+    // KYC Gate
+    if (!kycVerified) {
+      setShowKycGate(true);
+      return;
+    }
+
     // Only gate on email if they actually have a real email set
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
@@ -522,6 +661,18 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Return schedule is mandatory for rental orders
+    if (hasRentals && !returnSchedule?.pickupSlotIso) {
+      toast.error("Please select a return pickup slot before placing your order.");
+      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } });
+      return;
+    }
+
+    // Prevent double-submit: synchronous ref check blocks rapid clicks immediately
+    // (React state `isPlacingOrder` is async and can't prevent two near-simultaneous calls)
+    if (placingOrderLockRef.current || isPlacingOrder) return;
+    placingOrderLockRef.current = true;
+
     console.log('[Checkout] Starting order placement...', { paymentMethod });
     setError(null);
     setIsPlacingOrder(true);
@@ -533,14 +684,20 @@ export default function CheckoutPage() {
       if (!userId) throw new Error("Please sign in to place an order");
 
       // --- Buyout Flow (keep-it) ---
+      // Uses state machine RPC instead of direct status updates
       if (buyoutOrderId) {
         const targetId = buyoutOrderId;
-        await supabase.from('orders').update({ status: 'pending_payment' }).eq('id', buyoutOrderId);
 
         if (paymentMethod === 'cod') {
-          await supabase.from('orders').update({ status: 'confirmed' }).eq('id', buyoutOrderId);
-          // FIX 6: Clear cart on buyout COD path too
-          await clearCartDB().catch(() => { });
+          // Use confirm_order_payment RPC for safe state transition
+          const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_order_payment", {
+            p_order_id: buyoutOrderId,
+          });
+          if (confirmErr) throw new Error(confirmErr.message);
+          if (confirmResult && !confirmResult.success) throw new Error(confirmResult.message || "Could not confirm buyout order");
+
+          // Clear only this user's cart (not all users on shared device)
+          await (userId ? clearUserCartDB(userId) : clearCartDB()).catch(() => { });
           for (const [key, data] of validCartEntries) {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
@@ -548,6 +705,7 @@ export default function CheckoutPage() {
           navigate(`/order-confirmed/${targetId}`);
         } else {
           setIsPlacingOrder(false);
+          placingOrderLockRef.current = false;
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
@@ -595,14 +753,11 @@ export default function CheckoutPage() {
         addressId = newAddr.id;
       }
 
-
-      const orderStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
-
-      // Ensure start and end dates make sense
-      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2 
-                        : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0 
-                        : 3;
+      // Compute rental dates
+      const rentalDays = validCartEntries.length > 0 && validCartEntries[0][1].plan === '1d' ? 1
+        : validCartEntries.length > 0 && validCartEntries[0][1].plan === '2d' ? 2
+          : validCartEntries.length > 0 && validCartEntries[0][1].plan === 'buy' ? 0
+            : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
@@ -612,106 +767,79 @@ export default function CheckoutPage() {
       let returnTimeSlot: string | null = null;
       if (returnSchedule?.pickupSlotIso) {
         const slotDate = new Date(returnSchedule.pickupSlotIso);
-        // Convert to IST date string (YYYY-MM-DD)
         returnPickupDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' })
-          .format(slotDate); // yields "YYYY-MM-DD"
-        // Format as "HH:MM AM/PM"
+          .format(slotDate);
         returnTimeSlot = new Intl.DateTimeFormat('en-US', {
           timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
         }).format(slotDate);
       }
 
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          delivery_address_id: addressId,
-          rental_start_date: startDate.toISOString(),
-          rental_end_date: endDate.toISOString(),
-          total_amount: total,
-          delivery_eta: deliveryEtaStr,
-          status: orderStatus,
-          payment_method: paymentMethod,
-          delivery_fee: deliveryFee,
-          route_distance_km: actualDistance || profile?.delivery_distance_km || 0,
-          ...(returnPickupDate ? { return_pickup_date: returnPickupDate } : {}),
-          ...(returnTimeSlot ? { return_time_slot: returnTimeSlot } : {}),
-        })
-        .select("id")
-        .single();
-
-      if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order record");
-
-      // NEW: Link pre-scheduled return to return_requests table for warehouse visibility
-      if (returnSchedule?.pickupSlotIso) {
-        const { error: rrErr } = await supabase
-          .from('return_requests')
-          .insert({
-            order_id: order.id,
-            status: 'approved',
-            reason: 'pre_scheduled',
-            pickup_slot: returnSchedule.pickupSlotIso,
-            pickup_address_id: addressId
-          });
-        
-        if (rrErr) {
-          console.warn('[Checkout] Failed to create return request record:', rrErr.message);
-          // Non-blocking for the main order flow, but logged for debugging
-        }
-      }
-
-      const { data: realProducts } = await supabase.from('products').select('id').limit(1);
-      const fallbackUuid = realProducts?.[0]?.id;
-
-      const orderItemsToInsert = validCartEntries.map(([key, data]) => {
-        const parts = key.split('_');
-        const rawBaseId = parts[0];
-        const { quantity, size, plan } = data;
-        const product = cartProducts[rawBaseId] || cartProducts[key];
-
+      // Build order items — only IDs, sizes, plans, quantities. NO prices.
+      // Prices are resolved server-side from the products table.
+      const orderItems = validCartEntries.map(([key, data]) => {
+        const rawBaseId = key.split('_')[0];
         const likelyRealUuid = rawBaseId.includes('-');
-        const baseId = likelyRealUuid ? rawBaseId : fallbackUuid;
 
-        if (!baseId) {
-          console.error("[Checkout] Invalid cart item ID:", key);
-          throw new Error("Invalid product ID in cart");
+        if (!likelyRealUuid) {
+          throw new Error("Cannot order non-catalog items");
         }
-
-        const planDays = plan === '1d' ? 1 : plan === '2d' ? 2 : plan === '3d' ? 3 : 0;
-        const itemPrice = getPlanPrice(product, plan);
 
         return {
-          order_id: order.id,
-          product_id: baseId,
-          size: size,
-          rental_price: itemPrice * quantity,
-          rental_duration_days: planDays || rentalDays,
-          pricing_plan: plan,
+          product_id: rawBaseId,
+          size: data.size || 'One Size',
+          plan: data.plan || '3d',
+          quantity: data.quantity || 1,
         };
       });
 
-      const { error: insertItemsErr } = await supabase.from("order_items").insert(orderItemsToInsert);
-      if (insertItemsErr) throw new Error(insertItemsErr.message);
+      // Generate idempotency key (once per click — survives retries within the same attempt)
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
+      }
 
-      const createdOrderId = order.id;
-      const createdOrderTotal = total;
+      // ATOMIC order placement — order + items in a single DB transaction.
+      // Server fetches prices from DB, computes total, prevents duplicates.
+      const orderResult = await placeOrder({
+        idempotencyKey: idempotencyKeyRef.current,
+        addressId: addressId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        paymentMethod: paymentMethod,
+        deliveryFee: deliveryFee,
+        routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
+        deliveryEta: deliveryEtaStr,
+        returnPickupDate: returnPickupDate,
+        returnTimeSlot: returnTimeSlot,
+        items: orderItems,
+      });
 
-      // 2b) Create pre-scheduled return request if return slot was selected at checkout
+      const createdOrderId = orderResult.order_id;
+
+      // Reset idempotency key after successful creation
+      idempotencyKeyRef.current = null;
+
+      if (orderResult.idempotent) {
+        console.warn("[Checkout] Duplicate order prevented — returning existing order:", createdOrderId);
+      }
+
+      // Create pre-scheduled return request (single insert — was duplicated before)
       if (returnSchedule?.pickupSlotIso && createdOrderId) {
-        const { error: returnReqErr } = await supabase.from("return_requests").insert({
-          order_id: createdOrderId,
-          reason: 'pre_scheduled',
-          pickup_address_id: addressId,
-          pickup_slot: returnSchedule.pickupSlotIso,
-          status: 'approved',
-          approved_at: new Date().toISOString(),
-        });
-        if (returnReqErr) {
-          console.warn("[Checkout] Pre-scheduled return request failed:", returnReqErr);
+        const { error: rrErr } = await supabase
+          .from('return_requests')
+          .insert({
+            order_id: createdOrderId,
+            status: 'approved',
+            reason: 'pre_scheduled',
+            pickup_slot: returnSchedule.pickupSlotIso,
+            pickup_address_id: addressId,
+            approved_at: new Date().toISOString(),
+          });
+        if (rrErr) {
+          console.warn('[Checkout] Return request insert failed (non-blocking):', rrErr.message);
         }
       }
 
-      // 3) Insert Legal Acceptance Log
+      // Insert Legal Acceptance Log
       const { error: legalErr } = await supabase.from("legal_acceptances").insert({
         user_id: user?.id,
         order_id: createdOrderId,
@@ -722,30 +850,32 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Legal acceptance logging failed, but order placed. Details:", legalErr);
       }
 
-      // 4) Clear cart (if not buyout and if COD)
-      // For UPI, the cart is cleared on the PaymentProcessingPage or OrderConfirmedPage fallback
-      if (!buyoutOrderId && paymentMethod === 'cod') {
-        await clearCartDB().catch(() => { });
+      // Clear cart for COD orders — scope to this user only
+      if (paymentMethod === 'cod') {
+        await (userId ? clearUserCartDB(userId) : clearCartDB()).catch(() => { });
         for (const [key, data] of validCartEntries) {
           const parts = key.split('_');
           removeFromCart(parts[0], data.size, data.plan);
         }
       }
 
-      // 5) Navigate based on payment method
-      const targetId = createdOrderId;
-      const finalAmount = createdOrderTotal;
+      // Navigate based on payment method
+      // Use server-computed total for payment amount (not client-side total)
+      const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate(`/order-confirmed/${targetId}`);
+        navigate(`/order-confirmed/${createdOrderId}`);
       } else {
-        navigate(`/payment-processing?type=order&orderId=${targetId}&amount=${finalAmount}&method=upi`);
+        navigate(`/payment-processing?type=order&orderId=${createdOrderId}&amount=${serverTotal}&method=upi`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
       toast.error(err.message || "Failed to place order. Please try again.");
       setError(err.message || "Failed to place order. Please try again.");
+      // Reset idempotency key on error so user can retry
+      idempotencyKeyRef.current = null;
     } finally {
       setIsPlacingOrder(false);
+      placingOrderLockRef.current = false;
     }
   };
 
@@ -879,8 +1009,8 @@ export default function CheckoutPage() {
                       <Clock className="w-6 h-6 text-white" />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Choose a slot for post-rental pickup</p>
+                      <p className="text-sm font-bold text-white" style={dmSans}>Schedule Return Pickup <span className="text-[#f2546d]">*</span></p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Required — choose a return slot to continue</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-[#f2546d] transition-colors" />
@@ -976,7 +1106,7 @@ export default function CheckoutPage() {
                 {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
               </div>
             </div>
-              {/* Removed Pop Insurance Row */}
+            {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
               <span>₹ {total}</span>
@@ -1016,11 +1146,11 @@ export default function CheckoutPage() {
                   ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
                   : selectedOrderType === 'home_try_on'
                     ? "BOOK TRY-ON"
-                  : paymentMethod === 'upi'
-                    ? "PAY VIA UPI"
-                    : paymentMethod === 'cod'
-                      ? "PLACE ORDER"
-                      : "PAY"
+                    : paymentMethod === 'upi'
+                      ? "PAY VIA UPI"
+                      : paymentMethod === 'cod'
+                        ? "PLACE ORDER"
+                        : "PAY"
               }
             </button>
           </div>
@@ -1132,6 +1262,66 @@ export default function CheckoutPage() {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+
+      {/* KYC Verification Gate */}
+      <AnimatePresence>
+        {showKycGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowKycGate(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1a1a] border border-white/10 rounded-[32px] p-8 text-center"
+            >
+              <div className="w-20 h-20 rounded-full bg-[#f2546d]/10 flex items-center justify-center mx-auto mb-6">
+                <Check className="w-10 h-10 text-[#f2546d]" />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-3" style={dmSans}>Identity Verification</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8" style={dmSans}>
+                Before placing an order, we need to quickly verify your identity. This is a one-time process.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsKycLoading(true);
+                      const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                        body: { callbackParams: { user_id: user?.id } }
+                      });
+                      if (error) throw error;
+                      if (data?.url) {
+                        window.location.href = data.url;
+                      } else {
+                        window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      }
+                    } catch (err: any) {
+                      console.error('KYC Error:', err);
+                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    } finally {
+                      setIsKycLoading(false);
+                    }
+                  }}
+                  disabled={isKycLoading}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-lg shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                  style={dmSans}
+                >
+                  {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+                </button>
+                <button onClick={() => setShowKycGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
+                  NOT NOW
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Email Verification Gate */}
       <AnimatePresence>

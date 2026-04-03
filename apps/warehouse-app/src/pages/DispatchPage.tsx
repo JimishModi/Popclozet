@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, User, MapPin, RefreshCw, CheckCircle, Navigation, Radio, Package, Clock } from 'lucide-react';
+import { Truck, User, MapPin, RefreshCw, CheckCircle, Navigation, Radio, Package, Clock, Phone } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
@@ -228,11 +228,21 @@ export function DispatchPage() {
                                         </span>
                                     </div>
 
-                                    {/* Rider name */}
+                                    {/* Rider Information */}
                                     {order.rider_id && (
-                                        <div className="flex items-center gap-1.5">
-                                            <User size={12} className="text-zinc-500 shrink-0" />
-                                            <p className="text-[10px] text-zinc-400">{riderName(order.rider_id)}</p>
+                                        <div className="pt-2 border-t border-surface-border space-y-2 mb-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <User size={12} className="text-purple-400" />
+                                                    <span className="text-[11px] font-medium text-zinc-300">{riderName(order.rider_id)}</span>
+                                                </div>
+                                                {order.riders?.phone && (
+                                                    <div className="flex items-center gap-1.5 text-zinc-400 text-[10px]">
+                                                        <Phone size={10} />
+                                                        <a href={`tel:${order.riders.phone}`} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 

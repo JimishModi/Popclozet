@@ -245,13 +245,12 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
 
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
-            customerName: order.customer_profiles?.full_name || order.profiles?.full_name,
-            orderType: isReturn ? 'return' as const : 'delivery' as const,
+            customerName: order.customer_profiles?.full_name, orderType: isReturn ? 'return' as const : 'delivery' as const,
             status: order.status,
             pickupAddress,
             deliveryAddress,
             items: (order.order_items ?? []).map((i: any) => ({
-                name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+                name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`,
                 qty: 1,
                 imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
             })),
@@ -299,8 +298,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
     const isReturn = isReturnFlowOrder(data);
     return {
         id: data.id, orderId: data.id, customerId: data.user_id,
-        customerName: (data as any).customer_profiles?.full_name || (data as any).profiles?.full_name,
-        orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
+        customerName: (data as any).customer_profiles?.full_name, orderType: isReturn ? 'return' : (data.order_type ?? 'delivery'),
         status: data.status,
         pickupAddress: isReturn
             ? {
@@ -321,7 +319,7 @@ export async function getRiderOrderById(orderId: string): Promise<RiderOrder | n
                 lng: addr?.longitude ?? 0,
             },
         items: (data.order_items ?? []).map((i: any) => ({
-            name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`, 
+            name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`,
             qty: 1,
             imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
         })),

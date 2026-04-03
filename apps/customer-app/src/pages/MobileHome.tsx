@@ -14,7 +14,7 @@ import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
-import popclozetLogo from "@/logo/logo.png";
+import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
 
 const FEATURED_SLIDES = [
@@ -51,7 +51,7 @@ const MobileHome: React.FC = () => {
     const [activeGender, setActiveGender] = usePersistentGender("womens");
     const [activeAboutSlide, setActiveAboutSlide] = useState(0);
     const [userLocation, setUserLocation] = useState("Detecting...");
-    const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
+    const [userCoords, setUserCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
     const [brands, setBrands] = useState<string[]>([]);
     const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
@@ -180,7 +180,7 @@ const MobileHome: React.FC = () => {
                             lat: result.lat,
                             lng: result.lng
                         });
-                        
+
                         let estimate: '15min' | 'delayed' = '15min';
                         if (distRes.status === 'success') {
                             estimate = distRes.distanceKm > 6 ? 'delayed' : '15min';
@@ -280,10 +280,9 @@ const MobileHome: React.FC = () => {
 
     return (
         <div className="bg-black text-white min-h-screen">
-            <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 pb-2 md:py-3 md:pb-8 flex items-center justify-between">
-                {/* ─── LOGO ─── */}
-                <div className="px-3 pt-2 pb-0.5 md:px-5 md:pt-5 md:pb-1 flex items-center">
-                    <img src={popclozetLogo} alt="Popclozet" className="h-5 md:h-7 object-contain" />
+            <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 md:py-3 flex items-center justify-between">
+                <div className="flex items-center">
+                    <img src={popclozetLogo} alt="Popclozet" className="h-10 w-auto object-contain" />
                 </div>
             </header>
 
@@ -295,7 +294,7 @@ const MobileHome: React.FC = () => {
 
                     <div className="relative flex items-end justify-between">
                         {/* Left: Delivery badge + location */}
-                        <div 
+                        <div
                             className={cn(
                                 "flex flex-col gap-0.5 cursor-pointer transition-all duration-500",
                                 isDelayed && "drop-shadow-[0_0_8px_rgba(245,158,11,0.2)]"
@@ -310,7 +309,7 @@ const MobileHome: React.FC = () => {
                             </span>
                             <div className="flex items-center gap-2">
                                 <h1 className={cn(
-                                    "font-bold leading-none tracking-tight transition-all duration-500 flex items-center gap-1.5 md:gap-2", 
+                                    "font-bold leading-none tracking-tight transition-all duration-500 flex items-center gap-1.5 md:gap-2",
                                     isDelayed ? "text-amber-500 text-lg md:text-2xl" : "text-white text-2xl md:text-3xl"
                                 )}>
                                     {isDelayed ? (
@@ -341,7 +340,7 @@ const MobileHome: React.FC = () => {
                         <div className="flex items-center gap-2 mb-1">
                             <button
                                 onClick={() => navigate('/notifications')}
-                                className="hidden"
+                                className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
                                 <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-white/80" />
                                 {unreadCount > 0 && (
@@ -349,8 +348,7 @@ const MobileHome: React.FC = () => {
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </span>
                                 )}
-                            </button>
-                            <button
+                            </button>                            <button
                                 onClick={() => navigate('/closet?tab=wishlist')}
                                 className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
@@ -383,9 +381,9 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── GENDER SELECTOR ─── */}
                 <section className="px-4 mt-5 md:px-5 md:mt-6">
-                    <GenderSelector 
-                        value={activeGender as GenderType} 
-                        onChange={(g) => setActiveGender(g)} 
+                    <GenderSelector
+                        value={activeGender as GenderType}
+                        onChange={(g) => setActiveGender(g)}
                     />
                 </section>
 
@@ -441,7 +439,7 @@ const MobileHome: React.FC = () => {
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                 />
                             </motion.div>
-    
+
                             {/* Center card (active) */}
                             <AnimatePresence mode="wait">
                                 <motion.div
@@ -470,7 +468,7 @@ const MobileHome: React.FC = () => {
                                         className="w-full h-full object-cover"
                                     />
                                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                                    
+
                                     <div className="absolute bottom-3 left-3 right-3 md:bottom-6 md:left-6 md:right-6 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-center">
                                         <span className="inline-block px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[8px] md:text-[10px] font-bold uppercase tracking-wider mb-1 md:mb-2">
                                             Trending
@@ -481,7 +479,7 @@ const MobileHome: React.FC = () => {
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
-    
+
                             {/* Right peek card */}
                             <motion.div
                                 className="w-[30px] h-[160px] md:w-[40px] md:h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
@@ -757,100 +755,101 @@ const MobileHome: React.FC = () => {
                             const isFake = (item as any)._isFake === true;
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
-                            <motion.div
-                                key={item.id}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, margin: "-50px" }}
-                                transition={{ delay: index * 0.05 }}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => isFake
-                                    ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: true } })
-                                    : navigate(`/product/${item.id}`)
-                                }
-                                className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
-                            >
-                                {/* Wishlist — hidden for fake items */}
-                                {!isFake && (
-                                    <button
-                                        className="absolute top-4 right-4 z-10"
-                                        onClick={(e) => toggleWishlist(item.id, e)}
-                                    >
-                                        <Heart
-                                            className={cn(
-                                                "w-4 h-4 transition-colors",
-                                                isWishlisted(item.id) ? "text-[#f2546d] fill-[#f2546d]" : "text-white/60"
-                                            )}
-                                        />
-                                    </button>
-                                )}
-
-                                {/* Product Image */}
-                                <div className="aspect-square md:aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
-                                    {imgSrc ? (
-                                        <img
-                                            src={imgSrc}
-                                            alt={item.name}
-                                            className={cn(
-                                                "w-full h-full object-cover transition-transform duration-500",
-                                                isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
-                                            )}
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
-                                            No Image
-                                        </div>
-                                    )}
-
-                                    {/* Currently Rented badge */}
-                                    {isFake && (
-                                        <div className="absolute top-2 left-2 z-10">
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                                                Currently Rented
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Separator line */}
-                                <div className="w-full h-px bg-[#484848]/50" />
-
-                                {/* Product Details */}
-                                <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                    <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
-                                        {item.name}
-                                    </h3>
-
-                                    <div className="mt-auto">
-                                        {isFake ? (
-                                            <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
-                                        ) : (
-                                            <>
-                                                {item.price > (item.rentalPrice || item.price) && (
-                                                    <div className="relative inline-block mb-1">
-                                                        <span className="text-[11px] text-[#5f606a] font-semibold">
-                                                            ₹{item.price}
-                                                        </span>
-                                                        <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                                                    </div>
+                                <motion.div
+                                    key={item.id}
+                                    initial={{ opacity: 0, y: 30 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true, margin: "-50px" }}
+                                    transition={{ delay: index * 0.05 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => isFake
+                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: true } })
+                                        : navigate(`/product/${item.id}`)
+                                    }
+                                    className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
+                                >
+                                    {/* Wishlist — hidden for fake items */}
+                                    {!isFake && (
+                                        <button
+                                            className="absolute top-4 right-4 z-10"
+                                            onClick={(e) => toggleWishlist(item.id, e)}
+                                        >
+                                            <Heart
+                                                className={cn(
+                                                    "w-4 h-4 transition-colors",
+                                                    isWishlisted(item.id) ? "text-[#f2546d] fill-[#f2546d]" : "text-white/60"
                                                 )}
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-white">
-                                                        ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
-                                                    </span>
-                                                    {item.price > (item.rentalPrice || item.price) && (
-                                                        <span className="text-[10px] font-bold text-[#f2546d]">
-                                                            Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </>
+                                            />
+                                        </button>
+                                    )}
+
+                                    {/* Product Image */}
+                                    <div className="aspect-square md:aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
+                                        {imgSrc ? (
+                                            <img
+                                                src={imgSrc}
+                                                alt={item.name}
+                                                className={cn(
+                                                    "w-full h-full object-cover transition-transform duration-500",
+                                                    isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                                )}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
+                                                No Image
+                                            </div>
+                                        )}
+
+                                        {/* Currently Rented badge */}
+                                        {isFake && (
+                                            <div className="absolute top-2 left-2 z-10">
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                                    Currently Rented
+                                                </span>
+                                            </div>
                                         )}
                                     </div>
-                                </div>
-                            </motion.div>
-                        ); })}
+
+                                    {/* Separator line */}
+                                    <div className="w-full h-px bg-[#484848]/50" />
+
+                                    {/* Product Details */}
+                                    <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
+                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
+                                            {item.name}
+                                        </h3>
+
+                                        <div className="mt-auto">
+                                            {isFake ? (
+                                                <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
+                                            ) : (
+                                                <>
+                                                    {item.price > (item.rentalPrice || item.price) && (
+                                                        <div className="relative inline-block mb-1">
+                                                            <span className="text-[11px] text-[#5f606a] font-semibold">
+                                                                ₹{item.price}
+                                                            </span>
+                                                            <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-bold text-white">
+                                                            ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
+                                                        </span>
+                                                        {item.price > (item.rentalPrice || item.price) && (
+                                                            <span className="text-[10px] font-bold text-[#f2546d]">
+                                                                Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 </section>
 

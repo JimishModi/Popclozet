@@ -1,0 +1,65 @@
+commit 3a14ba1d679fc3eae048f19fafe9f88599f40797
+Merge: eb98f252b 38cc969a7
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Fri Apr 3 00:18:49 2026 +0530
+
+    prod bugs
+
+commit eb98f252b631d40086e7e14f479879e9039c2e21
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Thu Apr 2 23:27:38 2026 +0530
+
+    bugs fixed
+
+ apps/customer-app/src/hooks/useRazorpayCheckout.ts |   3 +-
+ apps/customer-app/src/services/razorpayService.ts  |   3 +-
+ .../src/components/OrderTimelineOverlay.tsx        | 172 +++++++++++++++++++++
+ apps/warehouse-app/src/hooks/useRealtimeOrders.ts  |  16 +-
+ .../src/pages/OrderFulfillmentPage.tsx             |  28 +++-
+ supabase/functions/create-razorpay-order/index.ts  |  17 +-
+ .../20260402_payment_security_hardening.sql        | 148 ++++++++++++++++++
+ test.sql                                           | Bin 0 -> 22 bytes
+ 8 files changed, 356 insertions(+), 31 deletions(-)
+
+commit bf29b65d7165ef1f73fa687fc307dca41bca264c
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Thu Apr 2 20:31:01 2026 +0530
+
+    bugs
+
+ apps/warehouse-app/src/pages/ReturnsPage.tsx       |  80 -------
+ .../20260316_inventory_rental_updates_V2.sql       |   2 +-
+ .../20260318020000_schedule_return_workflow.sql    |   2 +-
+ .../20260402144357_fix_return_pickup_date_cast.sql | 247 +++++++++++++++++++++
+ .../migrations/20260402_atomic_place_order.sql     |   2 +-
+ 5 files changed, 250 insertions(+), 83 deletions(-)
+
+commit 04ddea57bc3300e30df1e2b3e69f15ed48e92b03
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Thu Apr 2 19:58:04 2026 +0530
+
+    bugs
+
+ .../src/hooks/useRealtimeInventory.ts              | 27 ++++++++++++++++----
+ apps/warehouse-app/src/hooks/useRealtimeOrders.ts  | 29 +++++++++++++++++-----
+ 2 files changed, 45 insertions(+), 11 deletions(-)
+
+commit 9d55c092a2c4613a336c8b5ef3f4f2f2771853dc
+Author: ARJUN <arjunbhardwaj1509@gmail.com>
+Date:   Thu Apr 2 19:51:10 2026 +0530
+
+    bugs
+
+ apps/customer-app/src/pages/CheckoutPage.tsx       | 173 ++++----
+ apps/customer-app/src/services/ordersService.ts    | 198 ++++++----
+ apps/customer-app/src/services/paymentService.ts   |  11 +-
+ .../src/components/ProductActionCard.tsx           |  80 ++--
+ apps/warehouse-app/src/components/Sidebar.tsx      |   3 +-
+ .../warehouse-app/src/pages/ProductProfilePage.tsx |  17 +-
+ apps/warehouse-app/src/pages/ReturnsPage.tsx       | 127 ++----
+ .../src/services/productProfileService.ts          |  51 +--
+ apps/warehouse-app/src/services/washService.ts     | 223 +----------
+ supabase/functions/create-razorpay-order/index.ts  | 154 ++++++--
+ .../functions/verify-razorpay-payment/index.ts     | 200 +++++++---
+ .../migrations/20260402_atomic_place_order.sql     | 433 +++++++++++++++++++++
+ 12 files changed, 1018 insertions(+), 652 deletions(-)

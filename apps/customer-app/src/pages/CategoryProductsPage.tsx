@@ -162,7 +162,7 @@ const CategoryProductsPage: React.FC = () => {
 
         let query = supabase
             .from('products')
-            .select('*')
+            .select('*, inventory(available_stock)')
             .eq('is_available', true);
 
         if (filters.category) {
@@ -195,7 +195,8 @@ const CategoryProductsPage: React.FC = () => {
                     // Map DB 'sizes_available' to app 'sizes'
                     sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
                     // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
-                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender)
+                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
+                    isRentedOut: (p.inventory || []).length > 0 && (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
                 }));
 
                 // Show real products immediately, then mix in fakes
@@ -302,23 +303,32 @@ const CategoryProductsPage: React.FC = () => {
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
-        // Filter by category
+        // Case-insensitive category filter — fake products have "Jackets", URL has "jackets"
         if (category) {
-            filtered = filtered.filter((p: any) => p.category === category);
+            const catLower = category.toLowerCase();
+            filtered = filtered.filter((p: any) => 
+                (p.category || '').toLowerCase() === catLower
+            );
         }
 
-        // Filter by gender if applicable
+        // Filter by gender — include unisex in both mens and womens
+        // Skip for fake products (they show for all genders)
         if (genderFromPath && genderFromPath !== 'all') {
-            filtered = filtered.filter((p: any) => !p.gender || p.gender === genderFromPath);
+            filtered = filtered.filter((p: any) => {
+                if ((p as any)._isFake) return true; // fakes always visible
+                return !p.gender || p.gender === genderFromPath || p.gender === 'unisex';
+            });
         }
+
         // Filter by name query
         if (nameQuery.trim() !== "") {
             const q = nameQuery.trim().toLowerCase();
             filtered = filtered.filter((p: any) => p.name.toLowerCase().includes(q));
         }
 
-        // Filter by price
+        // Filter by price — skip for fake products (they don't have standardised pricing)
         filtered = filtered.filter((p: any) => {
+            if ((p as any)._isFake) return true;
             const price = p.price || p.rental_price || 0;
             return price >= priceRange.min && price <= priceRange.max;
         });
@@ -328,9 +338,10 @@ const CategoryProductsPage: React.FC = () => {
             filtered = filtered.filter((p: any) => selectedBrands.has(p.brand));
         }
 
-        // Filter by sizes
+        // Filter by sizes — skip for fake products (they have no sizes)
         if (selectedSizes.size > 0) {
             filtered = filtered.filter((p: any) => {
+                if ((p as any)._isFake) return false; // fake = no sizes = excluded when size filter active
                 if (!p.sizes || p.sizes.length === 0) return false;
                 return p.sizes.some((sz: string) => selectedSizes.has(sz));
             });
@@ -461,7 +472,10 @@ const CategoryProductsPage: React.FC = () => {
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
+                                    // _isFake = product from fake_products table (simulated "rented" items)
+                                    // isRentedOut = REAL product with zero available stock
                                     const isFake = (product as any)._isFake === true;
+                                    const isRealRentedOut = !isFake && (product as any).isRentedOut === true;
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
                                     return (
                                     <motion.div
@@ -482,7 +496,10 @@ const CategoryProductsPage: React.FC = () => {
                                                     alt={product.name}
                                                     className={cn(
                                                         "w-full h-full object-cover transition-transform duration-300",
-                                                        isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                                        // Only blur FAKE products — real rented-out stays crisp
+                                                        isFake
+                                                            ? "grayscale opacity-25 blur-[2px]"
+                                                            : "group-hover:scale-105"
                                                     )}
                                                     loading="lazy"
                                                 />
@@ -492,7 +509,7 @@ const CategoryProductsPage: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Currently Rented badge */}
+                                            {/* Fake product — "Currently Rented" with blur overlay */}
                                             {isFake && (
                                                 <div className="absolute top-2 left-2 z-10">
                                                     <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
@@ -502,7 +519,17 @@ const CategoryProductsPage: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Wishlist — hidden for fake items */}
+                                            {/* Real product that is rented out — badge only, no blur */}
+                                            {isRealRentedOut && (
+                                                <div className="absolute top-2 left-2 z-10">
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/80 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-black backdrop-blur-sm">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-black/50" />
+                                                        Rented Out
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Wishlist — visible for all non-fake products */}
                                             {!isFake && (
                                                 <button
                                                     onClick={(e) => toggleWishlist(product.id, e)}
@@ -521,7 +548,9 @@ const CategoryProductsPage: React.FC = () => {
                                             <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isFake ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
                                             {isFake ? (
-                                                <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
+                                                <span className="text-xs text-zinc-600 font-medium">Currently Unavailable</span>
+                                            ) : isRealRentedOut ? (
+                                                <span className="text-xs text-amber-500 font-medium">All Rented — Check Back Soon</span>
                                             ) : (
                                                 <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
                                             )}

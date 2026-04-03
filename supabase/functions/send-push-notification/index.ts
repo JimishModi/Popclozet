@@ -69,6 +69,9 @@ function lenBuf(n: number, bytes: number): Uint8Array {
 // V8/BoringSSL (Deno) computes the public key automatically on import.
 
 function buildPkcs8(privKeyBytes: Uint8Array): Uint8Array {
+  if (privKeyBytes.length !== 32) {
+    throw new Error(`Invalid P-256 private key: expected 32 bytes, got ${privKeyBytes.length}`);
+  }
   // Fixed 34-byte header:
   //   30 41 - SEQUENCE (65 bytes)
   //     02 01 00 - INTEGER 0 (version)
@@ -89,7 +92,6 @@ function buildPkcs8(privKeyBytes: Uint8Array): Uint8Array {
   ]);
   return concat(header, privKeyBytes);
 }
-
 // ── Normalize VAPID key pair ──────────────────────────────────────
 //
 // Accepts hex OR base64url keys, returns:
@@ -427,9 +429,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Missing Authorization header" }, 401);
   }
 
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[Push] Supabase credentials not configured");
+    return jsonResponse({ error: "Server configuration error" }, 500);
+  }
+
   const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY,
   );
 
   const token = authHeader.replace("Bearer ", "");
@@ -473,7 +482,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Build title/body from status if internal call ──
   const STATUS_MESSAGES: Record<string, { title: string; body: string; type: string }> = {
-    confirmed:        { title: "✅ Order Confirmed!", body: "Your order has been confirmed and is being prepared.", type: "order_update" },
+    confirmed: { title: "✅ Order Confirmed!", body: "Your order has been confirmed and is being prepared.", type: "order_update" },
     ready_for_pickup: { title: "🚗 Driver Assigned!", body: "A driver has been assigned and is heading to pick up your order.", type: "order_update" },
     out_for_delivery: { title: "🛵 Out for Delivery!", body: "Your order is out for delivery and heading your way.", type: "order_update" },
     return_scheduled: { title: "📅 Return Pickup Scheduled", body: "Your return pickup has been scheduled.", type: "order_update" },

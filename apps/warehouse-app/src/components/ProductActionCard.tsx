@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
-import { Package, Droplets, ArrowUp, ArrowDown, X, AlertTriangle } from 'lucide-react';
+import { Package, CheckCircle, X } from 'lucide-react';
 import { clsx } from 'clsx';
-import { sendUnitToWash, returnUnitFromWash } from '../services/washService';
+import { supabase } from '@popclozet/api-client';
 import { useToast } from '../contexts/ToastContext';
 import { useState } from 'react';
 import { useAuth } from '@popclozet/auth';
@@ -17,25 +17,15 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
     const { user } = useAuth();
     const [processing, setProcessing] = useState(false);
 
-    const handleAction = async (action: 'send' | 'return') => {
+    const handleMarkAvailable = async () => {
         setProcessing(true);
         try {
-            const actorId = user?.id || 'anonymous';
-            if (action === 'send') {
-                if (item.status === 'washing') {
-                    showToast('Item is already marked as washing', 'error');
-                    return;
-                }
-                await sendUnitToWash(item.individual_id, actorId);
-                showToast(`Item ${item.individual_id} sent to wash`);
-            } else {
-                if (item.status === 'available') {
-                    showToast('Item is already marked as available', 'error');
-                    return;
-                }
-                await returnUnitFromWash(item.individual_id, actorId);
-                showToast(`Item ${item.individual_id} returned from wash`);
-            }
+            const { error } = await supabase
+                .from('all_products')
+                .update({ status: 'available', available: true })
+                .eq('individual_id', item.individual_id);
+            if (error) throw error;
+            showToast(`Item ${item.individual_id} marked as available ✓`);
             onActionComplete?.();
             onClose();
         } catch (err: any) {
@@ -45,7 +35,11 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
         }
     };
 
-    const isWashing = item.status === 'washing';
+    const statusColor = item.status === 'available'
+        ? 'bg-emerald-500 text-black'
+        : item.status === 'rented'
+        ? 'bg-blue-500 text-white'
+        : 'bg-red-500 text-white';
 
     return (
         <motion.div
@@ -67,7 +61,7 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                 </button>
                 <div className={clsx(
                     "absolute bottom-3 left-3 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest",
-                    isWashing ? "bg-amber-500 text-black" : "bg-emerald-500 text-black"
+                    statusColor
                 )}>
                     {item.status}
                 </div>
@@ -80,42 +74,22 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                     <p className="text-[10px] text-zinc-600 font-mono mt-2">ID: {item.individual_id}</p>
                 </div>
 
-                {isWashing && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-500 text-[10px] font-medium">
-                        <AlertTriangle size={14} className="shrink-0" />
-                        This item is currently in the wash cycle.
-                    </div>
+                {item.status !== 'available' && (
+                    <button
+                        onClick={handleMarkAvailable}
+                        disabled={processing}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all font-bold text-sm disabled:opacity-50"
+                    >
+                        <CheckCircle size={16} />
+                        Mark as Available
+                    </button>
                 )}
 
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => handleAction('send')}
-                        disabled={processing || isWashing}
-                        className={clsx(
-                            "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl transition-all",
-                            isWashing
-                                ? "bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700"
-                                : "bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25"
-                        )}
-                    >
-                        <ArrowUp size={18} />
-                        <span className="text-[10px] font-bold uppercase">Send to Wash</span>
-                    </button>
-
-                    <button
-                        onClick={() => handleAction('return')}
-                        disabled={processing || !isWashing}
-                        className={clsx(
-                            "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl transition-all",
-                            !isWashing
-                                ? "bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700"
-                                : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
-                        )}
-                    >
-                        <ArrowDown size={18} />
-                        <span className="text-[10px] font-bold uppercase">Return</span>
-                    </button>
-                </div>
+                {item.status === 'available' && (
+                    <div className="px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-xs font-medium text-center">
+                        ✓ Item is available in inventory
+                    </div>
+                )}
             </div>
         </motion.div>
     );

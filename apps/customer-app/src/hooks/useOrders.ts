@@ -136,14 +136,19 @@ export function useOrders() {
             "return_requested",
             "return_scheduled",
             "return_dispatched",
-            "return_picked_up",
-            "return_at_warehouse",
-            "returned",
         ].includes(o.status)
     );
 
     const pastOrders = orders.filter((o) =>
-        ["picked_up", "return_completed", "cancelled", "completed"].includes(o.status)
+        [
+            "picked_up",
+            "return_completed",
+            "cancelled",
+            "completed",
+            "return_picked_up",
+            "return_at_warehouse",
+            "returned"
+        ].includes(o.status)
     );
 
     return {

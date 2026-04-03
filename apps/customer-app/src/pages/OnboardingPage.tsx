@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
-import logoImage from "@/logo/logo.png";
+import logoImage from "@/logo/popclozet-logo.svg";
 
 // Grid items for the animated marquee
 const GRID_ITEMS = Array.from({ length: 15 }, (_, i) => ({ id: i }));

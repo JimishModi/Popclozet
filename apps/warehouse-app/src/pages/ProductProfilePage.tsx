@@ -321,10 +321,8 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
 
     const statusColor = (s: string) => ({
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-        washing: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-        rented: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-        returned: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
-        archived: 'text-red-400 bg-red-500/10 border-red-500/20',
+        rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        sold:      'text-red-400 bg-red-500/10 border-red-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
@@ -389,17 +387,16 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {unit.status !== 'archived' && (
+                                             {unit.status !== 'sold' && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm(`Archive unit ${unit.individual_id}?`)) {
+                                                        if (confirm(`Mark unit ${unit.individual_id} as SOLD? This removes it from active stock.`)) {
                                                             try {
                                                                 await archivePhysicalUnit(unit.individual_id, user?.id);
-                                                                showToast('Unit archived');
-                                                                // Reload data
-                                                                window.location.reload(); // Simple refresh for now
+                                                                showToast('Unit marked as sold');
+                                                                window.location.reload();
                                                             } catch (err: any) {
-                                                                showToast(err.message || 'Failed to archive', 'error');
+                                                                showToast(err.message || 'Failed to mark as sold', 'error');
                                                             }
                                                         }
                                                     }}
@@ -449,6 +446,7 @@ export function ProductProfilePage() {
     const [loading, setLoading] = useState(true);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [replacingIndex, setReplacingIndex] = useState<number | undefined>(undefined);
     const [modal, setModal] = useState<'stock' | 'discount' | null>(null);
 
     const fetchCategoryConfigs = async () => {
@@ -507,21 +505,34 @@ export function ProductProfilePage() {
         }
     };
 
-    const handleAddImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAddImage = async (e: React.ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
         const files = e.target.files;
-        if (!files || files.length === 0 || !editForm) return;
+        if (!files || files.length === 0 || !editForm || !product) return;
+        if (replaceIndex !== undefined && files.length > 1) {
+            showToast('Only one image can be replaced at a time', 'error');
+            return;
+        }
 
         setIsUploading(true);
         try {
             const newUrls: string[] = [];
-            for (const file of Array.from(files)) {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Math.random()}.${fileExt}`;
-                const filePath = `products/${fileName}`;
+            // Determine start index for naming (front, back, side_1, side_2...)
+            const existingCount = editForm.images?.length ?? 0;
+            const nameMap: Record<number, string> = { 0: 'front', 1: 'back', 2: 'side_1', 3: 'side_2' };
+
+            for (const [i, file] of Array.from(files).entries()) {
+                const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+                // ✅ CORRECT: productId is the FOLDER, fileName is the FILE inside it
+                // Result: product-images/{productId}/front.jpg
+                const nameIndex = replaceIndex !== undefined ? replaceIndex : existingCount + i;
+                const baseName = nameMap[nameIndex] ?? `photo_${nameIndex}`;
+                const fileName = `${baseName}.${fileExt}`;
+                const filePath = `${product.id}/${fileName}`;
 
                 const { data, error } = await supabase.storage
                     .from('product-images')
-                    .upload(filePath, file);
+                    .upload(filePath, file, { upsert: true, cacheControl: '3600' });
 
                 if (error) throw error;
                 const { data: { publicUrl } } = supabase.storage
@@ -531,11 +542,18 @@ export function ProductProfilePage() {
                 newUrls.push(publicUrl);
             }
 
+            const currentImages = [...(editForm.images || [])];
+            if (replaceIndex !== undefined) {
+                currentImages[replaceIndex] = newUrls[0];
+            } else {
+                currentImages.push(...newUrls);
+            }
+
             setEditForm({
                 ...editForm,
-                images: [...(editForm.images || []), ...newUrls],
+                images: currentImages,
             });
-            showToast(`Uploaded ${newUrls.length} photo(s)`);
+            showToast(replaceIndex !== undefined ? 'Image replaced' : `Uploaded ${newUrls.length} photo(s)`);
         } catch (err: any) {
             showToast(err.message, 'error');
         } finally {
@@ -553,6 +571,18 @@ export function ProductProfilePage() {
         }
     };
 
+    const handleMoveImage = (index: number, direction: 'left' | 'right') => {
+        if (!editForm?.images) return;
+        const newImages = [...editForm.images];
+        const newIndex = direction === 'left' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= newImages.length) return;
+        
+        [newImages[index], newImages[newIndex]] = [newImages[newIndex], newImages[index]];
+        setEditForm({ ...editForm, images: newImages });
+        setCurrentImgIndex(newIndex);
+    };
+
     useEffect(() => { load(); }, [load]);
 
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -564,17 +594,23 @@ export function ProductProfilePage() {
 
     const nextImage = useCallback((e?: React.MouseEvent) => {
         e?.stopPropagation();
-        if (!product?.images) return;
-        setCurrentImgIndex((prev) => (prev + 1) % product.images.length);
-    }, [product]);
+        const images = isEditing ? editForm?.images : product?.images;
+        if (!images || images.length === 0) return;
+        setCurrentImgIndex((prev) => (prev + 1) % images.length);
+    }, [isEditing, editForm?.images, product?.images]);
 
     const prevImage = useCallback((e?: React.MouseEvent) => {
         e?.stopPropagation();
-        if (!product?.images) return;
-        setCurrentImgIndex((prev) => (prev - 1 + product.images.length) % product.images.length);
-    }, [product]);
+        const images = isEditing ? editForm?.images : product?.images;
+        if (!images || images.length === 0) return;
+        setCurrentImgIndex((prev) => (prev - 1 + images.length) % images.length);
+    }, [isEditing, editForm?.images, product?.images]);
 
-    const handleToggleDiscount = async (id: string, current: boolean) => {
+    const handleToggleDiscount = (id: string, current: boolean) => {
+        handleToggleDiscountAsync(id, current);
+    };
+
+    const handleToggleDiscountAsync = async (id: string, current: boolean) => {
         try {
             await toggleDiscount(id, !current);
             showToast(!current ? 'Discount activated' : 'Discount deactivated');
@@ -695,8 +731,8 @@ export function ProductProfilePage() {
                 </div>
 
                 {/* Product Image Carousel */}
-                {(isEditing ? editForm?.images : product.images) && (
-                    <div className="relative group w-full aspect-[4/3] rounded-2xl overflow-hidden bg-surface-card border border-surface-border">
+                <div className="relative group w-full aspect-[4/3] rounded-2xl overflow-hidden bg-surface-card border border-surface-border">
+                    {((isEditing ? editForm?.images : product.images)?.length ?? 0) > 0 ? (
                         <div className="w-full h-full cursor-pointer" onClick={() => !isEditing && setIsLightboxOpen(true)}>
                             <AnimatePresence mode="wait">
                                 <motion.img
@@ -710,6 +746,21 @@ export function ProductProfilePage() {
                                 />
                             </AnimatePresence>
                         </div>
+                    ) : (
+                        <div 
+                            className="w-full h-full flex flex-col items-center justify-center cursor-pointer border-2 border-dashed border-surface-border hover:border-warehouse-500/50 hover:bg-warehouse-500/5 transition-all group/empty"
+                            onClick={() => {
+                                if (!isEditing) handleStartEdit();
+                                fileInputRef.current?.click();
+                            }}
+                        >
+                            <div className="w-16 h-16 rounded-full bg-surface border border-surface-border flex items-center justify-center mb-3 group-hover/empty:scale-110 transition-transform">
+                                <Camera size={32} className="text-zinc-600 group-hover/empty:text-warehouse-400" />
+                            </div>
+                            <p className="text-zinc-500 text-sm font-medium">No Product Photos</p>
+                            <p className="text-warehouse-500 text-[10px] font-bold uppercase tracking-widest mt-1">Click to Add</p>
+                        </div>
+                    )}
 
                         {/* Edit Mode Overlays */}
                         {isEditing && (
@@ -717,22 +768,65 @@ export function ProductProfilePage() {
                         )}
 
                         {isEditing && (
-                            <div className="absolute top-4 left-4 flex gap-2">
+                            <div className="absolute top-4 left-4 flex flex-wrap gap-2 pr-12">
                                 <button
-                                    onClick={() => fileInputRef.current?.click()}
+                                    onClick={() => {
+                                        setReplacingIndex(undefined);
+                                        fileInputRef.current?.click();
+                                    }}
                                     disabled={isUploading}
                                     className="h-8 px-3 rounded-lg bg-warehouse-500 text-black text-[10px] font-bold uppercase flex items-center gap-2 shadow-lg disabled:opacity-50"
                                 >
-                                    {isUploading ? <Loader size={12} className="animate-spin" /> : <Camera size={14} />}
+                                    {isUploading && replacingIndex === undefined ? <Loader size={12} className="animate-spin" /> : <Camera size={14} />}
                                     Add Photo
                                 </button>
+                                
                                 {editForm?.images && editForm.images.length > 0 && (
                                     <button
-                                        onClick={() => handleRemoveImage(currentImgIndex)}
-                                        className="w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center shadow-lg"
+                                        onClick={() => {
+                                            setReplacingIndex(currentImgIndex);
+                                            fileInputRef.current?.click();
+                                        }}
+                                        disabled={isUploading}
+                                        className="h-8 px-3 rounded-lg bg-white/20 backdrop-blur-md text-white text-[10px] font-bold uppercase flex items-center gap-2 shadow-lg border border-white/10 hover:bg-white/30 transition-colors disabled:opacity-50"
                                     >
-                                        <Trash2 size={14} />
+                                        {isUploading && replacingIndex === currentImgIndex ? <Loader size={12} className="animate-spin" /> : <Edit2 size={12} />}
+                                        Replace
                                     </button>
+                                )}
+                                {editForm?.images && editForm.images.length > 0 && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleRemoveImage(currentImgIndex)}
+                                            className="w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                                            title="Remove Image"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                        
+                                        {/* Reordering Controls */}
+                                        {editForm.images.length > 1 && (
+                                            <div className="flex bg-black/40 backdrop-blur-md rounded-lg p-0.5 border border-white/10 shadow-lg">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleMoveImage(currentImgIndex, 'left'); }}
+                                                    disabled={currentImgIndex === 0}
+                                                    className="w-7 h-7 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 rounded"
+                                                    title="Move Left"
+                                                >
+                                                    <ChevronLeft size={16} />
+                                                </button>
+                                                <div className="w-[1px] bg-white/10 my-1" />
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleMoveImage(currentImgIndex, 'right'); }}
+                                                    disabled={currentImgIndex === editForm.images.length - 1}
+                                                    className="w-7 h-7 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 rounded"
+                                                    title="Move Right"
+                                                >
+                                                    <ChevronRight size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -740,8 +834,8 @@ export function ProductProfilePage() {
                         <input
                             type="file"
                             ref={fileInputRef}
-                            onChange={handleAddImage}
-                            multiple
+                            onChange={(e) => handleAddImage(e, replacingIndex)}
+                            multiple={replacingIndex === undefined}
                             accept="image/*"
                             className="hidden"
                         />
@@ -778,10 +872,13 @@ export function ProductProfilePage() {
                         )}
 
                         <div className="absolute top-4 right-4 px-2 py-1 rounded-lg bg-black/40 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
-                            {currentImgIndex + 1} / {isEditing ? editForm?.images?.length : product.images.length}
+                            {((isEditing ? editForm?.images : product.images)?.length ?? 0) > 0 ? (
+                                `${currentImgIndex + 1} / ${(isEditing ? editForm?.images : product.images)?.length}`
+                            ) : (
+                                "0 / 0"
+                            )}
                         </div>
                     </div>
-                )}
 
                 {/* Pricing Card */}
                 <div className="bg-surface-card border border-surface-border rounded-xl p-4 space-y-3">

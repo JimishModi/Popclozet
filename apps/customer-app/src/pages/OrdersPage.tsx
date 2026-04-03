@@ -22,10 +22,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
     return_requested: { label: "Return Requested", color: "text-orange-400", bgColor: "bg-orange-500/10" },
     return_scheduled: { label: "Pickup Scheduled", color: "text-blue-400", bgColor: "bg-blue-500/10" },
     return_dispatched: { label: "Rider On The Way", color: "text-indigo-400", bgColor: "bg-indigo-500/10" },
-    return_picked_up: { label: "Return Collected", color: "text-green-500", bgColor: "bg-green-500/10" },
-    return_at_warehouse: { label: "At Warehouse", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-    returned: { label: "Back At Warehouse", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-    return_completed: { label: "Available Again", color: "text-green-400", bgColor: "bg-green-500/20" },
+    return_picked_up: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
+    return_at_warehouse: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
+    returned: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
+    return_completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
     completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/20" },
     cancelled: { label: "Cancelled", color: "text-red-400", bgColor: "bg-red-500/20" },
 };
@@ -51,13 +51,14 @@ export default function OrdersPage() {
         return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
     };
 
-    const RETURN_STATUSES = ["return_scheduled", "return_dispatched", "return_picked_up"];
-    const DELIVERED_STATUSES = ["delivered", "in_use", "picked_up"];
+    const RETURN_STATUSES = ["return_scheduled", "return_dispatched"];
+    const DELIVERED_STATUSES = ["delivered", "in_use"];
+    const COMPLETED_STATUSES = ["picked_up", "return_picked_up", "return_at_warehouse", "returned", "return_completed", "completed"];
 
     const handleOrderClick = (order: Order) => {
         if (RETURN_STATUSES.includes(order.status)) {
             navigate(`/pickup-tracking/${order.id}`);
-        } else if (DELIVERED_STATUSES.includes(order.status)) {
+        } else if (DELIVERED_STATUSES.includes(order.status) || COMPLETED_STATUSES.includes(order.status)) {
             navigate(`/order/${order.id}/delivered`);
         } else {
             navigate(`/tracking/${order.id}`);
@@ -66,7 +67,7 @@ export default function OrdersPage() {
 
     const getActionLabel = (order: Order) => {
         if (RETURN_STATUSES.includes(order.status)) return "Track Return";
-        if (DELIVERED_STATUSES.includes(order.status)) return "View Order";
+        if (DELIVERED_STATUSES.includes(order.status) || COMPLETED_STATUSES.includes(order.status)) return "View Order";
         return "Track Order";
     };
 

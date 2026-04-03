@@ -3,14 +3,14 @@ import { useAuth } from '@popclozet/auth';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
-    LayoutDashboard, Package, Droplets, ClipboardList, RotateCcw,
-    Truck, PlusCircle, Settings, LogOut, Warehouse
+    LayoutDashboard, Package, ClipboardList, RotateCcw,
+    Truck, PlusCircle, Settings, LogOut
 } from 'lucide-react';
+import logoImage from '../assets/popclozet-logo.svg';
 
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/inventory', icon: Package, label: 'Inventory' },
-    { to: '/wash', icon: Droplets, label: 'Wash Cycle' },
     { to: '/orders', icon: ClipboardList, label: 'Order Fulfillment' },
     { to: '/returns', icon: RotateCcw, label: 'Returns' },
     { to: '/dispatch', icon: Truck, label: 'Rider Dispatch' },
@@ -30,9 +30,7 @@ export function Sidebar() {
         <aside className="w-64 h-screen bg-surface-card border-r border-surface-border flex flex-col fixed left-0 top-0 z-40">
             {/* Logo */}
             <div className="flex items-center gap-3 px-5 py-6 border-b border-surface-border">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warehouse-500 to-warehouse-700 flex items-center justify-center shadow-lg shadow-warehouse-500/20">
-                    <Warehouse className="w-5 h-5 text-white" />
-                </div>
+                <img src={logoImage} alt="Popclozet" className="h-9 w-auto object-contain" />
                 <div>
                     <h1 className="text-base font-bold text-white leading-tight">Popclozet</h1>
                     <p className="text-xs text-zinc-500">Warehouse Hub</p>

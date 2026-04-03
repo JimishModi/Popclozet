@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import logoImage from "@/logo/logo.png";
+import logoImage from "@/logo/popclozet-logo.svg";
 import mockupBg from "@/logo/main mockup 2 1.png";
 
 const brandPink = "#F2546D";
@@ -70,7 +70,7 @@ function SlideHeader() {
       >
         WELCOME TO
       </p>
-      <img src={logoImage} alt="Popclozet" className="h-10 mx-auto mix-blend-screen" />
+      <img src={logoImage} alt="Popclozet" className="h-10 mx-auto" />
     </div>
   );
 }

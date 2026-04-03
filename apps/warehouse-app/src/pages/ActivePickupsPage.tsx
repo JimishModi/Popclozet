@@ -7,9 +7,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, Package, MapPin, User, Clock, CheckCircle } from 'lucide-react';
+import { Truck, Package, MapPin, User, Clock, CheckCircle, Phone } from 'lucide-react';
 import { clsx } from 'clsx';
 import { KeyRound, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getActivePickups, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
 import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
@@ -160,21 +161,39 @@ export function ActivePickupsPage() {
                                         </div>
                                     )}
 
-                                    {/* Rider + Time */}
-                                    <div className="flex items-center justify-between pt-2 border-t border-surface-border">
-                                        <div className="flex items-center gap-2">
-                                            <User size={14} className="text-purple-400" />
-                                            <span className="text-xs font-medium text-zinc-300">{riderName}</span>
+                                    {/* Rider Information */}
+                                    <div className="pt-2 border-t border-surface-border space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <User size={14} className="text-purple-400" />
+                                                <span className="text-xs font-medium text-zinc-300">{riderName}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <Clock size={12} className="text-zinc-600" />
+                                                <span className="text-[10px] text-zinc-500">
+                                                    {new Date(order.created_at).toLocaleTimeString('en-IN', {
+                                                        hour: '2-digit', minute: '2-digit',
+                                                    })}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <Clock size={12} className="text-zinc-600" />
-                                            <span className="text-[10px] text-zinc-500">
-                                                {new Date(order.created_at).toLocaleTimeString('en-IN', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })}
-                                            </span>
-                                        </div>
+                                        {/* Phone and Location tracking */}
+                                        {order.rider_id && (
+                                            <div className="flex items-center justify-between">
+                                                {order.riders?.phone ? (
+                                                    <div className="flex items-center gap-1.5 text-zinc-400 text-[11px]">
+                                                        <Phone size={12} />
+                                                        <a href={`tel:${order.riders.phone}`} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
+                                                    </div>
+                                                ) : <div />}
+                                                <div className="flex items-center gap-1 text-[10px]">
+                                                    <span className="text-zinc-500">Track at</span>
+                                                    <Link to="/map" className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 font-medium">
+                                                        Live Map <MapPin size={10} className="inline"/>
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* OTP Section (For ready_for_pickup and rider_assigned) */}

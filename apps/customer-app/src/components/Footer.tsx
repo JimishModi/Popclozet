@@ -1,7 +1,7 @@
 // src/components/Footer.tsx
 import React from "react";
 import { Instagram, Linkedin, Mail } from "lucide-react";
-import Logo from "@/logo/popclozet-logo.svg";
+import Logo from "@/logo/logo.png";
 
 const links = [
   { title: "Features", href: "#" },

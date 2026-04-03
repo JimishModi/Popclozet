@@ -125,8 +125,8 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
             id: row.id,
             size: row.size,
             available_stock: unitsForSize.filter(u => u.status === 'available').length,
-            went_for_wash: unitsForSize.filter(u => u.status === 'washing').length,
-            total_stock: unitsForSize.length,
+            went_for_wash: 0,  // No washing state in simplified system
+            total_stock: unitsForSize.filter(u => u.status !== 'sold').length, // sold units excluded from active stock
             units: unitsForSize as any,
         };
     });
@@ -155,13 +155,13 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 /**
  * Fetch all products (for the search/list view) with aggregate stock info
  */
-export async function getAllProductProfiles(): Promise<{ 
-    id: string; 
-    name: string; 
-    brand: string | null; 
-    category: string | null; 
-    images: string[] | null; 
-    rental_price: number | null; 
+export async function getAllProductProfiles(): Promise<{
+    id: string;
+    name: string;
+    brand: string | null;
+    category: string | null;
+    images: string[] | null;
+    rental_price: number | null;
     rental_price_1d: number | null;
     rental_price_2d: number | null;
     rental_price_3d: number | null;
@@ -199,8 +199,8 @@ export async function getAllProductProfiles(): Promise<{
         const current = stockMap.get(pid) || { available: 0, wash: 0, total: 0 };
         stockMap.set(pid, {
             available: current.available + (item.status === 'available' ? 1 : 0),
-            wash: current.wash + (item.status === 'washing' ? 1 : 0),
-            total: current.total + 1
+            wash: 0,  // No washing state in simplified system
+            total: current.total + (item.status !== 'sold' ? 1 : 0), // exclude sold
         });
     });
 
@@ -337,15 +337,15 @@ export async function updateProductProfile(productId: string, update: ProductUpd
  * Transition a physical unit to a new status (e.g. from available to archived)
  */
 export async function setUnitStatus(
-    individualId: string, 
-    newStatus: 'available' | 'washing' | 'ready' | 'archived' | 'lost' | 'damaged',
+    individualId: string,
+    newStatus: 'available' | 'rented' | 'sold',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase
         .from('all_products')
-        .update({ 
+        .update({
             status: newStatus,
-            available: (newStatus === 'available' || newStatus === 'ready')
+            available: newStatus === 'available',
         })
         .eq('individual_id', individualId);
 
@@ -362,39 +362,17 @@ export async function setUnitStatus(
 }
 
 /**
- * Archive a physical unit (soft-remove from active stock)
+ * Mark a physical unit as sold (permanently remove from active stock)
  */
 export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
-    return setUnitStatus(individualId, 'archived', actorId);
+    return setUnitStatus(individualId, 'sold', actorId);
 }
 
 /**
- * Flag a physical unit as damaged with optional notes.
- * Sets status to 'damaged', records notes and timestamp,
- * and logs the action to warehouse_activity_log.
+ * Mark a physical unit as sold (e.g. damaged beyond use, lost, or permanently removed)
  */
-export async function flagUnitAsDamaged(
-    individualId: string,
-    notes: string,
-    actorId: string = 'system',
-): Promise<void> {
-    const { error } = await supabase
-        .from('all_products')
-        .update({
-            status: 'damaged',
-            available: false,
-            damage_notes: notes.trim() || null,
-            damage_flagged_at: new Date().toISOString(),
-        })
-        .eq('individual_id', individualId);
-
-    if (error) throw error;
-
-    await supabase.from('warehouse_activity_log').insert({
-        actor_id: actorId === 'system' ? null : actorId,
-        action: 'flag_unit_damaged',
-        entity_type: 'individual_unit',
-        entity_id: null,
-        details: { individual_id: individualId, damage_notes: notes.trim() || null },
-    });
+export async function markUnitAsSold(individualId: string, actorId: string = 'system'): Promise<void> {
+    return setUnitStatus(individualId, 'sold', actorId);
 }
+
+// flagUnitAsDamaged removed — use markUnitAsSold() to permanently remove a unit from stock.

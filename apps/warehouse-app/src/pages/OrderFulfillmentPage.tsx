@@ -5,14 +5,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin, Package } from 'lucide-react';
+import { ClipboardList, Check, PackageCheck, Truck, Clock, RefreshCw, MapPin, Package, User, Phone, Activity } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { useAuth } from '@popclozet/auth';
 import { getFulfillmentOrders, confirmOrder, packOrder, markAsReadyForPickup, generateWarehouseOtp, type OrderWithItems } from '../services/fulfillmentService';
 import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 import { KeyRound } from 'lucide-react';
+import { OrderTimelineOverlay } from '../components/OrderTimelineOverlay';
 
 type StatusFilter = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'dispatched';
 
@@ -33,6 +34,7 @@ export function OrderFulfillmentPage() {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState<string | null>(null);
     const [generatingOtp, setGeneratingOtp] = useState<string | null>(null);
+    const [viewingActivity, setViewingActivity] = useState<string | null>(null);
 
     const loadOrders = useCallback(async () => {
         try {
@@ -243,10 +245,45 @@ export function OrderFulfillmentPage() {
                                         ))}
                                     </div>
 
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[10px] text-zinc-500">
-                                            {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                        </p>
+                                    {/* Rider Information (if assigned) */}
+                                    {order.rider_id && (
+                                        <div className="mb-3 pt-2 border-t border-surface-border space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <User size={12} className="text-purple-400" />
+                                                    <span className="text-[11px] font-medium text-zinc-300">{order.rider_name || 'Rider Assigned'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                {order.riders?.phone ? (
+                                                    <div className="flex items-center gap-1.5 text-zinc-400 text-[10px]">
+                                                        <Phone size={10} />
+                                                        <a href={`tel:${order.riders.phone}`} onClick={e => e.stopPropagation()} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
+                                                    </div>
+                                                ) : <div />}
+                                                <div className="flex items-center gap-1 text-[9px]">
+                                                    <span className="text-zinc-500">Track at</span>
+                                                    <Link to="/map" onClick={e => e.stopPropagation()} className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 font-medium">
+                                                        Live Map <MapPin size={8} className="inline"/>
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-border">
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-[10px] text-zinc-500">
+                                                {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                            <button 
+                                                onClick={() => setViewingActivity(order.id)} 
+                                                className="flex items-center gap-1 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-semibold"
+                                            >
+                                                <Activity size={10} />
+                                                View Updates
+                                            </button>
+                                        </div>
 
                                         {actionLabel[filter] && (
                                             <button
@@ -270,6 +307,13 @@ export function OrderFulfillmentPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {viewingActivity && (
+                <OrderTimelineOverlay 
+                    orderId={viewingActivity} 
+                    onClose={() => setViewingActivity(null)} 
+                />
+            )}
         </div>
     );
 }

@@ -38,7 +38,7 @@ export default function ExperienceGrid() {
             <div className="container mx-auto px-4">
                 <div className="flex flex-col md:flex-row justify-between items-start mb-16 gap-8">
                     <h2 className="text-5xl md:text-7xl font-playfair leading-[0.9]">
-                        The <span className="italic text-purple-600">popclozet</span> <br />
+                        The <span className="italic text-purple-600">Popclozet</span> <br />
                         Experience
                     </h2>
                     <div className="max-w-md space-y-4 pt-4">

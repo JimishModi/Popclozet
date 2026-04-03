@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
-import { useNavigate, useLocation } from "react-router-dom";
-import logo from "@/logo/logo.png";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import logo from "@/logo/popclozet-logo.svg";
 import { useAuth } from "@/hooks/useAuth";
 import { useWishlist } from "@/context/WishlistContext";
 import { useOrders } from "@/hooks/useOrders";
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user, profile, loading, updateProfile } = useAuth();
   const { wishlistItems } = useWishlist();
 
@@ -76,12 +77,69 @@ const ProfilePage: React.FC = () => {
   const [verifyError, setVerifyError] = useState('');
   const [verifySent, setVerifySent] = useState(false);
 
+  // KYC verification status
+  const [kycVerified, setKycVerified] = useState<boolean | null>(null);
+  const [isKycLoading, setIsKycLoading] = useState(false);
+  
+  // KYC Banner dismissal states
+  const [showKycBanner, setShowKycBanner] = useState(() => localStorage.getItem('pop_kyc_dismissed') !== 'true');
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(() => localStorage.getItem('pop_verified_dismissed') !== 'true');
+
+  const dismissKyc = () => {
+    setShowKycBanner(false);
+    localStorage.setItem('pop_kyc_dismissed', 'true');
+  };
+
+  const dismissVerified = () => {
+    setShowVerifiedBanner(false);
+    localStorage.setItem('pop_verified_dismissed', 'true');
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from("customer_profiles").select("kyc_verified").eq("user_id", user.id).single().then(({ data }) => {
+        setKycVerified(data?.kyc_verified ?? false);
+      });
+    }
+  }, [user?.id]);
+
+  // Handle KYC callback from Didit redirect
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+    const urlUserId = searchParams.get("user_id");
+    const effectiveUserId = user?.id || urlUserId;
+
+    if (kycCallback === "success" && effectiveUserId) {
+      // Set verified immediately
+      setKycVerified(true);
+
+      // Persist to DB
+      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", effectiveUserId)
+        .then(({ error }) => {
+          if (error) {
+            console.error("[KYC] Failed to persist verification:", error);
+            toast.error("Verification failed to save. Please try again.");
+            setKycVerified(false);
+            return;
+          }
+          toast.success("Identity verified successfully!");
+        });
+
+      // Clean up URL
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("kyc_callback");
+      newParams.delete("user_id");
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, user?.id]);
+
   const inClosetCount = orders.filter(o =>
     ["delivered", "in_use"].includes(o.status)
   ).length;
 
   const quickStats = [
-    { label: "Orders", value: ordersLoading ? "…" : String(activeOrders.length), icon: ShoppingBag, href: "/orders" },
+    { label: "Orders", value: ordersLoading ? "…" : String(orders.length), icon: ShoppingBag, href: "/orders" },
     { label: "Wishlist", value: String(wishlistItems.length), icon: Heart, href: "/wishlist" },
     { label: "In Closet", value: ordersLoading ? "…" : String(inClosetCount), icon: ClosetIcon, href: "/closet" },
   ];
@@ -253,7 +311,7 @@ const ProfilePage: React.FC = () => {
     <div className="bg-black text-white min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between lg:hidden">
-        <img src={logo} alt="Popclozet" className="h-6 w-auto object-contain" />
+        <img src={logo} alt="Popclozet" className="h-10 w-auto object-contain" />
         <button onClick={() => navigate("/settings")} className="p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
           <Settings className="w-5 h-5 text-zinc-400" />
         </button>
@@ -281,20 +339,25 @@ const ProfilePage: React.FC = () => {
 
             {/* Hero Profile Section */}
               <div className="relative px-4 lg:px-0 pt-4 md:pt-8 lg:pt-0 pb-4 md:pb-6 lg:pb-0 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-b from-[#f2546d]/15 via-purple-500/10 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#f2546d]/15 to-transparent pointer-events-none" />
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-4 md:p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                whileHover={{ y: -2, scale: 1.01 }}
+                transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-4 md:p-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] group cursor-default transition-all duration-300 hover:border-[#f2546d]/30"
               >
                 <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <div className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-[#f2546d] via-purple-500 to-blue-500 p-[3px]">
-                      <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                        <User className="w-7 h-7 md:w-10 md:h-10 text-white/80" />
+                  <div className="relative group/avatar cursor-pointer">
+                    <motion.div 
+                      whileHover={{ scale: 1.05, rotate: 5 }}
+                      className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-[#f2546d] to-[#ff4d6d] p-[3px] shadow-[0_0_20px_rgba(242,84,109,0.3)] transition-shadow group-hover/avatar:shadow-[0_0_30px_rgba(242,84,109,0.5)]"
+                    >
+                      <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center overflow-hidden">
+                        <User className="w-7 h-7 md:w-10 md:h-10 text-white/80 group-hover/avatar:text-white transition-colors" />
                       </div>
-                    </div>
+                    </motion.div>
                     {user && (
                       <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-zinc-900 shadow-[0_0_12px_rgba(34,197,94,0.6)] flex items-center justify-center">
                         <Sparkles className="w-2.5 h-2.5 text-white" />
@@ -360,6 +423,110 @@ const ProfilePage: React.FC = () => {
                   )}
                 </motion.div>
               )}
+
+              {/* KYC Identity Verification Banner */}
+              {user && kycVerified !== null && (
+                kycVerified ? (
+                  showVerifiedBanner && (
+                    <motion.div
+                      initial={{ opacity: 0.4, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="mt-4 bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 group relative"
+                    >
+                      <button 
+                        onClick={dismissVerified}
+                        className="absolute top-3 right-3 p-1.5 rounded-full bg-white/5 text-zinc-600 hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0">
+                          <Check className="w-5 h-5 text-green-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-white">Identity Verified</p>
+                          <p className="text-[11px] text-zinc-500">Your KYC verification is complete</p>
+                        </div>
+                        <Shield className="w-5 h-5 text-zinc-800" />
+                      </div>
+                    </motion.div>
+                  )
+                ) : (
+                  showKycBanner && (
+                    <motion.div
+                      initial={{ opacity: 0.4, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="mt-4 bg-[#1C1C1E] border border-amber-500/20 rounded-2xl p-4 relative group"
+                    >
+                      <button 
+                        onClick={dismissKyc}
+                        className="absolute top-3 right-3 p-1.5 rounded-full bg-white/5 text-zinc-600 hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                          <Shield className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-white">Verify your identity</p>
+                          <p className="text-[11px] text-zinc-500">Complete KYC to place orders</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <button
+                          onClick={async () => {
+                            setIsKycLoading(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                                body: { callbackParams: { user_id: user.id, callback_path: "/profile" } }
+                              });
+                              if (error) throw error;
+                              if (data?.url) {
+                                window.location.href = data.url;
+                              } else {
+                                window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                              }
+                            } catch (err: any) {
+                              console.error('KYC Error:', err);
+                              window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                            } finally {
+                              setIsKycLoading(false);
+                            }
+                          }}
+                          disabled={isKycLoading}
+                          className="w-full py-3 rounded-xl bg-white text-black text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                        >
+                          {isKycLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                          {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const { data } = await supabase
+                              .from("customer_profiles")
+                              .select("kyc_verified")
+                              .eq("user_id", user.id)
+                              .single();
+                            if (data?.kyc_verified) {
+                              setKycVerified(true);
+                              toast.success("Verification confirmed!");
+                            } else {
+                              toast.error("Verification not found yet. Please complete verification on Didit first.");
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-500 text-xs font-medium hover:bg-white/10 transition-all"
+                        >
+                          Already verified? Tap to refresh
+                        </button>
+                      </div>
+                    </motion.div>
+                  )
+                )
+              )}
             </div>
 
             {/* Quick Stats */}
@@ -372,9 +539,15 @@ const ProfilePage: React.FC = () => {
                       key={stat.label}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 + idx * 0.05 }}
+                      whileHover={{ y: -5, scale: 1.02 }}
+                      transition={{ 
+                        delay: 0.1 + idx * 0.05,
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 15
+                      }}
                       onClick={() => navigate(stat.href)}
-                      className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/5 text-center group hover:border-[#f2546d]/30 transition-all cursor-pointer"
+                      className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl p-4 border border-white/5 text-center group hover:border-[#f2546d]/50 transition-all cursor-pointer shadow-lg hover:shadow-[#f2546d]/10"
                     >
                       <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-[#f2546d]/20 flex items-center justify-center mx-auto mb-2 transition-colors">
                         <Icon className="w-5 h-5 text-[#f2546d]" />

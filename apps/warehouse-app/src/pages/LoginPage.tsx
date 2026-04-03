@@ -7,8 +7,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Warehouse, Loader, Zap } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
 import { WarehouseShell } from '../components/layout/WarehouseShell';
+import logoImage from '../assets/popclozet-logo.svg';
 
 export function LoginPage() {
     const navigate = useNavigate();
@@ -44,9 +45,7 @@ export function LoginPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-8"
                 >
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-warehouse-500 to-warehouse-700 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-warehouse-500/25">
-                        <Warehouse size={28} className="text-white" />
-                    </div>
+                    <img src={logoImage} alt="Popclozet" className="h-12 w-auto mx-auto mb-4 object-contain" />
                     <h1 className="text-2xl font-bold text-white">Popclozet Warehouse</h1>
                     <p className="text-sm text-zinc-500 mt-1">Inventory & Operations Hub</p>
                 </motion.div>

@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useCart } from "@/context/CartContext";
-import { clearCartDB } from "@/lib/db";
+import { clearCartDB, clearUserCartDB } from "@/lib/db";
 
 export default function PaymentProcessingPage() {
     const navigate = useNavigate();
@@ -17,41 +17,48 @@ export default function PaymentProcessingPage() {
     const orderId = searchParams.get("orderId");
     const amountStr = searchParams.get("amount");
     const method = searchParams.get("method") || "upi";
-    
+
     const { user, profile } = useAuth();
     const { cartItems, removeFromCart } = useCart();
     const { initiatePayment, isProcessing } = useRazorpayCheckout();
     const hasInitiated = useRef(false);
+
+    // Tracks whether the payment flow has reached a terminal state (success or failure).
+    // Used to prevent duplicate navigations from overlapping callbacks.
     const paymentSettled = useRef(false);
 
-    // Add isUpi logic to avoid next IDE errors
     const isUpi = method === "upi";
 
-    const handleCancel = useCallback(() => {
-        if (!paymentSettled.current) {
-            paymentSettled.current = true;
-            navigate(`/payment-failed?orderId=${orderId || ''}`, { replace: true });
-        }
+    // Safety timeout: if nothing settles within 5 minutes, something is stuck.
+    // This is a last-resort fallback — the Razorpay hook's own ondismiss/handler
+    // should resolve the flow well before this fires.
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (!paymentSettled.current) {
+                console.error('[PaymentProcessing] Safety timeout reached — navigating to failure');
+                paymentSettled.current = true;
+                navigate(`/payment-failed?orderId=${orderId || ''}&reason=timeout`, { replace: true });
+            }
+        }, 300000); // 5 minutes
+        return () => clearTimeout(timer);
     }, [navigate, orderId]);
 
-    // Fallback: if user dismisses Razorpay via back button / swipe without ondismiss firing
-    useEffect(() => {
-        const onVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && hasInitiated.current && !paymentSettled.current) {
-                // Give ondismiss 500ms to fire first before we force-navigate
-                setTimeout(() => {
-                    if (!paymentSettled.current) {
-                        handleCancel();
-                    }
-                }, 500);
-            }
-        };
-        document.addEventListener('visibilitychange', onVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-    }, [handleCancel]);
+    // NOTE: The previous visibilitychange listener has been REMOVED.
+    //
+    // It was the root cause of the "Payment Cancelled" flash bug:
+    // When Razorpay's modal closes, the page becomes visible again. The listener
+    // would then check paymentSettled after a 2s timeout — but async verification
+    // often takes longer than 2s, so it would navigate to /payment-failed even
+    // though the payment had succeeded and verification was still in progress.
+    //
+    // The Razorpay hook (useRazorpayCheckout) already handles all terminal states:
+    //   - handler (success) → calls onSuccess
+    //   - modal.ondismiss (cancel) → calls onFailure (with outcomeRef guard)
+    //   - payment.failed (bank decline) → toast only (user retries in modal)
+    //   - SDK load failure → calls onFailure
+    // There is no scenario that requires a visibilitychange fallback.
 
     useEffect(() => {
-        // Prevent multiple initiations if the effect runs twice
         if (hasInitiated.current) return;
 
         const startPayment = async () => {
@@ -65,33 +72,41 @@ export default function PaymentProcessingPage() {
 
                 hasInitiated.current = true;
 
-                // Call real Razorpay
                 initiatePayment({
                     internalOrderId: orderId,
                     amountInRupees: amount,
                     userName: profile?.full_name || user?.user_metadata?.full_name || "",
                     userEmail: profile?.email || user?.email || "",
                     userPhone: profile?.phone || user?.phone || "",
-                    onSuccess: async () => {
+                    onSuccess: async (paymentId) => {
+                        if (paymentSettled.current) return;
                         paymentSettled.current = true;
-                        // Clear cart on successful payment
-                        await clearCartDB().catch(() => { });
+
+                        // Clear cart on successful payment (user-scoped)
+                        const uid = user?.id;
+                        await (uid ? clearUserCartDB(uid) : clearCartDB()).catch(() => { });
                         const cartEntries = Object.entries(cartItems);
                         for (const [key, data] of cartEntries) {
                             const parts = key.split('_');
                             removeFromCart(parts[0], data.size, data.plan);
                         }
-                        // Navigate to order confirmed
                         navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
                     onFailure: (error) => {
+                        if (paymentSettled.current) return;
                         paymentSettled.current = true;
+
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
-                        navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
+
+                        // User cancelled → go back to checkout so they can retry
+                        if (error.message === 'PAYMENT_CANCELLED') {
+                            navigate('/checkout', { replace: true });
+                        } else {
+                            navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
+                        }
                     }
                 });
             } else if (type === "plan") {
-                // If plan payments are also managed via Razorpay, handle here.
                 setTimeout(() => {
                     navigate(`/payment-success?type=${type}&planId=${planId}`, { replace: true });
                 }, 3000);
@@ -135,7 +150,7 @@ export default function PaymentProcessingPage() {
                         )}
                     </h1>
                     <p className="text-zinc-500 font-medium mb-12 leading-relaxed">
-                        {isProcessing 
+                        {isProcessing
                             ? "Connecting to payment gateway... Please do not refresh."
                             : "Verifying order details before checkout..."
                         }

@@ -118,6 +118,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const [inventory, setInventory] = useState<InventoryRow[]>([]);
+    const [isProductRentedOut, setIsProductRentedOut] = useState(false);
 
     // New states for discounts and reviews
     const [discount, setDiscount] = useState<{ type: string, value: number } | null>(null);
@@ -214,6 +215,8 @@ const MobileProductDetailPage: React.FC = () => {
                 if (!inventoryRes.error && inventoryRes.data) {
                     const rows = inventoryRes.data as InventoryRow[];
                     setInventory(rows);
+                    const allRented = rows.length > 0 && rows.every(r => r.available_stock <= 0);
+                    setIsProductRentedOut(allRented);
                     const firstAvailable = rows.find(r => r.available_stock > 0);
                     if (firstAvailable) setSelectedSize(firstAvailable.size);
                 }
@@ -502,7 +505,7 @@ const MobileProductDetailPage: React.FC = () => {
                                         alt={`${product.name} ${idx + 1}`}
                                         className={cn(
                                             "w-full h-full object-cover",
-                                            isRented && "grayscale opacity-30 blur-sm"
+                                            (isRented || isProductRentedOut) && "grayscale opacity-30 blur-sm"
                                         )}
                                     />
                                 ) : (
@@ -513,6 +516,20 @@ const MobileProductDetailPage: React.FC = () => {
                             </div>
                         ))}
                     </div>
+
+                    {/* Rented Out Badge Overlay */}
+                    {(isRented || isProductRentedOut) && (
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/30 flex items-center gap-3 shadow-2xl"
+                            >
+                                <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                                <span className="text-sm font-black uppercase tracking-widest text-white">Currently Rented Out</span>
+                            </motion.div>
+                        </div>
+                    )}
 
                     {/* Pagination Dots (only if multiple images) */}
                     {(product.images?.length > 1) && (
@@ -705,17 +722,26 @@ const MobileProductDetailPage: React.FC = () => {
 
                     {/* Desktop Add to Cart */}
                     <div className="hidden lg:block mt-8 mb-4">
-                        <button
-                            onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
-                            className={cn(
-                                "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
-                                isAdded ? "bg-zinc-800 border border-[#f2546d]/30 text-white" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
-                            )}
-                        >
-                            <span className="text-lg font-bold tracking-tight" style={dmSans}>
-                                {isAdded ? "Added to Cart →" : "Add to Cart"}
-                            </span>
-                        </button>
+                        {isProductRentedOut || isRented ? (
+                            <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
+                                <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                                <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
+                                    Currently Rented Out
+                                </span>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
+                                className={cn(
+                                    "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
+                                    isAdded ? "bg-zinc-800 border border-[#f2546d]/30 text-white" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
+                                )}
+                            >
+                                <span className="text-lg font-bold tracking-tight" style={dmSans}>
+                                    {isAdded ? "Added to Cart →" : "Add to Cart"}
+                                </span>
+                            </button>
+                        )}
                     </div>
 
                     {/* ─── PRODUCT DETAILS ─── */}
@@ -995,11 +1021,11 @@ const MobileProductDetailPage: React.FC = () => {
             {/* ─── BOTTOM ACTION BAR ─── */}
             <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
-                    {isRented ? (
+                    {isRented || isProductRentedOut ? (
                         /* Rented-out state — cannot order */
-                        <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-800 border border-zinc-700 gap-2">
+                        <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3 shadow-xl">
                             <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                            <span className="text-base font-bold text-zinc-400 tracking-tight" style={dmSans}>
+                            <span className="text-base font-bold text-zinc-500 tracking-tight" style={dmSans}>
                                 Currently Rented Out
                             </span>
                         </div>

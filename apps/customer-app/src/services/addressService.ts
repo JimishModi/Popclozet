@@ -55,6 +55,7 @@ async function fetchBackendJson(path: string): Promise<any | null> {
 }
 
 export interface SavedAddress {
+  id?: string;
   lat: number;
   lng: number;
   formattedAddress: string;
@@ -210,6 +211,16 @@ export function getRecentAddresses(): ValidatedAddress[] {
     return saved ? JSON.parse(saved) : [];
   } catch {
     return [];
+  }
+}
+
+export function deleteRecentAddress(formattedAddress: string) {
+  try {
+    const saved = getRecentAddresses();
+    const updated = saved.filter((a) => a.formattedAddress !== formattedAddress);
+    localStorage.setItem(RECENT_ADDRESSES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed to delete recent address', e);
   }
 }
 

@@ -122,7 +122,7 @@ function mapDbOrderToIncoming(
 ): IncomingOrder {
     const addr = dbOrder.addresses;
     const fullAddr = addr?.full_address ?? 'Customer Address';
-    
+
     const items = (dbOrder.order_items ?? []).map((i: any) => ({
         name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`,
         qty: 1,
@@ -149,8 +149,7 @@ function mapDbOrderToIncoming(
         dropoff: isReturn
             ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
             : { name: 'Customer', address: fullAddr },
-        customerName: dbOrder.customer_profiles?.full_name || dbOrder.profiles?.full_name || 'Customer',
-        items,
+        customerName: dbOrder.customer_profiles?.full_name || 'Customer', items,
         earnings: dbOrder.delivery_fee > 0
             ? dbOrder.delivery_fee
             : Math.round((dbOrder.total_amount ?? 0) * 0.15),
@@ -642,7 +641,7 @@ export function HomePage() {
                                 <div className="w-44 h-44 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
                             </div>
                             <motion.div
-                                animate={isOnline ? { 
+                                animate={isOnline ? {
                                     scale: [1, 1.05, 1],
                                     rotate: [0, 5, -5, 0]
                                 } : {}}

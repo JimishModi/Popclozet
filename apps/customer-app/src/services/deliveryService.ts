@@ -179,6 +179,63 @@ export function getAvailableTimeSlots(startDayOffset = 0): { date: string; slots
     return result;
 }
 
+/**
+ * Generate return pickup time slots based on rental duration.
+ * - Slots start 2 hours from now (preparation buffer)
+ * - Slots end at 7 PM on the rental end date (now + rentalDays)
+ * - 1-hour intervals
+ * Example: Order at April 1 3PM, 1-day rental →
+ *   slots from April 1 5PM to April 2 7PM, every 1 hour
+ */
+export function getReturnTimeSlots(rentalDays: number): { date: string; slots: TimeSlot[] }[] {
+    const result: { date: string; slots: TimeSlot[] }[] = [];
+    const now = new Date();
+
+    const formatLocalDate = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Earliest return: 2 hours from now, rounded up to next full hour
+    const earliest = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    earliest.setMinutes(0, 0, 0);
+    if (earliest.getTime() < now.getTime() + 2 * 60 * 60 * 1000) {
+        earliest.setHours(earliest.getHours() + 1);
+    }
+
+    // Latest return: rental end date at 7 PM (19:00)
+    const rentalEnd = new Date(now);
+    rentalEnd.setDate(rentalEnd.getDate() + rentalDays);
+    rentalEnd.setHours(19, 0, 0, 0);
+
+    // If rental end 7PM is before earliest slot, extend to earliest + 4 hours
+    if (rentalEnd <= earliest) {
+        rentalEnd.setTime(earliest.getTime() + 4 * 60 * 60 * 1000);
+    }
+
+    // Generate 1-hour slots from earliest to latest
+    const cursor = new Date(earliest);
+    while (cursor < rentalEnd) {
+        const dateStr = formatLocalDate(cursor);
+        const startHour = cursor.getHours();
+        const endHour = startHour + 1;
+
+        let group = result.find(g => g.date === dateStr);
+        if (!group) {
+            group = { date: dateStr, slots: [] };
+            result.push(group);
+        }
+
+        group.slots.push({
+            date: dateStr,
+            start: `${String(startHour).padStart(2, '0')}:00`,
+            end: `${String(endHour).padStart(2, '0')}:00`,
+        });
+
+        cursor.setHours(cursor.getHours() + 1);
+    }
+
+    return result;
+}
+
 // Calculate full delivery route info
 export async function getDeliveryRoute(
     hub: RentalHub,
