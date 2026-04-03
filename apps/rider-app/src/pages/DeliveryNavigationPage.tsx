@@ -39,6 +39,10 @@ interface DeliveryOrder {
   status: string;
   otp_delivery?: string;
   otp_return?: string;
+  customer_profiles?: {
+    full_name?: string;
+    phone?: string;
+  } | null;
   delivery_address_snapshot?: {
     full_address?: string;
     lat?: number;
@@ -84,7 +88,7 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,otp_delivery,otp_return,delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
+          .select('id,status,otp_delivery,otp_return,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
@@ -376,6 +380,18 @@ export const DeliveryNavigationPage: React.FC = () => {
               Order #{order.id.slice(0, 8).toUpperCase()}
             </span>
           </div>
+          
+          {order.customer_profiles?.full_name && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-semibold text-white">
+                {order.customer_profiles.full_name}
+              </span>
+              <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full">
+                Customer
+              </span>
+            </div>
+          )}
+          
           <div className="flex items-start gap-2 mb-3">
             <MapPin size={14} className="text-emerald-400 mt-0.5 shrink-0" />
             <p className="text-xs text-zinc-400">{destAddress}</p>
@@ -384,13 +400,30 @@ export const DeliveryNavigationPage: React.FC = () => {
 
         <div className="px-6 pb-6 space-y-2.5">
           {/* Google Maps deeplink — same pattern as warehouse */}
-          <button
-            onClick={handleOpenGoogleMaps}
-            className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
-          >
-            <Navigation size={16} />
-            Open in Google Maps
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={handleOpenGoogleMaps}
+              className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+            >
+              <Navigation size={16} />
+              Navigation
+            </button>
+            
+            {order.customer_profiles?.phone ? (
+              <a
+                href={`tel:${order.customer_profiles.phone}`}
+                className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Call Customer
+              </a>
+            ) : (
+               <div className="w-full py-3 rounded-xl bg-zinc-800 opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone-off"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>
+                 No Number
+               </div>
+            )}
+          </div>
 
           {/* OTP-gated delivery button */}
           <button

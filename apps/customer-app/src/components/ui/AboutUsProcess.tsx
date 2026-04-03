@@ -1,10 +1,11 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { Sparkles, ShieldCheck, Shirt, ClipboardCheck } from "lucide-react";
 
 const PROCESS_STEPS = [
     {
         title: "Pre-Cleaning",
-        icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre-Cleaning" />,
+        icon: <Sparkles className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect garment for stains, damage, or odors",
             "Remove lint, hair, and debris",
@@ -14,7 +15,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Sanitization",
-        icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        icon: <ShieldCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Steam sanitization at 100°C for 10 minutes",
             "UV-C light treatment for 15 minutes",
@@ -24,7 +25,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Post-Cleaning",
-        icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post-Cleaning" />,
+        icon: <Shirt className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect for remaining stains or damage",
             "Steam press to remove wrinkles",
@@ -34,7 +35,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Quality Check",
-        icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        icon: <ClipboardCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Visual inspection under good lighting",
             "Odour test",

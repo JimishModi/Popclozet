@@ -323,6 +323,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
         rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
         sold:      'text-red-400 bg-red-500/10 border-red-500/20',
+        instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
@@ -380,14 +381,14 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                             <p className="text-[10px] font-mono text-zinc-300 truncate">{unit.individual_id}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase', statusColor(unit.status))}>
-                                                    {unit.status}
+                                                    {unit.status === 'instantly_bought' ? 'Instant Buy' : unit.status}
                                                 </span>
                                                 <span className="text-[9px] text-zinc-600">×{unit.times_rented} rented</span>
                                                 {unit.mrp_price && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp_price.toLocaleString()}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                             {unit.status !== 'sold' && (
+                                             {unit.status !== 'sold' && unit.status !== 'instantly_bought' && (
                                                 <button
                                                     onClick={async () => {
                                                         if (confirm(`Mark unit ${unit.individual_id} as SOLD? This removes it from active stock.`)) {

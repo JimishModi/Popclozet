@@ -240,17 +240,19 @@ export default function DeliveryTrackingPage() {
                             {riderProfile?.phone ? (
                                 <a 
                                     href={`tel:${riderProfile.phone}`}
-                                    className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                                    className="flex items-center gap-2 px-4 py-2 bg-white text-black font-semibold rounded-xl shadow-lg active:scale-95 transition-all"
                                 >
-                                    <Phone className="w-5 h-5 text-black" />
+                                    <Phone className="w-4 h-4" />
+                                    <span className="text-sm">Call Driver</span>
                                 </a>
                             ) : (
-                                <button 
-                                    onClick={() => window.location.href = 'tel:+918000155299'}
-                                    className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                                <a 
+                                    href="tel:+918000155299"
+                                    className="flex items-center gap-2 px-4 py-2 bg-white text-black font-semibold rounded-xl shadow-lg active:scale-95 transition-all"
                                 >
-                                    <Phone className="w-5 h-5 text-black" />
-                                </button>
+                                    <Phone className="w-4 h-4" />
+                                    <span className="text-sm">Call Driver</span>
+                                </a>
                             )}
                         </div>
                     </motion.div>

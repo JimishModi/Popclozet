@@ -71,6 +71,7 @@ const AddOnsCarousel = ({
   const [page, setPage] = useState(0);
   const [cardsPerPage, setCardsPerPage] = useState(2);
   const [cardWidth, setCardWidth] = useState(160);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const measure = () => {
@@ -133,7 +134,7 @@ const AddOnsCarousel = ({
               <motion.div
                 key={product.id}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => addToCart(product.id, 'One Size', '1d')}
+                onClick={() => navigate(`/product/${product.id}`)}
                 className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
                 style={{ width: cardWidth }}
               >
@@ -151,7 +152,13 @@ const AddOnsCarousel = ({
                     )}
                   </p>
                 </div>
-                <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addToCart(product.id, 'One Size', '1d');
+                  }}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg"
+                >
                   <Plus className="w-3.5 h-3.5 text-white" />
                 </button>
               </motion.div>

@@ -28,12 +28,6 @@ Deno.serve(async (req: Request) => {
 
     console.log("[Didit Webhook] Received:", { session_id, status, vendor_data })
 
-    // Only process successful verifications
-    if (status !== 'Approved' && status !== 'approved' && status !== 'success') {
-      console.log("[Didit Webhook] Skipping non-approved status:", status)
-      return jsonResponse({ message: 'Skipped' }, 200)
-    }
-
     // vendor_data contains the user_id we passed when creating the session
     // Didit also sends it in the callback URL params
     const userId = vendor_data || body?.user_id || body?.callback_params?.user_id
@@ -43,11 +37,39 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'No user_id in payload' }, 400)
     }
 
+    // Check if status indicates manual review is needed
+    const isManualReview = status === 'InReview' || status === 'Pending' || status === 'ActionRequired' || status === 'ReviewPending' || status === 'ManualReview';
+
     // Update DB using service role key (server-side)
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    if (isManualReview) {
+      console.log(`[Didit Webhook] Status indicates manual review needed: ${status} for user: ${userId}`);
+      
+      const { error: reviewError } = await supabaseAdmin
+        .from('manual_kyc_reviews')
+        .insert({
+          user_id: userId,
+          session_id: session_id,
+          status: status,
+          metadata: body
+        });
+        
+      if (reviewError) {
+        console.error("[Didit Webhook] Failed to insert manual review record:", reviewError);
+      }
+      
+      return jsonResponse({ message: 'Manual review recorded' }, 200)
+    }
+
+    // Only process successful verifications for customer_profiles
+    if (status !== 'Approved' && status !== 'approved' && status !== 'success') {
+      console.log("[Didit Webhook] Skipping non-approved status:", status)
+      return jsonResponse({ message: 'Skipped' }, 200)
+    }
 
     const { error } = await supabaseAdmin
       .from('customer_profiles')
