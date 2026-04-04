@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { ChevronLeft, Search, ChevronRight, Loader } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronLeft, Search, Loader } from "lucide-react";
 import { productService } from "@/services/productService";
 
 const BrandsPage: React.FC = () => {

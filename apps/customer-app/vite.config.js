@@ -16,13 +16,6 @@ export default defineConfig(function (_a) {
         server: {
             host: "localhost",
             port: 5500,
-            proxy: {
-                "/api": {
-                    target: "http://localhost:3001",
-                    changeOrigin: true,
-                    secure: false,
-                },
-            },
         },
         plugins: [
             react(),

@@ -201,7 +201,18 @@ const CollectionsPage = () => {
             transition={{ duration: 0.25 }}
           >
             {categories.map((cat, index) => {
-              const Icon = ICON_MAP[cat.id.toLowerCase()] ?? FallbackIcon;
+              const catId = cat.id.toLowerCase();
+              const isImageCategory = catId === 'jackets' || catId === 'footwear' || catId === 'accessories' || catId === 'accessory';
+              let imageName = '';
+              if (catId === 'jackets') imageName = 'Jackets';
+              else if (catId === 'footwear') imageName = 'Footwear';
+              else if (catId === 'accessories' || catId === 'accessory') imageName = 'Acessories';
+
+              const imageUrl = isImageCategory 
+                ? `https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/assets/collection-page/${imageName}.jpeg`
+                : null;
+              const Icon = ICON_MAP[catId] ?? FallbackIcon;
+              
               return (
                 <motion.button
                   key={cat.id}
@@ -210,9 +221,19 @@ const CollectionsPage = () => {
                   transition={{ delay: index * 0.08 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
-                  className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3"
+                  className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3 overflow-hidden"
                 >
-                  <Icon className="w-20 h-20 text-white/80" />
+                  {isImageCategory ? (
+                    <div className="w-32 h-32 rounded-xl overflow-hidden mb-2 shadow-2xl border border-white/10">
+                      <img 
+                        src={imageUrl!} 
+                        alt={cat.title} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <Icon className="w-20 h-20 text-white/80" />
+                  )}
                   <span className="text-lg font-bold text-white tracking-[0.2em]">
                     {cat.title.toUpperCase()}
                   </span>

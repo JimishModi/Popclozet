@@ -567,6 +567,13 @@ export const WarehouseNavigationPage: React.FC = () => {
                         {step === 'navigating' && isReturnFlow && (
                             <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                                 <button
+                                    onClick={handleOpenGoogleMaps}
+                                    className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+                                >
+                                    <Navigation size={16} />
+                                    Open in Google Maps
+                                </button>
+                                <button
                                     onClick={() => handleDropOffReturn()}
                                     disabled={actionLoading}
                                     className={primaryBtn('from-indigo-600 to-indigo-500')}
