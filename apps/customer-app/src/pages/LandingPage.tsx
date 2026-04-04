@@ -81,14 +81,14 @@ interface SlideProps {
 /* ─── Shared Header ─── */
 function SlideHeader() {
   return (
-    <div className="text-center mb-4">
+    <div className="text-center mb-2">
       <p
-        className="text-white text-xl font-bold tracking-wide mb-2"
+        className="text-white text-lg font-bold tracking-wide mb-1"
         style={{ fontFamily: "DM Sans, sans-serif" }}
       >
         Welcome To
       </p>
-      <img src={logoImage} alt="Popclozet" className="h-10 mx-auto" />
+      <img src={logoImage} alt="Popclozet" className="h-8 mx-auto" />
     </div>
   );
 }
@@ -98,7 +98,7 @@ function SlideFooter({ activeSlide, onDotClick, onContinue, onStartBrowsing }: S
   return (
     <>
       {/* Pagination Dots */}
-      <div className="flex items-center justify-center gap-2.5 mt-5 mb-6">
+      <div className="flex items-center justify-center gap-2.5 mt-2 mb-4">
         {Array.from({ length: TOTAL_SLIDES }).map((_, idx) => (
           <button
             key={idx}
@@ -112,17 +112,17 @@ function SlideFooter({ activeSlide, onDotClick, onContinue, onStartBrowsing }: S
       </div>
 
       {/* CTA Buttons */}
-      <div className="w-full max-w-[348px] mx-auto space-y-4">
+      <div className="w-full max-w-[348px] mx-auto space-y-3">
         <button
           onClick={onContinue}
-          className="w-full h-12 rounded-2xl font-semibold text-lg text-white shadow-lg transition-all hover:opacity-95 active:scale-[0.98]"
+          className="w-full h-11 rounded-2xl font-semibold text-lg text-white shadow-lg transition-all hover:opacity-95 active:scale-[0.98]"
           style={{ backgroundColor: brandPink, letterSpacing: "-0.54px" }}
         >
           Continue
         </button>
         <button
           onClick={onStartBrowsing}
-          className="w-full py-2 text-[#B4B4B4] text-lg font-semibold hover:text-white transition-colors flex items-center justify-center gap-2"
+          className="w-full py-1 text-[#B4B4B4] text-base font-semibold hover:text-white transition-colors flex items-center justify-center gap-2"
           style={{ letterSpacing: "-0.54px" }}
         >
           Browse without sign in
@@ -156,10 +156,14 @@ function MockupSlide(props: SlideProps) {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-12 pb-10 text-white">
-        <SlideHeader />
+      <div className="relative z-10 flex flex-col items-center min-h-screen px-6 pt-10 pb-6 text-white justify-between">
+        <div className="w-full max-w-[348px]">
+          <SlideHeader />
+        </div>
         <div className="flex-1" />
-        <SlideFooter {...props} />
+        <div className="w-full max-w-[348px]">
+          <SlideFooter {...props} />
+        </div>
       </div>
     </motion.div>
   );
