@@ -43,6 +43,14 @@ if (import.meta.env.DEV) {
     });
 }
 
+// iOS Safari requires WebSocket to be tested in a clean security context.
+// In severe cases, the WebSocket object itself might be undefined or throw.
+const realtimeConfig = typeof WebSocket !== 'undefined' ? {
+    params: {
+        eventsPerSecond: 10,
+    },
+} : {};
+
 let client: SupabaseClient;
 try {
     client = createClient(supabaseUrl, supabaseAnonKey, {
@@ -52,11 +60,7 @@ try {
             detectSessionInUrl: true,
             storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         },
-        realtime: {
-            params: {
-                eventsPerSecond: 10,
-            },
-        },
+        realtime: realtimeConfig,
     });
     if (import.meta.env.DEV) {
         console.log('[api-client] Supabase client created successfully.');

@@ -113,7 +113,9 @@ export function useOrders() {
                     fetchOrders();
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[useOrders] Realtime subscription error (non-fatal):', err);
+            });
 
         return () => {
             supabase.removeChannel(channel);
@@ -223,7 +225,9 @@ export function useOrder(orderId: string) {
                     fetchOrder();
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[useOrder] Realtime subscription error (non-fatal):', err);
+            });
 
         return () => {
             supabase.removeChannel(channel);

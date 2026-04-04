@@ -133,7 +133,9 @@ export default function PickupTrackingPage() {
                     setOrder(updated);
                 }
             })
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[PickupTrackingPage] Realtime subscription error (non-fatal):', err);
+            });
 
         return () => { supabase.removeChannel(channel); };
     }, [pickupId]);

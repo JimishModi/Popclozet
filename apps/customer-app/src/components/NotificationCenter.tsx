@@ -64,17 +64,22 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         let cancelled = false;
 
         (async () => {
-            const channel = await subscribeToNotifications((newNotif) => {
-                setNotifications((prev) => [newNotif, ...prev]);
-                setUnreadCount((prev) => prev + 1);
-            });
+            try {
+                const channel = await subscribeToNotifications((newNotif) => {
+                    setNotifications((prev) => [newNotif, ...prev]);
+                    setUnreadCount((prev) => prev + 1);
+                });
 
-            if (cancelled) {
-                if (channel) unsubscribeFromNotifications(channel);
-                return;
+                if (cancelled) {
+                    if (channel) unsubscribeFromNotifications(channel);
+                    return;
+                }
+
+                channelRef.current = channel;
+            } catch (err) {
+                // Non-fatal — realtime unavailable on iOS Safari in some contexts.
+                console.warn('[NotificationCenter] Realtime subscription failed (non-fatal):', err);
             }
-
-            channelRef.current = channel;
         })();
 
         return () => {

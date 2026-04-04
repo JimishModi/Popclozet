@@ -130,7 +130,9 @@ export function useActiveOrder() {
                     fetchActiveOrder();
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[useActiveOrder] Realtime subscription error (non-fatal):', err);
+            });
 
         return () => {
             supabase.removeChannel(channel);

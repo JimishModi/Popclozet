@@ -119,7 +119,9 @@ export function subscribeToRiderProximity(
                 }
             }
         )
-        .subscribe();
+        .subscribe((status, err) => {
+            if (err) console.warn('[geofenceSubscription] Realtime subscription error (non-fatal):', err);
+        });
 
     return () => unsubscribeRiderProximity();
 }

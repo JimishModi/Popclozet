@@ -216,55 +216,73 @@ export async function subscribeToNotifications(
   onNotificationUpdate?: (notification: Notification) => void,
   onNotificationDelete?: (notificationId: string) => void
 ): Promise<RealtimeChannel> {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session?.user.id) {
-    throw new Error("Not authenticated");
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.user.id) {
+      // Not authenticated — return a silent no-op channel.
+      // Throwing here crashes iOS Safari because the error propagates
+      // out of unguarded async IIFEs in callers.
+      console.warn('[notificationService] subscribeToNotifications: no session, skipping realtime');
+      return supabase.channel(`noop-no-auth-${Math.random().toString(36).slice(2, 9)}`).subscribe(
+        (status, err) => { if (err) console.warn('[notificationService] noop channel:', err); }
+      );
+    }
+
+    const userId = data.session.user.id;
+    const channelName = instanceId
+      ? `notifications:${userId}:${instanceId}`
+      : `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
+
+    return supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          onNewNotification(payload.new as Notification);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          onNotificationUpdate?.(payload.new as Notification);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string })?.id;
+          if (deletedId) onNotificationDelete?.(deletedId);
+        }
+      )
+      .subscribe((status, err) => {
+        if (err) console.warn('[notificationService] Realtime subscription error (non-fatal):', err);
+      });
+  } catch (err) {
+    // Catch any unexpected errors (e.g. iOS Safari WebSocket security errors)
+    // so callers never crash.
+    console.warn('[notificationService] subscribeToNotifications failed (non-fatal):', err);
+    return supabase.channel(`noop-error-${Math.random().toString(36).slice(2, 9)}`).subscribe(
+      (status, subErr) => { if (subErr) console.warn('[notificationService] noop channel:', subErr); }
+    );
   }
-
-  const channelName = instanceId 
-    ? `notifications:${data.session.user.id}:${instanceId}`
-    : `notifications:${data.session.user.id}:${Math.random().toString(36).slice(2, 9)}`;
-
-  return supabase
-    .channel(channelName)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${data.session.user.id}`,
-      },
-      (payload) => {
-        onNewNotification(payload.new as Notification);
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${data.session.user.id}`,
-      },
-      (payload) => {
-        onNotificationUpdate?.(payload.new as Notification);
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "DELETE",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${data.session.user.id}`,
-      },
-      (payload) => {
-        const deletedId = (payload.old as { id?: string })?.id;
-        if (deletedId) onNotificationDelete?.(deletedId);
-      }
-    )
-    .subscribe();
 }
 
 /**

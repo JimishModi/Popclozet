@@ -59,7 +59,9 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
                     setMessages((prev) => [...prev, payload.new as Message]);
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[OrderChat] Realtime subscription error (non-fatal):', err);
+            });
 
         return () => {
             supabase.removeChannel(channel);

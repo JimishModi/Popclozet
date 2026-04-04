@@ -155,7 +155,9 @@ export function useDeliveryTracking({
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[useDeliveryTracking] Realtime subscription error (non-fatal):', err);
+            });
 
         channelRef.current = channel;
 
@@ -165,7 +167,11 @@ export function useDeliveryTracking({
                 channelRef.current = null;
             }
         };
-    }, [orderId, enabled, order, onPositionUpdate, onETAUpdate]);
+        // NOTE: onPositionUpdate and onETAUpdate are excluded from deps intentionally.
+        // They are inline functions that change every render; including them would
+        // cause the WebSocket to reconnect on every render (iOS Safari amplifies this).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orderId, enabled]);
 
     // Manually refresh tracking data
     const refresh = useCallback(async () => {
