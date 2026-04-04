@@ -244,7 +244,8 @@ const MobileHome: React.FC = () => {
         if (!isRetry) setCatalogueError(false);
         setLoadingCatalogue(true);
         try {
-            const products = await productService.getProductsByGender(activeGender);
+            const rawProducts = await productService.getProductsByGender(activeGender);
+            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor'));
             if (products.length > 0) {
                 setCatalogueProducts(products.slice(0, 4));
                 catalogueRetryCount.current = 0;
@@ -254,7 +255,8 @@ const MobileHome: React.FC = () => {
                 catalogueRetryCount.current += 1;
                 console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
                 await productService.syncProducts();
-                const synced = await productService.getProductsByGender(activeGender);
+                const syncedRaw = await productService.getProductsByGender(activeGender);
+                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor'));
                 setCatalogueProducts(synced.slice(0, 4));
             }
         } catch (error) {
@@ -796,7 +798,7 @@ const MobileHome: React.FC = () => {
                                                 alt={item.name}
                                                 className={cn(
                                                     "w-full h-full object-cover transition-transform duration-500",
-                                                    isFake ? "grayscale opacity-20 blur-[2px]" : "group-hover:scale-105"
+                                                    isFake ? "grayscale opacity-20" : "group-hover:scale-105"
                                                 )}
                                             />
                                         ) : (

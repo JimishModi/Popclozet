@@ -209,7 +209,8 @@ const CategoryProductsPage: React.FC = () => {
 
                 // Non-blocking: fetch fake "currently rented" products and mix in
                 if (filters.category) {
-                    fetchRotatedFakeProducts(filters.category, undefined, 2).then(fakes => {
+                    const fakeCount = Math.max(3, Math.floor(mapped.length * 0.5));
+                    fetchRotatedFakeProducts(filters.category, undefined, fakeCount).then(fakes => {
                         if (fakes.length > 0) {
                             setProducts(prev => {
                                 // Avoid duplicates if called multiple times
@@ -496,9 +497,9 @@ const CategoryProductsPage: React.FC = () => {
                                                     alt={product.name}
                                                     className={cn(
                                                         "w-full h-full object-cover transition-transform duration-300",
-                                                        // Only blur FAKE products — real rented-out stays crisp
+                                                        // Only blur FAKE products — real rented-out stays crisp (NOW: Blur removed as requested)
                                                         isFake
-                                                            ? "grayscale opacity-25 blur-[2px]"
+                                                            ? "grayscale opacity-25"
                                                             : "group-hover:scale-105"
                                                     )}
                                                     loading="lazy"

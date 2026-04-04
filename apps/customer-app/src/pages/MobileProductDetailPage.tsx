@@ -505,7 +505,7 @@ const MobileProductDetailPage: React.FC = () => {
                                         alt={`${product.name} ${idx + 1}`}
                                         className={cn(
                                             "w-full h-full object-cover",
-                                            (isRented || isProductRentedOut) && "grayscale opacity-30 blur-sm"
+                                            (isRented || isProductRentedOut) && "grayscale opacity-50"
                                         )}
                                     />
                                 ) : (
