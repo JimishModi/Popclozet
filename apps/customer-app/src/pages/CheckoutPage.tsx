@@ -907,8 +907,10 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Duplicate order prevented — returning existing order:", createdOrderId);
       }
 
-      // Create pre-scheduled return request (single insert — was duplicated before)
-      if (returnSchedule?.pickupSlotIso && createdOrderId) {
+      // Create pre-scheduled return request — COD only (already confirmed).
+      // For online/UPI payments, the return request is created AFTER payment
+      // succeeds in PaymentProcessingPage to avoid false notifications.
+      if (paymentMethod === 'cod' && returnSchedule?.pickupSlotIso && createdOrderId) {
         const { error: rrErr } = await supabase
           .from('return_requests')
           .insert({
@@ -950,7 +952,19 @@ export default function CheckoutPage() {
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${createdOrderId}`);
       } else {
-        navigate(`/payment-processing?type=order&orderId=${createdOrderId}&amount=${serverTotal}&method=upi`);
+        // Pass return schedule data so PaymentProcessingPage can create the
+        // return_request AFTER payment succeeds (avoids false notifications).
+        const paymentParams = new URLSearchParams({
+          type: 'order',
+          orderId: createdOrderId,
+          amount: String(serverTotal),
+          method: 'upi',
+        });
+        if (returnSchedule?.pickupSlotIso) {
+          paymentParams.set('pickupSlotIso', returnSchedule.pickupSlotIso);
+          paymentParams.set('pickupAddressId', addressId);
+        }
+        navigate(`/payment-processing?${paymentParams.toString()}`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);

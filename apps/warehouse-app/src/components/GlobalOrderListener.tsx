@@ -7,7 +7,7 @@ import type { OrderWithItems } from '../services/fulfillmentService';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Truck, MapPin, Package, Navigation, CheckCircle,
-    RotateCcw, XCircle, X, ShieldAlert,
+    RotateCcw, XCircle, X, ShieldAlert, Clock,
 } from 'lucide-react';
 
 // Reliable notification chime sound
@@ -31,7 +31,8 @@ const TOAST_DISMISS_MS = 5_000;
  * Only statuses listed here will trigger an activity toast.
  * New order (confirmed) and new return request are handled by the existing overlay cards.
  */
-const STATUS_TOAST_CONFIG: Record<string, {
+// Toast configs for orders table status changes
+const ORDER_STATUS_TOAST_CONFIG: Record<string, {
     title: string;
     icon: React.ElementType;
     color: string;
@@ -74,7 +75,7 @@ const STATUS_TOAST_CONFIG: Record<string, {
         borderColor: 'border-emerald-500/30',
     },
     return_scheduled: {
-        title: '🔄 Return Scheduled',
+        title: '🔄 Return Approved',
         icon: RotateCcw,
         color: 'bg-amber-500/15 text-amber-400',
         borderColor: 'border-amber-500/30',
@@ -116,6 +117,56 @@ const STATUS_TOAST_CONFIG: Record<string, {
         borderColor: 'border-red-500/30',
     },
 };
+
+// Toast configs for return_requests table status changes
+const RETURN_REQUEST_TOAST_CONFIG: Record<string, {
+    title: string;
+    icon: React.ElementType;
+    color: string;
+    borderColor: string;
+}> = {
+    // INSERT with status = 'approved' → instant return
+    approved_instant: {
+        title: '⚡ Instant Return Approved',
+        icon: CheckCircle,
+        color: 'bg-emerald-500/15 text-emerald-400',
+        borderColor: 'border-emerald-500/30',
+    },
+    // UPDATE statuses
+    approved: {
+        title: '✅ Return Approved',
+        icon: CheckCircle,
+        color: 'bg-emerald-500/15 text-emerald-400',
+        borderColor: 'border-emerald-500/30',
+    },
+    dispatched: {
+        title: '🏍️ Return Rider Assigned',
+        icon: Truck,
+        color: 'bg-blue-500/15 text-blue-400',
+        borderColor: 'border-blue-500/30',
+    },
+    driver_arrived: {
+        title: '📍 Driver at Customer',
+        icon: MapPin,
+        color: 'bg-amber-500/15 text-amber-400',
+        borderColor: 'border-amber-500/30',
+    },
+    picked_up: {
+        title: '📦 Return Items Collected',
+        icon: Package,
+        color: 'bg-amber-500/15 text-amber-400',
+        borderColor: 'border-amber-500/30',
+    },
+    completed: {
+        title: '✅ Return Completed',
+        icon: CheckCircle,
+        color: 'bg-emerald-500/15 text-emerald-400',
+        borderColor: 'border-emerald-500/30',
+    },
+};
+
+// Keep alias for backward compat
+const STATUS_TOAST_CONFIG = ORDER_STATUS_TOAST_CONFIG;
 
 // ─── ActivityToast Component ────────────────────────────────────────────────────
 
@@ -305,7 +356,7 @@ export function GlobalOrderListener() {
                     }
                 }
             )
-            // Return requests: arrive as INSERT
+            // Return requests: INSERT — show overlay
             .on(
                 'postgres_changes',
                 {
@@ -314,8 +365,81 @@ export function GlobalOrderListener() {
                     table: 'return_requests',
                 },
                 async (payload) => {
-                    console.log('[GlobalOrderListener] New return request:', payload.new.id);
-                    await showReturnNotification(payload.new.id);
+                    const newRequest = payload.new;
+                    console.log('[GlobalOrderListener] New return request:', newRequest.id, 'status:', newRequest.status);
+
+                    if (newRequest.reason === 'pre_scheduled') {
+                        // Pre-scheduled return from Checkout — only show toast
+                        // if the parent order is actually confirmed (paid).
+                        const { data: parentOrder } = await supabase
+                            .from('orders').select('status').eq('id', newRequest.order_id).single();
+                        if (parentOrder?.status !== 'confirmed' && parentOrder?.status !== 'completed') {
+                            console.log('[GlobalOrderListener] Skipping pre-scheduled return toast — order not yet confirmed');
+                            return;
+                        }
+
+                        const shortId = newRequest.id.slice(0, 8).toUpperCase();
+                        let timeStr = 'ASAP';
+                        if (newRequest.pickup_slot) {
+                             timeStr = new Date(newRequest.pickup_slot).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+                        }
+                        pushActivityToast({
+                            title: '📅 Return Scheduled',
+                            subtitle: `Return #${shortId} scheduled at ${timeStr}`,
+                            icon: Clock,
+                            // Less aggressive color as it's part of checkout flow
+                            color: 'bg-zinc-800 text-zinc-400',
+                            borderColor: 'border-zinc-700',
+                        });
+                        playNotificationSound();
+                    } else if (newRequest.reason === 'immediate' && newRequest.status === 'requested') {
+                        // Instant Return requested from tracking page
+                        const shortId = newRequest.id.slice(0, 8).toUpperCase();
+                        pushActivityToast({
+                            title: '⚡ Instant Return Requested',
+                            subtitle: `Return #${shortId} — please review`,
+                            icon: RETURN_REQUEST_TOAST_CONFIG.approved_instant.icon,
+                            color: 'bg-amber-500/15 text-amber-400',
+                            borderColor: 'border-amber-500/30',
+                        });
+                        playNotificationSound();
+                        
+                        await showReturnNotification(newRequest.id);
+                    } else {
+                        // Normal return request — show full overlay card
+                        await showReturnNotification(newRequest.id);
+                    }
+                }
+            )
+            // Return requests: UPDATE — fire activity toasts for all status transitions
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'return_requests',
+                },
+                (payload) => {
+                    const oldRequest = payload.old as { status?: string; id?: string };
+                    const newRequest = payload.new as { status?: string; id?: string };
+                    const oldStatus = oldRequest.status;
+                    const newStatus = newRequest.status;
+
+                    if (oldStatus === newStatus) return;
+
+                    const toastConfig = RETURN_REQUEST_TOAST_CONFIG[newStatus as string];
+                    if (toastConfig) {
+                        const shortId = (newRequest.id || '').slice(0, 8).toUpperCase();
+                        console.log(`[GlobalOrderListener] Return update: ${oldStatus} → ${newStatus} #${shortId}`);
+                        pushActivityToast({
+                            title: toastConfig.title,
+                            subtitle: `Return #${shortId}`,
+                            icon: toastConfig.icon,
+                            color: toastConfig.color,
+                            borderColor: toastConfig.borderColor,
+                        });
+                        playNotificationSound();
+                    }
                 }
             )
             // Manual KYC reviews: arrive as INSERT

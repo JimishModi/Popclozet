@@ -22,6 +22,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ALLOWED_ORIGINS = [
   'https://popclozet.com',
   'https://www.popclozet.com',
+  'https://popclozet.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5500',

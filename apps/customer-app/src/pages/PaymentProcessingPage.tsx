@@ -7,6 +7,7 @@ import { useAuth } from "@/context/SupabaseAuthContext";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useCart } from "@/context/CartContext";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
+import { supabase } from "@popclozet/api-client";
 
 export default function PaymentProcessingPage() {
     const navigate = useNavigate();
@@ -17,6 +18,9 @@ export default function PaymentProcessingPage() {
     const orderId = searchParams.get("orderId");
     const amountStr = searchParams.get("amount");
     const method = searchParams.get("method") || "upi";
+
+    const pickupSlotIso = searchParams.get("pickupSlotIso");
+    const pickupAddressId = searchParams.get("pickupAddressId");
 
     const { user, profile } = useAuth();
     const { cartItems, removeFromCart } = useCart();
@@ -81,6 +85,25 @@ export default function PaymentProcessingPage() {
                     onSuccess: async (paymentId) => {
                         if (paymentSettled.current) return;
                         paymentSettled.current = true;
+
+                        // Create pre-scheduled return request now that payment is verified.
+                        // This was deferred from CheckoutPage to avoid false notifications
+                        // when payment hasn't completed yet.
+                        if (pickupSlotIso && orderId) {
+                            const { error: rrErr } = await supabase
+                                .from('return_requests')
+                                .insert({
+                                    order_id: orderId,
+                                    status: 'approved',
+                                    reason: 'pre_scheduled',
+                                    pickup_slot: pickupSlotIso,
+                                    pickup_address_id: pickupAddressId,
+                                    approved_at: new Date().toISOString(),
+                                });
+                            if (rrErr) {
+                                console.warn('[PaymentProcessing] Return request insert failed (non-blocking):', rrErr.message);
+                            }
+                        }
 
                         // Clear cart on successful payment (user-scoped)
                         const uid = user?.id;

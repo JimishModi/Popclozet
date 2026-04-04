@@ -25,6 +25,7 @@ import { recoverPendingVerifications } from "./services/razorpayService";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
+import { MandatoryReviewGate } from "@/components/MandatoryReviewGate";
 import { clearReloadGuard, hasReloadGuard, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
 
 
@@ -200,6 +201,7 @@ function App() {
 
                   {/* LOCATION */}
                   <LocationGate />
+                  <MandatoryReviewGate />
                   <CitySelectorModal
                     open={showCitySelector}
                     onClose={() => setShowCitySelector(false)}

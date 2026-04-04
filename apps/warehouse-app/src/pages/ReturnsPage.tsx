@@ -317,7 +317,7 @@ export function ReturnsPage() {
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                                         {/* Rider Live Location Link */}
                                         {['return_dispatched', 'return_picked_up'].includes(order?.status ?? '') && (
                                             <a
@@ -352,111 +352,122 @@ export function ReturnsPage() {
                                                 {receiveBusy ? <RefreshCw size={12} className="animate-spin" /> : <><PackageCheck size={12} /> Receive Return</>}
                                             </button>
                                         )}
-
-                                        <button
-                                            onClick={() => setExpandedOrderId(expanded ? null : order?.id ?? null)}
-                                            className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all"
-                                        >
-                                            <ScanLine size={12} />
-                                            {expanded ? 'Hide Linked Units' : 'Open Linked Units'}
-                                            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                        </button>
                                     </div>
 
-                                    {expanded && (
-                                        <div className="mt-4 pt-4 border-t border-surface-border space-y-2">
-                                            {linkedUnits.length === 0 ? (
-                                                <div className="rounded-lg border border-dashed border-zinc-700 p-3 text-xs text-zinc-500">
-                                                    No linked physical units yet. Pack the outbound order with assigned units before using the return wash workflow.
-                                                </div>
-                                            ) : (
-                                                linkedUnits.map((item: any) => {
-                                                    const unit = item.unit;
-                                                    const unitStatus = unit?.status || 'unknown';
-                                                    const unitActionBusy = processingKey === `unit:${item.individual_id}`;
-                                                    const isReturned = order?.status === 'returned';
-                                                    const canMarkAvailable = isReturned && unitStatus === 'rented';
-                                                    const canMarkSold    = isReturned && unitStatus !== 'sold';
+                                    <div className="mt-4 pt-4 border-t border-surface-border">
+                                        {linkedUnits.length === 0 ? (
+                                            <div className="rounded-lg border border-dashed border-zinc-700 p-3 text-xs text-zinc-500">
+                                                No linked physical units yet. Pack the outbound order with assigned units before using the return wash workflow.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {(() => {
+                                                    const renderUnit = (item: any) => {
+                                                        const unit = item.unit;
+                                                        const unitStatus = unit?.status || 'unknown';
+                                                        const unitActionBusy = processingKey === `unit:${item.individual_id}`;
+                                                        const isReturned = order?.status === 'returned';
+                                                        const canMarkAvailable = isReturned && unitStatus === 'rented';
+                                                        const canMarkSold    = isReturned && unitStatus !== 'sold';
+
+                                                        return (
+                                                            <div
+                                                                key={item.id}
+                                                                className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3"
+                                                            >
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div>
+                                                                        <p className="text-sm font-medium text-white">
+                                                                            {item.product?.name || `Product ${item.product_id?.slice?.(0, 8)}`}
+                                                                        </p>
+                                                                        <p className="text-xs text-zinc-500 mt-1">
+                                                                            Unit: {item.individual_id}
+                                                                        </p>
+                                                                        <p className="text-xs text-zinc-500 mt-1">
+                                                                            Size: {item.size || unit?.inventory?.size || 'N/A'}
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div className="text-right">
+                                                                        <span className={clsx(
+                                                                            'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                                                                            unitStatus === 'available' && 'bg-emerald-500/15 text-emerald-400',
+                                                                            unitStatus === 'washing'   && 'bg-amber-500/15 text-amber-400',
+                                                                            unitStatus === 'rented'    && 'bg-blue-500/15 text-blue-400',
+                                                                            unitStatus === 'sold'      && 'bg-red-500/15 text-red-400',
+                                                                            !['available', 'washing', 'rented', 'sold'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
+                                                                        )}>
+                                                                            {unitStatus}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {(canMarkAvailable || canMarkSold) && (
+                                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                                        {unitStatus === 'rented' && order?.status === 'returned' && (
+                                                                            <button
+                                                                                disabled={unitActionBusy}
+                                                                                onClick={() => handleSendToWash(item.individual_id, order, request.id, linkedUnits)}
+                                                                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/10 transition-all disabled:opacity-60"
+                                                                            >
+                                                                                {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
+                                                                                Send to Wash
+                                                                            </button>
+                                                                        )}
+                                                                        {unitStatus === 'washing' && (
+                                                                            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-800/50 text-zinc-400 border border-zinc-700/50">
+                                                                                <RefreshCw size={12} className="animate-spin" />
+                                                                                In Wash Cycle...
+                                                                            </div>
+                                                                        )}
+                                                                        {canMarkSold && (
+                                                                            <button
+                                                                                disabled={unitActionBusy}
+                                                                                onClick={async () => {
+                                                                                    if (!user?.id) return;
+                                                                                    setProcessingKey(`unit:${item.individual_id}`);
+                                                                                    try {
+                                                                                        await markUnitAsSold(item.individual_id, user.id);
+                                                                                        showToast(`Unit ${item.individual_id} marked as sold`);
+                                                                                        await loadData();
+                                                                                    } catch (e: any) {
+                                                                                        showToast(e.message || 'Failed', 'error');
+                                                                                    } finally {
+                                                                                        setProcessingKey(null);
+                                                                                    }
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-60"
+                                                                            >
+                                                                                <AlertTriangle size={12} />
+                                                                                Mark as Sold
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    };
 
                                                     return (
-                                                        <div
-                                                            key={item.id}
-                                                            className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3"
-                                                        >
-                                                            <div className="flex items-start justify-between gap-3">
-                                                                <div>
-                                                                    <p className="text-sm font-medium text-white">
-                                                                        {item.product?.name || `Product ${item.product_id?.slice?.(0, 8)}`}
-                                                                    </p>
-                                                                    <p className="text-xs text-zinc-500 mt-1">
-                                                                        Unit: {item.individual_id}
-                                                                    </p>
-                                                                    <p className="text-xs text-zinc-500 mt-1">
-                                                                        Size: {item.size || unit?.inventory?.size || 'N/A'}
-                                                                    </p>
-                                                                </div>
-
-                                                                <div className="text-right">
-                                                                    <span className={clsx(
-                                                                        'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                                                                        unitStatus === 'available' && 'bg-emerald-500/15 text-emerald-400',
-                                                                        unitStatus === 'washing'   && 'bg-amber-500/15 text-amber-400',
-                                                                        unitStatus === 'rented'    && 'bg-blue-500/15 text-blue-400',
-                                                                        unitStatus === 'sold'      && 'bg-red-500/15 text-red-400',
-                                                                        !['available', 'washing', 'rented', 'sold'].includes(unitStatus) && 'bg-zinc-800 text-zinc-400',
-                                                                    )}>
-                                                                        {unitStatus}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {(canMarkAvailable || canMarkSold) && (
-                                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                                    {unitStatus === 'rented' && order?.status === 'returned' && (
-                                                                        <button
-                                                                            disabled={unitActionBusy}
-                                                                            onClick={() => handleSendToWash(item.individual_id, order, request.id, linkedUnits)}
-                                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/10 transition-all disabled:opacity-60"
-                                                                        >
-                                                                            {unitActionBusy ? <RefreshCw size={12} className="animate-spin" /> : <Droplets size={12} />}
-                                                                            Send to Wash
-                                                                        </button>
-                                                                    )}
-                                                                    {unitStatus === 'washing' && (
-                                                                        <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-800/50 text-zinc-400 border border-zinc-700/50">
-                                                                            <RefreshCw size={12} className="animate-spin" />
-                                                                            In Wash Cycle...
-                                                                        </div>
-                                                                    )}
-                                                                    {canMarkSold && (
-                                                                        <button
-                                                                            disabled={unitActionBusy}
-                                                                            onClick={async () => {
-                                                                                if (!user?.id) return;
-                                                                                setProcessingKey(`unit:${item.individual_id}`);
-                                                                                try {
-                                                                                    await markUnitAsSold(item.individual_id, user.id);
-                                                                                    showToast(`Unit ${item.individual_id} marked as sold`);
-                                                                                    await loadData();
-                                                                                } catch (e: any) {
-                                                                                    showToast(e.message || 'Failed', 'error');
-                                                                                } finally {
-                                                                                    setProcessingKey(null);
-                                                                                }
-                                                                            }}
-                                                                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-60"
-                                                                        >
-                                                                            <AlertTriangle size={12} />
-                                                                            Mark as Sold
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <>
+                                                            {renderUnit(linkedUnits[0])}
+                                                            {expanded && linkedUnits.length > 1 && linkedUnits.slice(1).map(renderUnit)}
+                                                        </>
                                                     );
-                                                })
-                                            )}
-                                        </div>
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {linkedUnits.length > 1 && (
+                                        <button
+                                            onClick={() => setExpandedOrderId(expanded ? null : order?.id ?? null)}
+                                            className="w-full mt-2 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all border border-transparent hover:border-zinc-700"
+                                        >
+                                            <ScanLine size={12} />
+                                            {expanded ? 'Hide Extra Units' : `See all ${linkedUnits.length} Units`}
+                                            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                        </button>
                                     )}
                                 </motion.div>
                             );
