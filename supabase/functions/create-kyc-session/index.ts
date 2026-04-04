@@ -18,21 +18,27 @@ function jsonResponse(body: unknown, status: number) {
 }
 
 Deno.serve(async (req: Request) => {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  console.log(`[${requestId}] create-kyc-session request started`)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   if (!DIDIT_API_KEY || !DIDIT_CLIENT_ID || !DIDIT_WORKFLOW_ID) {
+    console.error(`[${requestId}] Missing environment variables`)
     return jsonResponse({
       error: 'Missing DIDIT_API_KEY, DIDIT_CLIENT_ID, or DIDIT_WORKFLOW_ID',
     }, 500)
   }
 
   try {
-    const { callbackParams } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    const { callbackParams } = body
 
     const userId = callbackParams?.user_id
     if (!userId || typeof userId !== 'string') {
+      console.error(`[${requestId}] Missing or invalid user_id in callbackParams`, body)
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
@@ -41,13 +47,12 @@ Deno.serve(async (req: Request) => {
     const origin =
       req.headers.get('origin') ||
       Deno.env.get('PUBLIC_APP_ORIGIN') ||
-      'http://localhost:5500'
+      'https://popclozet.vercel.app' // Fallback to production origin
       
-    // Reverting to normal path because Didit API strictly rejects callback URLs containing '#' fragments.
-    // The query param preservation will be handled by the frontend main.tsx instead.
+    // Didit API strictly rejects callback URLs containing '#' fragments.
     const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
-    console.log("Creating Didit session with callback:", callbackUrl)
+    console.log(`[${requestId}] Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
     const response = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
@@ -66,12 +71,14 @@ Deno.serve(async (req: Request) => {
     const data = await response.json()
 
     if (!response.ok) {
-      console.error("Didit API error:", data)
-      return jsonResponse({ error: data }, 400)
+      console.error(`[${requestId}] Didit API error:`, data)
+      return jsonResponse({ error: data }, response.status || 400)
     }
 
+    console.log(`[${requestId}] Didit session created successfully:`, data.session_id)
     return jsonResponse(data, 200)
   } catch (error: any) {
-    return jsonResponse({ error: error?.message || 'Unknown error' }, 400)
+    console.error(`[${requestId}] Unexpected error:`, error)
+    return jsonResponse({ error: error?.message || 'Unknown error' }, 500)
   }
 })
