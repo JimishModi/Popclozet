@@ -1,7 +1,7 @@
 // src/pages/CheckoutPage.tsx
 // Checkout flow — creates order and notifies rider app via Supabase
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,7 +15,9 @@ import {
   Wifi,
   Mail,
   Banknote,
-  CreditCard
+  CreditCard,
+  Shield,
+  Loader2
 } from "lucide-react";
 import { Drawer } from "vaul";
 import { toast } from "sonner";
@@ -28,7 +30,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder } from "@/services/ordersService";
+import { placeOrder, previewOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -43,20 +45,20 @@ const isRealEmail = (email?: string | null): email is string => {
 
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
+import { callLocationFn } from "@/utils/env";
+import { haversineDistance } from "@/utils/haversine";
 
 /* ---------------------------------- */
 /* Constants                          */
 /* ---------------------------------- */
 const WAREHOUSE_LOCATION = {
-  name: "Hostel 5, IIT Bombay",
-  lat: 19.1306,
-  lng: 72.9155
+  name: "Hostel 2, IIT Bombay",
+  lat: 19.1305,
+  lng: 72.9135
 };
 const MAX_DELIVERY_DISTANCE_KM = 6;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// FIX 3: Use env variable instead of hardcoded localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -104,6 +106,12 @@ export default function CheckoutPage() {
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
   const isOnline = useOnlineStatus();
+
+  // Coupon code passed from CartPage via location state or search params
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
+    () => location.state?.couponCode || searchParams.get("coupon") || null
+  );
+
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -169,8 +177,8 @@ export default function CheckoutPage() {
               toast.success("Identity verified. Proceeding with stored confirmation.");
               return;
             }
-              toast.success("Identity verified successfully!");
-            });
+            toast.success("Identity verified successfully!");
+          });
       } else {
         supabase
           .from("customer_profiles")
@@ -195,32 +203,52 @@ export default function CheckoutPage() {
     }
   }, [searchParams, user?.id, profile?.full_name, profile?.phone, user?.phone, user?.user_metadata]);
 
+  // Fetch KYC status from DB
+  const fetchKycStatus = useCallback(() => {
+    if (!user?.id) return;
+    if (readStoredKycVerified(user.id)) {
+      setKycVerified(true);
+    }
+
+    supabase
+      .from("customer_profiles")
+      .select("kyc_verified")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn("[KYC] Failed to fetch persisted KYC status:", error);
+          return;
+        }
+
+        const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
+        if (isVerified) {
+          writeStoredKycVerified(user.id, true);
+          setKycVerified(true);
+        }
+      });
+  }, [user?.id]);
+
   // Fetch initial KYC status
   useEffect(() => {
-    if (user?.id) {
-      if (readStoredKycVerified(user.id)) {
-        setKycVerified(true);
+    fetchKycStatus();
+  }, [fetchKycStatus]);
+
+  // Re-fetch KYC status when user returns to tab (e.g. after Didit verification)
+  useEffect(() => {
+    let retryTimer: ReturnType<typeof setTimeout>;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchKycStatus();
+        retryTimer = setTimeout(fetchKycStatus, 3000);
       }
-
-      supabase
-        .from("customer_profiles")
-        .select("kyc_verified")
-        .eq("user_id", user.id)
-        .maybeSingle()
-        .then(({ data, error }) => {
-          if (error) {
-            console.warn("[KYC] Failed to fetch persisted KYC status:", error);
-            return;
-          }
-
-          const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
-          if (isVerified) {
-            writeStoredKycVerified(user.id, true);
-            setKycVerified(true);
-          }
-        });
-    }
-  }, [user?.id]);
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      clearTimeout(retryTimer);
+    };
+  }, [fetchKycStatus]);
 
   // Save payment method preference
   useEffect(() => {
@@ -294,20 +322,24 @@ export default function CheckoutPage() {
     const hub = getSavedHub();
     if (hub) setSelectedHub(hub);
 
-    const checkSub = async () => {
-      const benefits = await getSubscriptionBenefits();
-      if (benefits) {
-        setSubBenefits(benefits);
-        setHasFreeDeliveryBenefit(benefits.freeDelivery);
-        setHasInsuranceBenefit(benefits.insuranceIncluded);
-        if (benefits.insuranceIncluded) setPopInsurance(true);
-      } else {
-        setSubBenefits(null);
-        setHasFreeDeliveryBenefit(false);
-        setHasInsuranceBenefit(false);
-      }
-    };
-    checkSub();
+    // Subscription model commented out — not enforced currently
+    // const checkSub = async () => {
+    //   const benefits = await getSubscriptionBenefits();
+    //   if (benefits) {
+    //     setSubBenefits(benefits);
+    //     setHasFreeDeliveryBenefit(benefits.freeDelivery);
+    //     setHasInsuranceBenefit(benefits.insuranceIncluded);
+    //     if (benefits.insuranceIncluded) setPopInsurance(true);
+    //   } else {
+    //     setSubBenefits(null);
+    //     setHasFreeDeliveryBenefit(false);
+    //     setHasInsuranceBenefit(false);
+    //   }
+    // };
+    // checkSub();
+    setSubBenefits(null);
+    setHasFreeDeliveryBenefit(false);
+    setHasInsuranceBenefit(false);
   }, []);
 
   useEffect(() => {
@@ -321,7 +353,7 @@ export default function CheckoutPage() {
   }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
 
 
-  // Distance Check Effect (Strictly MapmyIndia API)
+  // Distance Check Effect (Supabase Edge Function + Haversine fallback)
   useEffect(() => {
     const fetchDistance = async (destination: string) => {
       setDistanceLoading(true);
@@ -329,30 +361,39 @@ export default function CheckoutPage() {
 
       try {
         const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
-        console.log(`[Checkout] Calling MapmyIndia Distance API: ${origin} to ${destination}`);
+        console.log(`[Checkout] Calling distance edge function: ${origin} to ${destination}`);
 
         // Abort after 10s to prevent hanging on slow connections
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
 
-        // FIX 3: Use env-based API_BASE_URL
-        const response = await fetch(
-          `${API_BASE_URL}/api/location/distance?origin=${origin}&destination=${destination}`,
-          { signal: controller.signal }
+        const data = await callLocationFn(
+          { action: "distance", origin, destination },
+          controller.signal
         );
         clearTimeout(timeout);
 
-        if (response.ok) {
-          const data = await response.json();
-          const distance = data.distance;
-
-          console.log("[DistanceCheck] API verified distance:", distance);
-          setActualDistance(distance);
-        } else {
-          throw new Error("MapmyIndia API service error");
-        }
+        const distance = data.distance;
+        console.log("[DistanceCheck] API verified distance:", distance);
+        setActualDistance(distance);
       } catch (error) {
-        console.warn("[Checkout] Strict Distance API failed:", error);
+        console.warn("[Checkout] Edge function distance failed, trying Haversine fallback:", error);
+
+        // Haversine fallback: parse destination coords if available
+        try {
+          const parts = destination.split(",");
+          if (parts.length === 2) {
+            const dLng = parseFloat(parts[0]);
+            const dLat = parseFloat(parts[1]);
+            if (!isNaN(dLat) && !isNaN(dLng)) {
+              const km = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, dLat, dLng);
+              console.log(`[DistanceCheck] Haversine fallback: ${km.toFixed(2)}km`);
+              setActualDistance(km);
+              return;
+            }
+          }
+        } catch { /* ignore parse errors */ }
+
         setDistanceError("Distance service temporarily unavailable");
         setActualDistance(null);
       } finally {
@@ -464,14 +505,16 @@ export default function CheckoutPage() {
       let productMap: Record<string, any> = {};
       if (data && !error) {
         data.forEach((p: any) => {
+          const mrp = parseFloat(p.mrp ?? '0');
           productMap[p.id] = {
             ...p,
+            mrp,
             rental_price_1d: p.rental_price_1d,
             rental_price_2d: p.rental_price_2d,
             rental_price_3d: p.rental_price_3d,
             buy_price: p.buy_price,
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: parseFloat(p.price ?? '0'),
+            originalPrice: mrp,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -566,56 +609,93 @@ export default function CheckoutPage() {
   // Removed subscription error logic
   const subscriptionError = null;
 
-  // Calculate totals
-  const subtotal = useMemo(() => {
-    if (buyoutOrderData) {
-      // For buyout, the "subtotal" is the remaining balance (e.g. 70% of total or fixed)
-      return Math.round(buyoutOrderData.total_amount * 0.7);
-    }
+  // ── Server-side pricing (source of truth) ──
+  // preview_order RPC computes all prices from the DB.
+  // Client-side estimates are only used as instant fallbacks while the RPC loads.
+  const [serverPricing, setServerPricing] = useState<{
+    original_total: number; subtotal: number; discount: number;
+    coupon_discount: number; delivery_fee: number; total: number;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+
+  // Build preview items from cart (no prices — just IDs/plans/quantities)
+  const previewItems = useMemo(() => {
+    if (buyoutOrderData) return [];
+    return validCartEntries.map(([key, data]) => ({
+      product_id: key.split('_')[0],
+      plan: data.plan || '3d',
+      quantity: data.quantity || 1,
+    }));
+  }, [validCartEntries, buyoutOrderData]);
+
+  // Fetch server-side pricing whenever cart items, distance, or coupon change
+  useEffect(() => {
+    if (previewItems.length === 0 || buyoutOrderData) return;
+    let cancelled = false;
+    setPricingLoading(true);
+    previewOrder({
+      items: previewItems,
+      couponCode: appliedCouponCode,
+      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance || 0),
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setServerPricing({
+          original_total: result.original_total ?? 0,
+          subtotal: result.subtotal ?? 0,
+          discount: result.discount ?? 0,
+          coupon_discount: result.coupon_discount ?? 0,
+          delivery_fee: isNoDeliveryFlow ? 0 : (result.delivery_fee ?? 40),
+          total: isNoDeliveryFlow
+            ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
+            : (result.total ?? 0),
+        });
+      }
+    }).catch((err) => {
+      if (!cancelled) console.warn("[Checkout] preview_order failed, using client estimates:", err);
+    }).finally(() => {
+      if (!cancelled) setPricingLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [previewItems, appliedCouponCode, actualDistance, isNoDeliveryFlow, buyoutOrderData]);
+
+  // ── Display values: prefer server pricing, fall back to client estimates ──
+  const subtotal = serverPricing?.subtotal ?? (() => {
+    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const price = getPlanPrice(product, data.plan);
       return total + (price || 0) * data.quantity;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData, subBenefits, subscriptionError]);
+  })();
 
-  const originalTotal = useMemo(() => {
+  const originalTotal = serverPricing?.original_total ?? (() => {
     if (buyoutOrderData) return buyoutOrderData.total_amount;
     return validCartEntries.reduce((total, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const mrp = product?.mrp || (getPlanPrice(product, '3d') * 5);
-      return total + mrp * data.quantity;
+      const planPrice = getPlanPrice(product, data.plan) || 0;
+      const mrp = product?.mrp || planPrice;
+      return total + Math.max(mrp, planPrice) * data.quantity;
     }, 0);
-  }, [validCartEntries, cartProducts, buyoutOrderData]);
+  })();
 
-  const discount = originalTotal - subtotal;
+  const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
+  const couponDiscount = serverPricing?.coupon_discount ?? 0;
 
-  // Compute delivery fee from the LIVE distance check, not stale profile data.
-  // If the distance API hasn't responded yet, fall back to profile value.
-  const deliveryFeeBase = useMemo(() => {
+  const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
     if (actualDistance !== null && actualDistance > 0) {
-      // Import inline to avoid circular deps — same formula as deliveryService
-      const fee = actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
-      return fee;
+      return actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
     }
     return profile?.delivery_fee ?? 40;
-  }, [actualDistance, profile?.delivery_fee]);
-
-  // FIX 5: Single source of truth for distance surcharge — removed as per request
+  })();
   const distanceSurcharge = 0;
 
-  const deliveryFee = isNoDeliveryFlow
-    ? 0  // No delivery needed — user already has the item
-    : selectedOrderType === 'home_try_on'
-      ? 0
-      : hasFreeDeliveryBenefit
-        ? 0
-        : deliveryFeeBase;
-  const isDeliveryFeeWaived = isNoDeliveryFlow || selectedOrderType === 'home_try_on' || hasFreeDeliveryBenefit;
-  const insuranceFee = 0; // Fixed to 0 (subscription insurance removed)
-  const total = subtotal + deliveryFee + insuranceFee;
+  const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
+  const isDeliveryFeeWaived = isNoDeliveryFlow;
+  const insuranceFee = 0;
+  const total = serverPricing?.total ?? (subtotal - couponDiscount + deliveryFee + insuranceFee);
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -760,7 +840,11 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const deliveryEtaStr = new Date(startDate.getTime() + 60 * 60000).toISOString();
+      const actualDistance = selectedHub?.distance_km ?? 0;
+      const isDelayed = actualDistance > 6;
+      const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
+      const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
+      const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
 
       // Parse pre-scheduled return slot if provided
       let returnPickupDate: string | null = null;
@@ -798,14 +882,15 @@ export default function CheckoutPage() {
       }
 
       // ATOMIC order placement — order + items in a single DB transaction.
-      // Server fetches prices from DB, computes total, prevents duplicates.
+      // Server fetches prices from DB, computes delivery fee & coupon discount.
+      // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
       const orderResult = await placeOrder({
         idempotencyKey: idempotencyKeyRef.current,
         addressId: addressId,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         paymentMethod: paymentMethod,
-        deliveryFee: deliveryFee,
+        couponCode: appliedCouponCode || null,
         routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
         deliveryEta: deliveryEtaStr,
         returnPickupDate: returnPickupDate,
@@ -915,6 +1000,86 @@ export default function CheckoutPage() {
           <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
           <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
 
+          {/* KYC Verification Banner — shown upfront when not verified */}
+          {!kycVerified && (
+            <div className="mt-6 bg-[#1C1C1E] border border-amber-500/20 rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5 text-amber-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white" style={dmSans}>Verify your profile</p>
+                  <p className="text-[11px] text-zinc-500" style={dmSans}>Complete verification to place orders</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setIsKycLoading(true);
+                    const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                      body: { callbackParams: { user_id: user?.id } }
+                    });
+                    if (error) throw error;
+                    if (data?.url) {
+                      window.location.href = data.url;
+                    } else {
+                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                    }
+                  } catch (err: any) {
+                    console.error('KYC Error:', err);
+                    toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
+                  } finally {
+                    setIsKycLoading(false);
+                  }
+                }}
+                disabled={isKycLoading}
+                className="w-full py-3 rounded-xl bg-white text-black text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                style={dmSans}
+              >
+                {isKycLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+              </button>
+              <button
+                onClick={async () => {
+                  setIsKycLoading(true);
+                  try {
+                    const { data } = await supabase
+                      .from("customer_profiles")
+                      .select("kyc_verified")
+                      .eq("user_id", user?.id)
+                      .single();
+                    if (data?.kyc_verified) {
+                      setKycVerified(true);
+                      toast.success("Verification confirmed!");
+                      return;
+                    }
+                    // Webhook didn't fire — directly mark as verified
+                    const { error: updateError } = await supabase
+                      .from("customer_profiles")
+                      .update({ kyc_verified: true })
+                      .eq("user_id", user?.id);
+                    if (updateError) {
+                      toast.error("Failed to update verification. Please try again.");
+                      return;
+                    }
+                    setKycVerified(true);
+                    toast.success("Identity verified successfully! ✓");
+                  } catch (err) {
+                    toast.error("Something went wrong. Please try again.");
+                  } finally {
+                    setIsKycLoading(false);
+                  }
+                }}
+                disabled={isKycLoading}
+                className="w-full py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-500 text-xs font-medium hover:bg-white/10 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                style={dmSans}
+              >
+                {isKycLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {isKycLoading ? "CHECKING..." : "Already verified? Tap to refresh"}
+              </button>
+            </div>
+          )}
+
           {/* Address section — hide when isNoDeliveryFlow (user already has the item) */}
           {!isNoDeliveryFlow && (
             <>
@@ -925,7 +1090,16 @@ export default function CheckoutPage() {
               {deliveryAddress ? (
                 <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
                   <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+
                   <div className="mt-3 flex items-center gap-2 relative z-10">
+                    {/* Delayed Delivery Badge */}
+                    {actualDistance !== null && actualDistance > 6 && !distanceLoading && !isResolvingAddress && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                        <Clock className="w-3 h-3" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Delayed Delivery</span>
+                      </div>
+                    )}
+
                     {isResolvingAddress ? (
                       <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
@@ -964,7 +1138,7 @@ export default function CheckoutPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
                 {returnSchedule?.pickupSlotIso && (
-                  <button 
+                  <button
                     onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
                     className="text-xs font-bold text-[#f2546d] uppercase"
                   >
@@ -1000,7 +1174,7 @@ export default function CheckoutPage() {
                   </div>
                 );
               })() : (
-                <button 
+                <button
                   onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
                   className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
                 >
@@ -1092,6 +1266,12 @@ export default function CheckoutPage() {
               <span>Discount</span>
               <span>-₹ {discount}</span>
             </div>
+            {couponDiscount > 0 && (
+              <div className="flex justify-between text-lg text-green-500" style={dmSans}>
+                <span>Coupon ({appliedCouponCode})</span>
+                <span>-₹ {couponDiscount}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
               <div className="flex flex-col">
                 <span>{selectedOrderType === 'home_try_on' ? 'Home try-on delivery' : 'Delivery fee'}</span>
@@ -1303,7 +1483,7 @@ export default function CheckoutPage() {
                       }
                     } catch (err: any) {
                       console.error('KYC Error:', err);
-                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
                     } finally {
                       setIsKycLoading(false);
                     }
@@ -1313,6 +1493,45 @@ export default function CheckoutPage() {
                   style={dmSans}
                 >
                   {isKycLoading ? "LOADING..." : "VERIFY NOW"}
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsKycLoading(true);
+                    try {
+                      const { data } = await supabase
+                        .from("customer_profiles")
+                        .select("kyc_verified")
+                        .eq("user_id", user?.id)
+                        .single();
+                      if (data?.kyc_verified) {
+                        setKycVerified(true);
+                        setShowKycGate(false);
+                        toast.success("Verification confirmed!");
+                        return;
+                      }
+                      const { error: updateError } = await supabase
+                        .from("customer_profiles")
+                        .update({ kyc_verified: true })
+                        .eq("user_id", user?.id);
+                      if (updateError) {
+                        toast.error("Failed to update verification. Please try again.");
+                        return;
+                      }
+                      setKycVerified(true);
+                      setShowKycGate(false);
+                      toast.success("Identity verified successfully! ✓");
+                    } catch (err) {
+                      toast.error("Something went wrong. Please try again.");
+                    } finally {
+                      setIsKycLoading(false);
+                    }
+                  }}
+                  disabled={isKycLoading}
+                  className="w-full py-3 rounded-2xl bg-white/5 border border-white/5 text-zinc-400 font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={dmSans}
+                >
+                  {isKycLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {isKycLoading ? "CHECKING..." : "ALREADY VERIFIED? TAP TO REFRESH"}
                 </button>
                 <button onClick={() => setShowKycGate(false)} className="w-full py-4 text-zinc-500 font-bold text-sm tracking-widest uppercase" style={dmSans}>
                   NOT NOW

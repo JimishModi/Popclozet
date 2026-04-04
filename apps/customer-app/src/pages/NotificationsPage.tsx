@@ -204,7 +204,9 @@ const NotificationsPage: React.FC = () => {
                     setSupaNotifs((prev) => prev.filter((notif) => notif.id !== deletedId));
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) console.warn('[NotificationsPage] Realtime subscription error (non-fatal):', err);
+            });
 
         channelRef.current = channel;
 

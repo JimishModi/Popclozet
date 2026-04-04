@@ -12,8 +12,22 @@ const CircularHowItWorks = () => {
     },
     {
       number: "02",
-      title: "Delivered in 60 Mins",
-      description: "Your outfit arrives, ready to wear. Lightning-fast delivery straight to your door.",
+      title: (() => {
+        try {
+          const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+          return loc.delivery_estimate === 'delayed' ? 'Delayed Delivery' : 'Delivered in 60 Mins';
+        } catch {
+          return 'Delivered in 60 Mins';
+        }
+      })(),
+      description: (() => {
+        try {
+          const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+          return loc.delivery_estimate === 'delayed' ? 'Your outfit arrives, ready to wear. Reliable delivery straight to your door.' : 'Your outfit arrives, ready to wear. Lightning-fast delivery straight to your door.';
+        } catch {
+          return 'Your outfit arrives, ready to wear. Lightning-fast delivery straight to your door.';
+        }
+      })(),
       icon: Package,
       gradient: "from-blue-500 to-cyan-500",
     },

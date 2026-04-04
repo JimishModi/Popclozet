@@ -323,6 +323,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
         rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
         sold:      'text-red-400 bg-red-500/10 border-red-500/20',
+        instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
@@ -380,14 +381,14 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                             <p className="text-[10px] font-mono text-zinc-300 truncate">{unit.individual_id}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase', statusColor(unit.status))}>
-                                                    {unit.status}
+                                                    {unit.status === 'instantly_bought' ? 'Instant Buy' : unit.status}
                                                 </span>
                                                 <span className="text-[9px] text-zinc-600">×{unit.times_rented} rented</span>
                                                 {unit.mrp_price && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp_price.toLocaleString()}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                             {unit.status !== 'sold' && (
+                                             {unit.status !== 'sold' && unit.status !== 'instantly_bought' && (
                                                 <button
                                                     onClick={async () => {
                                                         if (confirm(`Mark unit ${unit.individual_id} as SOLD? This removes it from active stock.`)) {
@@ -477,8 +478,10 @@ export function ProductProfilePage() {
         setEditForm({
             name: product.name,
             brand: product.brand || '',
-            category: product.category,
-            gender: product.gender,
+            description: product.description || '',
+            mrp: product.mrp || 0,
+            category: product.category || '',
+            gender: product.gender || '',
             rental_price: product.rental_price ?? 0,
             rental_price_1d: product.rental_price_1d ?? 0,
             rental_price_2d: product.rental_price_2d ?? 0,
@@ -954,7 +957,30 @@ export function ProductProfilePage() {
                                 <p className="text-sm font-bold text-white">₹{product.buy_price?.toLocaleString() ?? '—'}</p>
                             )}
                         </div>
+
+                        {isEditing && (
+                            <div className="bg-surface rounded-lg p-3 border border-warehouse-500/10">
+                                <p className="text-[10px] text-warehouse-400/70 font-bold">Market MRP</p>
+                                <div className="mt-1 flex items-center gap-1.5 bg-surface-hover rounded px-2 py-1 border border-warehouse-500/20">
+                                    <span className="text-warehouse-400 text-xs">₹</span>
+                                    <input
+                                        type="number"
+                                        value={editForm?.mrp ?? 0}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, mrp: parseFloat(e.target.value) || 0 }) : null)}
+                                        className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
+                    {!isEditing && (
+                        <div className="flex bg-surface rounded-lg p-3 mt-3">
+                            <div className="flex-1">
+                                <p className="text-[10px] text-zinc-500">Market MRP</p>
+                                <p className="text-sm font-bold text-white">₹{product.mrp?.toLocaleString() ?? '—'}</p>
+                            </div>
+                        </div>
+                    )}
                     {discountedPrice !== null && !isEditing && (
                         <div className="mt-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                             <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Promo Price (3D): ₹{discountedPrice.toFixed(0)}</p>
@@ -1000,11 +1026,22 @@ export function ProductProfilePage() {
                 {/* Product Details */}
                 <div className="bg-surface-card border border-surface-border rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">📋 Product Details</p>
-                    {product.description && (
+                    {isEditing ? (
                         <div>
-                            <p className="text-[10px] text-zinc-500 mb-0.5">Description</p>
-                            <p className="text-xs text-zinc-300">{product.description}</p>
+                            <p className="text-[10px] text-zinc-500 mb-1">Description</p>
+                            <textarea
+                                value={editForm?.description ?? ''}
+                                onChange={e => setEditForm(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
+                                className="w-full bg-surface-hover border border-warehouse-500/20 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-warehouse-500 min-h-[100px] resize-none"
+                            />
                         </div>
+                    ) : (
+                        product.description && (
+                            <div>
+                                <p className="text-[10px] text-zinc-500 mb-0.5">Description</p>
+                                <p className="text-xs text-zinc-300">{product.description}</p>
+                            </div>
+                        )
                     )}
                     {product.occasion && product.occasion.length > 0 && (
                         <div>

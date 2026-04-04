@@ -61,26 +61,28 @@ export function useNotifications({
         let cancelled = false;
 
         (async () => {
-            const channel = await subscribeToNotifications(
-                (newNotif) => {
-                    setNotifications((prev) => [newNotif, ...prev].slice(0, limit));
-                    setUnreadCount((prev) => prev + 1);
-                },
-                instanceIdRef.current,
-                () => {
-                    fetchNotifications();
-                },
-                () => {
-                    fetchNotifications();
+            try {
+                const channel = await subscribeToNotifications(
+                    (newNotif) => {
+                        setNotifications((prev) => [newNotif, ...prev].slice(0, limit));
+                        setUnreadCount((prev) => prev + 1);
+                    },
+                    instanceIdRef.current,
+                    () => { fetchNotifications(); },
+                    () => { fetchNotifications(); }
+                );
+
+                if (cancelled) {
+                    if (channel) unsubscribeFromNotifications(channel);
+                    return;
                 }
-            );
 
-            if (cancelled) {
-                if (channel) unsubscribeFromNotifications(channel);
-                return;
+                channelRef.current = channel;
+            } catch (err) {
+                // Non-fatal — realtime is best-effort. iOS Safari may
+                // throw "WebSocket not available: The operation is insecure".
+                console.warn('[useNotifications] Realtime subscription failed (non-fatal):', err);
             }
-
-            channelRef.current = channel;
         })();
 
         return () => {
@@ -91,6 +93,7 @@ export function useNotifications({
             }
         };
     }, [autoSubscribe, limit, fetchNotifications]);
+
 
     // Mark single notification as read
     const handleMarkAsRead = useCallback(async (notificationId: string) => {

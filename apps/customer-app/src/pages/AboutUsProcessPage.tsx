@@ -2,12 +2,12 @@ import React from "react";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ShieldCheck, Shirt, ClipboardCheck } from "lucide-react";
 
 const PROCESS_STEPS = [
     {
         title: "Pre-Cleaning",
-        icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre-Cleaning" />,
+        icon: <Sparkles className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect garment for stains, damage, or odors",
             "Remove lint, hair, and debris",
@@ -17,7 +17,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Sanitization",
-        icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        icon: <ShieldCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Steam sanitization at 100°C for 10 minutes",
             "UV-C light treatment for 15 minutes",
@@ -27,7 +27,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Post-Cleaning",
-        icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post-Cleaning" />,
+        icon: <Shirt className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect for remaining stains or damage",
             "Steam press to remove wrinkles",
@@ -37,7 +37,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Quality Check",
-        icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        icon: <ClipboardCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Visual inspection under good lighting",
             "Odour test",
@@ -76,7 +76,7 @@ const AboutUsProcessPage: React.FC = () => {
                                 {/* Timeline graphic: Icon + Line */}
                                 <div className="flex flex-col items-center">
                                     <div className="w-14 h-14 rounded-2xl bg-[#141414] border border-white/10 flex items-center justify-center shrink-0 z-10 shadow-lg shadow-black/20 overflow-hidden">
-                                        <div className="w-full h-full z-10">{step.icon}</div>
+                                        <div className="w-full h-full z-10 flex items-center justify-center">{step.icon}</div>
                                     </div>
                                     {/* Line connecting the stages */}
                                     {index !== PROCESS_STEPS.length - 1 && (

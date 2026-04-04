@@ -21,10 +21,12 @@ import {
     User,
     MapPin,
     ArrowUpDown,
-    RefreshCw
+    RefreshCw,
+    Activity
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getOrderHistory, type OrderWithItems } from '../services/fulfillmentService';
+import { OrderTimelineOverlay } from '../components/OrderTimelineOverlay';
 
 import { RotateCcw } from 'lucide-react';
 
@@ -47,6 +49,7 @@ export function OrderHistoryPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [viewingActivity, setViewingActivity] = useState<string | null>(null);
 
     const fetchOrders = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true);
@@ -313,8 +316,20 @@ export function OrderHistoryPage() {
                                         )}
                                     </div>
 
-                                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <ChevronRight size={18} className="text-zinc-600" />
+                                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setViewingActivity(order.id);
+                                            }} 
+                                            className="flex items-center gap-1.5 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-bold uppercase tracking-wider"
+                                        >
+                                            <Activity size={12} />
+                                            View Updates
+                                        </button>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <ChevronRight size={18} className="text-zinc-600" />
+                                        </div>
                                     </div>
                                 </motion.div>
                             ))}
@@ -330,6 +345,13 @@ export function OrderHistoryPage() {
                     </div>
                 )}
             </div>
+
+            {viewingActivity && (
+                <OrderTimelineOverlay 
+                    orderId={viewingActivity} 
+                    onClose={() => setViewingActivity(null)} 
+                />
+            )}
         </div>
     );
 }

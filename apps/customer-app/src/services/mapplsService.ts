@@ -1,3 +1,5 @@
+import { callLocationFn } from '@/utils/env';
+
 export interface MapplsSuggestion {
   eLoc: string;
   placeName: string;
@@ -22,41 +24,32 @@ export class MapplsGeocodingError extends Error {
 }
 
 export async function fetchPlaceDetails(eLoc: string): Promise<MapplsPlaceDetails> {
-  const key = import.meta.env.VITE_MAPPLS_REST_KEY;
-  if (!key || key === '') {
-    throw new MapplsGeocodingError('VITE_MAPPLS_REST_KEY is not configured', eLoc);
+  try {
+    const data = await callLocationFn({ action: 'detail', eloc: eLoc });
+
+    const lat = typeof data.latitude === 'number' ? data.latitude : parseFloat(data.latitude ?? '0');
+    const lng = typeof data.longitude === 'number' ? data.longitude : parseFloat(data.longitude ?? '0');
+
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new MapplsGeocodingError('API returned non-numeric coordinates', eLoc);
+    }
+
+    if (lat === 0 && lng === 0) {
+      throw new MapplsGeocodingError('API returned zero coordinates — eLoc may be invalid', eLoc);
+    }
+
+    return {
+      eLoc: data.eLoc || eLoc,
+      placeName: data.placeName || '',
+      placeAddress: data.placeName || '',
+      latitude: lat,
+      longitude: lng
+    };
+  } catch (err) {
+    if (err instanceof MapplsGeocodingError) throw err;
+    throw new MapplsGeocodingError(
+      err instanceof Error ? err.message : 'Failed to fetch place details',
+      eLoc
+    );
   }
-
-  const url = `https://atlas.mappls.com/api/places/geocode?eLoc=${encodeURIComponent(eLoc)}&access_token=${key}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new MapplsGeocodingError(`API error: ${response.status}`, eLoc);
-  }
-
-  const data = await response.json();
-  
-  if (data.responseCode !== 200 || !data.results || data.results.length === 0) {
-    throw new MapplsGeocodingError('No results returned', eLoc);
-  }
-
-  const result = data.results[0];
-  const lat = parseFloat(result.latitude);
-  const lng = parseFloat(result.longitude);
-
-  if (isNaN(lat) || isNaN(lng)) {
-    throw new MapplsGeocodingError('API returned non-numeric coordinates', eLoc);
-  }
-
-  if (lat === 0 && lng === 0) {
-    throw new MapplsGeocodingError('API returned zero coordinates — REST key may be expired or eLoc is invalid', eLoc);
-  }
-
-  return {
-    eLoc: result.eLoc,
-    placeName: result.placeName || '',
-    placeAddress: result.placeAddress || '',
-    latitude: lat,
-    longitude: lng
-  };
 }

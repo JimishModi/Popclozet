@@ -522,8 +522,8 @@ const CategoryProductsPage: React.FC = () => {
                                             {/* Real product that is rented out — badge only, no blur */}
                                             {isRealRentedOut && (
                                                 <div className="absolute top-2 left-2 z-10">
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/80 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-black backdrop-blur-sm">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-black/50" />
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
                                                         Rented Out
                                                     </span>
                                                 </div>
@@ -550,7 +550,7 @@ const CategoryProductsPage: React.FC = () => {
                                             {isFake ? (
                                                 <span className="text-xs text-zinc-600 font-medium">Currently Unavailable</span>
                                             ) : isRealRentedOut ? (
-                                                <span className="text-xs text-amber-500 font-medium">All Rented — Check Back Soon</span>
+                                                <span className="text-xs text-red-500 font-medium">All Rented — Check Back Soon</span>
                                             ) : (
                                                 <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
                                             )}

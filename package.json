@@ -9,9 +9,11 @@
     "build": "pnpm -r build",
     "dev:rider": "pnpm --filter @popclozet/rider-app dev",
     "dev:customer": "pnpm --filter @popclozet/customer-app dev",
+    "dev:warehouse": "pnpm --filter @popclozet/warehouse-app dev",
     "dev:api": "pnpm --filter @popclozet/api dev",
     "build:rider": "pnpm --filter @popclozet/rider-app build",
     "build:customer": "pnpm --filter @popclozet/customer-app build",
+    "build:warehouse": "pnpm --filter @popclozet/warehouse-app build",
     "prepare": "husky"
   },
   "devDependencies": {

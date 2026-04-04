@@ -8,8 +8,31 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://popclozet.vercel.app',
+];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`[CORS] Blocked request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+}));
+
 app.use(express.json());
+
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;

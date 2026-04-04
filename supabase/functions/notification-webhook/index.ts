@@ -175,6 +175,13 @@ Deno.serve(async (req: Request) => {
         out_for_delivery: { type: "order_update", title: "🚗 Out for Delivery!", message: "Your package is out for delivery. The rider is heading to your location." },
         delivered: { type: "order_update", title: "🎉 Package Delivered!", message: "Your package has been delivered. Enjoy!" },
         cancelled: { type: "order_update", title: "🚫 Order Cancelled", message: "Your order has been cancelled." },
+        // ── Return lifecycle statuses ──
+        return_requested: { type: "return_scheduled", title: "📋 Return Request Submitted", message: "Your return request has been submitted. Our warehouse team will review it shortly." },
+        return_scheduled: { type: "return_scheduled", title: "✅ Return Approved", message: "Your return has been approved! We're assigning a rider for pickup." },
+        return_dispatched: { type: "return_scheduled", title: "🚗 Rider Assigned for Pickup", message: "A rider has been assigned and is heading to pick up your return items." },
+        return_picked_up: { type: "return_completed", title: "📦 Items Picked Up", message: "Your return items have been collected by the rider. They're on the way to our warehouse." },
+        return_at_warehouse: { type: "return_completed", title: "🏭 Items at Warehouse", message: "Your returned items have arrived at our warehouse and are being inspected." },
+        returned: { type: "return_completed", title: "✅ Return Complete", message: "Your return is complete! Your deposit refund has been initiated." },
       };
 
       if (old_record.status !== record.status && statusNotifications[record.status]) {
@@ -229,6 +236,92 @@ Deno.serve(async (req: Request) => {
       if (old_record.status !== "out_for_delivery" && record.status === "out_for_delivery") {
         await sendPush(record.user_id, "🚗 Out for Delivery!", "Your package is out for delivery.", `/orders`);
       }
+
+      // ══════════════════════════════════════════
+      // RETURN LIFECYCLE — Push + Warehouse Alerts
+      // ══════════════════════════════════════════
+
+      // 8. Return Requested — notify warehouse immediately
+      if (old_record.status !== "return_requested" && record.status === "return_requested") {
+        await sendPush(record.user_id, "📋 Return Request Submitted", "Your return request has been submitted. We'll review it shortly.", `/orders`);
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "🔔 New Return Request", `Return requested for Order #${shortId(record.id)}. Please review and approve.`, "/warehouse/returns");
+          await supabase.from("notifications").insert({
+            user_id: w.id,
+            type: "return_scheduled",
+            title: "🔔 New Return Request",
+            message: `Customer has requested a return for Order #${shortId(record.id)}. Action required: review and approve.`,
+            order_id: record.id,
+            is_read: false,
+          });
+        }
+      }
+
+      // 9. Return Scheduled (Approved) — notify customer + warehouse
+      if (old_record.status !== "return_scheduled" && record.status === "return_scheduled") {
+        await sendPush(record.user_id, "✅ Return Approved", "Your return has been approved! We're finding a rider for pickup.", `/orders`);
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "✅ Return Approved", `Return approved for Order #${shortId(record.id)}. Assigning rider.`, "/warehouse/returns");
+        }
+      }
+
+      // 10. Return Dispatched (Rider Assigned) — notify customer + rider + warehouse
+      if (old_record.status !== "return_dispatched" && record.status === "return_dispatched") {
+        await sendPush(record.user_id, "🚗 Rider On The Way", "A rider has been assigned and is heading to collect your return items.", `/orders`);
+        if (record.rider_id) {
+          await sendPush(record.rider_id, "📦 Return Pickup Assigned", `You've been assigned a return pickup for Order #${shortId(record.id)}.`, "/rider/deliveries");
+        }
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "🚗 Return Rider Dispatched", `Rider dispatched for return pickup on Order #${shortId(record.id)}.`, "/warehouse/returns");
+          await supabase.from("notifications").insert({
+            user_id: w.id,
+            type: "return_scheduled",
+            title: "🚗 Rider Dispatched for Return",
+            message: `Rider is en route to pick up return for Order #${shortId(record.id)}.`,
+            order_id: record.id,
+            is_read: false,
+          });
+        }
+      }
+
+      // 11. Return Picked Up — notify customer + warehouse
+      if (old_record.status !== "return_picked_up" && record.status === "return_picked_up") {
+        await sendPush(record.user_id, "📦 Items Picked Up!", "Your return items have been collected. They're on the way to our warehouse.", `/orders`);
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "📦 Return Picked Up", `Items picked up for Order #${shortId(record.id)}. Rider heading to warehouse.`, "/warehouse/returns");
+          await supabase.from("notifications").insert({
+            user_id: w.id,
+            type: "return_completed",
+            title: "📦 Return Items Picked Up",
+            message: `Rider has collected return items for Order #${shortId(record.id)}. Expect warehouse arrival soon.`,
+            order_id: record.id,
+            is_read: false,
+          });
+        }
+      }
+
+      // 12. Return At Warehouse — notify customer
+      if (old_record.status !== "return_at_warehouse" && record.status === "return_at_warehouse") {
+        await sendPush(record.user_id, "🏭 Items at Warehouse", "Your returned items have arrived and are being inspected.", `/orders`);
+        for (const w of (warehouseUsers || [])) {
+          await supabase.from("notifications").insert({
+            user_id: w.id,
+            type: "return_completed",
+            title: "🏭 Return Arrived at Warehouse",
+            message: `Return items for Order #${shortId(record.id)} received. Please inspect and complete the return.`,
+            order_id: record.id,
+            is_read: false,
+          });
+        }
+      }
+
+      // 13. Returned (Complete + Refund) — notify customer + warehouse
+      if (old_record.status !== "returned" && record.status === "returned") {
+        await sendPush(record.user_id, "✅ Return Complete!", "Your return is complete and your deposit refund has been initiated.", `/orders`);
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "✅ Return Completed", `Return flow completed for Order #${shortId(record.id)}. Deposit refund initiated.`, "/warehouse/returns");
+        }
+      }
     }
   }
 
@@ -255,33 +348,93 @@ Deno.serve(async (req: Request) => {
 
     // UPDATE Events
     if (type === "UPDATE" && old_record) {
-      // Look up customer ID via order_id just in case
       const { data: order } = await supabase.from("orders").select("user_id").eq("id", record.order_id).single();
       const customerId = order?.user_id;
 
-      // 6. Driver Arrived for Return
-      // Assuming status becomes "driver_arrived"
+      // Return request approved
+      if (old_record.status !== "approved" && record.status === "approved") {
+        if (customerId) {
+          await sendPush(customerId, "✅ Return Approved", "Your return request has been approved. A rider will be assigned shortly.", `/orders`);
+          await supabase.from("notifications").insert({
+            user_id: customerId,
+            type: "return_scheduled",
+            title: "✅ Return Request Approved",
+            message: "Your return has been approved and a rider will be assigned for pickup.",
+            order_id: record.order_id,
+            is_read: false,
+          });
+        }
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "✅ Return Approved", `Return approved for Order #${shortId(record.order_id)}.`, "/warehouse/returns");
+        }
+      }
+
+      // Rider assigned to return (dispatched)
+      if (old_record.status !== "dispatched" && record.status === "dispatched") {
+        if (customerId) {
+          await sendPush(customerId, "🚗 Rider Assigned", "A rider has been assigned to pick up your return items!", `/orders`);
+          await supabase.from("notifications").insert({
+            user_id: customerId,
+            type: "return_scheduled",
+            title: "🚗 Rider Assigned for Return Pickup",
+            message: "A rider is on the way to collect your return items.",
+            order_id: record.order_id,
+            is_read: false,
+          });
+        }
+        if (record.rider_id) {
+          await sendPush(record.rider_id, "📦 Return Pickup Assigned", `You have a return pickup for Order #${shortId(record.order_id)}.`, "/rider/deliveries");
+        }
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "🚗 Return Rider Dispatched", `Rider dispatched for return on Order #${shortId(record.order_id)}.`, "/warehouse/returns");
+        }
+      }
+
+      // Items picked up from customer
+      if (old_record.status !== "picked_up" && record.status === "picked_up") {
+        if (customerId) {
+          await sendPush(customerId, "📦 Items Collected", "Your return items have been picked up by the rider!", `/orders`);
+          await supabase.from("notifications").insert({
+            user_id: customerId,
+            type: "return_completed",
+            title: "📦 Return Items Collected",
+            message: "The rider has collected your items and is heading to the warehouse.",
+            order_id: record.order_id,
+            is_read: false,
+          });
+        }
+        for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "📦 Return Picked Up", `Rider has collected items for Order #${shortId(record.order_id)}. En route to warehouse.`, "/warehouse/returns");
+        }
+      }
+
+      // Driver arrived at customer location
       if (old_record.status !== "driver_arrived" && record.status === "driver_arrived") {
         if (customerId) {
-          await sendPush(customerId, "📍 Driver Arrived", "Your driver is outside ready to pick up your return item!", `/returns`);
+          await sendPush(customerId, "📍 Driver Arrived", "Your driver is outside ready to pick up your return item!", `/orders`);
         }
         for (const w of (warehouseUsers || [])) {
           await sendPush(w.id, "📍 Return Driver Arrived", `Driver has reached the pickup location for Order #${shortId(record.order_id)}.`, "/warehouse/returns");
         }
       }
 
-      // 7. Return Given (Completed)
+      // Return flow completed
       if (old_record.status !== "completed" && record.status === "completed") {
         if (customerId) {
-          await sendPush(customerId, "♻️ Return Completed", "Your return was successfully handed over and completed.", `/returns`);
+          await sendPush(customerId, "✅ Return Completed", "Your return is complete! Your deposit refund has been initiated.", `/orders`);
+          await supabase.from("notifications").insert({
+            user_id: customerId,
+            type: "return_completed",
+            title: "✅ Return Complete — Refund Initiated",
+            message: "Your return has been processed and your deposit refund is on its way.",
+            order_id: record.order_id,
+            is_read: false,
+          });
         }
         for (const w of (warehouseUsers || [])) {
-          await sendPush(w.id, "♻️ Return Completed", `Return for Order #${shortId(record.order_id)} is completed.`, "/warehouse/returns");
+          await sendPush(w.id, "✅ Return Completed", `Return for Order #${shortId(record.order_id)} is completed.`, "/warehouse/returns");
         }
       }
-      
-      // 8. CRON REMINDER: 1-hour before return 
-      // The webhook can also handle generic cron pings if type === 'CRON'
     }
   }
 

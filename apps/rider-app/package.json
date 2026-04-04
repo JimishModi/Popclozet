@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^10.16.16",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.563.0",
     "mappls-web-maps": "^3.8.0",
     "react": "18.2.0",

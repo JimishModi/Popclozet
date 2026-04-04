@@ -16,7 +16,14 @@ const steps = [
   {
     icon: Truck,
     title: "Fast Delivery",
-    description: "Get it delivered in 60 minutes",
+    description: (() => {
+        try {
+            const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+            return loc.delivery_estimate === 'delayed' ? 'Get it with Delayed Delivery' : 'Get it delivered in 60 minutes';
+        } catch {
+            return 'Get it delivered in 60 minutes';
+        }
+    })(),
     color: "bg-green-500/20 text-green-500"
   },
   {

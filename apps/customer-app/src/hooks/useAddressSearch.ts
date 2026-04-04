@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapplsSuggestion, MapplsPlaceDetails, fetchPlaceDetails } from '../services/mapplsService';
+import { callLocationFn } from '@/utils/env';
 
 export interface UseAddressSearchReturn {
   query: string;
@@ -24,11 +25,6 @@ export function useAddressSearch(): UseAddressSearchReturn {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const key = import.meta.env.VITE_MAPPLS_REST_KEY;
-    if (key === undefined) {
-      console.warn('VITE_MAPPLS_REST_KEY is not configured');
-    }
-
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -53,27 +49,9 @@ export function useAddressSearch(): UseAddressSearchReturn {
     debounceTimerRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const key = import.meta.env.VITE_MAPPLS_REST_KEY;
-        if (!key) {
-          setSuggestions([]);
-          return;
-        }
-
-        const url = `https://atlas.mappls.com/api/places/search/json?query=${encodeURIComponent(trimmedQuery)}&access_token=${key}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          setSuggestions([]);
-          return;
-        }
-
-        const data = await response.json();
-        
-        if (data && Array.isArray(data.suggestedLocations)) {
-          setSuggestions(data.suggestedLocations);
-        } else {
-          setSuggestions([]);
-        }
+        const data = await callLocationFn({ action: 'search', query: trimmedQuery });
+        const results = Array.isArray(data) ? data : (data?.suggestedLocations ?? []);
+        setSuggestions(results);
       } catch (err) {
         setSuggestions([]);
       } finally {

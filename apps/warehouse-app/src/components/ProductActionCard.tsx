@@ -39,6 +39,8 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
         ? 'bg-emerald-500 text-black'
         : item.status === 'rented'
         ? 'bg-blue-500 text-white'
+        : item.status === 'instantly_bought'
+        ? 'bg-purple-500 text-white'
         : 'bg-red-500 text-white';
 
     return (
@@ -63,7 +65,7 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                     "absolute bottom-3 left-3 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest",
                     statusColor
                 )}>
-                    {item.status}
+                    {item.status === 'instantly_bought' ? 'Instant Buy' : item.status}
                 </div>
             </div>
 
@@ -74,7 +76,7 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                     <p className="text-[10px] text-zinc-600 font-mono mt-2">ID: {item.individual_id}</p>
                 </div>
 
-                {item.status !== 'available' && (
+                {item.status !== 'available' && item.status !== 'sold' && item.status !== 'instantly_bought' && (
                     <button
                         onClick={handleMarkAvailable}
                         disabled={processing}

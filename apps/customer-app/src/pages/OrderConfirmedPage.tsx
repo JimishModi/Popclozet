@@ -109,19 +109,22 @@ export default function OrderConfirmedPage() {
     const itemsCount = order?.order_items?.length || 0;
     const isBuyoutOrder = order?.order_type === 'buyout';
 
-    // Data calculated from existing backend columns
+    // All pricing data from DB — no client-side guessing
     const deliveryFee = Number(order?.delivery_fee) || 0;
     const totalAmount = Number(order?.total_amount) || 0;
+    const subtotal = Number(order?.subtotal_amount) ||
+      order?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.rental_price) || 0), 0) || 0;
 
-    // Calculate subtotal from order items (since rental_price already factors in qty)
-    const subtotal = order?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.rental_price) || 0), 0) || 0;
+    // MRP sum from product data for each order item
+    const mrpTotal = order?.order_items?.reduce((sum: number, item: any) => {
+      const mrp = Number(item.products?.mrp) || 0;
+      const qty = Number(item.quantity) || 1;
+      return sum + (mrp * qty);
+    }, 0) || 0;
 
-    // In Checkout, total = subtotal - discount + platformFee(20) + insuranceFee(200) + deliveryFee
-    // So discount = subtotal + 220 + deliveryFee - total
-    const estimatedDiscount = Math.max(0, subtotal + 220 + deliveryFee - totalAmount);
-
-    const orderValue = subtotal;
-    const discount = estimatedDiscount;
+    // Order value = MRP total, discount = MRP - rental subtotal
+    const orderValue = mrpTotal > 0 ? mrpTotal : subtotal;
+    const discount = Math.max(0, orderValue - subtotal);
 
     const handleDownloadInvoice = async () => {
         if (!order) return toast.error("Invoice not ready");

@@ -124,6 +124,8 @@ export function ProductIntakePage() {
     const [rentalPrice2d, setRentalPrice2d] = useState('');
     const [rentalPrice3d, setRentalPrice3d] = useState('');
     const [buyPrice, setBuyPrice] = useState('');
+    const [mrp, setMrp] = useState('');
+    const [description, setDescription] = useState('');
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [previews, setPreviews] = useState<{ id: string; url: string; uploading: boolean }[]>([]);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
@@ -140,19 +142,18 @@ export function ProductIntakePage() {
     };
 
     const fetchCategoryConfigs = async () => {
-        const { data } = await supabase.from('category_configs').select('*');
-        if (data) {
-            const configMap = data.reduce((acc, curr) => ({ 
+        const { data: configs } = await supabase.from('category_configs').select('*');
+        if (configs) {
+            const configMap = configs.reduce((acc, curr) => ({ 
                 ...acc, 
                 [curr.category]: curr.sizes 
             }), {});
             setCategoryConfigs(configMap);
             setDbCategories(Object.keys(configMap).sort());
-
-            // Default initial sizes if no category selected
-            if (!category) {
-                setSizes(SIZES.map(s => ({ size: s, qty: 0, selected: false })));
-            }
+        }
+        // Default initial sizes if no category selected
+        if (!category) {
+            setSizes(SIZES.map(s => ({ size: s, qty: 0, selected: false })));
         }
     };
 
@@ -241,7 +242,8 @@ export function ProductIntakePage() {
             const productData: Record<string, any> = {
                 name: name.trim(),
                 brand: brand.trim() || 'Unknown',
-                description: '',
+                description: description.trim(),
+                mrp: parseFloat(mrp) || null,
                 category: finalCategory || 'tops',
                 gender,
                 rental_price: parseFloat(rentalPrice3d) || 299,
@@ -305,7 +307,8 @@ export function ProductIntakePage() {
                                 individual_id: individualId,
                                 inventory_id: inv.id,
                                 status: 'available',
-                                available: true
+                                available: true,
+                                mrp_price: parseFloat(mrp) || null
                             });
 
                         if (unitError) throw unitError;
@@ -401,9 +404,14 @@ export function ProductIntakePage() {
                     ['Size', unit.size],
                     ['Category', category.charAt(0).toUpperCase() + category.slice(1)],
                     ['Target Gender', gender.charAt(0).toUpperCase() + gender.slice(1)],
+                    ['MRP', `Rs. ${mrp || 'N/A'}`],
                     ['Rental (3D)', `Rs. ${rentalPrice3d}`],
                     ['Registration Date', new Date().toLocaleDateString()],
                 ];
+
+                if (description.trim()) {
+                    specs.push(['Description', description.trim()]);
+                }
 
                 doc.setFontSize(11);
                 specs.forEach(([label, value], i) => {
@@ -443,6 +451,8 @@ export function ProductIntakePage() {
         setRentalPrice2d('');
         setRentalPrice3d('');
         setBuyPrice('');
+        setMrp('');
+        setDescription('');
         setImageUrls([]);
         setPreviews([]);
         setPendingFiles([]);
@@ -663,6 +673,26 @@ export function ProductIntakePage() {
                     )}
 
                     <div>
+                        <label className="text-xs text-zinc-400 mb-1.5 block font-semibold uppercase tracking-wider">Product Category *</label>
+                        <div className="flex flex-wrap gap-2">
+                            {dbCategories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setCategory(cat)}
+                                    className={clsx(
+                                        'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all',
+                                        category === cat
+                                            ? 'bg-warehouse-500/15 text-warehouse-300 border-warehouse-500/30'
+                                            : 'bg-surface-card text-zinc-500 border-surface-border'
+                                    )}
+                                >
+                                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
                         <label className="text-xs text-zinc-400 mb-1.5 block">Gender</label>
                         <div className="flex gap-2">
                             {GENDERS.map(g => (
@@ -699,6 +729,20 @@ export function ProductIntakePage() {
                             <label className="text-xs text-zinc-400 mb-1 block">Buy Price (₹)</label>
                             <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} placeholder="999" className="input-field h-10 text-sm" />
                         </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Market MRP (₹)</label>
+                            <input type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="5000" className="input-field h-10 text-sm border-warehouse-500/20" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs text-zinc-400 mb-1 block">Product Description</label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Describe the fabric, fit, and style..."
+                            className="input-field min-h-[80px] py-2 text-sm resize-none"
+                        />
                     </div>
 
                     <div>

@@ -10,6 +10,9 @@ export default defineConfig(function (_a) {
         base: "/",
         // Point specifically to the current directory for .env files
         envDir: "../../",
+        define: {
+            __SW_VERSION__: JSON.stringify(Date.now().toString(36)),
+        },
         server: {
             host: "localhost",
             port: 5500,

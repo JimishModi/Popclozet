@@ -1,20 +1,95 @@
 /**
- * MSG91 OTP Service (shared logic — identical to customer-app)
+ * MSG91 OTP Service (rider-app — identical logic to customer-app)
  * Handles all interactions with MSG91's browser-side OTP SDK.
+ *
+ * Loading strategy (100% CORS-proof):
+ *   Uses <script> tags exclusively — these are NEVER blocked by CORS.
+ *   Tries multiple sources in order until one succeeds.
  */
 
-const MSG91_SCRIPT_URL = 'https://verify.msg91.com/otp-provider.js';
+/**
+ * Script URLs to try in order, using <script> tags (not fetch).
+ * <script> tags bypass CORS entirely.
+ */
+const SCRIPT_URLS = [
+    '/msg91-otp-sdk.js',                            // Local static file (Vite public/)
+    '/otp-provider.js',                              // Vercel proxy rewrite
+    'https://verify.msg91.com/otp-provider.js',     // Remote CDN (script tags bypass CORS)
+];
+
 const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
 const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
 
 let sdkReady = false;
 let sdkInitPromise: Promise<void> | null = null;
 
+/**
+ * Try loading a script from a URL via a <script> tag.
+ */
+function tryLoadScript(url: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        document.querySelectorAll('script[data-msg91-attempt]').forEach(el => el.remove());
+
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.async = true;
+        script.setAttribute('data-msg91-attempt', 'true');
+        script.src = `${url}?cb=${Date.now()}`;
+
+        const timeout = setTimeout(() => {
+            script.remove();
+            reject(new Error(`Script load timed out from ${url}`));
+        }, 15000);
+
+        script.onload = () => {
+            clearTimeout(timeout);
+            console.info(`[MSG91] Script loaded from ${url}`);
+            if (typeof (window as any).initSendOTP === 'function') {
+                resolve();
+            } else {
+                script.remove();
+                reject(new Error(`Script from ${url} loaded but initSendOTP not found`));
+            }
+        };
+
+        script.onerror = () => {
+            clearTimeout(timeout);
+            script.remove();
+            reject(new Error(`Script failed to load from ${url}`));
+        };
+
+        document.head.appendChild(script);
+    });
+}
+
+/**
+ * Try loading the MSG91 script from each URL until one works.
+ */
+async function loadMsg91Script(): Promise<void> {
+    if (typeof (window as any).initSendOTP === 'function') {
+        console.info('[MSG91] initSendOTP already available');
+        return;
+    }
+
+    let lastError: Error | null = null;
+    for (const url of SCRIPT_URLS) {
+        try {
+            console.info(`[MSG91] Trying to load script from ${url}...`);
+            await tryLoadScript(url);
+            return;
+        } catch (err: any) {
+            console.warn(`[MSG91] Failed: ${err.message}`);
+            lastError = err;
+        }
+    }
+    throw lastError || new Error('All MSG91 script load attempts failed');
+}
+
 function loadAndInit(identifier: string, autoSend = true): Promise<void> {
     if (sdkReady) return Promise.resolve();
     if (sdkInitPromise) return sdkInitPromise;
 
-    sdkInitPromise = new Promise<void>((resolve, reject) => {
+    sdkInitPromise = new Promise<void>(async (resolve, reject) => {
         if (!WIDGET_ID || !TOKEN_AUTH) {
             reject(new Error('MSG91 Configuration Missing: Please set VITE_MSG91_WIDGET_ID and VITE_MSG91_TOKEN_AUTH in your .env file.'));
             return;
@@ -30,47 +105,32 @@ function loadAndInit(identifier: string, autoSend = true): Promise<void> {
             failure: (error: any) => console.error('[MSG91] init failure', error),
         };
 
-        const existing = document.querySelector(`script[src="${MSG91_SCRIPT_URL}"]`);
-        if (existing) existing.remove();
+        try {
+            await loadMsg91Script();
 
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = MSG91_SCRIPT_URL;
-        script.async = true;
+            (window as any).initSendOTP(configuration);
+            console.info('[MSG91] initSendOTP called');
 
-        script.onload = () => {
-            try {
-                if (typeof (window as any).initSendOTP !== 'function') {
-                    reject(new Error('initSendOTP not found after script load'));
+            const start = Date.now();
+            const poll = () => {
+                if (typeof (window as any).sendOtp === 'function') {
+                    sdkReady = true;
+                    console.info('[MSG91] SDK ready');
+                    resolve();
                     return;
                 }
-                (window as any).initSendOTP(configuration);
-
-                const start = Date.now();
-                const poll = () => {
-                    if (typeof (window as any).sendOtp === 'function') {
-                        sdkReady = true;
-                        resolve();
-                        return;
-                    }
-                    if (Date.now() - start >= 10000) {
-                        reject(new Error('MSG91 SDK timed out'));
-                        return;
-                    }
-                    setTimeout(poll, 150);
-                };
-                poll();
-            } catch (err) {
-                reject(err);
-            }
-        };
-
-        script.onerror = () => {
+                if (Date.now() - start >= 10000) {
+                    sdkInitPromise = null;
+                    reject(new Error('MSG91 SDK timed out'));
+                    return;
+                }
+                setTimeout(poll, 150);
+            };
+            poll();
+        } catch (err: any) {
             sdkInitPromise = null;
-            reject(new Error('Failed to load MSG91 OTP script'));
-        };
-
-        document.head.appendChild(script);
+            reject(new Error(`Failed to load MSG91 OTP SDK: ${err.message}`));
+        }
     });
 
     return sdkInitPromise;

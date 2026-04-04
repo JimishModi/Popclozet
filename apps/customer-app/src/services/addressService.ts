@@ -1,58 +1,8 @@
 // src/services/addressService.ts
-// Standardized address service using Mappls via Backend Proxy
+// Standardized address service using Mappls via Supabase Edge Function
 import { supabase } from '@popclozet/api-client';
 import { MapplsSuggestion, MapplsGeocodingError, fetchPlaceDetails } from './mapplsService';
-
-
-const ENV_API_URL =
-  (typeof import.meta !== 'undefined' &&
-    (((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) ||
-      ((import.meta as any).env?.VITE_API_URL as string | undefined))) ||
-  '';
-
-const API_URL = ENV_API_URL.replace(/\/$/, '');
-
-function buildApiUrl(path: string): string {
-  if (API_URL) {
-    return `${API_URL}${path}`;
-  }
-
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}${path}`;
-  }
-
-  return `http://localhost:3001${path}`;
-}
-
-async function fetchBackendJson(path: string): Promise<any | null> {
-  const candidates = [buildApiUrl(path)];
-
-  if (
-    typeof window !== 'undefined' &&
-    window.location?.origin &&
-    !candidates.includes(`${window.location.origin}${path}`)
-  ) {
-    candidates.push(`${window.location.origin}${path}`);
-  }
-
-  for (const url of candidates) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        const text = await response.text().catch(() => 'no body');
-        console.warn(`[fetchBackendJson] ${url} returned ${response.status}: ${text.slice(0, 200)}`);
-        continue;
-      }
-
-      return await response.json();
-    } catch (e: any) {
-      console.warn(`[fetchBackendJson] Failed to fetch from ${url}:`, e.message);
-      // Fallback to the next candidate.
-    }
-  }
-
-  return null;
-}
+import { callLocationFn } from '@/utils/env';
 
 export interface SavedAddress {
   id?: string;
@@ -107,18 +57,19 @@ export async function searchLocations(query: string): Promise<ValidatedAddress[]
 
   try {
     // Include user's current location for proximity-biased search results
-    let locationParams = '';
+    const searchBody: Record<string, unknown> = { action: 'search', query };
     try {
       const savedLocation = localStorage.getItem('user_location');
       if (savedLocation) {
-        const { lat, lng } = JSON.parse(savedLocation);
-        if (lat && lng) {
-          locationParams = `&lat=${lat}&lng=${lng}`;
+        const loc = JSON.parse(savedLocation);
+        if (loc.lat && loc.lng) {
+          searchBody.lat = loc.lat;
+          searchBody.lng = loc.lng;
         }
       }
     } catch { /* ignore */ }
 
-    const data = await fetchBackendJson(`/api/location/search?query=${encodeURIComponent(query)}${locationParams}`);
+    const data = await callLocationFn(searchBody);
     if (!data) throw new Error('Search failed');
     const locations = Array.isArray(data) ? data : (data.suggestedLocations || []);
 
@@ -150,7 +101,7 @@ export async function validateAddress(query: string): Promise<ValidatedAddress> 
  */
 export async function getAddressDetail(eloc: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const data = await fetchBackendJson(`/api/location/detail/${eloc}`);
+    const data = await callLocationFn({ action: 'detail', eloc });
     if (!data) return null;
     return {
       lat: data.latitude,
@@ -168,8 +119,7 @@ export async function getAddressDetail(eloc: string): Promise<{ lat: number; lng
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<ValidatedAddress | null> {
   try {
-    const data = await fetchBackendJson(`/api/location/reverse?lat=${lat}&lng=${lng}`);
-    if (!data) throw new Error('Reverse geocode failed');
+    const data = await callLocationFn({ action: 'reverse', lat, lng });
     if (!data) return null;
 
     return mapMapplsPlace(data);

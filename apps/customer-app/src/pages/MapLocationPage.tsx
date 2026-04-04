@@ -173,7 +173,7 @@ export default function MapLocationPage() {
                 }
             }
 
-            // Strategy 2: Mappls eLoc → Place Details (client-side — needs VITE_MAPPLS_REST_KEY)
+            // Strategy 2: Mappls eLoc → Place Details (via edge function)
             if (addr.eLoc && !resolved) {
                 try {
                     const placeDetails = await fetchPlaceDetails(addr.eLoc);

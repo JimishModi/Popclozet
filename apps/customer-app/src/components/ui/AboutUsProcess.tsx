@@ -1,10 +1,11 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { Sparkles, ShieldCheck, Shirt, ClipboardCheck } from "lucide-react";
 
 const PROCESS_STEPS = [
     {
         title: "Pre-Cleaning",
-        icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre-Cleaning" />,
+        icon: <Sparkles className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect garment for stains, damage, or odors",
             "Remove lint, hair, and debris",
@@ -14,7 +15,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Sanitization",
-        icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        icon: <ShieldCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Steam sanitization at 100°C for 10 minutes",
             "UV-C light treatment for 15 minutes",
@@ -24,7 +25,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Post-Cleaning",
-        icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post-Cleaning" />,
+        icon: <Shirt className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Inspect for remaining stains or damage",
             "Steam press to remove wrinkles",
@@ -34,7 +35,7 @@ const PROCESS_STEPS = [
     },
     {
         title: "Quality Check",
-        icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        icon: <ClipboardCheck className="w-6 h-6 text-[#f2546d]" />,
         details: [
             "Visual inspection under good lighting",
             "Odour test",
@@ -61,14 +62,12 @@ export const AboutUsProcess: React.FC = () => {
                     <div key={index} className="flex gap-4 min-h-[140px]">
                         {/* Timeline graphic: Icon + Line */}
                         <div className="flex flex-col items-center ml-[46px]">
-                            <div className="w-12 h-12 rounded-full bg-[#232323] border border-[#3a3a3a] flex items-center justify-center shrink-0 z-10 shadow-[0_0_15px_rgba(242,84,109,0.15)] relative overflow-hidden">
-                                {/* The circle behind the icon using the mask group graphic pattern in CSS or inline styling */}
-                                <div className="absolute inset-0 bg-[#252525] rounded-full shadow-inner opacity-60 pointer-events-none"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-[#141414] border border-white/10 flex items-center justify-center shrink-0 z-10 shadow-lg shadow-black/20 overflow-hidden">
                                 <div className="w-full h-full z-10">{step.icon}</div>
                             </div>
                             {/* Line connecting the stages */}
                             {index !== PROCESS_STEPS.length - 1 && (
-                                <div className="w-[2px] bg-gradient-to-b from-[#f2546d]/50 via-zinc-700 to-zinc-800 flex-1 relative -top-1" />
+                                <div className="w-[2px] bg-[#F2546D]/40 flex-1 my-2" />
                             )}
                         </div>
 
@@ -80,10 +79,13 @@ export const AboutUsProcess: React.FC = () => {
                             <div className="space-y-[20px]">
                                 {step.details.map((detail, dIndex) => (
                                     <div key={dIndex} className="flex gap-4 items-start">
-                                        {/* Design-inspired brutalist dot */}
-                                        <div className="shrink-0 mt-1 w-3 h-3">
-                                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <rect width="12" height="12" fill="#D9D9D9" />
+                                        {/* Sparkle bullet */}
+                                        <div className="shrink-0 mt-1.5 flex items-center justify-center">
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="M6 0C6 3.31371 3.31371 6 0 6C3.31371 6 6 8.68629 6 12C6 8.68629 8.68629 6 12 6C8.68629 6 6 3.31371 6 0Z"
+                                                    fill="#F2546D"
+                                                />
                                             </svg>
                                         </div>
                                         <p className="text-[14px] font-normal text-white tracking-[-0.42px] leading-normal m-0" style={{ fontFamily: '"DM Sans", Helvetica' }}>

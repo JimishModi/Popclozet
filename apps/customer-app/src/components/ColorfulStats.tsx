@@ -89,7 +89,14 @@ const ColorfulStats = () => {
                                 Your plans are spontaneous, so we are too.
                             </p>
                             <p className="text-violet-950/80 text-sm font-bold bg-white/20 inline-block px-3 py-1 rounded-full">
-                                ⚡ Arrives in 60 minutes
+                                {(() => {
+                                    try {
+                                        const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
+                                        return loc.delivery_estimate === 'delayed' ? '⚡ Expected Delayed Delivery' : '⚡ Arrives in 60 minutes';
+                                    } catch {
+                                        return '⚡ Arrives in 60 minutes';
+                                    }
+                                })()}
                             </p>
                         </div>
                         {/* Decorative Circle */}

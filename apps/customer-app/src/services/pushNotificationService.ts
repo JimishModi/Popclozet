@@ -335,9 +335,30 @@ const PUSH_WORTHY_STATUSES: Record<string, { title: string; body: string }> = {
     title: "🛵 Out for Delivery!",
     body: "Your order is out for delivery and heading your way.",
   },
+  // ── Return lifecycle statuses ──
+  return_requested: {
+    title: "📋 Return Request Submitted",
+    body: "Your return request has been submitted for review.",
+  },
   return_scheduled: {
-    title: "📅 Return Pickup Scheduled",
-    body: "Your return pickup has been scheduled.",
+    title: "✅ Return Approved",
+    body: "Your return has been approved. A rider will be assigned shortly.",
+  },
+  return_dispatched: {
+    title: "🚗 Rider On The Way",
+    body: "A rider has been assigned and is heading to collect your return items.",
+  },
+  return_picked_up: {
+    title: "📦 Items Picked Up",
+    body: "Your return items have been collected and are heading to the warehouse.",
+  },
+  return_at_warehouse: {
+    title: "🏭 Items at Warehouse",
+    body: "Your returned items have arrived at the warehouse for inspection.",
+  },
+  returned: {
+    title: "✅ Return Complete",
+    body: "Your return is complete! Your deposit refund has been initiated.",
   },
 };
 

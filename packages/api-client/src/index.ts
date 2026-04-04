@@ -14,18 +14,42 @@ import type { OrderStatus, ActorRole, TransitionResult, UserRole } from '@popclo
 // SUPABASE CLIENT
 // ==========================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('⚠️ [api-client] CRITICAL: Supabase environment variables are missing.');
+    console.error('[api-client] CRITICAL: Supabase environment variables are missing.');
     throw new Error('Missing Supabase environment variables');
 }
 
-console.log('📦 [@popclozet/api-client] Initializing Supabase client...', {
-    url: supabaseUrl.substring(0, 15) + '...',
-    hasKey: !!supabaseAnonKey
-});
+if (import.meta.env.PROD && supabaseUrl.startsWith('http://')) {
+    supabaseUrl = supabaseUrl.replace('http://', 'https://');
+}
+
+// Supabase URL must use HTTPS in production to avoid insecure WebSocket (ws://) errors.
+// The Supabase JS client derives wss:// from https:// URLs automatically.
+if (!supabaseUrl.startsWith('https://') && import.meta.env.PROD) {
+    console.error(
+        '[api-client] CRITICAL: VITE_SUPABASE_URL must use https:// in production. ' +
+        `Current value starts with: "${supabaseUrl.substring(0, 10)}...". ` +
+        'This will cause "WebSocket not available: The operation is insecure" errors.'
+    );
+}
+
+if (import.meta.env.DEV) {
+    console.log('[api-client] Initializing Supabase client...', {
+        url: supabaseUrl.substring(0, 30) + '...',
+        hasKey: !!supabaseAnonKey
+    });
+}
+
+// iOS Safari requires WebSocket to be tested in a clean security context.
+// In severe cases, the WebSocket object itself might be undefined or throw.
+const realtimeConfig = typeof WebSocket !== 'undefined' ? {
+    params: {
+        eventsPerSecond: 10,
+    },
+} : {};
 
 let client: SupabaseClient;
 try {
@@ -36,13 +60,11 @@ try {
             detectSessionInUrl: true,
             storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         },
-        realtime: {
-            params: {
-                eventsPerSecond: 10,
-            },
-        },
+        realtime: realtimeConfig,
     });
-    console.log('✅ [@popclozet/api-client] Supabase client created successfully.');
+    if (import.meta.env.DEV) {
+        console.log('[api-client] Supabase client created successfully.');
+    }
 } catch (e) {
     console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
     throw e;
