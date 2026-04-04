@@ -53,6 +53,7 @@ export interface FullProductProfile {
     buy_price: number | null;
     images: string[] | null;
     is_available: boolean;
+    mrp: number | null;
     created_at: string;
     inventory: InventorySubProfile[];
     discounts: ProductDiscount[];
@@ -69,6 +70,7 @@ export interface ProductUpdate {
     rental_price_2d?: number;
     rental_price_3d?: number;
     buy_price?: number;
+    mrp?: number | null;
     images?: string[];
     is_available?: boolean;
 }
@@ -147,6 +149,7 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         buy_price: product.buy_price,
         images: product.images,
         is_available: product.is_available ?? true,
+        mrp: product.mrp,
         created_at: product.created_at,
         inventory,
         discounts: (discounts || []) as ProductDiscount[],

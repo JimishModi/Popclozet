@@ -28,7 +28,7 @@ initTheme();
 // (Now handled natively by Supabase persistSession: true)
 
 // Register PWA Service Worker (both dev and prod — needed for push notifications)
-registerSW({
+const updateServiceWorker = registerSW({
   onNeedRefresh() {
     if (import.meta.env.PROD) {
       // Guard: only reload ONCE per browser session to prevent infinite loops.
@@ -54,13 +54,29 @@ registerSW({
   },
 });
 
+// ── Periodic update check (60 minutes) ──────────────────────────────────────
+setInterval(() => {
+  console.log("🔄 Periodic check for PWA updates...");
+  updateServiceWorker(true);
+}, 60 * 60 * 1000);
+
+// ── Visibility update check ──────────────────────────────────────────────────
+// Check for updates whenever the browser tab becomes visible again
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    console.log("🔄 Tab became visible — checking for PWA updates...");
+    updateServiceWorker(true);
+  }
+});
+
+// ── Controller Change Listener ───────────────────────────────────────────────
 // Listen for the new service worker taking control
-if ('serviceWorker' in navigator) {
+if ("serviceWorker" in navigator) {
   let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!refreshing) {
       refreshing = true;
-      console.log('🔄 Service Worker updated. Reloading page...');
+      console.log("🔄 Service Worker updated. Reloading page...");
       window.location.reload();
     }
   });
