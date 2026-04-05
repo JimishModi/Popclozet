@@ -119,7 +119,7 @@ export async function debugAuthState(tag: string, client: SupabaseClient = supab
   const tokenProjectRef = projectRefFromIssuer(claims?.iss);
   const anonProjectRef = anonKeyProjectRef();
 
-  console.info(`[auth-debug:${tag}]`, {
+  console.warn(`[auth-debug:${tag}]`, {
     hasSession: !!session,
     userId: session?.user?.id || null,
     tokenPreview: maskToken(session?.access_token),
@@ -230,7 +230,7 @@ export async function invokeWithUserJwt<TData = unknown>(
   };
 
   await debugAuthState(`before-invoke:${functionName}`);
-  console.info(`[auth-debug:${functionName}] invoke headers`, {
+  console.warn(`[auth-debug:${functionName}] invoke headers`, {
     hasAuthorizationHeader: !!headers.Authorization,
     authorizationPreview: maskToken(session.access_token),
   });
@@ -241,7 +241,15 @@ export async function invokeWithUserJwt<TData = unknown>(
   } as any);
 
   if (response.error) {
-    console.error(`[auth-debug:${functionName}] invoke failed`, response.error);
+    const err: any = response.error;
+    const status = err?.context?.status ?? null;
+    console.error(`[auth-debug:${functionName}] invoke failed`, {
+      status,
+      message: err?.message || String(err),
+      hint: status === 401
+        ? 'JWT mismatch at gateway: compare configuredProjectRef, anonKeyProjectRef, tokenProjectRef logs.'
+        : undefined,
+    });
   }
 
   return response as { data: TData | null; error: Error | null };
