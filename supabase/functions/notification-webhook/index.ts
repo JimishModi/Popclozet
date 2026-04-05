@@ -304,6 +304,7 @@ Deno.serve(async (req: Request) => {
       if (old_record.status !== "return_at_warehouse" && record.status === "return_at_warehouse") {
         await sendPush(record.user_id, "🏭 Items at Warehouse", "Your returned items have arrived and are being inspected.", `/orders`);
         for (const w of (warehouseUsers || [])) {
+          await sendPush(w.id, "🏭 Return Arrived", `Return items for Order #${shortId(record.id)} arrived at warehouse. Ready for inspection.`, "/warehouse/returns");
           await supabase.from("notifications").insert({
             user_id: w.id,
             type: "return_completed",
