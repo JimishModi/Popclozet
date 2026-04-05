@@ -110,32 +110,35 @@ function anonKeyProjectRef(): string | null {
   return projectRefFromIssuer(claims?.iss);
 }
 
-export async function debugAuthState(tag: string, client: SupabaseClient = supabase): Promise<void> {
-  const { data: { session } } = await client.auth.getSession();
-  const snapshot = getStorageSnapshot();
-  const ttlSeconds = sessionTTLSeconds(session);
+function buildAuthDiag(session: Session | null) {
   const claims = parseJwtClaims(session?.access_token);
-  const configuredProjectRef = projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
-  const tokenProjectRef = projectRefFromIssuer(claims?.iss);
-  const anonProjectRef = anonKeyProjectRef();
-
-  console.warn(`[auth-debug:${tag}]`, {
+  return {
     hasSession: !!session,
     userId: session?.user?.id || null,
     tokenPreview: maskToken(session?.access_token),
+    tokenTTLSeconds: sessionTTLSeconds(session),
+    configuredProjectRef: projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined),
+    anonKeyProjectRef: anonKeyProjectRef(),
+    tokenProjectRef: projectRefFromIssuer(claims?.iss),
+    tokenSub: claims?.sub || null,
+    tokenRole: claims?.role || null,
+    tokenExp: claims?.exp || null,
+  };
+}
+
+export async function debugAuthState(tag: string, client: SupabaseClient = supabase): Promise<void> {
+  const { data: { session } } = await client.auth.getSession();
+  const snapshot = getStorageSnapshot();
+  const diag = buildAuthDiag(session);
+
+  console.warn(`[auth-debug:${tag}]`, {
+    ...diag,
     tokenLength: session?.access_token?.length || 0,
-    tokenTTLSeconds: ttlSeconds,
     expiresAt: session?.expires_at || null,
     expectedStorageKey: snapshot.expectedKey,
     expectedStorageKeyPresent: snapshot.expectedKeyPresent,
     authTokenKeys: snapshot.authTokenKeys,
-    configuredProjectRef,
-    anonKeyProjectRef: anonProjectRef,
-    tokenProjectRef,
-    tokenAud: claims?.aud || null,
-    tokenSub: claims?.sub || null,
-    tokenRole: claims?.role || null,
-    tokenExp: claims?.exp || null,
+    tokenAud: parseJwtClaims(session?.access_token)?.aud || null,
   });
 }
 
@@ -223,6 +226,7 @@ export async function invokeWithUserJwt<TData = unknown>(
   options: InvokeOptions = {},
 ): Promise<{ data: TData | null; error: Error | null }> {
   const session = await ensureValidUserSession(supabase, functionName);
+  const preflight = buildAuthDiag(session);
 
   const headers = {
     ...(options.headers || {}),
@@ -230,10 +234,15 @@ export async function invokeWithUserJwt<TData = unknown>(
   };
 
   await debugAuthState(`before-invoke:${functionName}`);
-  console.warn(`[auth-debug:${functionName}] invoke headers`, {
+  const headerDiag = {
     hasAuthorizationHeader: !!headers.Authorization,
     authorizationPreview: maskToken(session.access_token),
-  });
+  };
+  if (functionName === 'create-razorpay-order' || functionName === 'verify-razorpay-payment') {
+    console.error(`[auth-debug:${functionName}] preflight`, { ...preflight, ...headerDiag });
+  } else {
+    console.warn(`[auth-debug:${functionName}] invoke headers`, headerDiag);
+  }
 
   const response = await supabase.functions.invoke<TData>(functionName, {
     ...options,
@@ -249,6 +258,7 @@ export async function invokeWithUserJwt<TData = unknown>(
       hint: status === 401
         ? 'JWT mismatch at gateway: compare configuredProjectRef, anonKeyProjectRef, tokenProjectRef logs.'
         : undefined,
+      preflight,
     });
   }
 
