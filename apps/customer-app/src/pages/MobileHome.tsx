@@ -32,16 +32,16 @@ const FEATURED_SLIDES = [
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
     {
-        id: 0, title: "Post Cleaning", icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
+        id: 0, title: "Pre Cleaning", icon: <img src="/icons/process-1.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
     },
     {
-        id: 1, title: "Sanitization", icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        id: 1, title: "Sanitization", icon: <img src="/icons/process-2.png" className="w-full h-full object-cover" alt="Sanitization" />,
     },
     {
-        id: 2, title: "Pre Cleaning", icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
+        id: 2, title: "Post Cleaning", icon: <img src="/icons/process-3.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
     },
     {
-        id: 3, title: "Quality Check", icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        id: 3, title: "Quality Check", icon: <img src="/icons/process-4.png" className="w-full h-full object-cover" alt="Quality Check" />,
     },
 ];
 

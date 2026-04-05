@@ -56,19 +56,17 @@ Deno.serve(async (req: Request) => {
     const { callbackParams } = body
 
     const userId = callbackParams?.user_id
+    const appOrigin = callbackParams?.app_origin
+    const callbackPath = callbackParams?.callback_path
     if (!userId || typeof userId !== 'string') {
       log.error('Missing or invalid user_id in callbackParams', { body })
       log.done(400);
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
-    // callback = browser redirect URL after verification (NOT the webhook — webhook is set in Didit dashboard)
-    const callbackPath = callbackParams?.callback_path || '/profile'
-    const origin =
-      req.headers.get('origin') ||
-      Deno.env.get('PUBLIC_APP_ORIGIN') ||
-      'https://popclozet.vercel.app'
-    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
+    // callback = browser redirect URL after verification
+    // We point this to our didit-webhook function so it can update the DB before sending the user back to the app
+    const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/didit-webhook`
 
     log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
@@ -109,7 +107,7 @@ Deno.serve(async (req: Request) => {
       )
       const { error: insertErr } = await supabase
         .from('kyc_sessions')
-        .insert({ didit_session_id: diditSessionId, user_id: userId })
+        .insert({ didit_session_id: diditSessionId, user_id: userId, app_origin: appOrigin, callback_path: callbackPath })
       
       if (insertErr) {
         log.warn('Failed to store kyc_session mapping (non-fatal)', { error: insertErr })

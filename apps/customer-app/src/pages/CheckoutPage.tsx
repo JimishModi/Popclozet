@@ -1434,7 +1434,13 @@ export default function CheckoutPage() {
                     try {
                       setIsKycLoading(true);
                       const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
-                        body: { callbackParams: { user_id: user?.id } }
+                        body: { 
+                          callbackParams: { 
+                            user_id: user?.id,
+                            callback_path: "/checkout",
+                            app_origin: window.location.origin
+                          } 
+                        }
                       });
                       if (error) throw error;
                       if (data?.verification_url) {

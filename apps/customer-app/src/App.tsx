@@ -22,6 +22,8 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { recoverPendingVerifications } from "./services/razorpayService";
+import { useAuth } from "./context/SupabaseAuthContext";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
@@ -216,7 +218,7 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
-                  <PushNotificationListener />
+                  <PushNotificationManager />
 
                   {/* LOCATION */}
                   <LocationGate />
@@ -329,10 +331,14 @@ function App() {
   );
 }
 
-// Internal component to listen for Push Notification clicks from the Service Worker
-function PushNotificationListener() {
+// Internal component to manage Push Notifications (subscription, clicks, prompts)
+function PushNotificationManager() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const push = usePushNotifications();
 
+  // 1. Listen for clicks from the Service Worker
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
@@ -349,6 +355,38 @@ function PushNotificationListener() {
       navigator.serviceWorker.removeEventListener("message", handleMessage);
     };
   }, [navigate]);
+
+  // 2. Auto-subscribe if permission is already granted but sync is missing
+  useEffect(() => {
+    if (user && push.isSupported && push.permission === 'granted' && !push.isSubscribed && !push.isLoading) {
+      push.autoSubscribe();
+    }
+  }, [user, push.isSupported, push.permission, push.isSubscribed, push.isLoading]);
+
+  // 3. Proactive prompt for new users (if permission is 'default')
+  // We show a small toast-style prompt after they land on home or orders
+  useEffect(() => {
+    const isMainPage = location.pathname === '/home' || location.pathname === '/orders';
+    const hasBeenPrompted = sessionStorage.getItem('push_prompt_seen');
+
+    if (user && push.isSupported && push.permission === 'default' && isMainPage && !hasBeenPrompted && !push.isLoading) {
+      // Delay slightly to not overwhelm on page load
+      const timer = setTimeout(() => {
+        console.log("[Push] Showing proactive notification prompt...");
+        // For now, we'll use a small console log but in a real app this would be a custom UI banner or toast
+        // We'll mark as prompted to avoid spamming
+        sessionStorage.setItem('push_prompt_seen', 'true');
+        
+        // We could call push.subscribe() here if we want to be very aggressive, 
+        // but it's better to show a UI first. However, to fulfill "on by default",
+        // we will at least try to trigger the native prompt if they are on a high-intent page.
+        if (location.pathname === '/orders') {
+          push.subscribe();
+        }
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, location.pathname, push.permission, push.isSupported, push.isLoading]);
 
   return null;
 }

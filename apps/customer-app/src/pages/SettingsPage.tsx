@@ -175,8 +175,8 @@ const SettingsPage: React.FC = () => {
     const [pushOrders, setPushOrders] = useState(() => loadBool('s_push_orders', true));
     const [pushDelivery, setPushDelivery] = useState(() => loadBool('s_push_delivery', true));
     const [pushReturn, setPushReturn] = useState(() => loadBool('s_push_return', true));
-    const [pushPromo, setPushPromo] = useState(() => loadBool('s_push_promo', false));
-    const [emailUpdates, setEmailUpdates] = useState(() => loadBool('s_email_updates', false));
+    const [pushPromo, setPushPromo] = useState(() => loadBool('s_push_promo', true));
+    const [emailUpdates, setEmailUpdates] = useState(() => loadBool('s_email_updates', true));
 
     const toggle = (setter: (v: boolean) => void, key: string) => (v: boolean) => {
         setter(v);

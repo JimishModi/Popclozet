@@ -49,9 +49,11 @@ Deno.serve(async (req: Request) => {
     const APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://popclozet.in'
 
     // Helper: for browser GET redirects, send user to the customer app instead of returning JSON
-    function browserRedirectOrJson(body: unknown, httpStatus: number, kycResult: string = 'success') {
+    function browserRedirectOrJson(body: unknown, httpStatus: number, kycResult: string = 'success', customOrigin?: string, customPath?: string) {
       if (isBrowserRedirect) {
-        const redirectUrl = `${APP_ORIGIN}/#/profile?kyc_callback=${kycResult}`
+        const origin = customOrigin || Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://popclozet.in'
+        const path = customPath || '/profile'
+        const redirectUrl = `${origin}/#${path}?kyc_callback=${kycResult}`
         log.info(`Redirecting browser to ${redirectUrl}`)
         return new Response(null, {
           status: 302,
@@ -72,6 +74,8 @@ Deno.serve(async (req: Request) => {
 
     const status = data?.status
     let userId = data?.vendor_data || data?.user_id
+    let appOriginFromDb = null
+    let callbackPathFromDb = null
 
     // PRIMARY: Look up user_id from our DB (most reliable — no external API dependency)
     if (!userId && data?.verificationSessionId) {
@@ -81,13 +85,15 @@ Deno.serve(async (req: Request) => {
       )
       const { data: sessionRow } = await supabaseLookup
         .from('kyc_sessions')
-        .select('user_id')
+        .select('user_id, app_origin, callback_path')
         .eq('didit_session_id', data.verificationSessionId)
         .maybeSingle()
       
-      if (sessionRow?.user_id) {
+      if (sessionRow) {
         userId = sessionRow.user_id
-        log.info(`Found user_id from kyc_sessions table: ${userId}`)
+        appOriginFromDb = sessionRow.app_origin
+        callbackPathFromDb = sessionRow.callback_path
+        log.info(`Found session in kyc_sessions: user_id=${userId}, app_origin=${appOriginFromDb}, callback_path=${callbackPathFromDb}`)
       } else {
         log.warn(`Session ${data.verificationSessionId} not found in kyc_sessions table`)
       }
@@ -149,7 +155,7 @@ Deno.serve(async (req: Request) => {
 
       log.info(`User ${userId} marked as kyc_verified=true`)
       log.done(200);
-      return browserRedirectOrJson({ success: true, user_id: userId }, 200, 'success')
+      return browserRedirectOrJson({ success: true, user_id: userId }, 200, 'success', appOriginFromDb, callbackPathFromDb)
     }
 
     // Handle MANUAL REVIEW (v3: "In Review")
@@ -175,7 +181,7 @@ Deno.serve(async (req: Request) => {
       }
       
       log.done(200);
-      return browserRedirectOrJson({ status, user_id: userId }, 200, 'pending')
+      return browserRedirectOrJson({ status, user_id: userId }, 200, 'pending', appOriginFromDb, callbackPathFromDb)
     }
 
     // Handle REJECTION (v3: "Declined")
@@ -201,12 +207,12 @@ Deno.serve(async (req: Request) => {
       }
       
       log.done(200);
-      return browserRedirectOrJson({ message: 'Rejection processed' }, 200, 'rejected')
+      return browserRedirectOrJson({ message: 'Rejection processed' }, 200, 'rejected', appOriginFromDb, callbackPathFromDb)
     }
 
     log.info(`Unhandled webhook status: ${status}`)
     log.done(200);
-    return browserRedirectOrJson({ message: 'Unhandled status', status }, 200, 'pending')
+    return browserRedirectOrJson({ message: 'Unhandled status', status }, 200, 'pending', appOriginFromDb, callbackPathFromDb)
 
   } catch (error: any) {
     log.error(`Webhook handler error`, { error })

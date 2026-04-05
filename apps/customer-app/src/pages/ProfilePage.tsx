@@ -546,7 +546,13 @@ const ProfilePage: React.FC = () => {
                             setIsKycLoading(true);
                             try {
                               const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
-                                body: { callbackParams: { user_id: user.id, callback_path: "/profile" } }
+                                body: { 
+                                  callbackParams: { 
+                                    user_id: user.id, 
+                                    callback_path: "/profile",
+                                    app_origin: window.location.origin
+                                  } 
+                                }
                               });
                               if (error) throw error;
                               if (data?.verification_url) {

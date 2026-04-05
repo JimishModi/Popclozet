@@ -31,6 +31,7 @@ export interface UsePushNotificationsReturn {
   subscribe: () => Promise<boolean>;
   unsubscribe: () => Promise<boolean>;
   sendTest: () => Promise<boolean>;
+  autoSubscribe: () => Promise<void>;
 }
 
 export function usePushNotifications(): UsePushNotificationsReturn {
@@ -136,6 +137,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       setIsLoading(false);
     }
   }, []);
+  // Auto-subscribe if permission is already granted but we are not subscribed
+  const autoSubscribe = useCallback(async () => {
+    if (permission === 'granted' && !isSubscribed && !isLoading) {
+      console.log("[Push] Auto-subscribing since permission is already granted...");
+      await subscribe();
+    }
+  }, [permission, isSubscribed, isLoading, subscribe]);
 
   return {
     isSupported,
@@ -146,6 +154,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     subscribe,
     unsubscribe,
     sendTest,
+    autoSubscribe,
   };
 }
 
