@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
     // Create verification session using x-api-key auth
-    const response = await fetch('https://api.didit.me/sessions', {
+    const response = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
