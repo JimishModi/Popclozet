@@ -9,7 +9,9 @@
       "Bash(npx tsc:*)",
       "Read(//c/Users/madha/AppData/Local/Temp/claude/c--Users-madha-Desktop-doc-popclozet-popclozet/820b00cd-fe2d-46ce-9d47-a938df39e79b/tasks/**)",
       "Bash(grep -A 20 \"CREATE TABLE.*notifications\\\\|CREATE TABLE.*push_subscriptions\" /c/Users/madha/Desktop/doc popclozet/popclozet/supabase/migrations/*.sql)",
-      "mcp__claude_ai_Supabase__deploy_edge_function"
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "Bash(npx supabase:*)",
+      "WebFetch(domain:docs.didit.me)"
     ]
   }
 }

@@ -1275,25 +1275,23 @@ export default function CheckoutPage() {
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || !kycVerified}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError || !kycVerified) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
                 ? "LIMIT EXCEEDED"
-                : !kycVerified
-                  ? "VERIFY KYC FIRST"
-                  : isPlacingOrder
-                    ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
-                    : selectedOrderType === 'home_try_on'
-                      ? "BOOK TRY-ON"
-                      : paymentMethod === 'upi'
-                        ? "PAY VIA UPI"
-                        : paymentMethod === 'cod'
-                          ? "PLACE ORDER"
-                          : "PAY"
+                : isPlacingOrder
+                  ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
+                  : selectedOrderType === 'home_try_on'
+                    ? "BOOK TRY-ON"
+                    : paymentMethod === 'upi'
+                      ? "PAY VIA UPI"
+                      : paymentMethod === 'cod'
+                        ? "PLACE ORDER"
+                        : "PAY"
               }
             </button>
           </div>

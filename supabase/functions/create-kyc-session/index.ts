@@ -68,37 +68,41 @@ Deno.serve(async (req: Request) => {
       req.headers.get('origin') ||
       Deno.env.get('PUBLIC_APP_ORIGIN') ||
       'https://popclozet.vercel.app' // Fallback to production origin
-      
+
     // Didit API strictly rejects callback URLs containing '#' fragments.
     const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
     log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
-    const response = await fetch('https://verification.didit.me/v3/session/', {
+    // Create verification session using x-api-key auth
+    const response = await fetch('https://api.didit.me/sessions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DIDIT_API_KEY}`,
+        'x-api-key': DIDIT_API_KEY!,
       },
       body: JSON.stringify({
-        client_id: DIDIT_CLIENT_ID,
         workflow_id: DIDIT_WORKFLOW_ID,
         callback: callbackUrl,
         vendor_data: userId,
       }),
     })
 
-    const data = await response.json()
+    let data: any
+    const responseText = await response.text()
+    try { data = JSON.parse(responseText) } catch { data = { raw: responseText } }
 
     if (!response.ok) {
-      log.error('Didit API error', { data })
-      log.done(response.status || 400);
-      return jsonResponse({ error: data }, response.status || 400)
+      log.error('Didit API error', { status: response.status, data })
+      log.done(500);
+      return jsonResponse({ error: 'Didit session creation failed', didit_status: response.status, details: data }, 500)
     }
 
-    log.info('Didit session created successfully', { session_id: data.session_id })
+    // Didit returns session URL — map to verification_url for frontend
+    const verificationUrl = data.url || data.verification_url || data.session_url
+    log.info('Didit session created successfully', { session_id: data.session_id, hasUrl: !!verificationUrl })
     log.done(200);
-    return jsonResponse(data, 200)
+    return jsonResponse({ ...data, verification_url: verificationUrl }, 200)
   } catch (error: any) {
     log.error('Unexpected error', { error })
     log.done(500);
