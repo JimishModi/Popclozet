@@ -23,9 +23,45 @@ declare global {
 let supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+const projectRefFromUrl = (url: string): string | null => {
+    try {
+        return new URL(url).hostname.split('.')[0] || null;
+    } catch {
+        return null;
+    }
+};
+
+const parseJwtIss = (token: string): string | null => {
+    try {
+        const parts = token.split('.');
+        if (parts.length < 2) return null;
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+        const claims = JSON.parse(atob(padded)) as { iss?: string };
+        return claims.iss || null;
+    } catch {
+        return null;
+    }
+};
+
+const projectRefFromAnonKey = (): string | null => {
+    const iss = parseJwtIss(supabaseAnonKey);
+    if (!iss) return null;
+    return projectRefFromUrl(iss);
+};
+
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('[api-client] CRITICAL: Supabase environment variables are missing.');
     throw new Error('Missing Supabase environment variables');
+}
+
+const urlProjectRef = projectRefFromUrl(supabaseUrl);
+const anonProjectRef = projectRefFromAnonKey();
+if (urlProjectRef && anonProjectRef && urlProjectRef !== anonProjectRef) {
+    console.error(
+        `[api-client] CRITICAL: Supabase URL/key project mismatch: ` +
+        `url=${urlProjectRef}, anonKey=${anonProjectRef}`
+    );
 }
 
 if (import.meta.env.PROD && supabaseUrl.startsWith('http://')) {

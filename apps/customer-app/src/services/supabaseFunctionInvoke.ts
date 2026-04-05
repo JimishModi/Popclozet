@@ -104,6 +104,12 @@ function projectRefFromIssuer(iss: string | undefined): string | null {
   }
 }
 
+function anonKeyProjectRef(): string | null {
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const claims = parseJwtClaims(anonKey);
+  return projectRefFromIssuer(claims?.iss);
+}
+
 export async function debugAuthState(tag: string, client: SupabaseClient = supabase): Promise<void> {
   const { data: { session } } = await client.auth.getSession();
   const snapshot = getStorageSnapshot();
@@ -111,6 +117,7 @@ export async function debugAuthState(tag: string, client: SupabaseClient = supab
   const claims = parseJwtClaims(session?.access_token);
   const configuredProjectRef = projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
   const tokenProjectRef = projectRefFromIssuer(claims?.iss);
+  const anonProjectRef = anonKeyProjectRef();
 
   console.info(`[auth-debug:${tag}]`, {
     hasSession: !!session,
@@ -123,6 +130,7 @@ export async function debugAuthState(tag: string, client: SupabaseClient = supab
     expectedStorageKeyPresent: snapshot.expectedKeyPresent,
     authTokenKeys: snapshot.authTokenKeys,
     configuredProjectRef,
+    anonKeyProjectRef: anonProjectRef,
     tokenProjectRef,
     tokenAud: claims?.aud || null,
     tokenSub: claims?.sub || null,
@@ -178,7 +186,15 @@ async function ensureValidUserSession(client: SupabaseClient, context: string): 
 
   const claims = parseJwtClaims(finalSession.access_token);
   const configuredProjectRef = projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
+  const anonProjectRef = anonKeyProjectRef();
   const tokenProjectRef = projectRefFromIssuer(claims?.iss);
+
+  if (configuredProjectRef && anonProjectRef && configuredProjectRef !== anonProjectRef) {
+    throw new Error(
+      `Supabase env mismatch: URL project=${configuredProjectRef}, ANON key project=${anonProjectRef}. ` +
+      "Fix Vercel env vars so VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are from the same project."
+    );
+  }
 
   if (!claims?.sub || !claims?.role) {
     throw new Error("Invalid user JWT (missing required claims). Please log in again.");
