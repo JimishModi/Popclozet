@@ -149,12 +149,9 @@ export default function CheckoutPage() {
     return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
-  // Fetch KYC status from DB
+  // Fetch KYC status from DB (DB is the source of truth)
   const fetchKycStatus = useCallback(() => {
     if (!user?.id) return;
-    if (readStoredKycVerified(user.id)) {
-      setKycVerified(true);
-    }
 
     supabase
       .from("customer_profiles")
@@ -167,11 +164,9 @@ export default function CheckoutPage() {
           return;
         }
 
-        const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
-        if (isVerified) {
-          writeStoredKycVerified(user.id, true);
-          setKycVerified(true);
-        }
+        const isVerified = Boolean(data?.kyc_verified);
+        writeStoredKycVerified(user.id, isVerified);
+        setKycVerified(isVerified);
       });
   }, [user?.id]);
 
@@ -1280,23 +1275,25 @@ export default function CheckoutPage() {
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || !kycVerified}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError || !kycVerified) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
                 ? "LIMIT EXCEEDED"
-                : isPlacingOrder
-                  ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
-                  : selectedOrderType === 'home_try_on'
-                    ? "BOOK TRY-ON"
-                    : paymentMethod === 'upi'
-                      ? "PAY VIA UPI"
-                      : paymentMethod === 'cod'
-                        ? "PLACE ORDER"
-                        : "PAY"
+                : !kycVerified
+                  ? "VERIFY KYC FIRST"
+                  : isPlacingOrder
+                    ? (paymentMethod === 'cod' ? "PLACING..." : "PAYING...")
+                    : selectedOrderType === 'home_try_on'
+                      ? "BOOK TRY-ON"
+                      : paymentMethod === 'upi'
+                        ? "PAY VIA UPI"
+                        : paymentMethod === 'cod'
+                          ? "PLACE ORDER"
+                          : "PAY"
               }
             </button>
           </div>
