@@ -739,7 +739,7 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
-          navigate(`/order-confirmed/${targetId}`);
+          navigate('/home', { replace: true });
         } else {
           setIsPlacingOrder(false);
           placingOrderLockRef.current = false;
@@ -907,7 +907,7 @@ export default function CheckoutPage() {
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate(`/order-confirmed/${createdOrderId}`);
+        navigate('/home', { replace: true });
       } else {
         // Pass return schedule data so PaymentProcessingPage can create the
         // return_request AFTER payment succeeds (avoids false notifications).

@@ -13,7 +13,8 @@
       "Bash(npx supabase:*)",
       "WebFetch(domain:docs.didit.me)",
       "Bash(pnpm install:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "WebSearch"
     ]
   }
 }

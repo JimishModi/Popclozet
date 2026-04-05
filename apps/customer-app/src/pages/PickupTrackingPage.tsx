@@ -72,6 +72,8 @@ export default function PickupTrackingPage() {
     const [riderLocation,   setRiderLocation]   = useState<{ lat: number; lng: number } | null>(null);
 
     const [instantReturnLoading, setInstantReturnLoading] = useState(false);
+    const [showInstantReturnConfirm, setShowInstantReturnConfirm] = useState(false);
+    const [findingDrivers, setFindingDrivers] = useState(false);
     const [noRidersAvailable, setNoRidersAvailable] = useState(false);
     const [warehouseNotified, setWarehouseNotified] = useState(false);
 
@@ -359,7 +361,7 @@ export default function PickupTrackingPage() {
                 {isPreReturn && (
                     <div className="mx-5 mb-6 flex justify-end">
                         <button
-                            onClick={handleInstantReturn}
+                            onClick={() => setShowInstantReturnConfirm(true)}
                             disabled={instantReturnLoading}
                             className="px-4 py-2.5 rounded-xl bg-[#f2546d]/10 border border-[#f2546d]/30 flex items-center gap-2 active:scale-95 transition-all text-[#f2546d]"
                         >
@@ -475,6 +477,56 @@ export default function PickupTrackingPage() {
                 items={items}
                 onSuccess={() => setShowInstantBuy(false)}
             />
+
+            {/* ── Instant Return Confirmation Modal ── */}
+            {showInstantReturnConfirm && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center">
+                    <div
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                        onClick={() => setShowInstantReturnConfirm(false)}
+                    />
+                    <motion.div
+                        initial={{ y: 80, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 80, opacity: 0 }}
+                        className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-6 pb-10"
+                    >
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/20 flex items-center justify-center">
+                                <Zap className="w-5 h-5 text-[#f2546d]" />
+                            </div>
+                            <h3 className="text-base font-black text-white uppercase tracking-tight" style={dmSans}>
+                                Confirm Instant Return
+                            </h3>
+                        </div>
+                        <p className="text-sm text-zinc-400 font-medium mb-6" style={dmSans}>
+                            Are you sure you want to return your items instantly? A rider will be assigned to pick them up shortly.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowInstantReturnConfirm(false)}
+                                className="flex-1 py-3 rounded-2xl bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm font-bold tracking-wide active:scale-95 transition-all"
+                                style={dmSans}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { setShowInstantReturnConfirm(false); handleInstantReturn(); }}
+                                disabled={instantReturnLoading}
+                                className="flex-1 py-3 rounded-2xl bg-[#f2546d] text-white text-sm font-bold tracking-wide flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                                style={dmSans}
+                            >
+                                {instantReturnLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Zap className="w-4 h-4" />
+                                )}
+                                {instantReturnLoading ? "Requesting..." : "Yes, Return Now"}
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
         </MobileShell>
     );
 }

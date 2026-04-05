@@ -46,6 +46,9 @@ export interface OrderWithItems {
         full_name?: string | null;
         phone?: string | null;
     } | null;
+    return_requests?: Array<{
+        reason: string | null;
+    }> | null;
 }
 
 /**
@@ -463,6 +466,15 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
  */
 export async function getOrderHistory(options?: { status?: string, searchQuery?: string, limit?: number }): Promise<OrderWithItems[]> {
     try {
+        const returnStatuses = [
+            'return_requested',
+            'return_scheduled',
+            'return_assigned',
+            'return_dispatched',
+            'return_picked_up',
+            'return_at_warehouse',
+            'returned',
+        ];
         let query = supabase
             .from('orders')
             .select(`
@@ -476,15 +488,17 @@ export async function getOrderHistory(options?: { status?: string, searchQuery?:
                     products (id, name, images)
                 ),
                 addresses:delivery_address_id (full_address, latitude, longitude),
-                riders:rider_id (name, full_name, phone)
+                riders:rider_id (name, full_name, phone),
+                return_requests(reason)
             `);
 
         if (options?.status && options.status !== 'all') {
             if (options.status === 'returns') {
-                query = query.in('status', [
-                    'return_requested', 'return_scheduled', 'return_assigned', 
-                    'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'
-                ]);
+                query = query.or(
+                    returnStatuses
+                        .flatMap((status) => [`status.eq.${status}`, `lifecycle_state.eq.${status}`])
+                        .join(','),
+                );
             } else {
                 query = query.or(`status.eq.${options.status},lifecycle_state.eq.${options.status}`);
             }

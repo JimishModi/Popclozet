@@ -142,11 +142,6 @@ export default function DeliveryTrackingPage() {
                                     </span>
                                 </div>
                             )}
-                            <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
-                                <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
-                                    {isDelayed ? "Delayed Delivery" : "Arriving in 60 mins"}
-                                </span>
-                            </div>
                         </div>
                     </div>
 

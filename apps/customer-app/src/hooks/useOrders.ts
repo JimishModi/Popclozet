@@ -82,7 +82,7 @@ export function useOrders() {
         try {
             setLoading(true);
             const rawOrders = await getUserOrders(user.id);
-            setOrders(rawOrders.map(mapToOrder));
+            setOrders(rawOrders.map(mapToOrder).filter(o => o.status !== 'cancelled'));
             setError(null);
         } catch (err) {
             console.error("Failed to fetch orders:", err);
@@ -152,7 +152,6 @@ export function useOrders() {
         [
             "picked_up",
             "return_completed",
-            "cancelled",
             "completed",
             "return_picked_up",
             "return_at_warehouse",

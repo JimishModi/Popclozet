@@ -141,7 +141,7 @@ export default function PaymentProcessingPage() {
                             const parts = key.split('_');
                             removeFromCart(parts[0], data.size, data.plan);
                         }
-                        navigate(`/order-confirmed/${orderId}`, { replace: true });
+                        navigate('/home', { replace: true });
                     },
                     onFailure: (error) => {
                         if (paymentSettled.current) return;

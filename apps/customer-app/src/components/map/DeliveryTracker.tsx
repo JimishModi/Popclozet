@@ -9,7 +9,6 @@ import { supabase } from '@popclozet/api-client';
 import { getOrderById, DeliveryOrder, OrderStatus } from '@/services/deliveryService';
 import { getHubById, RentalHub } from '@/services/hubService';
 import { getTrackingRecord, TrackingRecord } from '@/services/trackingService';
-import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
 import { notifyOrderStatusChange } from '@/services/notificationService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -190,11 +189,6 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         ? { lat: tracking.current_lat, lng: tracking.current_lng }
         : null;
 
-    // Delayed if delivery address is outside 6km radius of warehouse (Hostel No 2, IIT Bombay)
-    const distance = userLocation && hub
-        ? calculateDistance(userLocation.lat, userLocation.lng, hub.lat, hub.lng)
-        : null;
-    const isDelayed = distance !== null ? distance > 6 : false;
 
     if (isLoading) {
         return (
@@ -214,49 +208,6 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
 
     return (
         <div className={className}>
-            {/* ETA Card - No Map */}
-            {order.status === 'out_for_delivery' && (
-                <div className="mb-6">
-                    <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-2xl relative overflow-hidden">
-                        {/* Status badge */}
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="w-2 h-2 rounded-full bg-[#ff4d6d] animate-pulse" />
-                            <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
-                                Live Tracking Active
-                            </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">
-                                    {isDelayed ? "⚠️ Expected" : "⚡ Arriving in"}
-                                </p>
-                                <p className="text-4xl font-black text-white tracking-tighter">
-                                    {isDelayed ? "Delayed Delivery" : "60 mins"}
-                                </p>
-                                {isDelayed && (
-                                    <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest max-w-[200px]">
-                                        Your address is {distance?.toFixed(1)}km from our warehouse. Delivery may take longer.
-                                    </p>
-                                )}
-                            </div>
-                            
-                            <div className="w-16 h-16 rounded-2xl bg-[#ff4d6d]/10 flex items-center justify-center border border-[#ff4d6d]/20">
-                                <Clock className="w-8 h-8 text-[#ff4d6d]" />
-                            </div>
-                        </div>
-
-                        {/* Visual progress bar */}
-                        <div className="mt-6 h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-                            <motion.div 
-                                initial={{ width: "0%" }}
-                                animate={{ width: isDelayed ? "40%" : "75%" }}
-                                className="h-full bg-gradient-to-r from-[#ff4d6d] to-[#ff8ba7]"
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Status timeline */}
             <div className="mb-6">

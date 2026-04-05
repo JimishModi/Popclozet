@@ -209,7 +209,10 @@ export function OrderHistoryPage() {
                         </motion.div>
                     ) : (
                         <div className="space-y-3.5">
-                            {orders.map((order, idx) => (
+                            {orders.map((order, idx) => {
+                                const returnRequest = order.return_requests?.[0];
+
+                                return (
                                 <motion.div
                                     key={order.id}
                                     initial={{ opacity: 0, y: 15 }}
@@ -236,11 +239,23 @@ export function OrderHistoryPage() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className={clsx(
-                                            "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
-                                            getStatusStyle(order.status)
-                                        )}>
-                                            {getStatusDisplay(order.status)}
+                                        <div className="flex flex-col items-end gap-1.5">
+                                            <div className={clsx(
+                                                "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
+                                                getStatusStyle(order.status)
+                                            )}>
+                                                {getStatusDisplay(order.status)}
+                                            </div>
+                                            {returnRequest && (
+                                                <div className={clsx(
+                                                    "px-2 py-0.5 rounded text-[9px] font-black border uppercase tracking-tight flex items-center gap-1",
+                                                    returnRequest.reason === 'immediate'
+                                                        ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                                        : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                                )}>
+                                                    {returnRequest.reason === 'immediate' ? 'INSTANT' : 'SCHEDULED'}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -332,7 +347,8 @@ export function OrderHistoryPage() {
                                         </div>
                                     </div>
                                 </motion.div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </AnimatePresence>

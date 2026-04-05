@@ -62,11 +62,15 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
-    // Webhook URL — Didit POSTs verification result here, which updates the DB
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://hfcdvcpgpkdgmcakgiuy.supabase.co'
-    const webhookUrl = `${supabaseUrl}/functions/v1/didit-webhook`
+    // callback = browser redirect URL after verification (NOT the webhook — webhook is set in Didit dashboard)
+    const callbackPath = callbackParams?.callback_path || '/profile'
+    const origin =
+      req.headers.get('origin') ||
+      Deno.env.get('PUBLIC_APP_ORIGIN') ||
+      'https://popclozet.vercel.app'
+    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
-    log.info(`Creating Didit session for user ${userId} with webhook: ${webhookUrl}`)
+    log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
     // Create verification session using x-api-key auth
     const response = await fetch('https://verification.didit.me/v3/session/', {
@@ -77,7 +81,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         workflow_id: DIDIT_WORKFLOW_ID,
-        callback: webhookUrl,
+        callback: callbackUrl,
         vendor_data: userId,
       }),
     })

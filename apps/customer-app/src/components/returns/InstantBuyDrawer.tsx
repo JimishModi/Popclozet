@@ -121,7 +121,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                         toast.success('Instant buy completed');
                         onSuccess();
                         onClose();
-                        navigate(`/order-confirmed/${newOrder.id}`, { replace: true });
+                        navigate('/home', { replace: true });
                     } catch (e) {
                         console.error('[Instant Buy] Finalization failed:', e);
                         toast.error('Payment succeeded, but finalizing the instant buy failed. Contact support with your payment reference.');

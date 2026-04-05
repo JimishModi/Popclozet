@@ -48,7 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   // Track whether onAuthStateChange has already delivered a valid session
   const authListenerFiredRef = useRef(false);
+  const bootstrapPendingRef = useRef(true);
+  const bootstrapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const clearBootstrapTimeout = () => {
+    if (bootstrapTimeoutRef.current) {
+      clearTimeout(bootstrapTimeoutRef.current);
+      bootstrapTimeoutRef.current = null;
+    }
+  };
 
   // Safety timeout — increased to 15s to accommodate slow networks
   // where token refresh might take longer after app close/reopen
@@ -168,6 +177,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!active) return;
 
         if (session?.user) {
+          clearBootstrapTimeout();
+          bootstrapPendingRef.current = false;
+          authListenerFiredRef.current = true;
           // Session is valid — use it immediately
           setSession(session);
           setUser(session.user);
@@ -179,47 +191,111 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // setting user=null (which routes to login), wait briefly for
           // onAuthStateChange to fire TOKEN_REFRESHED with a valid session.
           console.log('[Auth] No session from getSession — waiting for auth listener to attempt token refresh...');
-          setTimeout(() => {
+          clearBootstrapTimeout();
+          bootstrapPendingRef.current = true;
+          bootstrapTimeoutRef.current = setTimeout(() => {
             if (!active || !mountedRef.current) return;
             // If the auth listener hasn't delivered a valid session by now,
             // the user is genuinely logged out.
             if (!authListenerFiredRef.current) {
-              console.log('[Auth] Auth listener did not fire — user is logged out');
+              bootstrapPendingRef.current = false;
+              console.log('[Auth] Auth listener did not fire within 15s — user is likely logged out');
               setSession(null);
               setUser(null);
               setProfile(null);
               setLoading(false);
             }
-          }, 3_000);
+          }, 15_000);
         }
       } catch (err) {
         console.error('[Auth] Bootstrap crashed:', err);
-        if (active) setLoading(false);
+        clearBootstrapTimeout();
+        bootstrapPendingRef.current = false;
+        if (active) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
       }
     };
 
     initAuth();
 
+    // Re-validate session when the PWA returns from background.
+    // On mobile, the OS can suspend the app long enough for the access token
+    // to expire. Without this, riders stay on a stale "logged-in" screen until
+    // the next Supabase call fails, or get a blank loading screen on re-open.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible' || !active) return;
+      try {
+        const { data: { session: latest } } = await supabase.auth.getSession();
+        if (!active || !mountedRef.current) return;
+        if (latest?.user) {
+          setSession(latest);
+          setUser(latest.user);
+          setLoading(false);
+        }
+        // If latest is null and user is already null, nothing to do.
+        // If latest is null and user was set, onAuthStateChange will fire
+        // SIGNED_OUT and handle it through the normal path.
+      } catch (err) {
+        console.warn('[Auth] Visibility change session check failed:', err);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Auth State Change Event:', event);
       if (!active) return;
 
-      setSession(session);
-      setUser(session?.user ?? null);
-
       if (session?.user) {
+        clearBootstrapTimeout();
+        bootstrapPendingRef.current = false;
         authListenerFiredRef.current = true;
+        setSession(session);
+        setUser(session.user);
         fetchProfile(session.user.id, session.user.user_metadata);
-      } else if (event === 'SIGNED_OUT') {
-        // Only clear profile on explicit sign-out, not on transient token issues
-        setProfile(null);
+        setLoading(false);
+        return;
       }
 
+      if (event === 'SIGNED_OUT') {
+        if (bootstrapPendingRef.current) {
+          // SIGNED_OUT can fire while Supabase is mid-refresh on PWA wake-up
+          // (e.g. token expired while app was backgrounded). During bootstrap,
+          // defer to the timer — the token may still be successfully refreshed.
+          console.log('[Auth] SIGNED_OUT during bootstrap — deferring to bootstrap timer');
+          // fall through to the bootstrapPendingRef guard below
+        } else {
+          clearBootstrapTimeout();
+          bootstrapPendingRef.current = false;
+          authListenerFiredRef.current = false;
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (bootstrapPendingRef.current) {
+        console.log(`[Auth] ${event} delivered null session during bootstrap — still waiting for refresh`);
+        return;
+      }
+
+      console.log(`[Auth] ${event} delivered null session after bootstrap — clearing auth state`);
+      authListenerFiredRef.current = false;
+      setSession(null);
+      setUser(null);
+      setProfile(null);
       setLoading(false);
     });
 
     return () => {
       active = false;
+      clearBootstrapTimeout();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       subscription.unsubscribe();
     };
   }, []);

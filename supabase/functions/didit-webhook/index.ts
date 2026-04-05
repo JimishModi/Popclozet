@@ -106,8 +106,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true, user_id: userId }, 200)
     }
 
-    // Handle MANUAL REVIEW
-    if (status === 'Review' || status === 'review' || status === 'pending') {
+    // Handle MANUAL REVIEW (v3: "In Review")
+    if (['Review', 'review', 'pending', 'In Review'].includes(status)) {
       const decision = data?.decision?.decision
       log.info(`User ${userId} status: ${status}, Decision: ${decision}`)
 
@@ -132,8 +132,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ status, user_id: userId }, 200)
     }
 
-    // Handle REJECTION
-    if (['Rejected', 'rejected', 'failed'].includes(status)) {
+    // Handle REJECTION (v3: "Declined")
+    if (['Rejected', 'rejected', 'failed', 'Declined', 'declined'].includes(status)) {
       log.warn(`User ${userId} verification REJECTED: ${status}`)
       // Optionally reset verification status if it was previously true
       const { error: updateError } = await supabase
