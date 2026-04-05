@@ -149,52 +149,13 @@ export default function CheckoutPage() {
     return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
-  // Check URL params for KYC callback
+  // Check URL params for KYC callback — just re-fetch DB status (webhook sets the actual value)
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
-    const callbackUserId = searchParams.get("user_id");
-    const targetUserId = user?.id || callbackUserId;
 
-    if (kycCallback === "success" && targetUserId) {
-      writeStoredKycVerified(targetUserId, true);
-      setKycVerified(true);
-      setShowKycGate(false);
-
-      if (user?.id) {
-        const fullName = profile?.full_name || user.user_metadata?.full_name || "User";
-        const phone = profile?.phone || user.phone || `pending-${user.id.slice(0, 12)}`;
-
-        supabase
-          .from("customer_profiles")
-          .upsert({
-            user_id: user.id,
-            full_name: fullName,
-            phone,
-            kyc_verified: true,
-          } as any, { onConflict: "user_id" })
-          .then(({ error }) => {
-            if (error) {
-              console.error("[KYC] Failed to persist verification:", error);
-              toast.success("Identity verified. Proceeding with stored confirmation.");
-              return;
-            }
-            toast.success("Identity verified successfully!");
-          });
-      } else {
-        supabase
-          .from("customer_profiles")
-          .update({ kyc_verified: true })
-          .eq("user_id", targetUserId)
-          .then(({ error }) => {
-            if (error) {
-              console.error("[KYC] Failed to persist verification:", error);
-              toast.error("Verification failed to save. Please try again.");
-              setKycVerified(false);
-              return;
-            }
-            toast.success("Identity verified successfully!");
-          });
-      }
+    if (kycCallback === "success") {
+      fetchKycStatus();
+      toast.success("Verification submitted! Checking status...");
 
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete("kyc_callback");
@@ -202,7 +163,7 @@ export default function CheckoutPage() {
       const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams, user?.id, profile?.full_name, profile?.phone, user?.phone, user?.user_metadata]);
+  }, [searchParams, fetchKycStatus]);
 
   // Fetch KYC status from DB
   const fetchKycStatus = useCallback(() => {
@@ -1031,18 +992,18 @@ export default function CheckoutPage() {
                 onClick={async () => {
                   try {
                     setIsKycLoading(true);
-                    const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
+                    const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
                       body: { callbackParams: { user_id: user?.id } }
                     });
                     if (error) throw error;
-                    if (data?.url) {
-                      window.location.href = data.url;
+                    if (data?.verification_url) {
+                      window.location.href = data.verification_url;
                     } else {
-                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      toast.error("Could not start verification. Please try again.");
                     }
                   } catch (err: any) {
                     console.error('KYC Error:', err);
-                    toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
+                    toast.error("Could not start verification. Please try again.");
                   } finally {
                     setIsKycLoading(false);
                   }
@@ -1066,19 +1027,9 @@ export default function CheckoutPage() {
                     if (data?.kyc_verified) {
                       setKycVerified(true);
                       toast.success("Verification confirmed!");
-                      return;
+                    } else {
+                      toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                     }
-                    // Webhook didn't fire — directly mark as verified
-                    const { error: updateError } = await supabase
-                      .from("customer_profiles")
-                      .update({ kyc_verified: true })
-                      .eq("user_id", user?.id);
-                    if (updateError) {
-                      toast.error("Failed to update verification. Please try again.");
-                      return;
-                    }
-                    setKycVerified(true);
-                    toast.success("Identity verified successfully! ✓");
                   } catch (err) {
                     toast.error("Something went wrong. Please try again.");
                   } finally {
@@ -1487,18 +1438,18 @@ export default function CheckoutPage() {
                   onClick={async () => {
                     try {
                       setIsKycLoading(true);
-                      const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
+                      const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
                         body: { callbackParams: { user_id: user?.id } }
                       });
                       if (error) throw error;
-                      if (data?.url) {
-                        window.location.href = data.url;
+                      if (data?.verification_url) {
+                        window.location.href = data.verification_url;
                       } else {
-                        window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                        toast.error("Could not start verification. Please try again.");
                       }
                     } catch (err: any) {
                       console.error('KYC Error:', err);
-                      toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
+                      toast.error("Could not start verification. Please try again.");
                     } finally {
                       setIsKycLoading(false);
                     }
@@ -1522,19 +1473,9 @@ export default function CheckoutPage() {
                         setKycVerified(true);
                         setShowKycGate(false);
                         toast.success("Verification confirmed!");
-                        return;
+                      } else {
+                        toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                       }
-                      const { error: updateError } = await supabase
-                        .from("customer_profiles")
-                        .update({ kyc_verified: true })
-                        .eq("user_id", user?.id);
-                      if (updateError) {
-                        toast.error("Failed to update verification. Please try again.");
-                        return;
-                      }
-                      setKycVerified(true);
-                      setShowKycGate(false);
-                      toast.success("Identity verified successfully! ✓");
                     } catch (err) {
                       toast.error("Something went wrong. Please try again.");
                     } finally {

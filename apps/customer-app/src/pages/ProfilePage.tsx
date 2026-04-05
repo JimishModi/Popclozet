@@ -127,27 +127,14 @@ const ProfilePage: React.FC = () => {
     };
   }, [fetchKycStatus]);
 
-  // Handle KYC callback from Didit redirect
+  // Handle KYC callback from Didit redirect — just re-fetch DB status (webhook sets the actual value)
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
-    const urlUserId = searchParams.get("user_id");
-    const effectiveUserId = user?.id || urlUserId;
 
-    if (kycCallback === "success" && effectiveUserId) {
-      // Set verified immediately
-      setKycVerified(true);
-
-      // Persist to DB
-      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", effectiveUserId)
-        .then(({ error }) => {
-          if (error) {
-            console.error("[KYC] Failed to persist verification:", error);
-            toast.error("Verification failed to save. Please try again.");
-            setKycVerified(false);
-            return;
-          }
-          toast.success("Identity verified successfully!");
-        });
+    if (kycCallback === "success") {
+      // Re-fetch KYC status from DB (webhook should have updated it)
+      fetchKycStatus();
+      toast.success("Verification submitted! Checking status...");
 
       // Clean up URL
       const newParams = new URLSearchParams(searchParams.toString());
@@ -156,7 +143,7 @@ const ProfilePage: React.FC = () => {
       const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams, user?.id]);
+  }, [searchParams, fetchKycStatus]);
 
   const inClosetCount = orders.filter(o =>
     ["delivered", "in_use"].includes(o.status)
@@ -506,18 +493,18 @@ const ProfilePage: React.FC = () => {
                           onClick={async () => {
                             setIsKycLoading(true);
                             try {
-                              const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
+                              const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
                                 body: { callbackParams: { user_id: user.id, callback_path: "/profile" } }
                               });
                               if (error) throw error;
-                              if (data?.url) {
-                                window.location.href = data.url;
+                              if (data?.verification_url) {
+                                window.location.href = data.verification_url;
                               } else {
-                                window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                                toast.error("Could not start verification. Please try again.");
                               }
                             } catch (err: any) {
                               console.error('KYC Error:', err);
-                              window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                              toast.error("Could not start verification. Please try again.");
                             } finally {
                               setIsKycLoading(false);
                             }
@@ -532,7 +519,7 @@ const ProfilePage: React.FC = () => {
                           onClick={async () => {
                             setIsKycLoading(true);
                             try {
-                              // First check if webhook already updated DB
+                              // Check if webhook already updated DB
                               const { data } = await supabase
                                 .from("customer_profiles")
                                 .select("kyc_verified")
@@ -541,24 +528,9 @@ const ProfilePage: React.FC = () => {
                               if (data?.kyc_verified) {
                                 setKycVerified(true);
                                 toast.success("Verification confirmed!");
-                                return;
+                              } else {
+                                toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                               }
-                              
-                              // Webhook didn't fire — user verified on Didit but webhook chain broken.
-                              // Directly mark as verified since they confirmed completion.
-                              const { error: updateError } = await supabase
-                                .from("customer_profiles")
-                                .update({ kyc_verified: true })
-                                .eq("user_id", user.id);
-                              
-                              if (updateError) {
-                                console.error("KYC update error:", updateError);
-                                toast.error("Failed to update verification. Please try again.");
-                                return;
-                              }
-                              
-                              setKycVerified(true);
-                              toast.success("Identity verified successfully! ✓");
                             } catch (err) {
                               console.error("KYC refresh error:", err);
                               toast.error("Something went wrong. Please try again.");
