@@ -1,15 +1,8 @@
-/**
- * Warehouse Navigation Page
- *
- * Refactored to use global LocationContext for persistent GPS tracking.
- */
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { supabase } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import { isMapboxAvailable, initializeMap, drawRoute, calculateDistance, mapboxgl, fetchMapplsRoute } from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,8 +19,9 @@ import {
 } from '@/services/riderOrderService';
 import {
     MapPin, Navigation, Package, CheckCircle,
-    MessageCircle, Truck, ChevronRight, X, KeyRound, Loader2,
+    MessageCircle, Truck, ChevronRight, X, KeyRound, Loader2, ScanLine,
 } from 'lucide-react';
+import { QRScannerOverlay } from '@/components/QRScannerOverlay';
 
 const GPS_BROADCAST_INTERVAL_MS = 5_000;
 const GPS_MOVE_THRESHOLD_M = 50;
@@ -77,16 +71,21 @@ interface WarehouseOrder {
     total_amount?: number;
     warehouse_otp?: string | null;
     addresses?: { full_address: string; latitude: number; longitude: number };
-    order_items?: Array<{ id: string; product_id: string; size?: string; rental_price?: number }>;
+    order_items?: Array<{ id: string; product_id: string; size?: string; rental_price?: number; products?: { name: string; images: string[] } }>;
 }
 
 async function insertNotification(payload: {
-    user_id: string; type: string; title: string; body: string; order_id: string;
+    user_id: string;
+    type: string;
+    title: string;
+    body: string;
+    order_id: string;
 }) {
-    const { error } = await supabase.from('notifications').insert({ ...payload, is_read: false });
-    if (error) console.error('[Notification] insert failed:', error);
+    return supabase.from('notifications').insert({
+        ...payload,
+        is_read: false,
+    });
 }
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const WarehouseNavigationPage: React.FC = () => {
@@ -96,13 +95,9 @@ export const WarehouseNavigationPage: React.FC = () => {
     const { location: globalLocation } = useLocation();
     const navigate = useNavigate();
 
-    const mapRef = useRef<HTMLDivElement>(null);
-    const mapInstance = useRef<any>(null);
-
     const [order, setOrder] = useState<WarehouseOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [riderLocation, setRiderLocation] = useState<[number, number] | null>(null);
-    const [mapReady, setMapReady] = useState(false);
     const [step, setStep] = useState<PickupStep>('navigating');
     const [actionLoading, setActionLoading] = useState(false);
     const [showMessageModal, setShowMessageModal] = useState(false);
@@ -111,7 +106,6 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
     
-    // Persist returnOtp in sessionStorage so a page reload doesn't lose the warehouse OTP
     const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
     const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
         if (!id) return null;
@@ -125,8 +119,8 @@ export const WarehouseNavigationPage: React.FC = () => {
         }
     };
     const [isCancelling, setIsCancelling] = useState(false);
+    const [showQRScanner, setShowQRScanner] = useState(false);
 
-    // GPS broadcast refs (background — no re-render)
     const gpsBroadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null);
     const lastBroadcastPos  = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -144,8 +138,6 @@ export const WarehouseNavigationPage: React.FC = () => {
         [order?.status],
     );
 
-    // ── useMemo for step config ──
-
     const currentStepCfg = useMemo(() => {
         if (!isReturnFlow) return STEP_CONFIG[step];
         switch (step) {
@@ -154,6 +146,12 @@ export const WarehouseNavigationPage: React.FC = () => {
                     badge: 'Return Drop-off',
                     badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
                     icon: Truck,
+                };
+            case 'arrived':
+                return {
+                    badge: 'At Warehouse',
+                    badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+                    icon: MapPin,
                 };
             case 'picked_up':
                 return {
@@ -166,6 +164,21 @@ export const WarehouseNavigationPage: React.FC = () => {
         }
     }, [isReturnFlow, step]);
 
+    // ── Navigation Stats ─────────────────────────────────────────────────────────
+
+    const distanceToWarehouse = useMemo(() => {
+        if (!globalLocation) return null;
+        return haversineMetres(
+            { lat: globalLocation.latitude, lng: globalLocation.longitude },
+            { lat: WAREHOUSE_LOCATION[1], lng: WAREHOUSE_LOCATION[0] }
+        );
+    }, [globalLocation]);
+
+    const etaMinutes = useMemo(() => {
+        if (!distanceToWarehouse) return null;
+        return Math.max(1, Math.round((distanceToWarehouse / 1000) * 3));
+    }, [distanceToWarehouse]);
+
     // ── Fetch order ────────────────────────────────────────────────────────────
 
     useEffect(() => {
@@ -175,13 +188,12 @@ export const WarehouseNavigationPage: React.FC = () => {
             try {
                 const { data, error } = await supabase
                     .from('orders')
-                    .select('id, status, user_id, total_amount, warehouse_otp, addresses:delivery_address_id(full_address, latitude, longitude), order_items(*)')
+                    .select('id, status, user_id, total_amount, warehouse_otp, addresses:delivery_address_id(full_address, latitude, longitude), order_items(*, products(name, images))')
                     .eq('id', id)
                     .single();
                 if (error || !data) throw error ?? new Error('Order not found');
                 if (cancelled) return;
                 setOrder(data as unknown as WarehouseOrder);
-                // Set step based on current status
                 if (['returned', 'return_completed'].includes(data.status)) {
                     setStep('picked_up');
                 } else if (data.status === 'return_at_warehouse') {
@@ -206,16 +218,12 @@ export const WarehouseNavigationPage: React.FC = () => {
         return () => { cancelled = true; };
     }, [id]);
 
-    // ── Sync global location to local state ──────────────────────────────────────
-
     useEffect(() => {
         if (globalLocation) {
             const coords: [number, number] = [globalLocation.longitude, globalLocation.latitude];
             setRiderLocation(coords);
         }
     }, [globalLocation]);
-
-    // ── GPS background broadcast → warehouse app can see rider approaching ─────
 
     useEffect(() => {
         if (!user?.id || !order || !globalLocation) return;
@@ -236,81 +244,12 @@ export const WarehouseNavigationPage: React.FC = () => {
         };
     }, [user?.id, order?.status, globalLocation]);
 
-    // ── Open in Google Maps ────────────────────────────────────────────────────
-
     const handleOpenGoogleMaps = useCallback(() => {
-        const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(WAREHOUSE_ADDRESS)}&travelmode=driving`;
+        // Use precise coordinates (lat,lng) — more reliable than text address
+        const destination = `${WAREHOUSE_LOCATION[1]},${WAREHOUSE_LOCATION[0]}`;
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
         window.open(url, '_blank', 'noopener,noreferrer');
     }, []);
-
-    // ── Map ────────────────────────────────────────────────────────────────────
-
-    useEffect(() => {
-        if (!riderLocation || !mapRef.current) return;
-        if (!isMapboxAvailable()) return; // checks VITE_MAPPLS_REST_KEY
-        if (mapInstance.current) return;
-
-        let mounted = true;
-
-        (async () => {
-            try {
-                const map = await initializeMap(mapRef.current!, riderLocation, 13);
-
-                if (!mounted) {
-                    map.remove();
-                    return;
-                }
-                mapInstance.current = map;
-
-                const setupMap = async () => {
-                    let routeDrawn = false;
-
-                    if (riderLocation) {
-                        try {
-                            const [rLng, rLat] = riderLocation;
-                            const [wLng, wLat] = WAREHOUSE_LOCATION;
-                            const routeCoords = await fetchMapplsRoute(rLng, rLat, wLng, wLat);
-                            if (routeCoords?.length) {
-                                await drawRoute(map, routeCoords);
-                                routeDrawn = true;
-                            }
-                        } catch (err) {
-                            console.warn('[WarehouseNav] Mappls Route API failed:', err);
-                        }
-                    }
-
-                    if (!routeDrawn) {
-                        await drawRoute(map, [riderLocation!, WAREHOUSE_LOCATION]);
-                    }
-
-                    try {
-                        const geolocate = new (mapboxgl.GeolocateControl as any)({
-                            positionOptions: { enableHighAccuracy: true },
-                            trackUserLocation: true,
-                            showUserHeading: true,
-                        });
-                        map.addControl(geolocate);
-                    } catch { /* mapboxgl shim — GeolocateControl is a no-op */ }
-
-                    setMapReady(true);
-                };
-
-                if (map.loaded && map.loaded()) {
-                    setupMap();
-                } else if (map.on) {
-                    map.on('load', setupMap);
-                }
-            } catch (e) {
-                console.error('[WarehouseNav] Map init failed:', e);
-            }
-        })();
-
-        return () => {
-            mounted = false;
-            mapInstance.current?.remove();
-            mapInstance.current = null;
-        };
-    }, [riderLocation?.[0], riderLocation?.[1]]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -343,25 +282,20 @@ export const WarehouseNavigationPage: React.FC = () => {
     const handleConfirmArrival = useCallback(() => {
         if (!id || !user?.id) return;
 
-        if (riderLocation) {
-            const distance = calculateDistance(
-                { lng: riderLocation[0], lat: riderLocation[1] },
-                { lng: WAREHOUSE_LOCATION[0], lat: WAREHOUSE_LOCATION[1] }
-            );
-            if (distance > 0.2) {
-                const proceed = window.confirm(`You are ${distance.toFixed(2)}km away. Proceed only if at Hostel 2.`);
-                if (!proceed) return;
-            }
+        if (distanceToWarehouse && distanceToWarehouse > 200) {
+            const proceed = window.confirm(`You are ${(distanceToWarehouse/1000).toFixed(2)}km away. Proceed only if at Hostel 2.`);
+            if (!proceed) return;
         }
 
         if (isReturnFlow) {
-            void handleDropOffReturn();
+            // Advance to 'arrived' first — OTP is generated only when rider confirms drop-off
+            setStep('arrived');
             return;
         }
 
         setOtpValue('');
         setShowOtpModal(true);
-    }, [id, user?.id, riderLocation, isReturnFlow, handleDropOffReturn]);
+    }, [id, user?.id, distanceToWarehouse, isReturnFlow]);
 
     const handleVerifyOtp = useCallback(async () => {
         if (!id || !user?.id) return;
@@ -481,250 +415,227 @@ export const WarehouseNavigationPage: React.FC = () => {
         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
     );
     const primaryBtn = (gradient: string) =>
-        `w-full py-3.5 rounded-xl bg-gradient-to-r ${gradient} text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50`;
+        `w-full py-4 rounded-2xl bg-gradient-to-r ${gradient} text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl`;
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black">
-                <Loader size="lg" text="Loading warehouse pickup..." />
+                <Loader size="lg" text="Entering Warehouse Flow..." />
             </div>
         );
     }
     if (!order) return null;
 
     return (
-        <div className="fixed inset-0 bg-black flex flex-col">
-            <div ref={mapRef} className="flex-1" />
-
-            {!riderLocation && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pb-32">
-                    <div className="text-center space-y-4 px-6">
-                        <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
-                            <MapPin size={28} className="text-zinc-500" />
-                        </div>
-                        <h2 className="text-lg font-bold text-white">Getting your location...</h2>
-                        <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
-                        <div className="w-6 h-6 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        <div className="fixed inset-0 bg-[#080808] flex flex-col font-sans">
+            <div className="flex-1 overflow-y-auto px-6 pt-12 pb-48 space-y-8">
+                
+                {/* Header & Status */}
+                <div className="flex items-center justify-between">
+                    <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">{currentStepCfg.badge}</span>
+                    </motion.div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono text-zinc-600 tracking-wider">ORD #{order.id.slice(0, 8).toUpperCase()}</span>
+                        <button
+                            onClick={() => setShowQRScanner(true)}
+                            className="w-8 h-8 rounded-full bg-zinc-900/80 border border-white/10 flex items-center justify-center active:scale-90 transition-all"
+                            aria-label="Scan QR Code"
+                        >
+                            <ScanLine size={15} className="text-zinc-400" />
+                        </button>
                     </div>
                 </div>
-            )}
 
-            {!mapReady && riderLocation && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-                    <Loader size="lg" text="Loading map..." />
-                </div>
-            )}
-
-            <motion.div
-                initial={{ y: 200, opacity: 0 }} 
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-6 left-4 right-4 bg-zinc-900/60 backdrop-blur-2xl rounded-[32px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-20 overflow-hidden"
-            >
-                {/* Glossy overlay */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                <div className="px-6 pt-6 pb-2 relative z-10">
-                    <div className="flex items-center gap-2 mb-4">
-                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wider ${currentStepCfg.badgeColor}`}>
-                            {currentStepCfg.badge}
-                        </span>
-                        {order.total_amount != null && (
-                            <span className="text-[10px] font-bold text-white/40 ml-auto tracking-widest">₹{order.total_amount}</span>
-                        )}
-                    </div>
-                    {/* Progress Steps */}
-                    <div className="flex items-center gap-1.5 mb-5">
-                        {STEP_ORDER.map((s, i) => (
-                            <React.Fragment key={s}>
-                                <div className={`h-1.5 flex-1 rounded-full transition-all duration-700 ${STEP_ORDER.indexOf(step) >= i
-                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
-                                        : 'bg-white/5'
-                                    }`} />
-                            </React.Fragment>
-                        ))}
-                    </div>
-                    <div className="flex items-start gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-                            <MapPin size={16} className="text-blue-400" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Warehouse</p>
-                            <p className="text-xs text-white font-medium line-clamp-1">{WAREHOUSE_ADDRESS}</p>
-                        </div>
-                    </div>
-
-                    {['rider_assigned', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'].includes(order?.status ?? '') && (
-                        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10 w-fit">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Live GPS Active</p>
-                        </div>
-                    )}
-                    <p className="text-[10px] font-bold text-white/20 mb-4 tracking-widest">ORDER #{order.id.slice(0, 8).toUpperCase()}</p>
-                </div>
-
-                <div className="px-6 pb-6 space-y-2.5">
-                    <AnimatePresence mode="wait">
-                        {step === 'navigating' && isReturnFlow && (
-                            <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
-                                <button
-                                    onClick={() => handleDropOffReturn()}
-                                    disabled={actionLoading}
-                                    className={primaryBtn('from-indigo-600 to-indigo-500')}
-                                >
-                                    {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> Drop-off Return at Warehouse</>}
-                                </button>
-                            </motion.div>
-                        )}
-                        {step === 'navigating' && !isReturnFlow && (
-                            <motion.div key="navigating" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
-                                <button
-                                    onClick={handleOpenGoogleMaps}
-                                    className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
-                                >
-                                    <Navigation size={16} />
-                                    Open in Google Maps
-                                </button>
-                                <button onClick={handleConfirmArrival} disabled={actionLoading || isCancelling} className={primaryBtn('from-blue-600 to-blue-500')}>
-                                    {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> I've Arrived at Warehouse</>}
-                                </button>
-                                <button onClick={handleCancelDelivery} disabled={isCancelling || actionLoading} className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors">
-                                    {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
-                                </button>
-                            </motion.div>
-                        )}
-                        {step === 'arrived' && !isReturnFlow && (
-                            <motion.div key="arrived" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
-                                <button onClick={handleConfirmPickup} disabled={actionLoading || isCancelling} className={primaryBtn('from-emerald-600 to-emerald-500')}>
-                                    {actionLoading ? <ActionSpinner /> : <><Package size={18} /> Confirm Order Pickup</>}
-                                </button>
-                                <button onClick={handleCancelDelivery} disabled={isCancelling || actionLoading} className="w-full py-2 text-sm text-zinc-500 font-medium hover:text-red-400 transition-colors">
-                                    {isCancelling ? 'Cancelling...' : 'Cancel Delivery'}
-                                </button>
-                            </motion.div>
-                        )}
-                        {step === 'picked_up' && !isReturnFlow && (
-                            <motion.div key="start-nav" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
-                                <button
-                                    onClick={handleStartNavigation}
-                                    disabled={actionLoading}
-                                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold uppercase tracking-[0.15em] text-[11px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20"
-                                >
-                                    {actionLoading ? (
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <>
-                                            <Navigation size={18} />
-                                            Head to Customer
-                                            <ChevronRight size={16} />
-                                        </>
-                                    )}
-                                </button>
-
-                                <button
-                                    onClick={() => setShowMessageModal(true)}
-                                    disabled={messageSent}
-                                    className={`w-full py-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${messageSent
-                                            ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
-                                            : 'border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800'
-                                        }`}
-                                >
-                                    <MessageCircle size={16} />
-                                    {messageSent ? 'Message Sent ✓' : 'Message Customer'}
-                                </button>
-                            </motion.div>
-                        )}
-                        {step === 'picked_up' && isReturnFlow && (
-                            <motion.div key="return-dropoff" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
-                                {(returnOtp ?? order?.warehouse_otp) ? (
-                                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5 text-center">
-                                        <KeyRound size={24} className="mx-auto text-blue-400 mb-2" />
-                                        <p className="text-white font-semibold text-sm mb-1">Warehouse Verification OTP</p>
-                                        <p className="text-zinc-400 text-xs mb-3">Show this code to warehouse staff</p>
-                                        <div className="text-4xl font-mono font-bold text-white tracking-[0.3em] bg-black/50 rounded-xl py-3 px-4 border border-zinc-800">
-                                            {returnOtp ?? order?.warehouse_otp}
-                                        </div>
-                                        <p className="text-zinc-500 text-xs mt-3">Expires in 15 minutes</p>
-                                    </div>
-                                ) : (
-                                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
-                                        <CheckCircle size={22} className="mx-auto text-emerald-400 mb-2" />
-                                        <p className="text-white font-semibold">Return dropped off at warehouse</p>
-                                        <p className="text-zinc-400 text-sm mt-1">Waiting for warehouse to verify...</p>
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => navigate('/')}
-                                    className="w-full py-3 rounded-xl border border-zinc-700 text-zinc-300 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium transition-all"
-                                >
-                                    Back to Dashboard
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </motion.div>
-
-            {/* Message Modal */}
-            <AnimatePresence>
-                {showMessageModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                            className="bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl relative">
-                            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                            <div className="flex items-center justify-between p-6 border-b border-white/5 relative z-10">
-                                <h3 className="font-bold text-white uppercase tracking-widest text-xs">Update Customer</h3>
-                                <button onClick={() => setShowMessageModal(false)} className="p-2 text-zinc-500 hover:text-white rounded-full transition-colors">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="p-6 space-y-3 relative z-10">
-                                {PREDEFINED_MESSAGES.map((msg, i) => (
-                                    <button key={i} onClick={() => handleSendMessage(msg)} disabled={actionLoading}
-                                        className="w-full text-left p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors text-sm text-zinc-300 disabled:opacity-50">
-                                        "{msg}"
-                                    </button>
-                                ))}
+                {/* Navigation Stats */}
+                <section className="relative">
+                    <div className="absolute -inset-4 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 blur-3xl opacity-50" />
+                    <div className="relative grid grid-cols-2 gap-4">
+                        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-zinc-900/40 border border-white/5 p-6 rounded-[2rem] backdrop-blur-md">
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">To Warehouse</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-white">{distanceToWarehouse ? (distanceToWarehouse / 1000).toFixed(1) : '--'}</span>
+                                <span className="text-xs font-bold text-zinc-500">KM</span>
                             </div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-zinc-900/40 border border-white/5 p-6 rounded-[2rem] backdrop-blur-md">
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Est. Arrival</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-white">{etaMinutes ?? '--'}</span>
+                                <span className="text-xs font-bold text-zinc-500">MINS</span>
+                            </div>
+                        </motion.div>
+                    </div>
+                </section>
+
+                {/* Progress Visual */}
+                <section className="space-y-4 px-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                        <span>You</span>
+                        <span>Warehouse</span>
+                    </div>
+                    <div className="relative h-12 flex items-center">
+                        <div className="absolute inset-x-0 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} style={{ transformOrigin: 'left' }} className="h-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+                        </div>
+                        <div className="absolute left-0 w-8 h-8 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center shadow-lg">
+                            <Navigation size={14} className="text-blue-400 rotate-45" />
+                        </div>
+                        <div className="absolute right-0 w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shadow-2xl">
+                            <div className="w-4 h-4 rounded-full bg-blue-500 animate-ping absolute opacity-50" />
+                            <MapPin size={18} className="text-blue-500 relative" />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Warehouse Location Card */}
+                <section className="bg-zinc-900/40 border border-white/5 rounded-[2.5rem] p-8 space-y-4">
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                            <MapPin size={24} className="text-blue-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Pickup Point</h3>
+                            <p className="text-lg font-bold text-white leading-tight">Popclozet Warehouse</p>
+                        </div>
+                    </div>
+                    <p className="text-sm text-zinc-400 leading-relaxed bg-black/30 p-4 rounded-2xl border border-white/5">{WAREHOUSE_ADDRESS}</p>
+                    <button onClick={handleOpenGoogleMaps} className="w-full py-4 bg-zinc-800/50 hover:bg-zinc-800 border border-white/10 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
+                        <Navigation size={18} fill="currentColor" />
+                        Navigate in Google Maps
+                    </button>
+                </section>
+
+                {/* Items to Pickup */}
+                <section className="space-y-4">
+                    <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">Package Contents</h3>
+                    <div className="grid gap-3">
+                        {order.order_items?.map((item: any, idx: number) => (
+                            <motion.div key={item.id} initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: idx * 0.05 }} className="bg-zinc-900/40 border border-white/5 p-4 rounded-2xl flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-zinc-800 overflow-hidden shrink-0 border border-white/5">
+                                    {item.products?.images?.[0] ? <img src={item.products.images[0]} alt="" className="w-full h-full object-cover" /> : <Package className="w-full h-full p-3 text-zinc-600" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-white truncate">{item.products?.name || 'Unknown Item'}</p>
+                                    <p className="text-[10px] font-bold text-zinc-500 uppercase">Size: {item.size || 'One Size'}</p>
+                                </div>
+                                <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white uppercase tracking-tighter">1x</div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </section>
+
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-12">
+                <AnimatePresence mode="wait">
+                    {step === 'navigating' && isReturnFlow && (
+                        <motion.div key="navigating-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                            <button onClick={handleConfirmArrival} disabled={actionLoading} className={primaryBtn('from-indigo-600 to-indigo-500 shadow-indigo-500/20')}>
+                                {actionLoading ? <ActionSpinner /> : <><MapPin size={18} /> I've Arrived at Warehouse</>}
+                            </button>
+                        </motion.div>
+                    )}
+                    {step === 'arrived' && isReturnFlow && (
+                        <motion.div key="arrived-return" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                            <button onClick={handleDropOffReturn} disabled={actionLoading} className={primaryBtn('from-emerald-600 to-emerald-500 shadow-emerald-500/20')}>
+                                {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> Confirm Drop-off &amp; Get OTP</>}
+                            </button>
+                        </motion.div>
+                    )}
+                    {step === 'navigating' && !isReturnFlow && (
+                        <motion.div key="navigating" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                            <button onClick={handleConfirmArrival} disabled={actionLoading || isCancelling} className={primaryBtn('from-blue-600 to-blue-500 shadow-blue-500/20')}>
+                                {actionLoading ? <ActionSpinner /> : <><CheckCircle size={18} /> I've Arrived</>}
+                            </button>
+                            <button onClick={handleCancelDelivery} disabled={isCancelling || actionLoading} className="w-full py-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-red-400 transition-colors">
+                                {isCancelling ? 'Resigning...' : 'Resign from Order'}
+                            </button>
+                        </motion.div>
+                    )}
+                    {step === 'arrived' && !isReturnFlow && (
+                        <motion.div key="arrived" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                            <button onClick={handleConfirmPickup} disabled={actionLoading} className={primaryBtn('from-emerald-600 to-emerald-500 shadow-emerald-500/20')}>
+                                {actionLoading ? <ActionSpinner /> : <><Package size={18} /> Confirm Pickup</>}
+                            </button>
+                        </motion.div>
+                    )}
+                    {step === 'picked_up' && !isReturnFlow && (
+                        <motion.div key="head-to-cust" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                            <button onClick={handleStartNavigation} disabled={actionLoading} className={primaryBtn('from-blue-600 to-indigo-700 shadow-blue-600/30')}>
+                                {actionLoading ? <ActionSpinner /> : <><Navigation size={18} /> Start Delivery</>}
+                            </button>
+                            <button onClick={() => setShowMessageModal(true)} disabled={messageSent} className="w-full py-3 rounded-xl border border-zinc-700 text-xs font-bold text-zinc-400 bg-zinc-900/50 flex items-center justify-center gap-2">
+                                <MessageCircle size={16} />
+                                {messageSent ? 'Message Sent' : 'Update Customer'}
+                            </button>
+                        </motion.div>
+                    )}
+                    {step === 'picked_up' && isReturnFlow && (
+                        <motion.div key="return-otp" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                            {(returnOtp ?? order?.warehouse_otp) ? (
+                                <div className="rounded-[2rem] border border-blue-500/20 bg-blue-500/10 p-6 text-center backdrop-blur-xl">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Verification Code</p>
+                                    <div className="text-5xl font-mono font-black text-white tracking-[0.2em] mb-2">{returnOtp ?? order?.warehouse_otp}</div>
+                                    <p className="text-zinc-500 text-[10px] uppercase font-bold">Show this to Warehouse</p>
+                                </div>
+                            ) : (
+                                <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-6 text-center">
+                                    <p className="text-white font-bold">Drop-off Recorded</p>
+                                    <p className="text-emerald-500/60 text-xs mt-1">Waiting for warehouse validation</p>
+                                </div>
+                            )}
+                            <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Back to Home</button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
 
             {/* OTP Modal */}
             <AnimatePresence>
                 {showOtpModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
-                                <h3 className="font-semibold text-white flex items-center gap-2">
-                                    <KeyRound size={18} className="text-blue-400" /> Verify Arrival
-                                </h3>
-                                <button onClick={() => { if (!otpVerifying) setShowOtpModal(false); }} disabled={otpVerifying}
-                                    className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50">
-                                    <X size={20} />
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-zinc-900 border border-white/5 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl">
+                            <div className="p-8 space-y-6 text-center">
+                                <p className="text-xs font-black text-zinc-500 uppercase tracking-widest">Security Pin</p>
+                                <p className="text-sm text-zinc-400 leading-relaxed px-4">Ask warehouse staff for the 6-digit Arrival PIN</p>
+                                <input type="text" inputMode="numeric" pattern="\d*" maxLength={6} value={otpValue} onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))} autoFocus placeholder="000000" className="w-full text-center text-4xl font-mono font-black tracking-[0.2em] bg-black border border-white/5 rounded-2xl py-6 text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-800" />
+                                <button onClick={handleVerifyOtp} disabled={otpValue.length !== 6 || otpVerifying} className={primaryBtn('from-blue-600 to-blue-500')}>
+                                    {otpVerifying ? <ActionSpinner /> : 'Verify & Enter'}
                                 </button>
-                            </div>
-                            <div className="p-6 space-y-5 text-center">
-                                <p className="text-sm text-zinc-400">
-                                    Ask the warehouse staff for the 6-digit Arrival PIN to confirm you are at the correct location.
-                                </p>
-                                <input type="text" inputMode="numeric" pattern="\d*" maxLength={6}
-                                    value={otpValue} onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
-                                    autoFocus placeholder="000000"
-                                    className="w-full text-center text-4xl font-mono font-bold tracking-[0.2em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-800"
-                                />
-                                <button onClick={handleVerifyOtp} disabled={otpValue.length !== 6 || otpVerifying}
-                                    className={primaryBtn('from-blue-600 to-blue-500')}>
-                                    {otpVerifying ? <><Loader2 size={18} className="animate-spin" /> Verifying...</> : 'Verify PIN'}
-                                </button>
+                                <button onClick={() => setShowOtpModal(false)} className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
                             </div>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+             {/* Message Modal */}
+             <AnimatePresence>
+                {showMessageModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                            className="bg-zinc-900 border border-white/5 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl p-6">
+                            <h3 className="font-black text-zinc-500 uppercase tracking-widest text-[10px] mb-6 px-2">Update Customer</h3>
+                            <div className="space-y-3">
+                                {PREDEFINED_MESSAGES.map((msg, i) => (
+                                    <button key={i} onClick={() => handleSendMessage(msg)} disabled={actionLoading}
+                                        className="w-full text-left p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-sm text-zinc-300 disabled:opacity-50">
+                                        "{msg}"
+                                    </button>
+                                ))}
+                            </div>
+                            <button onClick={() => setShowMessageModal(false)} className="w-full mt-6 py-2 text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Close</button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* QR Scanner */}
+            {showQRScanner && <QRScannerOverlay onClose={() => setShowQRScanner(false)} />}
         </div>
     );
 };

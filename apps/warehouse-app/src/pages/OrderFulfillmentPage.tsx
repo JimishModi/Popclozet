@@ -261,12 +261,13 @@ export function OrderFulfillmentPage() {
                                                         <a href={`tel:${order.riders.phone}`} onClick={e => e.stopPropagation()} className="hover:text-purple-400 decoration-transparent underline hover:decoration-purple-400 transition-colors">{order.riders.phone}</a>
                                                     </div>
                                                 ) : <div />}
-                                                <div className="flex items-center gap-1 text-[9px]">
-                                                    <span className="text-zinc-500">Track at</span>
-                                                    <Link to="/map" onClick={e => e.stopPropagation()} className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 font-medium">
-                                                        Live Map <MapPin size={8} className="inline"/>
-                                                    </Link>
-                                                </div>
+                                                {order.status === 'out_for_delivery' && (
+                                                    <div className="flex items-center gap-1 text-[9px]">
+                                                        <Link to={`/track/${order.id}`} onClick={e => e.stopPropagation()} className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 font-medium">
+                                                            Track Rider <MapPin size={8} className="inline"/>
+                                                        </Link>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}

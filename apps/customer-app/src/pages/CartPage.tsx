@@ -235,18 +235,18 @@ const CartPage = () => {
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
-          // MRP comes from the DB — this is the true retail price
-          const mrp = parseFloat(p.mrp ?? '0');
+          // mrp_price comes from the DB — this is the true retail price
+          const mrp_val = parseFloat(p.mrp_price ?? p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
-            mrp,
+            mrp: mrp_val,
             rental_price_1d: parseFloat(p.rental_price_1d ?? '0'),
             rental_price_2d: parseFloat(p.rental_price_2d ?? '0'),
             rental_price_3d: parseFloat(p.rental_price_3d ?? p.rental_price ?? p.price ?? '0'),
             buy_price: parseFloat(p.buy_price ?? '0'),
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: mrp,
+            originalPrice: mrp_val,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -310,7 +310,7 @@ const CartPage = () => {
 
   }, []);
 
-  const canCheckout = validCartEntries.length > 0;
+
 
   const getPlanPrice = (product: any, plan: string) => {
     if (!product) return 0;
@@ -339,8 +339,8 @@ const CartPage = () => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp = product?.mrp || planPrice;
-      return total + Math.max(mrp, planPrice) * data.quantity;
+      const mrp_val = product?.mrp_price || product?.mrp || planPrice;
+      return total + Math.max(mrp_val, planPrice) * data.quantity;
     }, 0);
   }, [validCartEntries, cartProducts]);
 
@@ -409,6 +409,10 @@ const CartPage = () => {
       toast.error("Failed to validate coupon. Try again.");
     }
   };
+
+  const hasItems = validCartEntries.length > 0;
+  const meetsMinimum = grandTotal >= 350;
+  const canCheckout = hasItems && meetsMinimum;
 
   /* ---------------------------------- */
   /* Checkout handler                   */
@@ -553,9 +557,9 @@ const CartPage = () => {
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            {product.mrp > 0 && product.mrp !== itemPrice && (
+            {(product.mrp_price > 0 || product.mrp > 0) && (product.mrp_price !== itemPrice && product.mrp !== itemPrice) && (
               <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                ₹ {product.mrp * quantity}
+                ₹ {(product.mrp_price || product.mrp) * quantity}
               </span>
             )}
             {isRental && (
@@ -763,7 +767,7 @@ const CartPage = () => {
                   )}
                   style={{ fontFamily: "'DM Sans', sans-serif" }}
                 >
-                  {!deliveryAddress ? "Select Address" : "Check Out"}
+                  {hasItems && !meetsMinimum ? "Min. Order ₹350" : !deliveryAddress ? "Select Address" : "Check Out"}
                 </button>
               </div>
 
@@ -774,14 +778,20 @@ const CartPage = () => {
 
 
       {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
-      {validCartEntries.length > 0 && !loadingProducts && (
+      {hasItems && !loadingProducts && (
         <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
           {/* Checkout CTA */}
           <button
-            onClick={handleCheckout}
-            className="w-full h-14 flex items-center justify-center bg-[#E95466] rounded-full font-black text-lg text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98] transition-all"
+            onClick={canCheckout ? handleCheckout : undefined}
+            disabled={!canCheckout}
+            className={cn(
+              "w-full h-14 flex items-center justify-center rounded-full font-black text-lg transition-all",
+              canCheckout 
+                ? "bg-[#E95466] text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98]" 
+                : "bg-white/10 text-white/40 cursor-not-allowed"
+            )}
           >
-            Check Out
+            {hasItems && !meetsMinimum ? "Min. Order ₹350" : "Check Out"}
           </button>
         </div>
       )}

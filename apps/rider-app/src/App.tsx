@@ -6,8 +6,10 @@
  * Role mismatch results in a blocking screen, not a redirect.
  */
 
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation as useRouterLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
+import { ScanLine } from 'lucide-react';
+import { QRScannerOverlay } from './components/QRScannerOverlay';
 import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
 import { supabase } from '@popclozet/api-client';
@@ -33,7 +35,6 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { SupportPage } from './pages/SupportPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { EarningsPage } from './pages/EarningsPage';
-// map-core reads VITE_MAPPLS_REST_KEY directly at module scope — no init needed here
 import { InstallPrompt } from './components/InstallPrompt';
 
 function App() {
@@ -41,6 +42,8 @@ function App() {
     const { startWatching, stopWatching } = useLocation();
     const [isRider, setIsRider] = useState<boolean | null>(null);
     const [riderCheckLoading, setRiderCheckLoading] = useState(false);
+    const [showGlobalQR, setShowGlobalQR] = useState(false);
+    const routerPath = useRouterLocation().pathname;
     // Track which user ID we already checked to prevent re-check on token refresh
     const checkedUserIdRef = useRef<string | null>(null);
 
@@ -116,9 +119,24 @@ function App() {
         );
     }
 
+    // Pages with their own QR button — don't show the global one there
+    const pagesWithOwnQR = routerPath === '/' ||
+        routerPath.startsWith('/delivery/') ||
+        routerPath.startsWith('/warehouse/');
+
     return (
         <>
         <InstallPrompt />
+        {!pagesWithOwnQR && (
+            <button
+                onClick={() => setShowGlobalQR(true)}
+                className="fixed top-4 right-4 z-40 w-10 h-10 rounded-full bg-zinc-900/90 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm hover:bg-zinc-800 active:scale-90 transition-all"
+                aria-label="Scan QR Code"
+            >
+                <ScanLine size={18} className="text-zinc-300" />
+            </button>
+        )}
+        {showGlobalQR && <QRScannerOverlay onClose={() => setShowGlobalQR(false)} />}
         <Routes>
             {/* Home / Dashboard */}
             <Route path="/" element={<HomePage />} />

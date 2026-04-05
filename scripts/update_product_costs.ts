@@ -19,7 +19,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Path to the CSV file
-const CSV_FILE_PATH = path.resolve(process.cwd(), 'Product_table.csv');
+const CSV_FILE_PATH = path.resolve(process.cwd(), 'supabase/Product_details/Product_details.csv');
 
 async function updateProductCosts() {
     console.log(`Looking for CSV file at: ${CSV_FILE_PATH}`);
@@ -36,29 +36,32 @@ async function updateProductCosts() {
 
     fs.createReadStream(CSV_FILE_PATH)
         .pipe(csv())
-        .on('data', (data) => results.push(data))
+        .on('data', (data: any) => results.push(data))
         .on('end', async () => {
             console.log(`Parsed ${results.length} rows from CSV. Starting updates...`);
-            
+
             let updatedCount = 0;
             let errorsCount = 0;
 
             for (const row of results) {
-                // Determine column names dynamically since they might vary slightly in the Google Sheet export
-                const idKey = Object.keys(row).find(k => k.trim().toLowerCase() === 'id');
-                const mrpKey = Object.keys(row).find(k => k.toLowerCase().includes('mrp_price'));
-                const costKey = Object.keys(row).find(k => k.toLowerCase().includes('actual_cost'));
+                // Determine column names dynamically
+                const nameKey = Object.keys(row).find(k => k.trim().toLowerCase() === 'name');
+                const mrpKey = Object.keys(row).find(k => k.toLowerCase().includes('mrp'));
+                const costKey = Object.keys(row).find(k => k.toLowerCase().includes('actual_cost') || k.toLowerCase().includes('cost'));
+                const buyPriceKey = Object.keys(row).find(k => k.toLowerCase().includes('buy_price') || k.toLowerCase().includes('buy'));
 
-                if (!idKey || !mrpKey || !costKey) {
-                    console.error('❌ Error: Could not find required columns in CSV (id, mrp_price, actual_cost). Please ensure the headers match the screenshot.');
+                // We require name, and AT LEAST one of the prices to proceed.
+                if (!nameKey || (!mrpKey && !costKey && !buyPriceKey)) {
+                    console.error('❌ Error: Could not find required columns in CSV (name, and at least one of mrp, cost, or buy price).');
                     break;
                 }
 
-                const productId = row[idKey]?.trim();
-                const mrpRaw = row[mrpKey];
-                const costRaw = row[costKey];
+                const productName = row[nameKey]?.trim();
+                const mrpRaw = mrpKey ? row[mrpKey] : null;
+                const costRaw = costKey ? row[costKey] : null;
+                const buyPriceRaw = buyPriceKey ? row[buyPriceKey] : null;
 
-                if (!productId) continue;
+                if (!productName) continue;
 
                 // Scrub numerical values (remove commas, currency symbols, generic text)
                 const scrubValue = (val: string) => {
@@ -70,26 +73,28 @@ async function updateProductCosts() {
 
                 const mrp_price = scrubValue(mrpRaw);
                 const actual_cost = scrubValue(costRaw);
+                const buy_price = scrubValue(buyPriceRaw);
 
-                if (mrp_price !== null || actual_cost !== null) {
+                if (mrp_price !== null || actual_cost !== null || buy_price !== null) {
                     try {
                         const { error } = await supabase
                             .from('products')
-                            .update({ 
+                            .update({
                                 ...(mrp_price !== null && { mrp_price }),
-                                ...(actual_cost !== null && { actual_cost })
+                                ...(actual_cost !== null && { actual_cost }),
+                                ...(buy_price !== null && { buy_price })
                             })
-                            .eq('id', productId);
+                            .ilike('name', productName); // Match by name instead of ID
 
                         if (error) {
-                            console.error(`Failed to update ${productId}:`, error.message);
+                            console.error(`Failed to update ${productName}:`, error.message);
                             errorsCount++;
                         } else {
-                            console.log(`✅ Updated ${productId}: MRP=${mrp_price}, Cost=${actual_cost}`);
+                            console.log(`✅ Updated ${productName}: MRP=${mrp_price}, Cost=${actual_cost}, BuyPrice=${buy_price}`);
                             updatedCount++;
                         }
                     } catch (err: any) {
-                        console.error(`Exception updating ${productId}:`, err.message);
+                        console.error(`Exception updating ${productName}:`, err.message);
                         errorsCount++;
                     }
                 }

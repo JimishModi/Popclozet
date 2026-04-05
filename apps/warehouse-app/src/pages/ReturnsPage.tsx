@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -320,14 +321,14 @@ export function ReturnsPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                                         {/* Rider Live Location Link */}
                                         {['return_dispatched', 'return_picked_up'].includes(order?.status ?? '') && (
-                                            <a
-                                                href={`/track/${order?.id}`}
+                                            <Link
+                                                to={`/track/${order?.id}`}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-all"
                                             >
                                                 <Navigation size={12} /> Live Tracker
-                                            </a>
+                                            </Link>
                                         )}
 
                                         {request.status === 'requested' && (

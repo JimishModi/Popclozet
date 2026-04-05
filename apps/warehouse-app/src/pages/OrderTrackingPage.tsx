@@ -1,17 +1,15 @@
 /**
  * Order Tracking Page — Warehouse App
- * Full-screen live map showing rider position + route for a single dispatched order.
+ * Full-screen live map showing rider position for a single dispatched order.
+ * Uses Leaflet + CartoDB Dark Matter tiles — no API key required.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Navigation, Clock, MapPin, Truck, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
-import {
-    isMapboxAvailable,
-    initializeMap,
-    mapboxgl,
-} from '@popclozet/map-core';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useOrderTracking } from '../hooks/useOrderTracking';
 
 const ORDER_TYPE_LABEL: Record<string, string> = {
@@ -32,103 +30,93 @@ export function OrderTrackingPage() {
     const { tracking, isLoading, isLive } = useOrderTracking(orderId);
 
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const riderMarkerRef = useRef<any>(null);
-    const destMarkerRef = useRef<any>(null);
+    const mapRef = useRef<L.Map | null>(null);
+    const riderMarkerRef = useRef<L.Marker | null>(null);
+    const destMarkerRef = useRef<L.Marker | null>(null);
+    const [mapReady, setMapReady] = useState(false);
 
-    // Init map once we have coordinates
+    // Initialize Leaflet map once loading is finished and container is in DOM
     useEffect(() => {
-        if (!tracking || !mapContainerRef.current) return;
-        if (!isMapboxAvailable()) return;
-        if (mapRef.current) return;
-        
-        let mounted = true;
+        if (isLoading || !mapContainerRef.current || mapRef.current) return;
 
-        (async () => {
-            try {
-                const map = await initializeMap(
-                    mapContainerRef.current!,
-                    [tracking.riderLng, tracking.riderLat],
-                    14
-                );
-                
-                if (!mounted) {
-                    map.remove();
-                    return;
-                }
-                
-                mapRef.current = map;
+        const map = L.map(mapContainerRef.current, {
+            center: [19.1305, 72.9135], // Default: warehouse area (Mumbai)
+            zoom: 13,
+            zoomControl: false,         // Hide default +/- buttons (pinch-to-zoom on mobile)
+            attributionControl: false,  // Clean UI
+        });
 
-                const setupMap = () => {
-                    // Rider marker — blue dot with pulsing ring
-                    const riderEl = document.createElement('div');
-                    riderEl.className = 'rider-marker';
-                    riderEl.innerHTML = `
-                        <div style="
-                            width:18px;height:18px;border-radius:50%;
-                            background:#3b82f6;border:2px solid white;
-                            box-shadow:0 0 0 4px rgba(59,130,246,0.3);
-                            position:relative;
-                        "></div>`;
+        // CartoDB Dark Matter tiles — free, no API key, dark theme
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 19,
+            crossOrigin: true,
+        }).addTo(map);
 
-                    riderMarkerRef.current = new mapboxgl.Marker({ element: riderEl, anchor: 'center' })
-                        .setLngLat([tracking.riderLng, tracking.riderLat])
-                        .addTo(map);
+        mapRef.current = map;
 
-                    // Destination marker — red pin
-                    if (tracking.destLat && tracking.destLng) {
-                        const destEl = document.createElement('div');
-                        destEl.innerHTML = `
-                            <div style="
-                                width:14px;height:14px;border-radius:50%;
-                                background:#ef4444;border:2px solid white;
-                                box-shadow:0 2px 8px rgba(0,0,0,0.4);
-                            "></div>`;
+        // Give the browser one frame to compute flex layout before Leaflet reads dimensions
+        const rafId = requestAnimationFrame(() => map.invalidateSize());
 
-                        destMarkerRef.current = new mapboxgl.Marker({ element: destEl, anchor: 'center' })
-                            .setLngLat([tracking.destLng, tracking.destLat])
-                            .addTo(map);
-
-                        // Auto-fit map to show both markers
-                        const bounds = new mapboxgl.LngLatBounds()
-                            .extend([tracking.riderLng, tracking.riderLat])
-                            .extend([tracking.destLng, tracking.destLat]);
-                        
-                        // We check map.fitBounds to be safe just in case the wrapper behaves slightly differently
-                        if (map.fitBounds) map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
-                    }
-                };
-                
-                if (map.loaded && map.loaded()) {
-                    setupMap();
-                } else if (map.on) {
-                    map.on('load', setupMap);
-                }
-            } catch (err) {
-                console.error('Failed to initialize OrderTrackingMap', err);
-            }
-        })();
+        setMapReady(true);
 
         return () => {
-            mounted = false;
-            riderMarkerRef.current?.remove();
-            destMarkerRef.current?.remove();
-            mapRef.current?.remove();
-            mapRef.current = null;
+            setMapReady(false);
+            cancelAnimationFrame(rafId);
             riderMarkerRef.current = null;
             destMarkerRef.current = null;
+            map.remove();
+            mapRef.current = null;
         };
-    }, [tracking?.riderLat, tracking?.riderLng]);
+    }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Update rider marker + route source on every position update
     useEffect(() => {
-        if (!tracking || !mapRef.current) return;
-
+        if (!mapReady || !tracking || !mapRef.current) return;
         const map = mapRef.current;
 
-        // Move rider marker
-        riderMarkerRef.current?.setLngLat([tracking.riderLng, tracking.riderLat]);
-    }, [tracking?.riderLat, tracking?.riderLng]);
+        if (!riderMarkerRef.current) {
+            // First time tracking data arrives — create markers and fit map
+            const riderIcon = L.divIcon({
+                className: '',
+                html: `<div style="
+                    width:18px;height:18px;border-radius:50%;
+                    background:#3b82f6;border:2px solid white;
+                    box-shadow:0 0 0 6px rgba(59,130,246,0.25);
+                "></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+            });
+            riderMarkerRef.current = L.marker([tracking.riderLat, tracking.riderLng], { icon: riderIcon }).addTo(map);
+
+            if (tracking.destLat && tracking.destLng) {
+                const destIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="
+                        width:14px;height:14px;border-radius:50%;
+                        background:#ef4444;border:2px solid white;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.5);
+                    "></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                });
+                destMarkerRef.current = L.marker([tracking.destLat, tracking.destLng], { icon: destIcon }).addTo(map);
+
+                // Fit to show both rider + destination
+                map.fitBounds(
+                    L.latLngBounds(
+                        [tracking.riderLat, tracking.riderLng],
+                        [tracking.destLat, tracking.destLng]
+                    ),
+                    { padding: [60, 60], maxZoom: 14 }
+                );
+            } else {
+                map.setView([tracking.riderLat, tracking.riderLng], 15);
+            }
+        } else {
+            // Subsequent updates — just move the rider dot
+            riderMarkerRef.current.setLatLng([tracking.riderLat, tracking.riderLng]);
+        }
+    }, [mapReady, tracking?.riderLat, tracking?.riderLng]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (isLoading) {
         return (
@@ -146,7 +134,7 @@ export function OrderTrackingPage() {
     return (
         <div className="fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col">
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 flex items-center gap-3">
+            <div className="absolute top-0 left-0 right-0 z-[9999] px-4 pt-4 pb-2 flex items-center gap-3">
                 <button
                     onClick={() => navigate(-1)}
                     className="p-2 rounded-full bg-black/70 backdrop-blur border border-zinc-800"
@@ -166,12 +154,16 @@ export function OrderTrackingPage() {
                 </div>
             </div>
 
-            {/* Map */}
-            <div ref={mapContainerRef} className="flex-1" />
+            {/* Map container — fills remaining space */}
+            <div
+                ref={mapContainerRef}
+                className="flex-1"
+                style={{ background: '#0a0a0a', minHeight: 0 }}
+            />
 
-            {/* No tracking state */}
+            {/* No tracking state — covers map while rider hasn't started */}
             {noTracking && (
-                <div className="absolute inset-0 flex items-center justify-center z-10 bg-[#0a0a0a]">
+                <div className="absolute inset-0 flex items-center justify-center z-[500] bg-[#0a0a0a]">
                     <div className="text-center space-y-3 px-8">
                         <Truck size={40} className="mx-auto text-zinc-600" />
                         <p className="text-white font-semibold">Rider not broadcasting yet</p>
@@ -185,9 +177,9 @@ export function OrderTrackingPage() {
                 <motion.div
                     initial={{ y: 100 }}
                     animate={{ y: 0 }}
-                    className="absolute bottom-0 left-0 right-0 bg-[#111]/95 backdrop-blur-md border-t border-zinc-800 rounded-t-2xl px-4 pt-4 pb-6"
+                    className="absolute bottom-0 left-0 right-0 z-[9999] bg-[#111]/95 backdrop-blur-md border-t border-zinc-800 rounded-t-2xl px-4 pt-4 pb-6"
                 >
-                    {/* Order type badge */}
+                    {/* Order type badge + last update */}
                     <div className="flex items-center justify-between mb-3">
                         <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${ORDER_TYPE_COLOR[tracking.orderType] ?? ORDER_TYPE_COLOR.delivery}`}>
                             {ORDER_TYPE_LABEL[tracking.orderType] ?? tracking.orderType}
