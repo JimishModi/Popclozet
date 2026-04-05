@@ -11,7 +11,9 @@
       "Bash(grep -A 20 \"CREATE TABLE.*notifications\\\\|CREATE TABLE.*push_subscriptions\" /c/Users/madha/Desktop/doc popclozet/popclozet/supabase/migrations/*.sql)",
       "mcp__claude_ai_Supabase__deploy_edge_function",
       "Bash(npx supabase:*)",
-      "WebFetch(domain:docs.didit.me)"
+      "WebFetch(domain:docs.didit.me)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm build:*)"
     ]
   }
 }
