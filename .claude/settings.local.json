@@ -14,7 +14,8 @@
       "WebFetch(domain:docs.didit.me)",
       "Bash(pnpm install:*)",
       "Bash(pnpm build:*)",
-      "WebSearch"
+      "WebSearch",
+      "Read(//c/Users/madha/.cursor/worktrees/popclozet/aby/apps/customer-app/src/services/**)"
     ]
   }
 }
