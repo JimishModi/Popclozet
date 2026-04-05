@@ -219,6 +219,34 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Real-time profile synchronization ─────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Listen for real-time changes to the user's profile
+    // This allows across-device sync (e.g. verifying email on desktop reflects on mobile)
+    const profileSync = supabase
+      .channel(`profile-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'customer_profiles',
+          filter: `user_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          console.info('[Auth] Real-time profile change detected. Syncing...', payload.new);
+          await refreshProfile();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileSync);
+    };
+  }, [user?.id]);
+
   // ── updateProfile ─────────────────────────────────────────────────────────
   const updateProfile = async (updates: any) => {
     if (!user) throw new Error('No authenticated user');
@@ -263,7 +291,19 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // ── refreshProfile ────────────────────────────────────────────────────────
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user);
+    // 1. Force refresh the Auth User record from the server
+    //    This ensures attributes like 'email' and 'email_confirmed_at' are updated.
+    const { data: { user: freshUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (!authError && freshUser) {
+      console.info('[Auth] Refreshing session user state...');
+      setUser(freshUser);
+      // 2. Fetch the corresponding customer profile using the fresh user
+      await fetchProfile(freshUser);
+    } else if (user) {
+      // Fallback to existing user if auth.getUser fails
+      await fetchProfile(user);
+    }
   };
 
   // ── signOut ───────────────────────────────────────────────────────────────
