@@ -56,11 +56,30 @@ class AppErrorBoundary extends React.Component<
     this.state = { hasError: false, error: null };
   }
 
+  static isWebSocketError(error: Error | null): boolean {
+    const msg = error?.message ?? '';
+    return (
+      msg.includes('The operation is insecure') ||
+      msg.includes('WebSocket') ||
+      msg.includes('wss://') ||
+      msg.includes('ws://')
+    );
+  }
+
   static getDerivedStateFromError(error: Error) {
+    // WebSocket errors: don't show crash screen — let the app continue without realtime
+    if (AppErrorBoundary.isWebSocketError(error)) {
+      console.warn('[AppErrorBoundary] WebSocket error caught — silently recovering:', error.message);
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    if (AppErrorBoundary.isWebSocketError(error)) {
+      // Already handled in getDerivedStateFromError — no crash screen
+      return;
+    }
     console.error('[AppErrorBoundary]', error, info.componentStack);
   }
 

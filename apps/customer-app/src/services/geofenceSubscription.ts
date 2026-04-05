@@ -91,37 +91,41 @@ export function subscribeToRiderProximity(
 
     previousStatus = 'far';
 
-    activeChannel = supabase
-        .channel(`rider-location-${riderId}`)
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'rider_locations',
-                filter: `rider_id=eq.${riderId}`,
-            },
-            (payload) => {
-                const { lat, lng } = payload.new as { lat: number; lng: number };
-                callbacks.onLocationUpdate(lat, lng);
+    try {
+        activeChannel = supabase
+            .channel(`rider-location-${riderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'rider_locations',
+                    filter: `rider_id=eq.${riderId}`,
+                },
+                (payload) => {
+                    const { lat, lng } = payload.new as { lat: number; lng: number };
+                    callbacks.onLocationUpdate(lat, lng);
 
-                const newStatus = checkDeliveryProximity(lat, lng, destLat, destLng);
-                const dist = distanceKm(lat, lng, destLat, destLng);
+                    const newStatus = checkDeliveryProximity(lat, lng, destLat, destLng);
+                    const dist = distanceKm(lat, lng, destLat, destLng);
 
-                if (newStatus !== previousStatus) {
-                    callbacks.onProximityChange(newStatus, dist);
-                    previousStatus = newStatus;
+                    if (newStatus !== previousStatus) {
+                        callbacks.onProximityChange(newStatus, dist);
+                        previousStatus = newStatus;
 
-                    // Auto-update order status if nearby
-                    if (newStatus === 'arriving' || newStatus === 'nearby') {
-                        showProximityNotification(newStatus, dist);
+                        // Auto-update order status if nearby
+                        if (newStatus === 'arriving' || newStatus === 'nearby') {
+                            showProximityNotification(newStatus, dist);
+                        }
                     }
                 }
-            }
-        )
-        .subscribe((status, err) => {
-            if (err) console.warn('[geofenceSubscription] Realtime subscription error (non-fatal):', err);
-        });
+            )
+            .subscribe((status, err) => {
+                if (err) console.warn('[geofenceSubscription] Realtime subscription error (non-fatal):', err);
+            });
+    } catch (err) {
+        console.warn('[geofenceSubscription] Failed to subscribe to rider proximity (non-fatal):', err);
+    }
 
     return () => unsubscribeRiderProximity();
 }

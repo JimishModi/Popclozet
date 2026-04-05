@@ -20,7 +20,28 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+  };
+}
+
 Deno.serve(async (req: Request) => {
+  const log = makeLogger('auto-dispatch-returns');
+  log.info('cron started');
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -35,7 +56,8 @@ Deno.serve(async (req: Request) => {
     const { data, error } = await supabase.rpc("auto_dispatch_pre_scheduled_returns");
 
     if (error) {
-      console.error("Auto-dispatch RPC error:", error);
+      log.error("Auto-dispatch RPC error", { error });
+      log.done(500);
       return new Response(
         JSON.stringify({ success: false, error: error.message }),
         {
@@ -45,8 +67,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("Auto-dispatch result:", JSON.stringify(data));
+    log.info("Auto-dispatch result", { data });
 
+    log.done(200);
     return new Response(
       JSON.stringify(data),
       {
@@ -54,8 +77,9 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (err) {
-    console.error("Auto-dispatch unexpected error:", err);
+  } catch (err: any) {
+    log.error("Auto-dispatch unexpected error", { error: String(err) });
+    log.done(500);
     return new Response(
       JSON.stringify({ success: false, error: String(err) }),
       {

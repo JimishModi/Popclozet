@@ -116,26 +116,31 @@ export function useActiveOrder() {
     useEffect(() => {
         if (!user?.id || config.USE_MOCK_DATA) return;
 
-        const channel = supabase
-            .channel(channelNameRef.current)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `user_id=eq.${user.id}`,
-                },
-                () => {
-                    fetchActiveOrder();
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[useActiveOrder] Realtime subscription error (non-fatal):', err);
-            });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(channelNameRef.current)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'orders',
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    () => {
+                        fetchActiveOrder();
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[useActiveOrder] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[useActiveOrder] Failed to subscribe to active order realtime (non-fatal):', err);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [user?.id, fetchActiveOrder]);
 

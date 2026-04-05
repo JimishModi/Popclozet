@@ -21,6 +21,24 @@ if (window.location.search && !window.location.hash.includes(window.location.sea
   }
 }
 
+// ── Global WebSocket error safety net ─────────────────────────────────────
+// iOS Safari (Instagram/TikTok WebViews, PWA standalone, private browsing)
+// throws DOMException: "The operation is insecure" from WebSocket constructors
+// even on wss:// URLs. Catch these at the top level so they never propagate
+// as unhandled rejections that could crash the app.
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = event?.reason?.message ?? '';
+  if (
+    msg.includes('The operation is insecure') ||
+    msg.includes('WebSocket') ||
+    msg.includes('wss://') ||
+    msg.includes('ws://')
+  ) {
+    event.preventDefault();
+    console.warn('[popclozet] Realtime WebSocket unavailable (non-fatal):', msg);
+  }
+});
+
 // Apply theme before first paint (correct)
 initTheme();
 

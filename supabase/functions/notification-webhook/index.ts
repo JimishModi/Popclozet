@@ -1,12 +1,45 @@
+// deno-lint-ignore-file
+// @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(
+        meta({
+          level: "info",
+          msg: "complete",
+          status,
+          ms: Math.round(performance.now() - t0),
+        }),
+      ),
+  };
+}
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+  log?: ReturnType<typeof makeLogger>,
+) {
+  if (log) log.done(status);
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -14,6 +47,9 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 }
 
 Deno.serve(async (req: Request) => {
+  const log = makeLogger("notification-webhook");
+  log.info("request started");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -23,25 +59,33 @@ Deno.serve(async (req: Request) => {
   const internalSecret = Deno.env.get("PUSH_INTERNAL_SECRET");
 
   if (!supabaseUrl || !serviceRoleKey || !internalSecret) {
-    console.error("[webhook] Missing environment variables");
-    return jsonResponse({ error: "Configuration error" }, 500);
+    log.error("Missing environment variables");
+    return jsonResponse({ error: "Configuration error" }, 500, log);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const webhookSecret = req.headers.get("x-webhook-secret");
   if (webhookSecret !== internalSecret) {
-    console.error("[webhook] Unauthorized caller");
-    return jsonResponse({ error: "Unauthorized webhook caller" }, 401);
+    log.error("Unauthorized caller");
+    return jsonResponse({ error: "Unauthorized webhook caller" }, 401, log);
   }
 
-  const payload = await req.json();
-  console.log("[webhook] Received:", payload.type, payload.table);
+  let payload;
+  try {
+    payload = await req.json();
+  } catch (e: any) {
+    log.error("Invalid JSON payload", { error: e.message });
+    return jsonResponse({ error: "Invalid JSON payload" }, 400, log);
+  }
+
+  log.info("Received payload", { type: payload.type, table: payload.table });
 
   const { type, table, record, old_record } = payload;
 
-  if (!record) {
-    return jsonResponse({ message: "No record found" });
+  if (!record && type !== "CRON") {
+    log.warn("No record found");
+    return jsonResponse({ message: "No record found" }, 200, log);
   }
 
   // FIXED: was "profiles" (which does not exist). Correct table is "warehouse_profiles"
@@ -50,65 +94,89 @@ Deno.serve(async (req: Request) => {
     .select("id");
 
   if (warehouseErr) {
-    console.error("[webhook] Failed to fetch warehouse users:", warehouseErr.message);
+    log.error("Failed to fetch warehouse users", {
+      error: warehouseErr.message,
+    });
   }
   const warehouseUsers = warehouseProfiles || [];
-  console.log(`[webhook] ${warehouseUsers.length} warehouse user(s) found`);
+  log.info(`${warehouseUsers.length} warehouse user(s) found`);
 
   // ── Push helper with retry ──────────────────────────────────────────────────
-  const sendPush = async (user_id: string, title: string, body: string, url = "/") => {
+  const sendPush = async (
+    user_id: string,
+    title: string,
+    body: string,
+    url = "/",
+  ) => {
     if (!user_id) return;
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-          method: "POST",
-          headers: {
-            "x-internal-call": "true",
-            "Authorization": `Bearer ${internalSecret}`,
-            "Content-Type": "application/json",
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/send-push-notification`,
+          {
+            method: "POST",
+            headers: {
+              "x-internal-call": "true",
+              Authorization: `Bearer ${internalSecret}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              user_id,
+              title,
+              body,
+              url,
+              type: "system_event",
+            }),
           },
-          body: JSON.stringify({ user_id, title, body, url, type: "system_event" }),
-        });
+        );
         if (!res.ok && attempt < MAX_RETRIES) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
           continue;
         }
-        console.log(`[webhook] Push sent to ${user_id}: "${title}"`);
+        log.info(`Push sent to ${user_id}`, { title });
         return;
-      } catch (e) {
+      } catch (e: any) {
         if (attempt < MAX_RETRIES) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         } else {
-          console.error(`[webhook] Push FAILED for ${user_id}:`, e);
+          log.error(`Push FAILED for ${user_id}`, { error: String(e) });
         }
       }
     }
   };
 
-  const shortId = (id: string) => (id ? id.slice(0, 6).toUpperCase() : "UNKNOWN");
+  const shortId = (id: string) =>
+    id ? id.slice(0, 6).toUpperCase() : "UNKNOWN";
 
   // ── Send push to all warehouse staff ───────────────────────────────────────
-  const sendWarehouseAll = async (title: string, body: string, url = "/orders") => {
+  const sendWarehouseAll = async (
+    title: string,
+    body: string,
+    url = "/orders",
+  ) => {
     for (const w of warehouseUsers) {
       await sendPush(w.id, title, body, url);
     }
   };
 
   // ── Notify order confirmed (COD or online) ─────────────────────────────────
-  const notifyOrderConfirmed = async (orderRecord: any, paymentType: string) => {
+  const notifyOrderConfirmed = async (
+    orderRecord: any,
+    paymentType: string,
+  ) => {
     const label = paymentType === "cod" ? "(COD)" : "(Paid)";
     await sendPush(
       orderRecord.user_id,
       "🛍️ Order Confirmed!",
       `Your order ${label} has been confirmed. We're preparing it now.`,
-      "/orders"
+      "/orders",
     );
     // FIXED: was "/warehouse/orders" which doesn't exist in the app router
     await sendWarehouseAll(
       "📦 New Order Received",
       `Order #${shortId(orderRecord.id)} ${label} — ready to fulfill.`,
-      "/orders"
+      "/orders",
     );
     await supabase.from("notifications").insert({
       user_id: orderRecord.user_id,
@@ -129,7 +197,9 @@ Deno.serve(async (req: Request) => {
       if (record.status === "confirmed") {
         await notifyOrderConfirmed(record, record.payment_method || "cod");
       } else {
-        console.log(`[webhook] INSERT order ${record.id} status=${record.status} — skipping (awaiting payment)`);
+        log.info(
+          `INSERT order ${record.id} status=${record.status} — skipping (awaiting payment)`,
+        );
       }
     }
 
@@ -151,7 +221,12 @@ Deno.serve(async (req: Request) => {
         (oldStatus === "pending_payment" || oldStatus === "pending") &&
         newStatus === "payment_failed"
       ) {
-        await sendPush(record.user_id, "❌ Payment Failed", "Your payment could not be processed. Please try again.", "/orders");
+        await sendPush(
+          record.user_id,
+          "❌ Payment Failed",
+          "Your payment could not be processed. Please try again.",
+          "/orders",
+        );
         await supabase.from("notifications").insert({
           user_id: record.user_id,
           type: "order_update",
@@ -163,16 +238,60 @@ Deno.serve(async (req: Request) => {
       }
 
       // 3. In-app status notifications for customer
-      const customerInAppNotifs: Record<string, { type: string; title: string; message: string }> = {
-        dispatched: { type: "order_dispatched", title: "📦 Package Dispatched!", message: "Your package has been dispatched from the warehouse. A rider is on the way!" },
-        out_for_delivery: { type: "order_update", title: "🚗 Out for Delivery!", message: "Your package is out for delivery. The rider is heading to your location." },
-        delivered: { type: "order_update", title: "🎉 Package Delivered!", message: "Your package has been delivered. Enjoy!" },
-        cancelled: { type: "order_update", title: "🚫 Order Cancelled", message: "Your order has been cancelled." },
-        return_requested: { type: "return_scheduled", title: "📋 Return Submitted", message: "Your return request has been submitted. We'll review it shortly." },
-        return_scheduled: { type: "return_scheduled", title: "✅ Return Approved", message: "Your return has been approved! We're assigning a rider for pickup." },
-        return_dispatched: { type: "return_scheduled", title: "🚗 Rider Assigned for Pickup", message: "A rider is heading to pick up your return items." },
-        return_picked_up: { type: "return_completed", title: "📦 Items Picked Up", message: "Your return items have been collected and are heading to our warehouse." },
-        returned: { type: "return_completed", title: "✅ Return Complete", message: "Your return is complete! Thank you." },
+      const customerInAppNotifs: Record<
+        string,
+        { type: string; title: string; message: string }
+      > = {
+        dispatched: {
+          type: "order_dispatched",
+          title: "📦 Package Dispatched!",
+          message:
+            "Your package has been dispatched from the warehouse. A rider is on the way!",
+        },
+        out_for_delivery: {
+          type: "order_update",
+          title: "🚗 Out for Delivery!",
+          message:
+            "Your package is out for delivery. The rider is heading to your location.",
+        },
+        delivered: {
+          type: "order_update",
+          title: "🎉 Package Delivered!",
+          message: "Your package has been delivered. Enjoy!",
+        },
+        cancelled: {
+          type: "order_update",
+          title: "🚫 Order Cancelled",
+          message: "Your order has been cancelled.",
+        },
+        return_requested: {
+          type: "return_scheduled",
+          title: "📋 Return Submitted",
+          message:
+            "Your return request has been submitted. We'll review it shortly.",
+        },
+        return_scheduled: {
+          type: "return_scheduled",
+          title: "✅ Return Approved",
+          message:
+            "Your return has been approved! We're assigning a rider for pickup.",
+        },
+        return_dispatched: {
+          type: "return_scheduled",
+          title: "🚗 Rider Assigned for Pickup",
+          message: "A rider is heading to pick up your return items.",
+        },
+        return_picked_up: {
+          type: "return_completed",
+          title: "📦 Items Picked Up",
+          message:
+            "Your return items have been collected and are heading to our warehouse.",
+        },
+        returned: {
+          type: "return_completed",
+          title: "✅ Return Complete",
+          message: "Your return is complete! Thank you.",
+        },
       };
 
       if (oldStatus !== newStatus && customerInAppNotifs[newStatus]) {
@@ -188,8 +307,17 @@ Deno.serve(async (req: Request) => {
       }
 
       // 4. Driver assigned for delivery (rider_id set for the first time, non-return)
-      if (!old_record.rider_id && record.rider_id && !String(newStatus).startsWith("return_")) {
-        await sendPush(record.user_id, "🚗 Driver Assigned", "A driver has been assigned and is heading out for your order!", "/orders");
+      if (
+        !old_record.rider_id &&
+        record.rider_id &&
+        !String(newStatus).startsWith("return_")
+      ) {
+        await sendPush(
+          record.user_id,
+          "🚗 Driver Assigned",
+          "A driver has been assigned and is heading out for your order!",
+          "/orders",
+        );
         await supabase.from("notifications").insert({
           user_id: record.user_id,
           type: "order_update",
@@ -199,49 +327,107 @@ Deno.serve(async (req: Request) => {
           is_read: false,
         });
         // FIXED: was "/warehouse/orders"
-        await sendWarehouseAll("🚗 Driver Dispatched", `Driver assigned to Order #${shortId(record.id)}.`, "/orders");
-        await sendPush(record.rider_id, "🔥 New Delivery Assigned!", `Assigned to deliver Order #${shortId(record.id)}. Head to the warehouse!`, "/deliveries");
+        await sendWarehouseAll(
+          "🚗 Driver Dispatched",
+          `Driver assigned to Order #${shortId(record.id)}.`,
+          "/orders",
+        );
+        await sendPush(
+          record.rider_id,
+          "🔥 New Delivery Assigned!",
+          `Assigned to deliver Order #${shortId(record.id)}. Head to the warehouse!`,
+          "/deliveries",
+        );
       }
 
       // 5. Order packed — warehouse push (NEW)
       if (oldStatus !== "packed" && newStatus === "packed") {
-        await sendWarehouseAll("📦 Order Packed", `Order #${shortId(record.id)} is packed and ready for rider pickup.`, "/orders");
+        await sendWarehouseAll(
+          "📦 Order Packed",
+          `Order #${shortId(record.id)} is packed and ready for rider pickup.`,
+          "/orders",
+        );
       }
 
       // 6. Ready for pickup — warehouse push (NEW)
-      if (oldStatus !== "ready_for_pickup" && newStatus === "ready_for_pickup") {
-        await sendWarehouseAll("🏭 Ready for Pickup", `Order #${shortId(record.id)} is ready — assign a rider.`, "/orders");
+      if (
+        oldStatus !== "ready_for_pickup" &&
+        newStatus === "ready_for_pickup"
+      ) {
+        await sendWarehouseAll(
+          "🏭 Ready for Pickup",
+          `Order #${shortId(record.id)} is ready — assign a rider.`,
+          "/orders",
+        );
       }
 
       // 7. Driver arrived at warehouse — warehouse push (NEW)
-      if (oldStatus !== "driver_arrived_warehouse" && newStatus === "driver_arrived_warehouse") {
-        await sendWarehouseAll("🏬 Rider at Warehouse", `Rider arrived at warehouse for Order #${shortId(record.id)}. Hand over the package.`, "/orders");
+      if (
+        oldStatus !== "driver_arrived_warehouse" &&
+        newStatus === "driver_arrived_warehouse"
+      ) {
+        await sendWarehouseAll(
+          "🏬 Rider at Warehouse",
+          `Rider arrived at warehouse for Order #${shortId(record.id)}. Hand over the package.`,
+          "/orders",
+        );
       }
 
       // 8. Order picked up from warehouse — warehouse push (NEW)
       if (oldStatus !== "order_picked_up" && newStatus === "order_picked_up") {
-        await sendWarehouseAll("📦 Order Picked Up", `Rider picked up Order #${shortId(record.id)} from the warehouse.`, "/orders");
+        await sendWarehouseAll(
+          "📦 Order Picked Up",
+          `Rider picked up Order #${shortId(record.id)} from the warehouse.`,
+          "/orders",
+        );
       }
 
       // 9. Dispatched — customer push
       if (oldStatus !== "dispatched" && newStatus === "dispatched") {
-        await sendPush(record.user_id, "📦 Package Dispatched!", "Your package has been dispatched. A rider is on the way!", "/orders");
+        await sendPush(
+          record.user_id,
+          "📦 Package Dispatched!",
+          "Your package has been dispatched. A rider is on the way!",
+          "/orders",
+        );
       }
 
       // 10. Out for delivery — customer push
-      if (oldStatus !== "out_for_delivery" && newStatus === "out_for_delivery") {
-        await sendPush(record.user_id, "🚗 Out for Delivery!", "Your package is out for delivery.", "/orders");
+      if (
+        oldStatus !== "out_for_delivery" &&
+        newStatus === "out_for_delivery"
+      ) {
+        await sendPush(
+          record.user_id,
+          "🚗 Out for Delivery!",
+          "Your package is out for delivery.",
+          "/orders",
+        );
       }
 
       // 11. Delivered — customer + warehouse
       if (oldStatus !== "delivered" && newStatus === "delivered") {
-        await sendPush(record.user_id, "✅ Order Delivered", "Your order has safely arrived! Enjoy.", "/orders");
-        await sendWarehouseAll("✅ Order Delivered", `Order #${shortId(record.id)} completed delivery.`, "/orders");
+        await sendPush(
+          record.user_id,
+          "✅ Order Delivered",
+          "Your order has safely arrived! Enjoy.",
+          "/orders",
+        );
+        await sendWarehouseAll(
+          "✅ Order Delivered",
+          `Order #${shortId(record.id)} completed delivery.`,
+          "/orders",
+        );
       }
 
       // 12. Cancelled — customer push
       if (oldStatus !== "cancelled" && newStatus === "cancelled") {
-        await sendPush(record.user_id, "🚫 Order Cancelled", "Your order has been cancelled.", "/orders");
+        await sendPush(
+          record.user_id,
+          "🚫 Order Cancelled",
+          "Your order has been cancelled.",
+          "/orders",
+        );
       }
 
       // ══════════════════════════════════════════════
@@ -249,9 +435,21 @@ Deno.serve(async (req: Request) => {
       // ══════════════════════════════════════════════
 
       // 13. Return requested — customer + warehouse
-      if (oldStatus !== "return_requested" && newStatus === "return_requested") {
-        await sendPush(record.user_id, "📋 Return Request Submitted", "Your return request has been submitted. We'll review it shortly.", "/orders");
-        await sendWarehouseAll("🔔 New Return Request", `Return requested for Order #${shortId(record.id)}. Review and approve.`, "/returns");
+      if (
+        oldStatus !== "return_requested" &&
+        newStatus === "return_requested"
+      ) {
+        await sendPush(
+          record.user_id,
+          "📋 Return Request Submitted",
+          "Your return request has been submitted. We'll review it shortly.",
+          "/orders",
+        );
+        await sendWarehouseAll(
+          "🔔 New Return Request",
+          `Return requested for Order #${shortId(record.id)}. Review and approve.`,
+          "/returns",
+        );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
             user_id: w.id,
@@ -265,18 +463,47 @@ Deno.serve(async (req: Request) => {
       }
 
       // 14. Return approved/scheduled
-      if (oldStatus !== "return_scheduled" && newStatus === "return_scheduled") {
-        await sendPush(record.user_id, "✅ Return Approved", "Your return has been approved! We're finding a rider for pickup.", "/orders");
-        await sendWarehouseAll("✅ Return Approved", `Return approved for Order #${shortId(record.id)}. Assigning rider.`, "/returns");
+      if (
+        oldStatus !== "return_scheduled" &&
+        newStatus === "return_scheduled"
+      ) {
+        await sendPush(
+          record.user_id,
+          "✅ Return Approved",
+          "Your return has been approved! We're finding a rider for pickup.",
+          "/orders",
+        );
+        await sendWarehouseAll(
+          "✅ Return Approved",
+          `Return approved for Order #${shortId(record.id)}. Assigning rider.`,
+          "/returns",
+        );
       }
 
       // 15. Return rider dispatched
-      if (oldStatus !== "return_dispatched" && newStatus === "return_dispatched") {
-        await sendPush(record.user_id, "🚗 Rider On The Way", "A rider has been assigned to collect your return items.", "/orders");
+      if (
+        oldStatus !== "return_dispatched" &&
+        newStatus === "return_dispatched"
+      ) {
+        await sendPush(
+          record.user_id,
+          "🚗 Rider On The Way",
+          "A rider has been assigned to collect your return items.",
+          "/orders",
+        );
         if (record.rider_id) {
-          await sendPush(record.rider_id, "📦 Return Pickup Assigned", `Assigned a return pickup for Order #${shortId(record.id)}.`, "/deliveries");
+          await sendPush(
+            record.rider_id,
+            "📦 Return Pickup Assigned",
+            `Assigned a return pickup for Order #${shortId(record.id)}.`,
+            "/deliveries",
+          );
         }
-        await sendWarehouseAll("🏍️ Return Rider Dispatched", `Rider dispatched for return pickup on Order #${shortId(record.id)}.`, "/returns");
+        await sendWarehouseAll(
+          "🏍️ Return Rider Dispatched",
+          `Rider dispatched for return pickup on Order #${shortId(record.id)}.`,
+          "/returns",
+        );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
             user_id: w.id,
@@ -290,9 +517,21 @@ Deno.serve(async (req: Request) => {
       }
 
       // 16. Return picked up from customer
-      if (oldStatus !== "return_picked_up" && newStatus === "return_picked_up") {
-        await sendPush(record.user_id, "📦 Items Picked Up!", "Your return items have been collected. They're on the way to our warehouse.", "/orders");
-        await sendWarehouseAll("📦 Return Picked Up", `Items picked up for Order #${shortId(record.id)}. Rider heading to warehouse.`, "/returns");
+      if (
+        oldStatus !== "return_picked_up" &&
+        newStatus === "return_picked_up"
+      ) {
+        await sendPush(
+          record.user_id,
+          "📦 Items Picked Up!",
+          "Your return items have been collected. They're on the way to our warehouse.",
+          "/orders",
+        );
+        await sendWarehouseAll(
+          "📦 Return Picked Up",
+          `Items picked up for Order #${shortId(record.id)}. Rider heading to warehouse.`,
+          "/returns",
+        );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
             user_id: w.id,
@@ -306,9 +545,16 @@ Deno.serve(async (req: Request) => {
       }
 
       // 17. Return at warehouse
-      if (oldStatus !== "return_at_warehouse" && newStatus === "return_at_warehouse") {
+      if (
+        oldStatus !== "return_at_warehouse" &&
+        newStatus === "return_at_warehouse"
+      ) {
         // Only notify warehouse (customers don't need this update)
-        await sendWarehouseAll("🏬 Return Arrived at Warehouse", `Return items for Order #${shortId(record.id)} received. Inspect and complete.`, "/returns");
+        await sendWarehouseAll(
+          "🏬 Return Arrived at Warehouse",
+          `Return items for Order #${shortId(record.id)} received. Inspect and complete.`,
+          "/returns",
+        );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
             user_id: w.id,
@@ -323,8 +569,17 @@ Deno.serve(async (req: Request) => {
 
       // 18. Return complete
       if (oldStatus !== "returned" && newStatus === "returned") {
-        await sendPush(record.user_id, "✅ Return Complete!", "Your return is complete! Thank you.", "/orders");
-        await sendWarehouseAll("✅ Return Completed", `Return for Order #${shortId(record.id)} completed.`, "/returns");
+        await sendPush(
+          record.user_id,
+          "✅ Return Complete!",
+          "Your return is complete! Thank you.",
+          "/orders",
+        );
+        await sendWarehouseAll(
+          "✅ Return Completed",
+          `Return for Order #${shortId(record.id)} completed.`,
+          "/returns",
+        );
       }
     }
   }
@@ -334,7 +589,11 @@ Deno.serve(async (req: Request) => {
   // ==========================================
   if (table === "return_requests") {
     const getCustomerId = async (orderId: string): Promise<string | null> => {
-      const { data: order } = await supabase.from("orders").select("user_id").eq("id", orderId).single();
+      const { data: order } = await supabase
+        .from("orders")
+        .select("user_id")
+        .eq("id", orderId)
+        .single();
       return order?.user_id || null;
     };
 
@@ -347,35 +606,70 @@ Deno.serve(async (req: Request) => {
         // This prevents false notifications if the return_request is somehow
         // created before payment (e.g. race condition or stale client code).
         const { data: parentOrder } = await supabase
-          .from("orders").select("status").eq("id", record.order_id).single();
+          .from("orders")
+          .select("status")
+          .eq("id", record.order_id)
+          .single();
 
-        if (parentOrder?.status === "confirmed" || parentOrder?.status === "completed") {
+        if (
+          parentOrder?.status === "confirmed" ||
+          parentOrder?.status === "completed"
+        ) {
           if (customerId) {
-            await sendPush(customerId, "📅 Return Scheduled", "Your return pickup has been scheduled along with the order.", "/orders");
+            await sendPush(
+              customerId,
+              "📅 Return Scheduled",
+              "Your return pickup has been scheduled along with the order.",
+              "/orders",
+            );
           }
         } else {
-          console.log(`[webhook] Skipping pre-scheduled return notification — parent order ${record.order_id} status=${parentOrder?.status}`);
+          log.info(
+            `Skipping pre-scheduled return notification — parent order ${record.order_id} status=${parentOrder?.status}`,
+          );
         }
-      } else if (record.status === "requested" && record.reason === "immediate") {
+      } else if (
+        record.status === "requested" &&
+        record.reason === "immediate"
+      ) {
         // INSTANT RETURN REQUEST (from tracking page)
         if (customerId) {
-          await sendPush(customerId, "⚡ Instant Return Requested", "Your instant return request is pending approval.", "/orders");
+          await sendPush(
+            customerId,
+            "⚡ Instant Return Requested",
+            "Your instant return request is pending approval.",
+            "/orders",
+          );
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_scheduled",
             title: "⚡ Instant Return Requested",
-            message: "Your instant return request has been submitted and is pending approval.",
+            message:
+              "Your instant return request has been submitted and is pending approval.",
             order_id: record.order_id,
             is_read: false,
           });
         }
-        await sendWarehouseAll("⚡ Instant Return Requested", `Instant return requested for Order #${shortId(record.order_id)}. Kindly approve it.`, "/returns");
+        await sendWarehouseAll(
+          "⚡ Instant Return Requested",
+          `Instant return requested for Order #${shortId(record.order_id)}. Kindly approve it.`,
+          "/returns",
+        );
       } else {
         // NORMAL RETURN REQUEST
         if (customerId) {
-          await sendPush(customerId, "📅 Return Requested", "Your return pickup request has been submitted.", "/orders");
+          await sendPush(
+            customerId,
+            "📅 Return Requested",
+            "Your return pickup request has been submitted.",
+            "/orders",
+          );
         }
-        await sendWarehouseAll("🔔 New Return Request", `Return requested for Order #${shortId(record.order_id)}.`, "/returns");
+        await sendWarehouseAll(
+          "🔔 New Return Request",
+          `Return requested for Order #${shortId(record.order_id)}.`,
+          "/returns",
+        );
       }
     }
 
@@ -387,23 +681,38 @@ Deno.serve(async (req: Request) => {
       // Return approved by warehouse
       if (oldStatus !== "approved" && newStatus === "approved") {
         if (customerId) {
-          await sendPush(customerId, "✅ Return Approved", "Your return request has been approved. A rider will be assigned shortly.", "/orders");
+          await sendPush(
+            customerId,
+            "✅ Return Approved",
+            "Your return request has been approved. A rider will be assigned shortly.",
+            "/orders",
+          );
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_scheduled",
             title: "✅ Return Request Approved",
-            message: "Your return has been approved and a rider will be assigned for pickup.",
+            message:
+              "Your return has been approved and a rider will be assigned for pickup.",
             order_id: record.order_id,
             is_read: false,
           });
         }
-        await sendWarehouseAll("✅ Return Approved", `Return approved for Order #${shortId(record.order_id)}.`, "/returns");
+        await sendWarehouseAll(
+          "✅ Return Approved",
+          `Return approved for Order #${shortId(record.order_id)}.`,
+          "/returns",
+        );
       }
 
       // Rider assigned for return pickup
       if (oldStatus !== "dispatched" && newStatus === "dispatched") {
         if (customerId) {
-          await sendPush(customerId, "🚗 Rider Assigned", "A rider has been assigned to pick up your return items!", "/orders");
+          await sendPush(
+            customerId,
+            "🚗 Rider Assigned",
+            "A rider has been assigned to pick up your return items!",
+            "/orders",
+          );
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_scheduled",
@@ -414,39 +723,72 @@ Deno.serve(async (req: Request) => {
           });
         }
         if (record.rider_id) {
-          await sendPush(record.rider_id, "📦 Return Pickup Assigned", `Assigned a return pickup for Order #${shortId(record.order_id)}.`, "/deliveries");
+          await sendPush(
+            record.rider_id,
+            "📦 Return Pickup Assigned",
+            `Assigned a return pickup for Order #${shortId(record.order_id)}.`,
+            "/deliveries",
+          );
         }
-        await sendWarehouseAll("🏍️ Return Rider Dispatched", `Rider dispatched for return on Order #${shortId(record.order_id)}.`, "/returns");
+        await sendWarehouseAll(
+          "🏍️ Return Rider Dispatched",
+          `Rider dispatched for return on Order #${shortId(record.order_id)}.`,
+          "/returns",
+        );
       }
 
       // Driver arrived at customer (for return pickup)
       if (oldStatus !== "driver_arrived" && newStatus === "driver_arrived") {
         if (customerId) {
-          await sendPush(customerId, "📍 Driver Arrived", "Your driver is outside and ready to collect your return items!", "/orders");
+          await sendPush(
+            customerId,
+            "📍 Driver Arrived",
+            "Your driver is outside and ready to collect your return items!",
+            "/orders",
+          );
         }
-        await sendWarehouseAll("📍 Return Driver at Customer", `Driver reached pickup location for Order #${shortId(record.order_id)}.`, "/returns");
+        await sendWarehouseAll(
+          "📍 Return Driver at Customer",
+          `Driver reached pickup location for Order #${shortId(record.order_id)}.`,
+          "/returns",
+        );
       }
 
       // Return items collected from customer
       if (oldStatus !== "picked_up" && newStatus === "picked_up") {
         if (customerId) {
-          await sendPush(customerId, "📦 Items Collected", "Your return items have been picked up by the rider!", "/orders");
+          await sendPush(
+            customerId,
+            "📦 Items Collected",
+            "Your return items have been picked up by the rider!",
+            "/orders",
+          );
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_completed",
             title: "📦 Return Items Collected",
-            message: "The rider has collected your items and is heading to the warehouse.",
+            message:
+              "The rider has collected your items and is heading to the warehouse.",
             order_id: record.order_id,
             is_read: false,
           });
         }
-        await sendWarehouseAll("📦 Return Picked Up", `Rider collected items for Order #${shortId(record.order_id)}. En route to warehouse.`, "/returns");
+        await sendWarehouseAll(
+          "📦 Return Picked Up",
+          `Rider collected items for Order #${shortId(record.order_id)}. En route to warehouse.`,
+          "/returns",
+        );
       }
 
       // Return flow completed
       if (oldStatus !== "completed" && newStatus === "completed") {
         if (customerId) {
-          await sendPush(customerId, "✅ Return Completed", "Your return is complete! Thank you.", "/orders");
+          await sendPush(
+            customerId,
+            "✅ Return Completed",
+            "Your return is complete! Thank you.",
+            "/orders",
+          );
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_completed",
@@ -456,7 +798,11 @@ Deno.serve(async (req: Request) => {
             is_read: false,
           });
         }
-        await sendWarehouseAll("✅ Return Completed", `Return for Order #${shortId(record.order_id)} is completed.`, "/returns");
+        await sendWarehouseAll(
+          "✅ Return Completed",
+          `Return for Order #${shortId(record.order_id)} is completed.`,
+          "/returns",
+        );
       }
     }
   }
@@ -465,7 +811,7 @@ Deno.serve(async (req: Request) => {
   // CRON: 1-hour return reminder
   // ==========================================
   if (type === "CRON") {
-    console.log("[webhook] Executing CRON 1-hour reminder check...");
+    log.info("Executing CRON 1-hour reminder check...");
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const next15Mins = new Date(Date.now() + 75 * 60 * 1000).toISOString();
 
@@ -478,14 +824,31 @@ Deno.serve(async (req: Request) => {
 
     if (upcomingReturns) {
       for (const ret of upcomingReturns) {
-        const { data: ord } = await supabase.from("orders").select("user_id").eq("id", ret.order_id).single();
+        const { data: ord } = await supabase
+          .from("orders")
+          .select("user_id")
+          .eq("id", ret.order_id)
+          .single();
         if (ord?.user_id) {
-          await sendPush(ord.user_id, "⏰ Return Reminder", "Your return driver will arrive in approximately 1 hour!", "/orders");
+          await sendPush(
+            ord.user_id,
+            "⏰ Return Reminder",
+            "Your return driver will arrive in approximately 1 hour!",
+            "/orders",
+          );
         }
-        await sendWarehouseAll("⏰ Upcoming Return Pickup", `1-hour warning: Return pickup for Order #${shortId(ret.order_id)} starting soon.`, "/returns");
+        await sendWarehouseAll(
+          "⏰ Upcoming Return Pickup",
+          `1-hour warning: Return pickup for Order #${shortId(ret.order_id)} starting soon.`,
+          "/returns",
+        );
       }
     }
   }
 
-  return jsonResponse({ success: true, processed: `${type} on ${table}` });
+  return jsonResponse(
+    { success: true, processed: `${type} on ${table}` },
+    200,
+    log,
+  );
 });

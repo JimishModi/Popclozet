@@ -16,7 +16,11 @@ export default function PaymentFailedPage() {
         // This triggers the DB to release any reserved inventory locks.
         if (orderId) {
             cancelOrder(orderId).catch(err => {
-                console.error("Failed to cancel abandoned order:", err);
+                if (err instanceof Error && err.message.includes("cancelled")) {
+                    console.log("Order already cancelled.");
+                } else {
+                    console.error("Failed to cancel abandoned order:", err);
+                }
             });
         }
     }, [orderId]);

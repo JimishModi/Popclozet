@@ -17,16 +17,35 @@ function jsonResponse(body: unknown, status: number) {
   })
 }
 
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+  };
+}
+
 Deno.serve(async (req: Request) => {
-  const requestId = crypto.randomUUID().slice(0, 8)
-  console.log(`[${requestId}] create-kyc-session request started`)
+  const log = makeLogger('create-kyc-session');
+  log.info('request started');
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   if (!DIDIT_API_KEY || !DIDIT_CLIENT_ID || !DIDIT_WORKFLOW_ID) {
-    console.error(`[${requestId}] Missing environment variables`)
+    log.error('Missing environment variables')
+    log.done(500);
     return jsonResponse({
       error: 'Missing DIDIT_API_KEY, DIDIT_CLIENT_ID, or DIDIT_WORKFLOW_ID',
     }, 500)
@@ -38,7 +57,8 @@ Deno.serve(async (req: Request) => {
 
     const userId = callbackParams?.user_id
     if (!userId || typeof userId !== 'string') {
-      console.error(`[${requestId}] Missing or invalid user_id in callbackParams`, body)
+      log.error('Missing or invalid user_id in callbackParams', { body })
+      log.done(400);
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
@@ -52,7 +72,7 @@ Deno.serve(async (req: Request) => {
     // Didit API strictly rejects callback URLs containing '#' fragments.
     const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
 
-    console.log(`[${requestId}] Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
+    log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
     const response = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
@@ -71,14 +91,17 @@ Deno.serve(async (req: Request) => {
     const data = await response.json()
 
     if (!response.ok) {
-      console.error(`[${requestId}] Didit API error:`, data)
+      log.error('Didit API error', { data })
+      log.done(response.status || 400);
       return jsonResponse({ error: data }, response.status || 400)
     }
 
-    console.log(`[${requestId}] Didit session created successfully:`, data.session_id)
+    log.info('Didit session created successfully', { session_id: data.session_id })
+    log.done(200);
     return jsonResponse(data, 200)
   } catch (error: any) {
-    console.error(`[${requestId}] Unexpected error:`, error)
+    log.error('Unexpected error', { error })
+    log.done(500);
     return jsonResponse({ error: error?.message || 'Unknown error' }, 500)
   }
 })

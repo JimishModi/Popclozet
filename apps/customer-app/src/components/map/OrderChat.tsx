@@ -45,26 +45,31 @@ export function OrderChat({ orderId, onClose, supportTier }: OrderChatProps) {
         fetchMessages();
 
         // Subscribe to new messages
-        const channel = supabase
-            .channel(`order_chat:${orderId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "order_support_chats",
-                    filter: `order_id=eq.${orderId}`,
-                },
-                (payload) => {
-                    setMessages((prev) => [...prev, payload.new as Message]);
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[OrderChat] Realtime subscription error (non-fatal):', err);
-            });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(`order_chat:${orderId}`)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "INSERT",
+                        schema: "public",
+                        table: "order_support_chats",
+                        filter: `order_id=eq.${orderId}`,
+                    },
+                    (payload) => {
+                        setMessages((prev) => [...prev, payload.new as Message]);
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[OrderChat] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[OrderChat] Failed to subscribe to chat realtime (non-fatal):', err);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [orderId, user]);
 

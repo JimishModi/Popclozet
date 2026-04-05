@@ -105,59 +105,64 @@ export function useDeliveryTracking({
         });
 
         // Set up realtime subscription
-        const channel = supabase
-            .channel(channelNameRef.current)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'delivery_tracking',
-                    filter: `order_id=eq.${orderId}`,
-                },
-                async (payload) => {
-                    const data = payload.new as any;
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(channelNameRef.current)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'delivery_tracking',
+                        filter: `order_id=eq.${orderId}`,
+                    },
+                    async (payload) => {
+                        const data = payload.new as any;
 
-                    const newPosition: TrackingPosition = {
-                        lat: data.current_lat,
-                        lng: data.current_lng,
-                        heading: data.heading,
-                        speed: data.speed,
-                        timestamp: data.updated_at,
-                    };
+                        const newPosition: TrackingPosition = {
+                            lat: data.current_lat,
+                            lng: data.current_lng,
+                            heading: data.heading,
+                            speed: data.speed,
+                            timestamp: data.updated_at,
+                        };
 
-                    setTracking({
-                        orderId,
-                        position: newPosition,
-                        driverName: data.driver_name,
-                        vehicleNumber: data.vehicle_number,
-                        estimatedMinutes: data.eta_minutes,
-                        isActive: data.is_active,
-                    });
+                        setTracking({
+                            orderId,
+                            position: newPosition,
+                            driverName: data.driver_name,
+                            vehicleNumber: data.vehicle_number,
+                            estimatedMinutes: data.eta_minutes,
+                            isActive: data.is_active,
+                        });
 
-                    // Callback for position update
-                    onPositionUpdate?.(newPosition);
+                        // Callback for position update
+                        onPositionUpdate?.(newPosition);
 
-                    // Recalculate ETA if order has destination
-                    if (order?.delivery_address_snapshot && data.is_active) {
-                        try {
-                            const route = await calculateRoute(
-                                { lat: newPosition.lat, lng: newPosition.lng },
-                                { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
-                            );
-                            if (route) {
-                                const etaMinutes = Math.ceil(route.duration / 60);
-                                onETAUpdate?.(etaMinutes);
+                        // Recalculate ETA if order has destination
+                        if (order?.delivery_address_snapshot && data.is_active) {
+                            try {
+                                const route = await calculateRoute(
+                                    { lat: newPosition.lat, lng: newPosition.lng },
+                                    { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
+                                );
+                                if (route) {
+                                    const etaMinutes = Math.ceil(route.duration / 60);
+                                    onETAUpdate?.(etaMinutes);
+                                }
+                            } catch {
+                                // Silent fail for ETA recalculation
                             }
-                        } catch {
-                            // Silent fail for ETA recalculation
                         }
                     }
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[useDeliveryTracking] Realtime subscription error (non-fatal):', err);
-            });
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[useDeliveryTracking] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[useDeliveryTracking] Failed to subscribe to tracking realtime (non-fatal):', err);
+        }
 
         channelRef.current = channel;
 

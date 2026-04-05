@@ -43,13 +43,40 @@ if (import.meta.env.DEV) {
     });
 }
 
-// iOS Safari requires WebSocket to be tested in a clean security context.
-// In severe cases, the WebSocket object itself might be undefined or throw.
-const realtimeConfig = typeof WebSocket !== 'undefined' ? {
+// ── WebSocket availability probe ───────────────────────────────────────────
+// iOS Safari in-app browsers (Instagram, TikTok, private browsing, PWA)
+// throw DOMException: "The operation is insecure" synchronously when the
+// WebSocket constructor is called, even on wss://. Probe once at module load
+// so we can skip all Supabase Realtime subscriptions in that environment.
+let realtimeAvailable = false;
+try {
+    if (typeof WebSocket !== 'undefined') {
+        // Use a dummy unreachable address; the constructor throws synchronously
+        // on iOS Safari insecure contexts before any network request is made.
+        const probe = new WebSocket('wss://0.0.0.0');
+        probe.close();
+        realtimeAvailable = true;
+    }
+} catch {
+    realtimeAvailable = false;
+    console.warn('[api-client] WebSocket unavailable — realtime features disabled (iOS Safari insecure context)');
+}
+
+/**
+ * Returns true if WebSocket (Supabase Realtime) is available in this browser
+ * context. Hooks should skip .subscribe() calls when this returns false.
+ */
+export const isRealtimeAvailable = (): boolean => realtimeAvailable;
+
+const realtimeConfig = realtimeAvailable ? {
     params: {
         eventsPerSecond: 10,
     },
-} : {};
+} : {
+    params: {
+        eventsPerSecond: 0,
+    },
+};
 
 let client: SupabaseClient;
 try {
@@ -229,21 +256,27 @@ class RealtimeService {
             return () => this.unsubscribe(channelName);
         }
 
-        const channel = supabase
-            .channel(channelName)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `id=eq.${orderId}`,
-                },
-                callback
-            )
-            .subscribe();
+        try {
+            const channel = supabase
+                .channel(channelName)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'orders',
+                        filter: `id=eq.${orderId}`,
+                    },
+                    callback
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[realtimeService] subscribeToOrderUpdates error (non-fatal):', err);
+                });
 
-        this.channels.set(channelName, channel);
+            this.channels.set(channelName, channel);
+        } catch (err) {
+            console.warn('[realtimeService] subscribeToOrderUpdates failed (non-fatal):', err);
+        }
 
         return () => this.unsubscribe(channelName);
     }
@@ -255,21 +288,27 @@ class RealtimeService {
             return () => this.unsubscribe(channelName);
         }
 
-        const channel = supabase
-            .channel(channelName)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'rider_locations',
-                    filter: `rider_id=eq.${riderId}`,
-                },
-                callback
-            )
-            .subscribe();
+        try {
+            const channel = supabase
+                .channel(channelName)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'rider_locations',
+                        filter: `rider_id=eq.${riderId}`,
+                    },
+                    callback
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[realtimeService] subscribeToRiderLocation error (non-fatal):', err);
+                });
 
-        this.channels.set(channelName, channel);
+            this.channels.set(channelName, channel);
+        } catch (err) {
+            console.warn('[realtimeService] subscribeToRiderLocation failed (non-fatal):', err);
+        }
 
         return () => this.unsubscribe(channelName);
     }
@@ -281,16 +320,22 @@ class RealtimeService {
             return () => this.unsubscribe(channelName);
         }
 
-        const channel = supabase
-            .channel(channelName)
-            .on(
-                'broadcast',
-                { event: 'rider_distance_update' },
-                callback
-            )
-            .subscribe();
+        try {
+            const channel = supabase
+                .channel(channelName)
+                .on(
+                    'broadcast',
+                    { event: 'rider_distance_update' },
+                    callback
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[realtimeService] subscribeToProximityUpdates error (non-fatal):', err);
+                });
 
-        this.channels.set(channelName, channel);
+            this.channels.set(channelName, channel);
+        } catch (err) {
+            console.warn('[realtimeService] subscribeToProximityUpdates failed (non-fatal):', err);
+        }
 
         return () => this.unsubscribe(channelName);
     }

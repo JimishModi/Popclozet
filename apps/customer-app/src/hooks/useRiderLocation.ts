@@ -46,34 +46,41 @@ export function useRiderLocation(riderId: string | null, onUpdate?: LocationCall
         fetchLocation();
 
         // Subscribe to real-time updates
-        const channel = supabase
-            .channel(`rider_location_${riderId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "rider_locations",
-                    filter: `rider_id=eq.${riderId}`,
-                },
-                (payload) => {
-                    const data = payload.new as any;
-                    if (callbackRef.current) {
-                        callbackRef.current({
-                            riderId: data.rider_id,
-                            lat: data.lat,
-                            lng: data.lng,
-                            heading: data.heading,
-                            speed: data.speed,
-                            updatedAt: data.updated_at,
-                        });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(`rider_location_${riderId}`)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "*",
+                        schema: "public",
+                        table: "rider_locations",
+                        filter: `rider_id=eq.${riderId}`,
+                    },
+                    (payload) => {
+                        const data = payload.new as any;
+                        if (callbackRef.current) {
+                            callbackRef.current({
+                                riderId: data.rider_id,
+                                lat: data.lat,
+                                lng: data.lng,
+                                heading: data.heading,
+                                speed: data.speed,
+                                updatedAt: data.updated_at,
+                            });
+                        }
                     }
-                }
-            )
-            .subscribe();
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[useRiderLocation] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[useRiderLocation] Failed to subscribe to rider location (non-fatal):', err);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [riderId]);
 }

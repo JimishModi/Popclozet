@@ -161,52 +161,57 @@ const NotificationsPage: React.FC = () => {
         fetchNotifications();
 
         // Realtime subscription for new notifications
-        const channel = supabase
-            .channel(`customer_notifs_${user.id}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "notifications",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                (payload) => {
-                    setSupaNotifs((prev) => [payload.new as SupabaseNotification, ...prev]);
-                }
-            )
-            .on(
-                "postgres_changes",
-                {
-                    event: "UPDATE",
-                    schema: "public",
-                    table: "notifications",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                (payload) => {
-                    const updated = payload.new as SupabaseNotification;
-                    setSupaNotifs((prev) =>
-                        prev.map((notif) => (notif.id === updated.id ? { ...notif, ...updated } : notif))
-                    );
-                }
-            )
-            .on(
-                "postgres_changes",
-                {
-                    event: "DELETE",
-                    schema: "public",
-                    table: "notifications",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                (payload) => {
-                    const deletedId = (payload.old as { id?: string })?.id;
-                    if (!deletedId) return;
-                    setSupaNotifs((prev) => prev.filter((notif) => notif.id !== deletedId));
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[NotificationsPage] Realtime subscription error (non-fatal):', err);
-            });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(`customer_notifs_${user.id}`)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "INSERT",
+                        schema: "public",
+                        table: "notifications",
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    (payload) => {
+                        setSupaNotifs((prev) => [payload.new as SupabaseNotification, ...prev]);
+                    }
+                )
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "UPDATE",
+                        schema: "public",
+                        table: "notifications",
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    (payload) => {
+                        const updated = payload.new as SupabaseNotification;
+                        setSupaNotifs((prev) =>
+                            prev.map((notif) => (notif.id === updated.id ? { ...notif, ...updated } : notif))
+                        );
+                    }
+                )
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "DELETE",
+                        schema: "public",
+                        table: "notifications",
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    (payload) => {
+                        const deletedId = (payload.old as { id?: string })?.id;
+                        if (!deletedId) return;
+                        setSupaNotifs((prev) => prev.filter((notif) => notif.id !== deletedId));
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[NotificationsPage] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[NotificationsPage] Failed to subscribe to notifications realtime (non-fatal):', err);
+        }
 
         channelRef.current = channel;
 

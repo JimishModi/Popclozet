@@ -108,54 +108,60 @@ export function DeliveryTracker({ orderId, className, onOrderLoad, onTrackingUpd
         });
 
         // Set up realtime subscription for both tracking and order status
-        const channel = supabase
-            .channel(channelNameRef.current)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'delivery_tracking',
-                    filter: `order_id=eq.${orderId}`,
-                },
-                async (payload) => {
-                    const data = payload.new as TrackingRecord;
-                    if (data.is_active) {
-                        setTracking({
-                            current_lat: data.current_lat,
-                            current_lng: data.current_lng,
-                            driver_name: data.driver_name || undefined,
-                            vehicle_number: data.vehicle_number || undefined,
-                            rider_phone: data.rider_phone || undefined,
-                            eta_minutes: data.eta_minutes || undefined,
-                        });
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `id=eq.${orderId}`,
-                },
-                async () => {
-                    // Re-fetch order so status steps update in real-time
-                    const updated = await getOrderById(orderId);
-                    if (updated) {
-                        // Fire notification on status change
-                        if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
-                            notifyOrderStatusChange(updated.user_id, orderId, updated.status).catch(console.warn);
+        try {
+            const channel = supabase
+                .channel(channelNameRef.current)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'delivery_tracking',
+                        filter: `order_id=eq.${orderId}`,
+                    },
+                    async (payload) => {
+                        const data = payload.new as TrackingRecord;
+                        if (data.is_active) {
+                            setTracking({
+                                current_lat: data.current_lat,
+                                current_lng: data.current_lng,
+                                driver_name: data.driver_name || undefined,
+                                vehicle_number: data.vehicle_number || undefined,
+                                rider_phone: data.rider_phone || undefined,
+                                eta_minutes: data.eta_minutes || undefined,
+                            });
                         }
-                        previousStatusRef.current = updated.status;
-                        setOrder(updated);
                     }
-                }
-            )
-            .subscribe();
+                )
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'orders',
+                        filter: `id=eq.${orderId}`,
+                    },
+                    async () => {
+                        // Re-fetch order so status steps update in real-time
+                        const updated = await getOrderById(orderId);
+                        if (updated) {
+                            // Fire notification on status change
+                            if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
+                                notifyOrderStatusChange(updated.user_id, orderId, updated.status).catch(console.warn);
+                            }
+                            previousStatusRef.current = updated.status;
+                            setOrder(updated);
+                        }
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[DeliveryTracker] Realtime subscription error (non-fatal):', err);
+                });
 
-        channelRef.current = channel;
+            channelRef.current = channel;
+        } catch (err) {
+            console.warn('[DeliveryTracker] Failed to subscribe to realtime (non-fatal):', err);
+        }
 
         return () => {
             if (channelRef.current) {

@@ -32,7 +32,26 @@ function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
-function jsonResponse(body: Record<string, unknown>, status: number, req: Request) {
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+  };
+}
+
+function jsonResponse(body: Record<string, unknown>, status: number, req: Request, log?: ReturnType<typeof makeLogger>) {
+  if (log) log.done(status);
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
@@ -40,20 +59,23 @@ function jsonResponse(body: Record<string, unknown>, status: number, req: Reques
 }
 
 Deno.serve(async (req: Request) => {
+  const log = makeLogger('create-razorpay-order');
+  log.info('request started');
+
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders(req) });
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405, req);
+    return jsonResponse({ error: 'Method not allowed' }, 405, req, log);
   }
 
   try {
     // ── Authenticate the caller ────────────────────────────
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return jsonResponse({ error: 'Missing authorization header' }, 401, req);
+      return jsonResponse({ error: 'Missing authorization header' }, 401, req, log);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -67,13 +89,13 @@ Deno.serve(async (req: Request) => {
 
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401, req);
+      return jsonResponse({ error: 'Unauthorized' }, 401, req, log);
     }
 
     const { receipt, notes } = await req.json();
 
     if (!receipt) {
-      return jsonResponse({ error: 'Missing receipt (order ID)' }, 400, req);
+      return jsonResponse({ error: 'Missing receipt (order ID)' }, 400, req, log);
     }
 
     // ── Validate order ownership & amount ──────────────────
@@ -89,19 +111,19 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderErr || !order) {
-      console.error('[create-razorpay-order] Order not found:', receipt);
-      return jsonResponse({ error: 'Order not found' }, 404, req);
+      log.error('Order not found', { receipt });
+      return jsonResponse({ error: 'Order not found' }, 404, req, log);
     }
 
     // Verify the caller owns this order
     if (order.user_id !== user.id) {
-      console.error('[create-razorpay-order] User mismatch:', { caller: user.id, owner: order.user_id });
-      return jsonResponse({ error: 'Forbidden' }, 403, req);
+      log.error('User mismatch', { caller: user.id, owner: order.user_id });
+      return jsonResponse({ error: 'Forbidden' }, 403, req, log);
     }
 
     // Verify the order is in a payable state
     if (!['pending', 'pending_payment'].includes(order.status)) {
-      return jsonResponse({ error: `Order is in state '${order.status}' and cannot be paid` }, 409, req);
+      return jsonResponse({ error: `Order is in state '${order.status}' and cannot be paid` }, 409, req, log);
     }
 
     // ── Use DB total_amount as the ONLY source of truth for the charge ──
@@ -109,7 +131,7 @@ Deno.serve(async (req: Request) => {
     // The amount saved by place_order RPC is authoritative.
     const expectedPaise = Math.round(order.total_amount * 100);
     if (expectedPaise < 100) {
-      return jsonResponse({ error: 'Order total is too low to charge' }, 400, req);
+      return jsonResponse({ error: 'Order total is too low to charge' }, 400, req, log);
     }
 
     // Idempotent: if a Razorpay order was already created, return it
@@ -120,7 +142,7 @@ Deno.serve(async (req: Request) => {
         amount: expectedPaise,
         currency: 'INR',
         key_id: keyId,
-      }, 200, req);
+      }, 200, req, log);
     }
 
     // ── Create Razorpay order ──────────────────────────────
@@ -128,8 +150,8 @@ Deno.serve(async (req: Request) => {
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
 
     if (!keyId || !keySecret) {
-      console.error('[create-razorpay-order] Razorpay credentials not configured');
-      return jsonResponse({ error: 'Payment service not configured' }, 500, req);
+      log.error('Razorpay credentials not configured');
+      return jsonResponse({ error: 'Payment service not configured' }, 500, req, log);
     }
 
     const credentials = btoa(`${keyId}:${keySecret}`);
@@ -150,8 +172,8 @@ Deno.serve(async (req: Request) => {
 
     if (!razorpayRes.ok) {
       const errText = await razorpayRes.text();
-      console.error('[create-razorpay-order] Razorpay API error:', errText);
-      return jsonResponse({ error: 'Failed to create payment order' }, 502, req);
+      log.error('Razorpay API error', { errText });
+      return jsonResponse({ error: 'Failed to create payment order' }, 502, req, log);
     }
 
     const rzpOrder = await razorpayRes.json();
@@ -166,21 +188,21 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id);
 
     if (updateErr) {
-      console.error('[create-razorpay-order] Failed to store razorpay_order_id:', updateErr);
+      log.error('Failed to store razorpay_order_id', { error: updateErr });
       // Non-fatal: payment can still proceed, verification will use Razorpay API fallback
     }
 
-    console.log('[create-razorpay-order] Order created:', rzpOrder.id, 'for user:', user.id);
+    log.info('Order created', { rzpOrderId: rzpOrder.id, userId: user.id });
 
     return jsonResponse({
       id: rzpOrder.id,
       amount: rzpOrder.amount,
       currency: rzpOrder.currency,
       key_id: keyId,
-    }, 200, req);
+    }, 200, req, log);
 
-  } catch (err) {
-    console.error('[create-razorpay-order] Unexpected error:', err);
-    return jsonResponse({ error: 'Internal server error' }, 500, req);
+  } catch (err: any) {
+    log.error('Unexpected error', { error: String(err) });
+    return jsonResponse({ error: 'Internal server error' }, 500, req, log);
   }
 });

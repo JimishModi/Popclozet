@@ -10,7 +10,26 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+  };
+}
+
+function jsonResponse(body: Record<string, unknown>, status = 200, log?: ReturnType<typeof makeLogger>) {
+  if (log) log.done(status);
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -18,12 +37,19 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 }
 
 Deno.serve(async (req: Request) => {
+  const log = makeLogger('link-email');
+  log.info('request started');
+
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405, log);
+  }
 
   // ── 1. Authenticate the caller via their JWT ──────────────────────────────
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return jsonResponse({ error: 'Missing Authorization header' }, 401);
+  if (!authHeader) {
+    return jsonResponse({ error: 'Missing Authorization header' }, 401, log);
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -35,11 +61,17 @@ Deno.serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: { user }, error: userError } = await userClient.auth.getUser();
-  if (userError || !user) return jsonResponse({ error: 'Invalid or expired token' }, 401);
+  if (userError || !user) {
+    log.error('Invalid or expired token', { error: userError });
+    return jsonResponse({ error: 'Invalid or expired token' }, 401, log);
+  }
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────
   const { email } = await req.json();
-  if (!email || !email.includes('@')) return jsonResponse({ error: 'Valid email is required' }, 400);
+  if (!email || !email.includes('@')) {
+    log.error('Valid email is required');
+    return jsonResponse({ error: 'Valid email is required' }, 400, log);
+  }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -52,8 +84,8 @@ Deno.serve(async (req: Request) => {
   const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
 
   if (listErr) {
-    console.error('[link-email] listUsers failed:', listErr);
-    return jsonResponse({ error: 'Failed to check existing users' }, 500);
+    log.error('listUsers failed', { error: listErr });
+    return jsonResponse({ error: 'Failed to check existing users' }, 500, log);
   }
 
   const conflictUser = users?.find(u => u.email === email && u.id !== user.id);
@@ -68,18 +100,18 @@ Deno.serve(async (req: Request) => {
 
     if (conflictProfile) {
       // Real account with a profile — cannot reassign this email
-      console.warn('[link-email] Email belongs to a real account:', conflictUser.id);
-      return jsonResponse({ error: 'This email is already linked to another account.' }, 409);
+      log.warn('Email belongs to a real account', { conflictUserId: conflictUser.id });
+      return jsonResponse({ error: 'This email is already linked to another account.' }, 409, log);
     }
 
     // Ghost user (no profile) — safe to delete
-    console.log('[link-email] Deleting ghost user:', conflictUser.id, 'for email:', email);
+    log.info('Deleting ghost user', { conflictUserId: conflictUser.id, email });
     const { error: deleteErr } = await adminClient.auth.admin.deleteUser(conflictUser.id);
     if (deleteErr) {
-      console.error('[link-email] Failed to delete ghost user:', deleteErr);
-      return jsonResponse({ error: 'Failed to clean up existing account. Please contact support.' }, 500);
+      log.error('Failed to delete ghost user', { error: deleteErr });
+      return jsonResponse({ error: 'Failed to clean up existing account. Please contact support.' }, 500, log);
     }
-    console.log('[link-email] Ghost user deleted successfully');
+    log.info('Ghost user deleted successfully');
   }
 
   // ── 4. Update auth.users with the real email ──────────────────────────────
@@ -89,8 +121,8 @@ Deno.serve(async (req: Request) => {
   });
 
   if (updateError) {
-    console.error('[link-email] updateUserById failed:', updateError);
-    return jsonResponse({ error: updateError.message }, 400);
+    log.error('updateUserById failed', { error: updateError });
+    return jsonResponse({ error: updateError.message }, 400, log);
   }
 
   // ── 5. Sync customer_profiles ─────────────────────────────────────────────
@@ -99,6 +131,6 @@ Deno.serve(async (req: Request) => {
     .update({ email, email_verified: false })
     .eq('user_id', user.id);
 
-  console.log(`[link-email] Successfully linked ${email} to user ${user.id}`);
-  return jsonResponse({ success: true });
+  log.info(`Successfully linked ${email} to user ${user.id}`);
+  return jsonResponse({ success: true }, 200, log);
 });

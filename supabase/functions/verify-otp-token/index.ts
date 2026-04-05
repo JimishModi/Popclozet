@@ -10,7 +10,26 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-function jsonResponse(body: Record<string, unknown>, status: number) {
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+  };
+}
+
+function jsonResponse(body: Record<string, unknown>, status: number, log?: ReturnType<typeof makeLogger>) {
+    if (log) log.done(status);
     return new Response(JSON.stringify(body), {
         status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -18,25 +37,28 @@ function jsonResponse(body: Record<string, unknown>, status: number) {
 }
 
 Deno.serve(async (req: Request) => {
+    const log = makeLogger('verify-otp-token');
+    log.info('request started');
+
     if (req.method === 'OPTIONS') {
         return new Response(null, { status: 204, headers: corsHeaders });
     }
     if (req.method !== 'POST') {
-        return jsonResponse({ error: 'Method not allowed' }, 405);
+        return jsonResponse({ error: 'Method not allowed' }, 405, log);
     }
 
     try {
         // ── 1. Parse body ────────────────────────────────────────────────────
         const { accessToken, mobile } = await req.json();
         if (!accessToken || !mobile) {
-            return jsonResponse({ error: 'accessToken and mobile are required' }, 400);
+            return jsonResponse({ error: 'accessToken and mobile are required' }, 400, log);
         }
 
         // ── 2. Verify MSG91 token ────────────────────────────────────────────
         const msg91AuthKey = Deno.env.get('MSG91_AUTH_KEY');
         if (!msg91AuthKey) {
-            console.error('[verify-otp-token] MSG91_AUTH_KEY not set');
-            return jsonResponse({ error: 'Server configuration error' }, 500);
+            log.error('MSG91_AUTH_KEY not set');
+            return jsonResponse({ error: 'Server configuration error' }, 500, log);
         }
 
         const msg91Res = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
@@ -46,10 +68,10 @@ Deno.serve(async (req: Request) => {
         });
 
         const msg91Data = await msg91Res.json();
-        console.log('[verify-otp-token] MSG91 response:', JSON.stringify(msg91Data));
+        log.info('MSG91 response', { response: msg91Data });
 
         if (msg91Data.type !== 'success') {
-            return jsonResponse({ error: 'OTP verification failed', details: msg91Data.message }, 401);
+            return jsonResponse({ error: 'OTP verification failed', details: msg91Data.message }, 401, log);
         }
 
         // ── 3. Supabase admin client ─────────────────────────────────────────
@@ -65,10 +87,10 @@ Deno.serve(async (req: Request) => {
         const phoneE164 = `+${digitsWithCountry}`;   // e.g. +917000000000
         const phoneRaw = digitsWithCountry;          // e.g. 917000000000
 
-        console.log(`[verify-otp-token] Looking up phone: ${phoneE164} or ${phoneRaw}`);
+        log.info(`Looking up phone`, { phoneE164, phoneRaw });
 
         // ── 5. Look up ONLY in customer_profiles — both phone formats ─────────
-        console.log('[verify-otp-token] CP 1: Looking up in customer_profiles');
+        log.info('CP 1: Looking up in customer_profiles');
         let userId: string | undefined;
 
         const { data: profileRows } = await adminClient
@@ -79,16 +101,16 @@ Deno.serve(async (req: Request) => {
 
         if (profileRows && profileRows.length > 0) {
             userId = profileRows[0].user_id;
-            console.log('[verify-otp-token] Found existing user in customer_profiles:', userId);
+            log.info('Found existing user in customer_profiles', { userId });
         }        // ── 5.5 Look up in auth.users via admin API if not found in profiles ──
         if (!userId) {
-            console.log('[verify-otp-token] CP 2: Looking up in auth.users via Admin API');
+            log.info('CP 2: Looking up in auth.users via Admin API');
             
             // We list users to find matching phone. Safe for small to medium scale.
             const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers();
             
             if (listErr) {
-                console.warn('[verify-otp-token] listUsers warning:', JSON.stringify(listErr));
+                log.warn('listUsers warning', { error: listErr });
             } else {
                 const existingUser = users?.find(u => 
                     u.phone === phoneE164 || u.phone === phoneRaw
@@ -96,15 +118,15 @@ Deno.serve(async (req: Request) => {
                 
                 if (existingUser) {
                     userId = existingUser.id;
-                    console.log('[verify-otp-token] Found existing user in auth.users:', userId);
+                    log.info('Found existing user in auth.users', { userId });
                 }
             }
         }
 
         // ── 6. Create new user if not found ──────────────────────────────────
         if (!userId) {
-            console.log('[verify-otp-token] CP 3: Creating new user');
-            console.log('[verify-otp-token] New user — creating auth.users entry for:', phoneE164);
+            log.info('CP 3: Creating new user');
+            log.info('New user — creating auth.users entry', { phoneE164 });
 
             const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
                 phone: phoneE164,
@@ -112,27 +134,27 @@ Deno.serve(async (req: Request) => {
             });
 
             if (createErr || !newUser?.user) {
-                console.error('[verify-otp-token] createUser failed:', JSON.stringify(createErr));
+                log.error('createUser failed', { error: createErr });
                 return jsonResponse({
                     error: 'Failed to create user account',
                     details: createErr?.message
-                }, 500);
+                }, 500, log);
             }
 
             userId = newUser.user.id;
-            console.log('[verify-otp-token] Created new user:', userId);
+            log.info('Created new user', { userId });
         } else {
             // Confirm phone for existing user
-            console.log('[verify-otp-token] CP 4: Updating existing user phone_confirm');
+            log.info('CP 4: Updating existing user phone_confirm');
             await adminClient.auth.admin.updateUserById(userId, {
                 phone: phoneE164,
                 phone_confirm: true,
             });
-            console.log('[verify-otp-token] Confirmed phone for existing user:', userId);
+            log.info('Confirmed phone for existing user', { userId });
         }
 
         // ── 7. Generate session via magic link ───────────────────────────────
-        console.log('[verify-otp-token] CP 5: Generating magic link session');
+        log.info('CP 5: Generating magic link session');
 
         // Check if user already has a "real" email
         const { data: { user: currentUser }, error: getErr } = await adminClient.auth.admin.getUserById(userId);
@@ -141,48 +163,48 @@ Deno.serve(async (req: Request) => {
         const loginEmail = hasRealEmail ? currentUser.email : `${digitsWithCountry}@phone.popclozet.com`;
 
         if (!hasRealEmail) {
-            console.log('[verify-otp-token] CP 6: Updating user with temp email:', loginEmail);
+            log.info('CP 6: Updating user with temp email', { loginEmail });
             const { error: updateEmailErr } = await adminClient.auth.admin.updateUserById(userId, {
                 email: loginEmail,
                 email_confirm: true,
             });
             if (updateEmailErr) {
-                console.error('[verify-otp-token] updateEmailErr failed:', JSON.stringify(updateEmailErr));
+                log.error('updateEmailErr failed', { error: updateEmailErr });
             }
         } else {
-            console.log('[verify-otp-token] CP 6: Using existing real email:', loginEmail);
+            log.info('CP 6: Using existing real email', { loginEmail });
         }
 
-        console.log('[verify-otp-token] CP 7: Calling generateLink for:', loginEmail);
+        log.info('CP 7: Calling generateLink for', { loginEmail });
         const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
             type: 'magiclink',
             email: loginEmail,
         });
 
         if (linkErr || !linkData) {
-            console.error('[verify-otp-token] generateLink failed:', JSON.stringify(linkErr));
+            log.error('generateLink failed', { error: linkErr });
             return jsonResponse({
                 success: true, userId, phone: phoneE164,
                 message: 'Phone verified but session generation failed.',
-            }, 200);
+            }, 200, log);
         }
 
-        console.log('[verify-otp-token] CP 8: Calling verifyOtp');
+        log.info('CP 8: Calling verifyOtp');
         const { data: sessionData, error: verifyErr } = await adminClient.auth.verifyOtp({
             token_hash: linkData.properties?.hashed_token,
             type: 'magiclink',
         });
 
         if (verifyErr || !sessionData?.session) {
-            console.error('[verify-otp-token] verifyOtp failed:', JSON.stringify(verifyErr));
+            log.error('verifyOtp failed', { error: verifyErr });
             return jsonResponse({
                 success: true, userId, phone: phoneE164,
                 message: 'Phone verified but session creation failed.',
-            }, 200);
+            }, 200, log);
         }
 
         // ── 8. Return session ────────────────────────────────────────────────
-        console.log('[verify-otp-token] CP 9: Success');
+        log.info('CP 9: Success');
         return jsonResponse({
             success: true,
             session: {
@@ -195,10 +217,10 @@ Deno.serve(async (req: Request) => {
                 id: sessionData.session.user.id,
                 phone: sessionData.session.user.phone,
             },
-        }, 200);
+        }, 200, log);
 
-    } catch (err) {
-        console.error('[verify-otp-token] CP X: Unexpected error:', err);
-        return jsonResponse({ error: 'Internal server error', details: String(err) }, 500);
+    } catch (err: any) {
+        log.error('CP X: Unexpected error', { error: String(err) });
+        return jsonResponse({ error: 'Internal server error', details: String(err) }, 500, log);
     }
 });

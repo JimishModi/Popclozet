@@ -15,11 +15,42 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+function makeLogger(fn: string) {
+  const rid = crypto.randomUUID().slice(0, 8);
+  const t0 = performance.now();
+  const meta = (extra?: Record<string, unknown>) =>
+    JSON.stringify({ fn, rid, ...extra });
+  return {
+    rid,
+    info: (msg: string, extra?: Record<string, unknown>) =>
+      console.log(meta({ level: "info", msg, ...extra })),
+    warn: (msg: string, extra?: Record<string, unknown>) =>
+      console.warn(meta({ level: "warn", msg, ...extra })),
+    error: (msg: string, extra?: Record<string, unknown>) =>
+      console.error(meta({ level: "error", msg, ...extra })),
+    done: (status: number) =>
+      console.log(
+        meta({
+          level: "info",
+          msg: "complete",
+          status,
+          ms: Math.round(performance.now() - t0),
+        }),
+      ),
+  };
+}
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+  log?: ReturnType<typeof makeLogger>,
+) {
+  if (log) log.done(status);
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -52,13 +83,19 @@ function concat(...arrays: Uint8Array[]): Uint8Array {
   const total = arrays.reduce((n, a) => n + a.length, 0);
   const out = new Uint8Array(total);
   let off = 0;
-  for (const a of arrays) { out.set(a, off); off += a.length; }
+  for (const a of arrays) {
+    out.set(a, off);
+    off += a.length;
+  }
   return out;
 }
 
 function lenBuf(n: number, bytes: number): Uint8Array {
   const b = new Uint8Array(bytes);
-  for (let i = bytes - 1; i >= 0; i--) { b[i] = n & 0xff; n >>= 8; }
+  for (let i = bytes - 1; i >= 0; i--) {
+    b[i] = n & 0xff;
+    n >>= 8;
+  }
   return b;
 }
 
@@ -70,7 +107,9 @@ function lenBuf(n: number, bytes: number): Uint8Array {
 
 function buildPkcs8(privKeyBytes: Uint8Array): Uint8Array {
   if (privKeyBytes.length !== 32) {
-    throw new Error(`Invalid P-256 private key: expected 32 bytes, got ${privKeyBytes.length}`);
+    throw new Error(
+      `Invalid P-256 private key: expected 32 bytes, got ${privKeyBytes.length}`,
+    );
   }
   // Fixed 34-byte header:
   //   30 41 - SEQUENCE (65 bytes)
@@ -84,11 +123,9 @@ function buildPkcs8(privKeyBytes: Uint8Array): Uint8Array {
   //         04 20 - OCTET STRING (32 bytes)
   //           <32 bytes of key>
   const header = new Uint8Array([
-    0x30, 0x41, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06,
-    0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
-    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03,
-    0x01, 0x07, 0x04, 0x27, 0x30, 0x25, 0x02, 0x01,
-    0x01, 0x04, 0x20,
+    0x30, 0x41, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48,
+    0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03,
+    0x01, 0x07, 0x04, 0x27, 0x30, 0x25, 0x02, 0x01, 0x01, 0x04, 0x20,
   ]);
   return concat(header, privKeyBytes);
 }
@@ -101,6 +138,7 @@ function buildPkcs8(privKeyBytes: Uint8Array): Uint8Array {
 async function normalizeVapidKeys(
   pubKeyRaw: string,
   privKeyRaw: string,
+  log?: ReturnType<typeof makeLogger>,
 ): Promise<{ pub: string; privBytes: Uint8Array }> {
   let privKeyBytes: Uint8Array;
   let pubKeyB64: string;
@@ -123,7 +161,7 @@ async function normalizeVapidKeys(
     );
 
     // Export JWK to recover x, y coordinates
-    const jwk = await crypto.subtle.exportKey("jwk", ecdsaKey) as any;
+    const jwk = (await crypto.subtle.exportKey("jwk", ecdsaKey)) as any;
     const xBytes = base64urlToUint8Array(jwk.x);
     const yBytes = base64urlToUint8Array(jwk.y);
 
@@ -132,7 +170,16 @@ async function normalizeVapidKeys(
       concat(new Uint8Array([0x04]), xBytes, yBytes),
     );
 
-    console.log("[Push] Hex VAPID keys normalised. Derived public key:", pubKeyB64.slice(0, 20) + "...");
+    if (log) {
+      log.info("Hex VAPID keys normalised", {
+        pubKey: pubKeyB64.slice(0, 20) + "...",
+      });
+    } else {
+      console.log(
+        "[Push] Hex VAPID keys normalised. Derived public key:",
+        pubKeyB64.slice(0, 20) + "...",
+      );
+    }
   } else {
     // ── base64url private key ──
     privKeyBytes = base64urlToUint8Array(privKeyRaw.trim());
@@ -173,14 +220,14 @@ async function buildVapidAuthHeader(
   const x = uint8ArrayToBase64url(pubBytes.slice(1, 33));
   const y = uint8ArrayToBase64url(pubBytes.slice(33, 65));
   const d = uint8ArrayToBase64url(vapidPrivKeyBytes);
-  
+
   const jwk = {
     kty: "EC",
     crv: "P-256",
     x,
     y,
     d,
-    ext: true
+    ext: true,
   };
 
   const signingKey = await crypto.subtle.importKey(
@@ -339,6 +386,7 @@ async function sendWebPush(
   vapidPublicKey: string,
   vapidPrivKeyBytes: Uint8Array,
   vapidSubject: string,
+  log?: ReturnType<typeof makeLogger>,
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
     let authHeader;
@@ -350,7 +398,10 @@ async function sendWebPush(
         vapidSubject,
       );
     } catch (e) {
-      throw new Error("buildVapidAuthHeader failed! Maybe VAPID_PRIVATE_KEY is bad? Error: " + e.message);
+      throw new Error(
+        "buildVapidAuthHeader failed! Maybe VAPID_PRIVATE_KEY is bad? Error: " +
+          e.message,
+      );
     }
 
     let encryptedObj;
@@ -361,7 +412,10 @@ async function sendWebPush(
         payload,
       );
     } catch (e) {
-      throw new Error("encryptWebPushPayload failed! Maybe p256dh is bad? Error: " + e.message);
+      throw new Error(
+        "encryptWebPushPayload failed! Maybe p256dh is bad? Error: " +
+          e.message,
+      );
     }
     const { encrypted } = encryptedObj;
 
@@ -391,34 +445,47 @@ async function sendWebPush(
 // ── Main handler ─────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  const log = makeLogger("send-push-notification");
+  log.info("request started");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    log.error("Method not allowed", { method: req.method });
+    return jsonResponse({ error: "Method not allowed" }, 405, log);
   }
 
   // ── Read VAPID secrets ──
   const VAPID_PUBLIC_KEY_ENV = Deno.env.get("VAPID_PUBLIC_KEY");
   const VAPID_PRIVATE_KEY_ENV = Deno.env.get("VAPID_PRIVATE_KEY");
-  const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.com";
+  const VAPID_SUBJECT =
+    Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.com";
 
   if (!VAPID_PUBLIC_KEY_ENV || !VAPID_PRIVATE_KEY_ENV) {
-    console.error("[Push] VAPID secrets not configured");
-    return jsonResponse({ error: "Push notifications not configured on server" }, 500);
+    log.error("VAPID secrets not configured");
+    return jsonResponse(
+      { error: "Push notifications not configured on server" },
+      500,
+      log,
+    );
   }
 
   // ── Normalise keys (handles hex OR base64url format) ──
   let vapidPub: string;
   let vapidPrivBytes: Uint8Array;
   try {
-    const normalised = await normalizeVapidKeys(VAPID_PUBLIC_KEY_ENV, VAPID_PRIVATE_KEY_ENV);
+    const normalised = await normalizeVapidKeys(
+      VAPID_PUBLIC_KEY_ENV,
+      VAPID_PRIVATE_KEY_ENV,
+      log,
+    );
     vapidPub = normalised.pub;
     vapidPrivBytes = normalised.privBytes;
-  } catch (err) {
-    console.error("[Push] Failed to normalise VAPID keys:", err);
-    return jsonResponse({ error: "Invalid VAPID key configuration" }, 500);
+  } catch (err: any) {
+    log.error("Failed to normalise VAPID keys", { error: String(err) });
+    return jsonResponse({ error: "Invalid VAPID key configuration" }, 500, log);
   }
 
   const PUSH_INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET");
@@ -426,23 +493,22 @@ Deno.serve(async (req: Request) => {
   // ── Auth ──
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
-    return jsonResponse({ error: "Missing Authorization header" }, 401);
+    log.error("Missing Authorization header");
+    return jsonResponse({ error: "Missing Authorization header" }, 401, log);
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("[Push] Supabase credentials not configured");
-    return jsonResponse({ error: "Server configuration error" }, 500);
+    log.error("Supabase credentials not configured");
+    return jsonResponse({ error: "Server configuration error" }, 500, log);
   }
 
-  const supabase = createClient(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-  );
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   const token = authHeader.replace("Bearer ", "");
-  const isInternalCall = req.headers.get("x-internal-call") === "true" &&
+  const isInternalCall =
+    req.headers.get("x-internal-call") === "true" &&
     PUSH_INTERNAL_SECRET &&
     token === PUSH_INTERNAL_SECRET;
 
@@ -462,30 +528,58 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
+    log.error("Invalid JSON body");
+    return jsonResponse({ error: "Invalid JSON body" }, 400, log);
   }
 
   if (isInternalCall) {
     if (!body.user_id) {
-      return jsonResponse({ error: "Missing user_id for internal call" }, 400);
+      log.error("Missing user_id for internal call");
+      return jsonResponse(
+        { error: "Missing user_id for internal call" },
+        400,
+        log,
+      );
     }
     targetUserId = body.user_id;
-    console.log(`[Push] Internal call for user ${targetUserId}, status: ${body.status}`);
+    log.info(`Internal call`, { targetUserId, status: body.status });
   } else {
-    const { data: { user: callerUser }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user: callerUser },
+      error: authError,
+    } = await supabase.auth.getUser(token);
     if (authError || !callerUser) {
-      console.error("[Push] JWT verification failed:", authError?.message);
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      log.error("JWT verification failed", { error: authError?.message });
+      return jsonResponse({ error: "Unauthorized" }, 401, log);
     }
     targetUserId = body.user_id || callerUser.id;
   }
 
   // ── Build title/body from status if internal call ──
-  const STATUS_MESSAGES: Record<string, { title: string; body: string; type: string }> = {
-    confirmed: { title: "✅ Order Confirmed!", body: "Your order has been confirmed and is being prepared.", type: "order_update" },
-    ready_for_pickup: { title: "🚗 Driver Assigned!", body: "A driver has been assigned and is heading to pick up your order.", type: "order_update" },
-    out_for_delivery: { title: "🛵 Out for Delivery!", body: "Your order is out for delivery and heading your way.", type: "order_update" },
-    return_scheduled: { title: "📅 Return Pickup Scheduled", body: "Your return pickup has been scheduled.", type: "order_update" },
+  const STATUS_MESSAGES: Record<
+    string,
+    { title: string; body: string; type: string }
+  > = {
+    confirmed: {
+      title: "✅ Order Confirmed!",
+      body: "Your order has been confirmed and is being prepared.",
+      type: "order_update",
+    },
+    ready_for_pickup: {
+      title: "🚗 Driver Assigned!",
+      body: "A driver has been assigned and is heading to pick up your order.",
+      type: "order_update",
+    },
+    out_for_delivery: {
+      title: "🛵 Out for Delivery!",
+      body: "Your order is out for delivery and heading your way.",
+      type: "order_update",
+    },
+    return_scheduled: {
+      title: "📅 Return Pickup Scheduled",
+      body: "Your return pickup has been scheduled.",
+      type: "order_update",
+    },
   };
 
   let title: string;
@@ -507,7 +601,12 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!title || !notifBody) {
-    return jsonResponse({ error: "Missing required fields: title, body" }, 400);
+    log.warn("Missing required fields", { title, notifBody });
+    return jsonResponse(
+      { error: "Missing required fields: title, body" },
+      400,
+      log,
+    );
   }
 
   const order_id = body.order_id;
@@ -519,13 +618,17 @@ Deno.serve(async (req: Request) => {
     .eq("user_id", targetUserId);
 
   if (fetchError) {
-    console.error("[Push] Failed to fetch subscriptions:", fetchError);
-    return jsonResponse({ error: "Failed to fetch subscriptions" }, 500);
+    log.error("Failed to fetch subscriptions", { error: String(fetchError) });
+    return jsonResponse({ error: "Failed to fetch subscriptions" }, 500, log);
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    console.log(`[Push] No subscriptions for user ${targetUserId}`);
-    return jsonResponse({ sent: 0, message: "No active subscriptions for this user" });
+    log.info(`No subscriptions for user`, { targetUserId });
+    return jsonResponse(
+      { sent: 0, message: "No active subscriptions for this user" },
+      200,
+      log,
+    );
   }
 
   // ── Build notification payload ──
@@ -545,7 +648,14 @@ Deno.serve(async (req: Request) => {
   // ── Send to all subscriptions ──
   const results = await Promise.allSettled(
     subscriptions.map((sub) =>
-      sendWebPush(sub, notificationPayload, vapidPub, vapidPrivBytes, VAPID_SUBJECT)
+      sendWebPush(
+        sub,
+        notificationPayload,
+        vapidPub,
+        vapidPrivBytes,
+        VAPID_SUBJECT,
+        log,
+      ),
     ),
   );
 
@@ -558,19 +668,27 @@ Deno.serve(async (req: Request) => {
       if (r.ok) {
         sent++;
       } else {
-        console.warn(`[Push] Failed for endpoint index ${i}: ${r.status} ${r.error}`);
+        log.warn(`Failed for endpoint`, {
+          index: i,
+          reqStatus: r.status,
+          reqError: r.error,
+        });
         if (r.status === 410) {
           staleEndpoints.push(subscriptions[i].endpoint);
         }
       }
     } else {
-      console.error(`[Push] Promise rejected for index ${i}:`, result.reason);
+      log.error(`Promise rejected for index ${i}`, {
+        reason: String(result.reason),
+      });
     }
   });
 
   // ── Clean up expired subscriptions ──
   if (staleEndpoints.length > 0) {
-    console.log(`[Push] Removing ${staleEndpoints.length} stale subscription(s)...`);
+    log.info(`Removing stale subscription(s)`, {
+      count: staleEndpoints.length,
+    });
     await supabase
       .from("push_subscriptions")
       .delete()
@@ -578,11 +696,19 @@ Deno.serve(async (req: Request) => {
       .in("endpoint", staleEndpoints);
   }
 
-  console.log(`[Push] Sent ${sent}/${subscriptions.length} notifications to user ${targetUserId}`);
-
-  return jsonResponse({
+  log.info(`Sent notifications`, {
     sent,
     total: subscriptions.length,
-    stale_removed: staleEndpoints.length,
+    targetUserId,
   });
+
+  return jsonResponse(
+    {
+      sent,
+      total: subscriptions.length,
+      stale_removed: staleEndpoints.length,
+    },
+    200,
+    log,
+  );
 });

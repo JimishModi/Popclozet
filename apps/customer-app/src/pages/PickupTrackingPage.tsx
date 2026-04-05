@@ -115,29 +115,34 @@ export default function PickupTrackingPage() {
         fetchAll();
 
         // Realtime subscription for order changes (status + OTP field updates)
-        const channel = supabase
-            .channel(`pickup_tracking:${pickupId}`)
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'orders',
-                filter: `id=eq.${pickupId}`,
-            }, async () => {
-                const updated = await getOrderById(pickupId);
-                if (updated) {
-                    // Fire notification on status change
-                    if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
-                        notifyOrderStatusChange(updated.user_id, pickupId, updated.status!).catch(console.warn);
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(`pickup_tracking:${pickupId}`)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `id=eq.${pickupId}`,
+                }, async () => {
+                    const updated = await getOrderById(pickupId);
+                    if (updated) {
+                        // Fire notification on status change
+                        if (previousStatusRef.current && updated.status !== previousStatusRef.current) {
+                            notifyOrderStatusChange(updated.user_id, pickupId, updated.status!).catch(console.warn);
+                        }
+                        previousStatusRef.current = updated.status ?? null;
+                        setOrder(updated);
                     }
-                    previousStatusRef.current = updated.status ?? null;
-                    setOrder(updated);
-                }
-            })
-            .subscribe((status, err) => {
-                if (err) console.warn('[PickupTrackingPage] Realtime subscription error (non-fatal):', err);
-            });
+                })
+                .subscribe((status, err) => {
+                    if (err) console.warn('[PickupTrackingPage] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[PickupTrackingPage] Failed to subscribe to realtime (non-fatal):', err);
+        }
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { if (channel) supabase.removeChannel(channel); };
     }, [pickupId]);
 
     // ── Fetch rider whenever rider_id appears on order ──

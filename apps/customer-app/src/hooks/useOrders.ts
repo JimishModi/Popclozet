@@ -98,27 +98,32 @@ export function useOrders() {
         // Subscribe to real-time updates
         if (!user) return;
 
-        const channel = supabase
-            .channel(channelNameRef.current)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "orders",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                () => {
-                    // Refetch on any change
-                    fetchOrders();
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[useOrders] Realtime subscription error (non-fatal):', err);
-            });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(channelNameRef.current)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "*",
+                        schema: "public",
+                        table: "orders",
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    () => {
+                        // Refetch on any change
+                        fetchOrders();
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[useOrders] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[useOrders] Failed to subscribe to orders realtime (non-fatal):', err);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [user, fetchOrders]);
 
@@ -211,26 +216,31 @@ export function useOrder(orderId: string) {
         fetchOrder();
 
         // Subscribe to real-time updates for this specific order
-        const channel = supabase
-            .channel(channelNameRef.current)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "orders",
-                    filter: `id=eq.${orderId}`,
-                },
-                () => {
-                    fetchOrder();
-                }
-            )
-            .subscribe((status, err) => {
-                if (err) console.warn('[useOrder] Realtime subscription error (non-fatal):', err);
-            });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        try {
+            channel = supabase
+                .channel(channelNameRef.current)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "*",
+                        schema: "public",
+                        table: "orders",
+                        filter: `id=eq.${orderId}`,
+                    },
+                    () => {
+                        fetchOrder();
+                    }
+                )
+                .subscribe((status, err) => {
+                    if (err) console.warn('[useOrder] Realtime subscription error (non-fatal):', err);
+                });
+        } catch (err) {
+            console.warn('[useOrder] Failed to subscribe to order realtime (non-fatal):', err);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [orderId, fetchOrder]);
 
