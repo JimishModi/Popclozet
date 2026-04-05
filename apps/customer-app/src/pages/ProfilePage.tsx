@@ -133,16 +133,29 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
 
-    if (kycCallback === "success") {
+    if (kycCallback) {
       // Re-fetch KYC status from DB (webhook should have updated it)
       fetchKycStatus();
-      toast.success("Verification submitted! Checking status...");
+      
+      // Show appropriate toast based on result
+      if (kycCallback === "success") {
+        toast.success("Identity verified successfully! ✅");
+        // Also re-fetch after a short delay in case DB write is still propagating
+        setTimeout(fetchKycStatus, 2000);
+      } else if (kycCallback === "pending") {
+        toast.info("Verification submitted! Checking status...");
+        setTimeout(fetchKycStatus, 3000);
+      } else if (kycCallback === "rejected") {
+        toast.error("Verification was declined. Please try again.");
+      } else if (kycCallback === "error") {
+        toast.error("Something went wrong during verification. Please try again.");
+      }
 
       // Clean up URL
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete("kyc_callback");
       newParams.delete("user_id");
-      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      const newUrl = window.location.pathname + window.location.hash.split('?')[0] + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams, fetchKycStatus]);

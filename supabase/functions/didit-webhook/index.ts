@@ -45,10 +45,26 @@ Deno.serve(async (req: Request) => {
     let data: any = {}
     const url = new URL(req.url)
 
-    if (req.method === 'GET') {
-      // Didit redirects via GET with query params: ?verificationSessionId=...&status=...
+    const isBrowserRedirect = req.method === 'GET'
+    const APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://popclozet.vercel.app'
+
+    // Helper: for browser GET redirects, send user to the customer app instead of returning JSON
+    function browserRedirectOrJson(body: unknown, httpStatus: number, kycResult: string = 'success') {
+      if (isBrowserRedirect) {
+        const redirectUrl = `${APP_ORIGIN}/#/profile?kyc_callback=${kycResult}`
+        log.info(`Redirecting browser to ${redirectUrl}`)
+        return new Response(null, {
+          status: 302,
+          headers: { ...corsHeaders, 'Location': redirectUrl },
+        })
+      }
+      return jsonResponse(body, httpStatus)
+    }
+
+    if (isBrowserRedirect) {
+      // Didit redirects browser via GET with query params: ?verificationSessionId=...&status=...
       data = Object.fromEntries(url.searchParams.entries())
-      log.info('Webhook GET params', { params: data })
+      log.info('Webhook GET (browser redirect) params', { params: data })
     } else {
       data = await req.json().catch(() => ({}))
       log.info('Webhook POST Payload', { payload: data })
@@ -78,7 +94,8 @@ Deno.serve(async (req: Request) => {
     if (!userId) {
       log.warn('Webhook missing user identification (vendor_data/user_id)')
       log.done(200);
-      return jsonResponse({ error: 'Missing user identification' }, 200) // Always 200 to Didit to prevent retries of invalid data
+      // If browser redirect, still send user to app (they can refresh KYC from profile)
+      return browserRedirectOrJson({ error: 'Missing user identification' }, 200, 'pending')
     }
 
     const supabase = createClient(
@@ -98,12 +115,12 @@ Deno.serve(async (req: Request) => {
       if (error) {
         log.error(`DB Update failed for user ${userId}`, { error })
         log.done(500);
-        return jsonResponse({ error: 'Database update failed' }, 500)
+        return browserRedirectOrJson({ error: 'Database update failed' }, 500, 'error')
       }
 
       log.info(`User ${userId} marked as kyc_verified=true`)
       log.done(200);
-      return jsonResponse({ success: true, user_id: userId }, 200)
+      return browserRedirectOrJson({ success: true, user_id: userId }, 200, 'success')
     }
 
     // Handle MANUAL REVIEW (v3: "In Review")
@@ -129,7 +146,7 @@ Deno.serve(async (req: Request) => {
       }
       
       log.done(200);
-      return jsonResponse({ status, user_id: userId }, 200)
+      return browserRedirectOrJson({ status, user_id: userId }, 200, 'pending')
     }
 
     // Handle REJECTION (v3: "Declined")
@@ -146,12 +163,12 @@ Deno.serve(async (req: Request) => {
       }
       
       log.done(200);
-      return jsonResponse({ message: 'Rejection processed' }, 200)
+      return browserRedirectOrJson({ message: 'Rejection processed' }, 200, 'rejected')
     }
 
     log.info(`Unhandled webhook status: ${status}`)
     log.done(200);
-    return jsonResponse({ message: 'Unhandled status', status }, 200)
+    return browserRedirectOrJson({ message: 'Unhandled status', status }, 200, 'pending')
 
   } catch (error: any) {
     log.error(`Webhook handler error`, { error })
