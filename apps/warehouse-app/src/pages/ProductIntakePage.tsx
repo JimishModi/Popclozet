@@ -125,6 +125,7 @@ export function ProductIntakePage() {
     const [rentalPrice3d, setRentalPrice3d] = useState('');
     const [buyPrice, setBuyPrice] = useState('');
     const [mrp, setMrp] = useState('');
+    const [actualCost, setActualCost] = useState('');
     const [description, setDescription] = useState('');
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [previews, setPreviews] = useState<{ id: string; url: string; uploading: boolean }[]>([]);
@@ -308,7 +309,8 @@ export function ProductIntakePage() {
                                 inventory_id: inv.id,
                                 status: 'available',
                                 available: true,
-                                mrp_price: parseFloat(mrp) || null
+                                mrp_price: parseFloat(mrp) || null,
+                                actual_cost: parseFloat(actualCost) || null
                             });
 
                         if (unitError) throw unitError;
@@ -452,6 +454,7 @@ export function ProductIntakePage() {
         setRentalPrice3d('');
         setBuyPrice('');
         setMrp('');
+        setActualCost('');
         setDescription('');
         setImageUrls([]);
         setPreviews([]);
@@ -732,6 +735,10 @@ export function ProductIntakePage() {
                         <div>
                             <label className="text-xs text-zinc-400 mb-1 block">Market MRP (₹)</label>
                             <input type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="5000" className="input-field h-10 text-sm border-warehouse-500/20" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Actual Cost (₹)</label>
+                            <input type="number" value={actualCost} onChange={(e) => setActualCost(e.target.value)} placeholder="3000" className="input-field h-10 text-sm border-warehouse-500/20" />
                         </div>
                     </div>
 
