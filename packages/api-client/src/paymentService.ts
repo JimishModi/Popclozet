@@ -13,7 +13,7 @@
  *   - Load Razorpay script: <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
  */
 
-import { supabase } from '@popclozet/api-client';
+import { supabase } from './index';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -68,6 +68,25 @@ function getRazorpayKeyId(): string {
     return (import.meta as unknown as Record<string, Record<string, string>>).env?.VITE_RAZORPAY_KEY_ID || '';
 }
 
+function maskToken(token: string | null | undefined): string {
+    if (!token) return 'none';
+    if (token.length <= 18) return '[short-token]';
+    return `${token.slice(0, 12)}...${token.slice(-6)}`;
+}
+
+async function logInvokeSession(functionName: string): Promise<void> {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+        console.warn(`[paymentService] getSession() error before ${functionName}:`, error.message);
+    }
+
+    console.log(`[paymentService] pre-invoke ${functionName}`, {
+        hasSession: !!session,
+        userId: session?.user?.id ?? null,
+        accessToken: maskToken(session?.access_token),
+    });
+}
+
 // ─── Load Razorpay Script ────────────────────────────────────
 
 export function loadRazorpayScript(): Promise<void> {
@@ -91,6 +110,7 @@ export async function createPaymentOrder(
     idempotencyKey: string,
     customerId?: string
 ): Promise<PaymentOrder> {
+    await logInvokeSession('create-payment-order');
     const { data, error } = await supabase.functions.invoke('create-payment-order', {
         body: {
             amount: Math.round(orderTotal * 100), // Convert to paise
@@ -156,6 +176,7 @@ export async function verifyPaymentSignature(
     orderId: string,
     signature: string
 ): Promise<boolean> {
+    await logInvokeSession('verify-payment');
     const { data, error } = await supabase.functions.invoke('verify-payment', {
         body: { paymentId, orderId, signature },
     });

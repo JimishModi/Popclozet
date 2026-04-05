@@ -13,6 +13,15 @@ type StorageSnapshot = {
   authTokenKeys: string[];
 };
 
+type JwtClaims = {
+  iss?: string;
+  aud?: string | string[];
+  sub?: string;
+  role?: string;
+  exp?: number;
+  iat?: number;
+};
+
 const ACCESS_TOKEN_MASK_HEAD = 12;
 const ACCESS_TOKEN_MASK_TAIL = 6;
 const REFRESH_WINDOW_SECONDS = 60;
@@ -61,10 +70,47 @@ function sessionTTLSeconds(session: Session | null): number | null {
   return session.expires_at - Math.floor(Date.now() / 1000);
 }
 
+function parseJwtClaims(token: string | null | undefined): JwtClaims | null {
+  if (!token) return null;
+
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = atob(padded);
+    return JSON.parse(json) as JwtClaims;
+  } catch {
+    return null;
+  }
+}
+
+function projectRefFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.split(".")[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function projectRefFromIssuer(iss: string | undefined): string | null {
+  if (!iss) return null;
+  try {
+    return new URL(iss).hostname.split(".")[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function debugAuthState(tag: string, client: SupabaseClient = supabase): Promise<void> {
   const { data: { session } } = await client.auth.getSession();
   const snapshot = getStorageSnapshot();
   const ttlSeconds = sessionTTLSeconds(session);
+  const claims = parseJwtClaims(session?.access_token);
+  const configuredProjectRef = projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
+  const tokenProjectRef = projectRefFromIssuer(claims?.iss);
 
   console.info(`[auth-debug:${tag}]`, {
     hasSession: !!session,
@@ -76,6 +122,12 @@ export async function debugAuthState(tag: string, client: SupabaseClient = supab
     expectedStorageKey: snapshot.expectedKey,
     expectedStorageKeyPresent: snapshot.expectedKeyPresent,
     authTokenKeys: snapshot.authTokenKeys,
+    configuredProjectRef,
+    tokenProjectRef,
+    tokenAud: claims?.aud || null,
+    tokenSub: claims?.sub || null,
+    tokenRole: claims?.role || null,
+    tokenExp: claims?.exp || null,
   });
 }
 
@@ -99,19 +151,52 @@ async function ensureValidUserSession(client: SupabaseClient, context: string): 
     session = (await client.auth.getSession()).data.session;
   }
 
-  const { data: userData, error: userError } = await client.auth.getUser();
+  // Validate the exact token we'll send (not just "current auth state")
+  let { data: userData, error: userError } = await client.auth.getUser(session.access_token);
   if (userError || !userData?.user) {
-    console.warn(`[auth-debug:${context}] getUser failed, trying refreshSession()`, userError?.message);
+    console.warn(
+      `[auth-debug:${context}] getUser(access_token) failed, trying refreshSession()`,
+      userError?.message
+    );
     await client.auth.refreshSession();
-    const retry = await client.auth.getUser();
+    const refreshedSession = (await client.auth.getSession()).data.session;
+    if (!refreshedSession?.access_token) {
+      throw new Error("Authentication expired. Please log in again.");
+    }
+    session = refreshedSession;
+    const retry = await client.auth.getUser(session.access_token);
     if (retry.error || !retry.data?.user) {
       throw new Error("Authentication expired. Please log in again.");
     }
+    userData = retry.data;
   }
 
-  const finalSession = (await client.auth.getSession()).data.session;
+  const finalSession = (await client.auth.getSession()).data.session ?? session;
   if (!finalSession?.access_token) {
     throw new Error("Missing access token. Please log in again.");
+  }
+
+  const claims = parseJwtClaims(finalSession.access_token);
+  const configuredProjectRef = projectRefFromUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
+  const tokenProjectRef = projectRefFromIssuer(claims?.iss);
+
+  if (!claims?.sub || !claims?.role) {
+    throw new Error("Invalid user JWT (missing required claims). Please log in again.");
+  }
+
+  if (claims.role === "anon") {
+    throw new Error("Anonymous token detected. Please sign in again.");
+  }
+
+  if (configuredProjectRef && tokenProjectRef && configuredProjectRef !== tokenProjectRef) {
+    throw new Error(
+      `JWT project mismatch: token=${tokenProjectRef}, client=${configuredProjectRef}. ` +
+      "Check Vercel Supabase URL/keys and clear stale session."
+    );
+  }
+
+  if (userData?.user?.id && claims.sub !== userData.user.id) {
+    throw new Error("JWT user mismatch detected. Please sign in again.");
   }
 
   return finalSession;
@@ -145,4 +230,3 @@ export async function invokeWithUserJwt<TData = unknown>(
 
   return response as { data: TData | null; error: Error | null };
 }
-

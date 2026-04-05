@@ -10,6 +10,12 @@
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import type { OrderStatus, ActorRole, TransitionResult, UserRole } from '@popclozet/domain-contracts';
 
+declare global {
+    // Keep exactly one Supabase client per JS runtime to avoid split auth state.
+    // eslint-disable-next-line no-var
+    var __popclozet_supabase_client__: SupabaseClient | undefined;
+}
+
 // ==========================================
 // SUPABASE CLIENT
 // ==========================================
@@ -79,7 +85,13 @@ const realtimeConfig = realtimeAvailable ? {
 };
 
 let client: SupabaseClient;
-try {
+if (globalThis.__popclozet_supabase_client__) {
+    client = globalThis.__popclozet_supabase_client__;
+    if (import.meta.env.DEV) {
+        console.log('[api-client] Reusing global Supabase singleton.');
+    }
+} else {
+    try {
     client = createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: true,
@@ -89,12 +101,14 @@ try {
         },
         realtime: realtimeConfig,
     });
+    globalThis.__popclozet_supabase_client__ = client;
     if (import.meta.env.DEV) {
         console.log('[api-client] Supabase client created successfully.');
     }
 } catch (e) {
     console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
     throw e;
+}
 }
 
 export const supabase = client;
