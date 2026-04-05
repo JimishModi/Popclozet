@@ -1,21 +1,8 @@
-/**
- * Delivery Navigation Page
- *
- * Refactored to use global LocationContext for persistent GPS tracking.
- */
-
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { supabase, transitionOrderState } from '@popclozet/api-client';
 import { Loader } from '@popclozet/ui';
-import {
-  isMapboxAvailable,
-  initializeMap,
-  drawRoute,
-  mapboxgl,
-  fetchMapplsRoute,
-} from '@popclozet/map-core';
 import { useToast } from '@/contexts/ToastContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,16 +14,18 @@ import {
 } from '@/services/trackingService';
 import { verifyDeliveryOtp } from '@/services/deliveryOtpService';
 import {
-  MapPin, Navigation, CheckCircle, X, KeyRound, Loader2,
+  MapPin, Navigation, CheckCircle, X, KeyRound, Loader2, Package, ScanLine,
 } from 'lucide-react';
+import { QRScannerOverlay } from '@/components/QRScannerOverlay';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Constants & Utils ────────────────────────────────────────────────────────
 
 const RETURN_STATUSES = ['return_dispatched', 'return_picked_up', 'return_at_warehouse'];
 
 interface DeliveryOrder {
   id: string;
   status: string;
+  user_id: string;
   otp_delivery?: string;
   otp_return?: string;
   customer_profiles?: {
@@ -53,6 +42,25 @@ interface DeliveryOrder {
     latitude: number | null;
     longitude: number | null;
   } | null;
+  order_items?: Array<{
+    id: string;
+    product_id: string;
+    size?: string;
+    rental_price?: number;
+    products?: { name: string; images: string[] };
+  }>;
+}
+
+function haversineMetres(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) *
+      Math.cos((b.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -64,14 +72,14 @@ export const DeliveryNavigationPage: React.FC = () => {
   const { location: globalLocation } = useLocation();
   const navigate = useNavigate();
 
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
   const trackingInitialized = useRef(false);
 
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [riderLocation, setRiderLocation] = useState<[number, number] | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState<{ full_name: string | null; phone: string | null } | null>(null);
 
   // OTP modal state
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -88,22 +96,22 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,otp_delivery,otp_return,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude)')
+          .select('id,status,user_id,otp_delivery,otp_return,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
         const order = data as unknown as DeliveryOrder;
         setOrder(order);
-        // If already delivered (e.g. rider navigates back), go home
         if (order.status === 'delivered') {
           navigate('/');
           return;
         }
-        // Auto-open OTP modal for deliveries — rider is at the customer's door
-        // NOTE: For returns (return_dispatched), rider must navigate to customer first,
-        // then manually tap "Mark as Collected" to open the OTP modal.
-        if (['out_for_delivery', 'dispatched'].includes(order.status)) {
-          setShowOtpModal(true);
+
+        // Resolve customer info from FK join only — separate effect handles the fallback.
+        const joinedName = order.customer_profiles?.full_name ?? null;
+        const joinedPhone = order.customer_profiles?.phone ?? null;
+        if (joinedName || joinedPhone) {
+          setCustomerInfo({ full_name: joinedName, phone: joinedPhone });
         }
       } catch (err) {
         console.error(err);
@@ -115,6 +123,22 @@ export const DeliveryNavigationPage: React.FC = () => {
     };
     fetchOrder();
   }, [id, navigate, showToast]);
+
+  // ── Customer info fallback ───────────────────────────────────────────────────
+  // Runs once when order.user_id is available and the FK join returned nothing.
+  // Uses maybeSingle() so 0 rows → null (no 406 error).
+
+  useEffect(() => {
+    if (!order?.user_id || customerInfo) return;
+    supabase
+      .from('customer_profiles')
+      .select('full_name, phone')
+      .eq('user_id', order.user_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCustomerInfo({ full_name: data.full_name ?? null, phone: data.phone ?? null });
+      });
+  }, [order?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Resolve destination ──────────────────────────────────────────────────────
 
@@ -128,14 +152,32 @@ export const DeliveryNavigationPage: React.FC = () => {
     ?? order?.addresses?.full_address
     ?? 'Delivery address unavailable';
 
-  // ── Open Google Maps (mirrors warehouse pattern) ─────────────────────────────
+  // ── Navigation Stats ─────────────────────────────────────────────────────────
+
+  const distanceInMetres = useMemo(() => {
+    if (!globalLocation || !destLat || !destLng) return null;
+    return haversineMetres(
+      { lat: globalLocation.latitude, lng: globalLocation.longitude },
+      { lat: destLat, lng: destLng }
+    );
+  }, [globalLocation, destLat, destLng]);
+
+  const etaMinutes = useMemo(() => {
+    if (!distanceInMetres) return null;
+    // Assume 30km/h average in city traffic
+    return Math.max(1, Math.round((distanceInMetres / 1000) * 3));
+  }, [distanceInMetres]);
+
+  // ── Open Google Maps ─────────────────────────────────────────────────────────
 
   const handleOpenGoogleMaps = useCallback(() => {
     let destination: string;
-    if (destAddress && destAddress !== 'Delivery address unavailable') {
-      destination = encodeURIComponent(destAddress);
-    } else if (destLat != null && destLng != null) {
+    // Always prefer precise coordinates — avoids emoji/special-char issues in stored addresses
+    if (destLat != null && destLng != null) {
       destination = `${destLat},${destLng}`;
+    } else if (destAddress && destAddress !== 'Delivery address unavailable') {
+      // Strip non-ASCII characters (emojis, special symbols) before geocoding
+      destination = encodeURIComponent(destAddress.replace(/[^\x20-\x7E]/g, '').trim());
     } else {
       destination = encodeURIComponent('Delivery address');
     }
@@ -158,7 +200,6 @@ export const DeliveryNavigationPage: React.FC = () => {
     if (!id || !user?.id || !globalLocation) return;
 
     const runTracking = async () => {
-      // Only initialize tracking once per session
       if (!trackingInitialized.current) {
         trackingInitialized.current = true;
         const profile = await getRiderProfile(user.id);
@@ -172,7 +213,6 @@ export const DeliveryNavigationPage: React.FC = () => {
         );
       }
 
-      // Push update
       await pushLocationUpdate(
         user.id,
         id,
@@ -185,75 +225,6 @@ export const DeliveryNavigationPage: React.FC = () => {
 
     runTracking();
   }, [id, user?.id, globalLocation]);
-
-  // ── Init map ─────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!order || !riderLocation || !mapRef.current) return;
-    if (!isMapboxAvailable()) return;
-    if (mapInstance.current) return;
-    if (!destLat || !destLng) return;
-
-    let mounted = true;
-
-    (async () => {
-      try {
-        const map = await initializeMap(mapRef.current!, riderLocation, 14);
-        
-        if (!mounted) {
-          map.remove();
-          return;
-        }
-        mapInstance.current = map;
-
-        const setupMap = async () => {
-          let routeDrawn = false;
-
-          if (riderLocation) {
-            try {
-              const [rLng, rLat] = riderLocation;
-              const routeCoords = await fetchMapplsRoute(rLng, rLat, destLng!, destLat!);
-              if (routeCoords?.length) {
-                await drawRoute(map, routeCoords);
-                routeDrawn = true;
-              }
-            } catch (err) {
-              console.warn('[DeliveryNav] Mappls Route API failed:', err);
-            }
-          }
-
-          if (!routeDrawn) {
-            await drawRoute(map, [riderLocation, [destLng!, destLat!]]);
-          }
-
-          try {
-            const geolocate = new (mapboxgl.GeolocateControl as any)({
-              positionOptions: { enableHighAccuracy: true },
-              trackUserLocation: true,
-              showUserHeading: true,
-            });
-            map.addControl(geolocate);
-          } catch { /* mapboxgl may not have GeolocateControl */ }
-
-          setMapReady(true);
-        };
-
-        if (map.loaded && map.loaded()) {
-          setupMap();
-        } else if (map.on) {
-          map.on('load', setupMap);
-        }
-      } catch (e) {
-        console.error('[DeliveryNav] Map init failed:', e);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      mapInstance.current?.remove();
-      mapInstance.current = null;
-    };
-  }, [order, riderLocation, destLat, destLng]);
 
   // ── OTP-gated delivery completion ────────────────────────────────────────────
 
@@ -328,12 +299,12 @@ export const DeliveryNavigationPage: React.FC = () => {
   // ── Render helpers ───────────────────────────────────────────────────────────
 
   const primaryBtn = (gradient: string) =>
-    `w-full py-3.5 rounded-xl bg-gradient-to-r ${gradient} text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50`;
+    `w-full py-4 rounded-2xl bg-gradient-to-r ${gradient} text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl`;
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
-        <Loader size="lg" text="Loading delivery..." />
+        <Loader size="lg" text="Initialising Navigation..." />
       </div>
     );
   }
@@ -341,130 +312,209 @@ export const DeliveryNavigationPage: React.FC = () => {
   if (!order) return null;
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">
-      <div ref={mapRef} className="flex-1" />
-
-      {/* GPS loading overlay */}
-      {!riderLocation && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pb-32">
-          <div className="text-center space-y-4 px-6">
-            <div className="w-16 h-16 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
-              <MapPin size={28} className="text-zinc-500" />
-            </div>
-            <h2 className="text-lg font-bold text-white">Getting your location...</h2>
-            <p className="text-zinc-400 text-sm">Please allow GPS access to enable navigation</p>
-            <div className="w-6 h-6 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          </div>
-        </div>
-      )}
-
-      {/* Map loading overlay */}
-      {!mapReady && riderLocation && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-          <Loader size="lg" text="Loading navigation..." />
-        </div>
-      )}
-
-      {/* Bottom card */}
-      <motion.div
-        initial={{ y: 200 }} animate={{ y: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="absolute bottom-6 left-4 right-4 bg-[#0f0f0f] rounded-3xl border border-zinc-800/80 shadow-2xl z-20"
-      >
-        <div className="px-6 pt-5 pb-2">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-              Delivering
-            </span>
-            <span className="text-[10px] text-zinc-500 ml-auto">
-              Order #{order.id.slice(0, 8).toUpperCase()}
-            </span>
-          </div>
-          
-          {order.customer_profiles?.full_name && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold text-white">
-                {order.customer_profiles.full_name}
-              </span>
-              <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full">
-                Customer
-              </span>
-            </div>
-          )}
-          
-          <div className="flex items-start gap-2 mb-3">
-            <MapPin size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-zinc-400">{destAddress}</p>
-          </div>
-        </div>
-
-        <div className="px-6 pb-6 space-y-2.5">
-          {/* Google Maps deeplink — same pattern as warehouse */}
-          <div className="grid grid-cols-2 gap-3">
+    <div className="fixed inset-0 bg-[#080808] flex flex-col font-sans">
+      {/* ── INNOVATIVE DASHBOARD ── */}
+      <div className="flex-1 overflow-y-auto px-6 pt-12 pb-32 space-y-8">
+        
+        {/* Status & Header */}
+        <div className="flex items-center justify-between">
+          <motion.div
+            initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+            className="flex items-center gap-2"
+          >
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Live Delivery</span>
+          </motion.div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono text-zinc-600">ID: {order.id.slice(0, 8).toUpperCase()}</span>
             <button
-              onClick={handleOpenGoogleMaps}
-              className="w-full py-3 rounded-xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
+              onClick={() => setShowQRScanner(true)}
+              className="w-8 h-8 rounded-full bg-zinc-900/80 border border-white/10 flex items-center justify-center active:scale-90 transition-all"
+              aria-label="Scan QR Code"
             >
-              <Navigation size={16} />
-              Navigation
+              <ScanLine size={15} className="text-zinc-400" />
             </button>
-            
-            {order.customer_profiles?.phone ? (
-              <a
-                href={`tel:${order.customer_profiles.phone}`}
-                className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                Call Customer
-              </a>
-            ) : (
-               <div className="w-full py-3 rounded-xl bg-zinc-800 opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone-off"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>
-                 No Number
-               </div>
-            )}
           </div>
+        </div>
 
-          {/* OTP-gated delivery button */}
+        {/* Dynamic Stats Card */}
+        <section className="relative">
+          <div className="absolute -inset-4 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 blur-3xl opacity-50" />
+          <div className="relative grid grid-cols-2 gap-4">
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              className="bg-zinc-900/40 border border-white/5 p-6 rounded-[2rem] backdrop-blur-md"
+            >
+              <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Distance</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-black text-white">
+                  {distanceInMetres ? (distanceInMetres / 1000).toFixed(1) : '--'}
+                </span>
+                <span className="text-xs font-bold text-zinc-500">KM</span>
+              </div>
+            </motion.div>
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}
+              className="bg-zinc-900/40 border border-white/5 p-6 rounded-[2rem] backdrop-blur-md"
+            >
+              <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Estimated</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-black text-white">{etaMinutes ?? '--'}</span>
+                <span className="text-xs font-bold text-zinc-500">MINS</span>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Progress Visualization */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-2">
+            <span>You</span>
+            <span>Target</span>
+          </div>
+          <div className="relative h-12 flex items-center">
+            <div className="absolute inset-x-0 h-1 bg-zinc-800 rounded-full overflow-hidden">
+               <motion.div 
+                  initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+                  style={{ transformOrigin: 'left' }}
+                  className="h-full bg-gradient-to-r from-emerald-400 to-blue-500" 
+               />
+            </div>
+            <div className="absolute left-0 w-8 h-8 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center shadow-lg">
+                <Navigation size={14} className="text-emerald-400 rotate-45" />
+            </div>
+            <div className="absolute right-0 w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-2xl">
+               <div className="w-4 h-4 rounded-full bg-emerald-500 animate-ping absolute opacity-50" />
+               <MapPin size={18} className="text-emerald-500 relative" />
+            </div>
+          </div>
+        </section>
+
+        {/* Destination Details */}
+        <section className="bg-zinc-900/40 border border-white/5 rounded-[2.5rem] p-8 space-y-6">
+           {/* Customer name */}
+           <div>
+              <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-2">Customer</h2>
+              <p className="text-xl font-bold text-white">{customerInfo?.full_name || 'Valued Customer'}</p>
+              {customerInfo?.phone && (
+                <p className="text-sm text-zinc-500 mt-1">{customerInfo.phone}</p>
+              )}
+           </div>
+
+           {/* Call button — always visible, greyed out only if no phone */}
+           {customerInfo?.phone ? (
+             <a
+               href={`tel:${customerInfo.phone}`}
+               className="w-full py-4 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center gap-3 text-emerald-400 font-bold text-sm transition-all active:scale-95 hover:bg-emerald-600/30"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+               Call Customer
+             </a>
+           ) : (
+             <div className="w-full py-4 rounded-2xl bg-zinc-800/30 border border-white/5 flex items-center justify-center gap-3 text-zinc-600 font-bold text-sm cursor-not-allowed">
+               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+               Phone Unavailable
+             </div>
+           )}
+
+           {/* Address + copy */}
+           <div className="space-y-3">
+              <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Delivery Address</h2>
+              <p className="text-sm text-zinc-400 leading-relaxed">{destAddress}</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(destAddress);
+                  showToast('Address copied!', 'success');
+                }}
+                className="w-full py-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-xl flex items-center justify-center gap-2 text-zinc-400 text-xs font-bold transition-all border border-white/5 active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy Address
+              </button>
+           </div>
+        </section>
+
+        {/* Package Contents */}
+        {order.order_items && order.order_items.length > 0 && (
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">Package Contents</h3>
+            <div className="grid gap-3">
+              {order.order_items.map((item, idx) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: idx * 0.05 }}
+                  className="bg-zinc-900/40 border border-white/5 p-4 rounded-2xl flex items-center gap-4"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-zinc-800 overflow-hidden shrink-0 border border-white/5">
+                    {item.products?.images?.[0]
+                      ? <img src={item.products.images[0]} alt="" className="w-full h-full object-cover" />
+                      : <Package className="w-full h-full p-3 text-zinc-600" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{item.products?.name || 'Unknown Item'}</p>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase">Size: {item.size || 'One Size'}</p>
+                  </div>
+                  <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white uppercase tracking-tighter">1×</div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Floating Action Bar */}
+      <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={handleOpenGoogleMaps}
+            className="py-4 rounded-2xl bg-[#4285F4] hover:bg-[#3b78e7] active:scale-[0.98] transition-all text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20"
+          >
+            <Navigation size={18} fill="currentColor" />
+            Navigate
+          </button>
+          
           <button
             onClick={handleRequestDelivery}
             disabled={deliveryCompleting}
-            className={primaryBtn('from-emerald-600 to-emerald-500')}
+            className={primaryBtn('from-emerald-600 to-emerald-500 shadow-emerald-500/20')}
           >
             {deliveryCompleting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <><CheckCircle size={18} /> {order && RETURN_STATUSES.includes(order.status) ? 'Mark as Collected' : 'Mark as Delivered'}</>
+              <><CheckCircle size={18} /> Complete</>
             )}
           </button>
         </div>
-      </motion.div>
+      </div>
+
+      {/* QR Scanner */}
+      {showQRScanner && <QRScannerOverlay onClose={() => setShowQRScanner(false)} />}
 
       {/* OTP Verification Modal */}
       <AnimatePresence>
         {showOtpModal && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+              className="bg-zinc-900 border border-white/5 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl"
             >
-              <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
-                <h3 className="font-semibold text-white flex items-center gap-2">
-                  <KeyRound size={18} className="text-emerald-400" /> {order && RETURN_STATUSES.includes(order.status) ? 'Verify Return Pickup' : 'Verify Delivery'}
+              <div className="flex items-center justify-between p-6 border-b border-white/5">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <KeyRound size={18} className="text-emerald-400" /> {order && RETURN_STATUSES.includes(order.status) ? 'Return Pickup' : 'Verify Delivery'}
                 </h3>
                 <button
                   onClick={() => { if (!otpVerifying) setShowOtpModal(false); }}
                   disabled={otpVerifying}
-                  className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                  className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-6 space-y-5 text-center">
-                <p className="text-sm text-zinc-400">
+              <div className="p-8 space-y-6 text-center">
+                <p className="text-sm text-zinc-500 leading-relaxed">
                   {order && RETURN_STATUSES.includes(order.status)
                     ? 'Ask the customer for the 4-digit return pickup OTP shown on their app.'
                     : 'Ask the customer for the 4-digit delivery OTP shown on their app.'}
@@ -482,11 +532,11 @@ export const DeliveryNavigationPage: React.FC = () => {
                   }}
                   autoFocus
                   placeholder="0000"
-                  className="w-full text-center text-4xl font-mono font-bold tracking-[0.3em] bg-black border border-zinc-800 rounded-xl py-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-800"
+                  className="w-full text-center text-4xl font-mono font-black tracking-[0.3em] bg-black border border-white/5 rounded-2xl py-6 text-white focus:outline-none focus:border-emerald-500 transition-all placeholder:text-zinc-800"
                 />
 
                 {otpError && (
-                  <p className="text-sm text-red-400 font-medium">{otpError}</p>
+                  <p className="text-sm text-red-500 font-bold">{otpError}</p>
                 )}
 
                 <button
@@ -497,7 +547,7 @@ export const DeliveryNavigationPage: React.FC = () => {
                   {otpVerifying ? (
                     <><Loader2 size={18} className="animate-spin" /> Verifying...</>
                   ) : (
-                    'Verify & Complete Delivery'
+                    'Confirm OTP'
                   )}
                 </button>
               </div>

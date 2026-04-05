@@ -540,17 +540,26 @@ export function HomePage() {
                         onToggle={handleToggleOnline}
                         isLoading={isLoading}
                     />
-                    <button
-                        onClick={() => navigate('/notifications')}
-                        className="relative p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
-                    >
-                        <Bell size={22} className="text-zinc-400" />
-                        {unreadNotifications > 0 && (
-                            <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">
-                                {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                            </span>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setShowQRScanner(true)}
+                            className="p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
+                            aria-label="Scan QR Code"
+                        >
+                            <ScanLine size={22} className="text-zinc-400" />
+                        </button>
+                        <button
+                            onClick={() => navigate('/notifications')}
+                            className="relative p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
+                        >
+                            <Bell size={22} className="text-zinc-400" />
+                            {unreadNotifications > 0 && (
+                                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">
+                                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                                </span>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -692,17 +701,6 @@ export function HomePage() {
                     </>
                 )}
             </main>
-
-            {/* Floating QR Scan button when online */}
-            {isOnline && !pendingOrder && !showQRScanner && (
-                <button
-                    onClick={() => setShowQRScanner(true)}
-                    className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-blue-600 shadow-lg shadow-blue-500/30 flex items-center justify-center active:scale-90 transition-all hover:bg-blue-500"
-                    aria-label="Scan Product QR"
-                >
-                    <ScanLine size={24} className="text-white" />
-                </button>
-            )}
 
             {/* QR Scanner Overlay */}
             {showQRScanner && (
