@@ -21,8 +21,9 @@ import { geocodeAddress } from '@/services/mapServices';
 import { geocodeWithMappls } from '@/services/mapplsGeocode';
 import { HubWithDistance } from '@/services/hubService';
 
+import { WAREHOUSE } from '@/lib/serviceAreas';
+
 type ViewMode = 'search' | 'hubs';
-const WAREHOUSE = { lat: 19.1306, lng: 72.9155 };
 
 export default function MapLocationPage() {
     const navigate = useNavigate();
@@ -333,31 +334,26 @@ export default function MapLocationPage() {
             let deliveryFee = 40;
             let distanceKm = 0;
 
-            // 2. Calculate road distance via backend proxy (same as CheckoutPage)
+            // 2. Calculate road distance and delivery estimate via centralized function
             try {
-                const { getRoadDistance } = await import("@/services/mapServices");
-                const res = await getRoadDistance(WAREHOUSE, {
+                const { getDeliveryEstimate } = await import("@/services/mapServices");
+                const result = await getDeliveryEstimate({
                     lat: selectedAddress.lat,
                     lng: selectedAddress.lng,
                     eLoc: selectedAddress.eLoc
                 });
-                if (res.status === 'success') {
-                    distanceKm = res.distanceKm;
-                    deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
-                    const { calculateDeliveryFee } = await import("@/services/deliveryService");
-                    deliveryFee = calculateDeliveryFee(distanceKm);
-                    
-                    if (deliveryFee === -1) {
-                        const { toast } = await import('sonner');
-                        toast.error("Sorry, this area is not under service yet.");
-                        setIsSaving(false);
-                        return;
-                    }
-                    
-                    console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
-                } else {
-                    console.warn('Distance API returned error:', res.error);
+                distanceKm = result.distanceKm;
+                deliveryEstimate = result.estimate;
+                deliveryFee = result.fee;
+
+                if (deliveryFee === -1) {
+                    const { toast } = await import('sonner');
+                    toast.error("Sorry, this area is not under service yet.");
+                    setIsSaving(false);
+                    return;
                 }
+
+                console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
             } catch (err) {
                 console.warn('Distance calculation failed:', err);
             }

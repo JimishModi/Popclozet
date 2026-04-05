@@ -358,10 +358,11 @@ function PushNotificationManager() {
 
   // 2. Auto-subscribe if permission is already granted but sync is missing
   useEffect(() => {
-    if (user && push.isSupported && push.permission === 'granted' && !push.isSubscribed && !push.isLoading) {
+    // Only attempt auto-subscribe if initialization is complete
+    if (user && !push.isInitializing && push.isSupported && push.permission === 'granted' && !push.isSubscribed && !push.isLoading) {
       push.autoSubscribe();
     }
-  }, [user, push.isSupported, push.permission, push.isSubscribed, push.isLoading]);
+  }, [user, push.isInitializing, push.isSupported, push.permission, push.isSubscribed, push.isLoading]);
 
   // 3. Proactive prompt for new users (if permission is 'default')
   // We show a small toast-style prompt after they land on home or orders
@@ -369,7 +370,7 @@ function PushNotificationManager() {
     const isMainPage = location.pathname === '/home' || location.pathname === '/orders';
     const hasBeenPrompted = sessionStorage.getItem('push_prompt_seen');
 
-    if (user && push.isSupported && push.permission === 'default' && isMainPage && !hasBeenPrompted && !push.isLoading) {
+    if (user && !push.isInitializing && push.isSupported && push.permission === 'default' && isMainPage && !hasBeenPrompted && !push.isLoading) {
       // Delay slightly to not overwhelm on page load
       const timer = setTimeout(() => {
         console.log("[Push] Showing proactive notification prompt...");
@@ -386,7 +387,7 @@ function PushNotificationManager() {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [user, location.pathname, push.permission, push.isSupported, push.isLoading]);
+  }, [user, location.pathname, push.isInitializing, push.permission, push.isSupported, push.isLoading]);
 
   return null;
 }

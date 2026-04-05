@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@popclozet/api-client';
 import { DeliveryOrder } from '@/services/deliveryService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
+import { WAREHOUSE, DELIVERY_THRESHOLDS } from '@/lib/serviceAreas';
 
 export default function DeliveryTrackingPage() {
     const { orderId } = useParams<{ orderId: string }>();
@@ -21,16 +22,13 @@ export default function DeliveryTrackingPage() {
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
 
-    // Warehouse location: Hostel 2, IIT Bombay
-    const WAREHOUSE_LOCATION = { lat: 19.1305, lng: 72.9135 };
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
-    // Delayed if delivery address is outside 6km radius of warehouse
     const distance = userLocation
-        ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng)
+        ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE.lat, WAREHOUSE.lng)
         : null;
-    const isDelayed = distance !== null ? distance > 6 : false;
+    const isDelayed = distance !== null ? distance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM : false;
 
     useEffect(() => {
         if (!orderId) return;

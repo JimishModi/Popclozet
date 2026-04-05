@@ -22,16 +22,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
-import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
-import { haversineDistance } from "@/utils/haversine";
-
-const WAREHOUSE_LOCATION = { lat: 19.1306, lng: 72.9155 };
 const MAX_SERVICE_DISTANCE_KM = 12;
 
 /* ---------------------------------- */
@@ -349,42 +345,106 @@ const CartPage = () => {
 
   const discount = Math.max(0, originalTotal - subtotal);
 
-  // Calculate delivery pricing
-  const deliveryInfo = useMemo(() => {
-    let dist = selectedHub?.distance_km;
+  // ── Server-side pricing (source of truth) ──
+  // preview_order RPC computes delivery fee from distance server-side.
+  const [serverPricing, setServerPricing] = useState<{
+    original_total: number; subtotal: number; discount: number;
+    coupon_discount: number; delivery_fee: number; total: number;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
 
-    // Fallback order: localStorage hub -> profile saved distance -> haversine calc
-    if (!dist && user?.user_metadata?.delivery_distance_km) {
-      dist = parseFloat(user.user_metadata.delivery_distance_km);
+  // Address for server-side distance + delivery fee calculation (stable refs)
+  const addressId = deliveryAddress?.id || null;
+  const addressLat = deliveryAddress?.lat || null;
+  const addressLng = deliveryAddress?.lng || null;
+  const addressKey = addressId || (addressLat && addressLng ? `${addressLat},${addressLng}` : 'none');
+
+  // Build preview items for server RPC — JSON key for stable dependency
+  const previewItems = useMemo(() => {
+    return validCartEntries.map(([key, data]) => {
+      const parts = key.split('_');
+      return {
+        product_id: parts[0],
+        size: parts[1] || 'One Size',
+        plan: data.plan || '3d',
+        quantity: data.quantity || 1,
+      };
+    });
+  }, [validCartEntries]);
+  const previewItemsKey = JSON.stringify(previewItems);
+  const appliedCouponKey = appliedCoupon?.id ?? null;
+
+  // Fetch server-side pricing whenever cart items or address change
+  useEffect(() => {
+    const items = JSON.parse(previewItemsKey);
+    if (items.length === 0) {
+      setServerPricing(null);
+      return;
     }
+    let cancelled = false;
+    setPricingLoading(true);
+    previewOrder({
+      items,
+      couponCode: appliedCouponKey,
+      addressId,
+      lat: addressLat,
+      lng: addressLng,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setServerPricing({
+          original_total: result.original_total ?? 0,
+          subtotal: result.subtotal ?? 0,
+          discount: result.discount ?? 0,
+          coupon_discount: result.coupon_discount ?? 0,
+          delivery_fee: result.delivery_fee ?? 40,
+          total: result.total ?? 0,
+        });
+      } else {
+        console.warn("[Cart] preview_order returned:", result.code, result.message);
+        // Still show pricing with client-side subtotal so UI doesn't stay stuck on "..."
+        setServerPricing({
+          original_total: originalTotal,
+          subtotal,
+          discount: Math.max(0, originalTotal - subtotal),
+          coupon_discount: 0,
+          delivery_fee: 40,
+          total: subtotal + 40,
+        });
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        console.warn("[Cart] preview_order failed:", err);
+        setServerPricing({
+          original_total: originalTotal,
+          subtotal,
+          discount: Math.max(0, originalTotal - subtotal),
+          coupon_discount: 0,
+          delivery_fee: 40,
+          total: subtotal + 40,
+        });
+      }
+    }).finally(() => {
+      if (!cancelled) setPricingLoading(false);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItemsKey, addressKey, appliedCouponKey]);
 
-    if (!dist && deliveryAddress?.lat && deliveryAddress?.lng) {
-      dist = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, deliveryAddress.lat, deliveryAddress.lng);
-    }
-
-    if (!dist) {
-      return { pricing: null, eta: null };
-    }
-
-    const isFree = false;
-    const pricing = calculateDeliveryPricing(dist, subtotal, 'delivery', isFree);
-    const eta = calculateETA(dist, selectedHub?.estimated_minutes || 60);
-    return { pricing, eta };
-  }, [selectedHub, subtotal, deliveryAddress, user]);
-
-  // const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
-  const deliveryFee = deliveryInfo.pricing?.totalFee ?? 40;
+  // Delivery fee is ONLY from server — no client-side default
+  const deliveryFee = serverPricing?.delivery_fee ?? null;
 
   // Final math with coupons
   const couponDiscount = useMemo(() => {
+    if (serverPricing?.coupon_discount) return serverPricing.coupon_discount;
     if (!appliedCoupon) return 0;
     if (appliedCoupon.type === 'percent') {
       return Math.round(subtotal * (appliedCoupon.discount / 100));
     }
     return appliedCoupon.discount;
-  }, [appliedCoupon, subtotal]);
+  }, [appliedCoupon, subtotal, serverPricing]);
 
-  const grandTotal = subtotal - couponDiscount + (deliveryFee === -1 ? 0 : deliveryFee);
+  const grandTotal = serverPricing?.total ?? null;
 
 
   const handleApplyCoupon = async () => {
@@ -394,16 +454,22 @@ const CartPage = () => {
     }
     try {
       // Validate coupon via server-side preview_order RPC (never trust client-only checks)
-      const previewItems = validCartEntries.map(([key, data]) => ({
-        product_id: key.split('_')[0],
-        plan: data.plan || '3d',
-        quantity: data.quantity || 1,
-      }));
+      const previewItems = validCartEntries.map(([key, data]) => {
+        const parts = key.split('_');
+        return {
+          product_id: parts[0],
+          size: parts[1] || 'One Size',
+          plan: data.plan || '3d',
+          quantity: data.quantity || 1,
+        };
+      });
 
       const result = await previewOrder({
         items: previewItems,
         couponCode: couponCode.trim(),
-        distanceKm: 0,
+        addressId,
+        lat: addressLat,
+        lng: addressLng,
       });
 
       if (!result.success) {
@@ -419,6 +485,15 @@ const CartPage = () => {
       const serverDiscount = result.coupon_discount ?? 0;
       const type = result.coupon?.discount_type === 'percentage' ? 'percent' : 'fixed';
       setAppliedCoupon({ id: couponCode.trim().toUpperCase(), discount: serverDiscount, type });
+      // Update server pricing with coupon-applied totals
+      setServerPricing({
+        original_total: result.original_total ?? 0,
+        subtotal: result.subtotal ?? 0,
+        discount: result.discount ?? 0,
+        coupon_discount: result.coupon_discount ?? 0,
+        delivery_fee: result.delivery_fee ?? 40,
+        total: result.total ?? 0,
+      });
       toast.success(`Coupon applied! -₹${serverDiscount} off`);
     } catch {
       toast.error("Failed to validate coupon. Try again.");
@@ -426,8 +501,8 @@ const CartPage = () => {
   };
 
   const hasItems = validCartEntries.length > 0;
-  const meetsMinimum = grandTotal >= 350;
-  const canCheckout = hasItems && meetsMinimum && deliveryFee !== -1;
+  const meetsMinimum = (grandTotal ?? subtotal) >= 350;
+  const canCheckout = hasItems && meetsMinimum;
 
   /* ---------------------------------- */
   /* Checkout handler                   */
@@ -753,28 +828,19 @@ const CartPage = () => {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      Delivery fee
-                    </span>
-                    {deliveryFee === -1 ? (
-                      <span className="text-sm font-bold text-red-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        Not Serviceable
-                      </span>
-                    ) : (
-                      <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        ₹ {deliveryFee}
-                      </span>
-                    )}
-                  </div>
                 </div>
 
                 <div className="w-full h-px bg-white/5 mt-6" />
 
                 <div className="flex items-center justify-between mt-6">
                   <span className="text-xl font-black text-white">Total</span>
-                  <span className="text-xl font-black text-white">₹ {grandTotal}</span>
+                  <span className="text-xl font-black text-white">
+                    ₹ {subtotal - couponDiscount}
+                  </span>
                 </div>
+                <p className="text-xs text-zinc-500 mt-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Delivery fee will be calculated at checkout
+                </p>
               </section>
 
               {/* Desktop Checkout Footer inside Right Column */}

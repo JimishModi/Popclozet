@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Droplets, ShoppingBag, AlertTriangle, TrendingUp, ArrowRight, RefreshCw, Warehouse } from 'lucide-react';
+import { Package, Droplets, ShoppingBag, AlertTriangle, TrendingUp, ArrowRight, RefreshCw, Warehouse, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getStockSummary, getStockByCategory, getOrderCounts, type StockSummary, type CategoryStock } from '../services/analyticsService';
 import { getLowStockItems, type InventoryWithProduct } from '../services/inventoryService';
@@ -214,7 +214,8 @@ export function DashboardPage() {
                         { to: '/wash', label: 'Send to Wash', icon: Droplets, color: 'text-amber-400' },
                         { to: '/orders', label: 'Pack Orders', icon: ShoppingBag, color: 'text-blue-400' },
                         { to: '/returns', label: 'Returns', icon: Package, color: 'text-emerald-400' },
-                        { to: '/intake', label: 'Add Product', icon: Package, color: 'text-warehouse-400' },
+                        { to: '/intake', label: 'Product Intake', icon: Package, color: 'text-warehouse-400' },
+                        { to: '/categories', label: 'Manage Collections', icon: LayoutGrid, color: 'text-purple-400' },
                     ].map(({ to, label, icon: Icon, color }) => (
                         <Link
                             key={to}

@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [
-      basicSsl(),
+      // basicSsl(),
       react(),
 
       VitePWA({

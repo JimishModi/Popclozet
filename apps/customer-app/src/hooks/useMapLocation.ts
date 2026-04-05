@@ -63,11 +63,17 @@ export function useMapLocation() {
         let bestLocation: { lat: number, lng: number, accuracy: number } | null = null;
         let watchId: number | null = null;
         let settlingTimeout: any = null;
+        let goodEnoughTimeout: any = null;
+        let finalized = false;
+        const startTime = Date.now();
 
         const finalize = (finalLoc: { lat: number, lng: number }) => {
+            if (finalized) return;
+            finalized = true;
             if (watchId !== null) navigator.geolocation.clearWatch(watchId);
             if (settlingTimeout) clearTimeout(settlingTimeout);
-            
+            if (goodEnoughTimeout) clearTimeout(goodEnoughTimeout);
+
             // final reverse geocode
             reverseGeocode(finalLoc.lat, finalLoc.lng)
                 .then(finalAddress => {
@@ -87,7 +93,7 @@ export function useMapLocation() {
                         permissionState: 'granted'
                     }));
                 });
-            
+
             // Also persist
             localStorage.setItem(
                 'user_location',
@@ -95,16 +101,24 @@ export function useMapLocation() {
             );
         };
 
-        // Timeout fallback: after 20s, take whatever we have
+        // Timeout fallback: after 10s, take whatever we have
         settlingTimeout = setTimeout(() => {
-            console.log('[useMapLocation] Settling timeout reached — finalizing with best fix');
+            console.log('[useMapLocation] Settling timeout reached (10s) — finalizing with best fix');
             if (bestLocation) {
                 finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
             } else {
                 setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Location request timed out' }));
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
             }
-        }, 20000);
+        }, 10000);
+
+        // After 4s, accept any fix with accuracy < 200m (good enough for delivery estimate)
+        goodEnoughTimeout = setTimeout(() => {
+            if (bestLocation && bestLocation.accuracy < 200) {
+                console.log(`[useMapLocation] Good-enough fix after 4s (${bestLocation.accuracy.toFixed(0)}m) — finalizing`);
+                finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
+            }
+        }, 4000);
 
         // Start watching for the best fix
         watchId = navigator.geolocation.watchPosition(
@@ -115,20 +129,20 @@ export function useMapLocation() {
                 const newLoc = { lat: latitude, lng: longitude, accuracy };
 
                 // Update state immediately so UI/marker moves even while settling
-                setState(prev => ({ 
-                    ...prev, 
-                    location: { lat: latitude, lng: longitude }, 
+                setState(prev => ({
+                    ...prev,
+                    location: { lat: latitude, lng: longitude },
                     accuracy,
-                    permissionState: 'granted' 
+                    permissionState: 'granted'
                 }));
 
                 // Keep track of best fix
                 if (!bestLocation || accuracy < bestLocation.accuracy) {
                     bestLocation = newLoc;
-                    
-                    // Optional: Update address occasionally if it's early or accuracy is great
-                    if (accuracy < 15) {
-                        console.log('[useMapLocation] High accuracy fix found (<15m) — finalizing early');
+
+                    // Finalize early if accuracy is good enough (<50m)
+                    if (accuracy < 50) {
+                        console.log(`[useMapLocation] Good accuracy fix (<50m) — finalizing early`);
                         finalize({ lat: latitude, lng: longitude });
                     }
                 }
@@ -140,12 +154,13 @@ export function useMapLocation() {
                 } else {
                     setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Could not get location' }));
                     if (settlingTimeout) clearTimeout(settlingTimeout);
+                    if (goodEnoughTimeout) clearTimeout(goodEnoughTimeout);
                 }
             },
             {
                 enableHighAccuracy: true,
-                timeout: 20000,
-                maximumAge: 0
+                timeout: 10000,
+                maximumAge: 5000
             }
         );
     }, []);

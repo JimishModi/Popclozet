@@ -119,6 +119,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [inventory, setInventory] = useState<InventoryRow[]>([]);
     const [isProductRentedOut, setIsProductRentedOut] = useState(false);
+    const [isProductSoldOut, setIsProductSoldOut] = useState(false);
 
     // New states for discounts and reviews
     const [discount, setDiscount] = useState<{ type: string, value: number } | null>(null);
@@ -166,13 +167,12 @@ const MobileProductDetailPage: React.FC = () => {
                         .from('inventory')
                         .select('size, available_stock, went_for_wash, total_stock')
                         .eq('product_id', productId)
-                        .gt('total_stock', 0)
                         .order('size'),
                     supabase
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
                         .from('product_reviews')
-                        .select('id, rating, review_text, created_at, user_id')
+                        .select('id, rating, review_text, created_at, user_id, profiles:customer_profiles(full_name)')
                         .eq('product_id', productId)
                         .not('review_text', 'is', null)
                         .order('created_at', { ascending: false })
@@ -217,8 +217,16 @@ const MobileProductDetailPage: React.FC = () => {
                 if (!inventoryRes.error && inventoryRes.data) {
                     const rows = inventoryRes.data as InventoryRow[];
                     setInventory(rows);
-                    const allRented = rows.length > 0 && rows.every(r => r.available_stock <= 0);
+                    
+                    const totalStock = rows.reduce((acc, r) => acc + (r.total_stock || 0), 0);
+                    const totalAvailable = rows.reduce((acc, r) => acc + (r.available_stock || 0), 0);
+                    
+                    const isSold = totalStock === 0;
+                    const allRented = !isSold && totalAvailable === 0;
+                    
                     setIsProductRentedOut(allRented);
+                    setIsProductSoldOut(isSold);
+                    
                     const firstAvailable = rows.find(r => r.available_stock > 0);
                     if (firstAvailable) setSelectedSize(firstAvailable.size);
                 }
@@ -319,8 +327,7 @@ const MobileProductDetailPage: React.FC = () => {
                 const newReview = {
                     ...data,
                     profiles: {
-                        full_name: user?.user_metadata?.full_name ||
-                            "Verified Customer"
+                        full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
                     }
                 };
 
@@ -519,16 +526,18 @@ const MobileProductDetailPage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Rented Out Badge Overlay */}
-                    {(isRented || isProductRentedOut) && (
+                    {/* Rented Out / Sold Out Badge Overlay */}
+                    {(isRented || isProductRentedOut || isProductSoldOut) && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
                             <motion.div 
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/50 flex items-center gap-3 shadow-2xl"
                             >
-                                <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                                <span className="text-sm font-black uppercase tracking-widest text-white">Currently Rented Out</span>
+                                <span className={cn("h-2 w-2 rounded-full", isProductSoldOut ? "bg-zinc-400" : "bg-red-400 animate-pulse")} />
+                                <span className="text-sm font-black uppercase tracking-widest text-white">
+                                    {isProductSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                </span>
                             </motion.div>
                         </div>
                     )}
@@ -695,25 +704,26 @@ const MobileProductDetailPage: React.FC = () => {
                                 <div key={size} className="relative flex flex-col items-center gap-2">
                                     <button
                                         onClick={() =>
-                                            !isOutOfStock && setSelectedSize(size)
+                                            setSelectedSize(size)
                                         }
-                                        disabled={isOutOfStock}
-                                        title={isOutOfStock ? 'Out of stock' : `${row!.available_stock} available`}
+                                        title={isOutOfStock ? 'Out of stock' : `${row?.available_stock || 0} available`}
                                         className={cn(
-                                            "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center",
+                                            "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center relative",
                                             "text-base md:text-lg font-black tracking-tighter transition-all duration-300",
                                             isSelected
                                                 ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
                                                 : isOutOfStock
-                                                    ? "text-zinc-700 bg-[#1A1A1A] line-through cursor-not-allowed border border-white/5 opacity-50"
+                                                    ? "text-zinc-700 bg-[#1A1A1A] border border-white/5 opacity-50"
                                                     : "text-zinc-400 bg-[#1A1A1A] border border-white/5 hover:bg-white/5 hover:text-white"
                                         )}
                                     >
-                                        {size}
+                                        <span className={isOutOfStock ? "line-through" : ""}>
+                                            {size}
+                                        </span>
                                     </button>
 
                                     {isOutOfStock && (
-                                        <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap">
+                                        <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap -mt-1">
                                             Out
                                         </span>
                                     )}
@@ -722,9 +732,15 @@ const MobileProductDetailPage: React.FC = () => {
                         })}
                     </div>
 
-                    {/* Desktop Add to Cart */}
                     <div className="hidden lg:block mt-8 mb-4">
-                        {isProductRentedOut || isRented ? (
+                        {isProductSoldOut ? (
+                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
+                                 <span className="h-2 w-2 rounded-full bg-zinc-400" />
+                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
+                                     Sold Out
+                                 </span>
+                             </div>
+                        ) : isProductRentedOut || isRented ? (
                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
                                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
@@ -732,17 +748,29 @@ const MobileProductDetailPage: React.FC = () => {
                                 </span>
                             </div>
                         ) : (
-                            <button
-                                onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
-                                className={cn(
-                                    "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
-                                    isAdded ? "bg-zinc-800 border border-[#f2546d]/30 text-white" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
-                                )}
-                            >
-                                <span className="text-lg font-bold tracking-tight" style={dmSans}>
-                                    {isAdded ? "Added to Cart →" : "Add to Cart"}
-                                </span>
-                            </button>
+                            (() => {
+                                const selectedSizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
+                                const isSelectedSizeOut = selectedSizeStock <= 0;
+
+                                return (
+                                    <button
+                                        onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
+                                        disabled={isSelectedSizeOut && !isAdded}
+                                        className={cn(
+                                            "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
+                                            isAdded 
+                                                ? "bg-zinc-800 border border-[#f2546d]/30 text-white" 
+                                                : isSelectedSizeOut 
+                                                    ? "bg-zinc-900 border border-white/5 text-zinc-600 cursor-not-allowed" 
+                                                    : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
+                                        )}
+                                    >
+                                        <span className="text-lg font-bold tracking-tight" style={dmSans}>
+                                            {isAdded ? "Added to Cart →" : isSelectedSizeOut ? "Out of Stock" : "Add to Cart"}
+                                        </span>
+                                    </button>
+                                );
+                            })()
                         )}
                     </div>
 

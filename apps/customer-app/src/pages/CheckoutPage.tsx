@@ -47,15 +47,13 @@ import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
 import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 
+import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
+
 /* ---------------------------------- */
 /* Constants                          */
 /* ---------------------------------- */
-const WAREHOUSE_LOCATION = {
-  name: "Hostel 2, IIT Bombay",
-  lat: 19.1306,
-  lng: 72.9155
-};
-const MAX_DELIVERY_DISTANCE_KM = 12;
+const WAREHOUSE_LOCATION = WAREHOUSE;
+const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.SERVICE_MAX_KM;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 
@@ -130,10 +128,29 @@ export default function CheckoutPage() {
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
-  // KYC States
-  const [kycVerified, setKycVerified] = useState<boolean>(false);
+  // KYC States — init from localStorage cache to prevent flash
+  const [kycVerified, setKycVerified] = useState<boolean>(() => readStoredKycVerified(user?.id));
   const [showKycGate, setShowKycGate] = useState<boolean>(false);
   const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
+
+  // RECIPIENT INFORMATION (Editable overrides for ordering for others)
+  const [recipientName, setRecipientName] = useState<string>("");
+  const [recipientPhone, setRecipientPhone] = useState<string>("");
+  const [recipientEmail, setRecipientEmail] = useState<string>("");
+  const [showRecipientEditor, setShowRecipientEditor] = useState(false);
+
+  // Sync recipient state with profile/user initially
+  useEffect(() => {
+    if (!recipientName && (profile?.full_name || user?.user_metadata?.full_name)) {
+      setRecipientName(profile?.full_name || user?.user_metadata?.full_name || "");
+    }
+    if (!recipientPhone && (profile?.phone || user?.phone)) {
+      setRecipientPhone(profile?.phone || user?.phone || "");
+    }
+    if (!recipientEmail && (profile?.email || user?.email)) {
+      setRecipientEmail(profile?.email || user?.email || "");
+    }
+  }, [profile, user, recipientName, recipientPhone, recipientEmail]);
 
   // Fetch IP address for legal logging (with timeout — non-blocking)
   useEffect(() => {
@@ -234,6 +251,8 @@ export default function CheckoutPage() {
   // After reGeocodeAndFetch succeeds, deliveryAddress updates (triggering the effect again),
   // but the address TEXT stays the same, so we skip re-geocoding on the second run.
   const lastGeocodedAddressRef = useRef<string | null>(null);
+  // Track the last destination string we fetched distance for, to skip redundant API calls on tab switch
+  const lastDistanceFetchRef = useRef<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
@@ -311,19 +330,29 @@ export default function CheckoutPage() {
   // Distance Check Effect (Supabase Edge Function + Haversine fallback)
   useEffect(() => {
     const fetchDistance = async (destination: { lat?: number; lng?: number; eLoc?: string | null }) => {
+      const normalizedLat =
+        typeof destination.lat === "number" && Number.isFinite(destination.lat)
+          ? destination.lat
+          : 0;
+      const normalizedLng =
+        typeof destination.lng === "number" && Number.isFinite(destination.lng)
+          ? destination.lng
+          : 0;
+      const destinationKey = destination.eLoc ?? `${normalizedLat},${normalizedLng}`;
+
+      // Skip if we already fetched distance for this exact destination.
+      if (lastDistanceFetchRef.current === destinationKey && actualDistance !== null) {
+        console.log(
+          `[Checkout] Distance already cached for ${destinationKey} (${actualDistance}km) — skipping`
+        );
+        return;
+      }
+      lastDistanceFetchRef.current = destinationKey;
+
       setDistanceLoading(true);
       setDistanceError(null);
 
       try {
-        const normalizedLat =
-          typeof destination.lat === "number" && Number.isFinite(destination.lat)
-            ? destination.lat
-            : 0;
-        const normalizedLng =
-          typeof destination.lng === "number" && Number.isFinite(destination.lng)
-            ? destination.lng
-            : 0;
-
         console.log("[Checkout] Resolving distance via shared map service:", {
           origin: WAREHOUSE_LOCATION,
           destination: {
@@ -584,25 +613,36 @@ export default function CheckoutPage() {
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
 
-  // Build preview items from cart (no prices — just IDs/plans/quantities)
+  // Build preview items from cart (no prices — just IDs/sizes/plans/quantities)
   const previewItems = useMemo(() => {
     if (buyoutOrderData) return [];
-    return validCartEntries.map(([key, data]) => ({
-      product_id: key.split('_')[0],
-      plan: data.plan || '3d',
-      quantity: data.quantity || 1,
-    }));
+    return validCartEntries.map(([key, data]) => {
+      const parts = key.split('_');
+      return {
+        product_id: parts[0],
+        size: parts[1] || 'One Size',
+        plan: data.plan || '3d',
+        quantity: data.quantity || 1,
+      };
+    });
   }, [validCartEntries, buyoutOrderData]);
 
-  // Fetch server-side pricing whenever cart items, distance, or coupon change
+  // Stable keys to prevent unnecessary re-fetches
+  const previewItemsKey = JSON.stringify(previewItems);
+  const checkoutAddressKey = deliveryAddress?.id || (deliveryAddress?.lat && deliveryAddress?.lng ? `${deliveryAddress.lat},${deliveryAddress.lng}` : 'none');
+
+  // Fetch server-side pricing whenever cart items or address change
   useEffect(() => {
-    if (previewItems.length === 0 || buyoutOrderData) return;
+    const items = JSON.parse(previewItemsKey);
+    if (items.length === 0 || buyoutOrderData) return;
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
-      items: previewItems,
+      items,
       couponCode: appliedCouponCode,
-      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance || 0),
+      addressId: isNoDeliveryFlow ? null : (deliveryAddress?.id || null),
+      lat: isNoDeliveryFlow ? null : (deliveryAddress?.lat || null),
+      lng: isNoDeliveryFlow ? null : (deliveryAddress?.lng || null),
     }).then((result) => {
       if (cancelled) return;
       if (result.success) {
@@ -616,14 +656,17 @@ export default function CheckoutPage() {
             ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
             : (result.total ?? 0),
         });
+      } else {
+        console.warn("[Checkout] preview_order returned:", result.code, result.message);
       }
     }).catch((err) => {
-      if (!cancelled) console.warn("[Checkout] preview_order failed, using client estimates:", err);
+      if (!cancelled) console.warn("[Checkout] preview_order failed:", err);
     }).finally(() => {
       if (!cancelled) setPricingLoading(false);
     });
     return () => { cancelled = true; };
-  }, [previewItems, appliedCouponCode, actualDistance, isNoDeliveryFlow, buyoutOrderData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData]);
 
   // ── Display values: prefer server pricing, fall back to client estimates ──
   const subtotal = serverPricing?.subtotal ?? (() => {
@@ -650,25 +693,14 @@ export default function CheckoutPage() {
   const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
   const couponDiscount = serverPricing?.coupon_discount ?? 0;
 
-  const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
-    if (actualDistance !== null && actualDistance > 0) {
-      if (actualDistance <= 6) return 40;
-      if (actualDistance <= 12) return 40 + Math.ceil(actualDistance - 6) * 20;
-      return -1;
-    }
-    return profile?.delivery_fee ?? 40;
-  })();
+  // Delivery fee is computed server-side by preview_order RPC — no client-side default.
+  const deliveryFeeBase = serverPricing?.delivery_fee ?? null;
   const distanceSurcharge = 0;
 
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0;
-  const total = (() => {
-    if (deliveryFeeBase === -1) {
-      return Math.max(0, subtotal - couponDiscount + insuranceFee);
-    }
-    return serverPricing?.total ?? Math.max(0, subtotal - couponDiscount + deliveryFee + insuranceFee);
-  })();
+  const total = serverPricing?.total ?? null;
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -819,7 +851,7 @@ export default function CheckoutPage() {
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const actualDistance = selectedHub?.distance_km ?? 0;
-      const isDelayed = actualDistance > 6;
+      const isDelayed = actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
       const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
       const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
@@ -874,6 +906,9 @@ export default function CheckoutPage() {
         returnPickupDate: returnPickupDate,
         returnTimeSlot: returnTimeSlot,
         items: orderItems,
+        recipientName: recipientName,
+        recipientPhone: recipientPhone,
+        recipientEmail: recipientEmail,
       });
 
       const createdOrderId = orderResult.order_id;
@@ -985,12 +1020,20 @@ export default function CheckoutPage() {
 
         {/* User Info */}
         <section className="px-5 mt-4">
-          <h2 className="text-lg font-black text-white" style={dmSans}>My Information</h2>
-          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.full_name || user?.user_metadata?.full_name || "Guest"}</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-white" style={dmSans}>My Information</h2>
+            <button
+              onClick={() => setShowRecipientEditor(true)}
+              className="text-xs font-bold text-[#f2546d] uppercase"
+            >
+              Edit
+            </button>
+          </div>
+          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{recipientName || "Guest"}</p>
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Contact Details</h3>
-          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
-          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
+          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{recipientPhone || "No phone"}</p>
+          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{recipientEmail}</p>
 
           {/* KYC Verification Banner — shown upfront when not verified */}
           {!kycVerified && (
@@ -1075,7 +1118,7 @@ export default function CheckoutPage() {
 
                   <div className="mt-3 flex items-center gap-2 relative z-10">
                     {/* Delayed Delivery Badge */}
-                    {actualDistance !== null && actualDistance > 6 && !distanceLoading && !isResolvingAddress && (
+                    {actualDistance !== null && actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM && !distanceLoading && !isResolvingAddress && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
                         <Clock className="w-3 h-3" />
                         <span className="text-[10px] font-bold uppercase tracking-wider">Delayed Delivery</span>
@@ -1264,7 +1307,9 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
               <div className="text-right">
-                {deliveryFeeBase === -1 ? (
+                {pricingLoading || deliveryFeeBase === null ? (
+                  <span className="text-zinc-500 animate-pulse">...</span>
+                ) : deliveryFeeBase === -1 ? (
                   <span className="text-sm font-bold text-red-500">Not Serviceable</span>
                 ) : (
                   <>
@@ -1277,7 +1322,7 @@ export default function CheckoutPage() {
             {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
-              <span>₹ {total}</span>
+              <span>{pricingLoading || total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</span>
             </div>
           </div>
         </section>
@@ -1297,12 +1342,12 @@ export default function CheckoutPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-black text-white" style={dmSans}>₹ {total}</p>
+              <p className="text-2xl font-black text-white" style={dmSans}>{total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</p>
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
                 (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
@@ -1425,6 +1470,66 @@ export default function CheckoutPage() {
                 style={dmSans}
               >
                 CONFIRM
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      {/* Recipient Info Editor Drawer */}
+      <Drawer.Root open={showRecipientEditor} onOpenChange={setShowRecipientEditor}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+            <div className="p-6 overflow-y-auto">
+              <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
+              <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Delivery Contact</Drawer.Title>
+              <p className="text-zinc-500 text-sm mb-6 font-medium">Who should the delivery rider contact?</p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Recipient Name</label>
+                  <input
+                    type="text"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Full Name"
+                    style={dmSans}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Mobile Number"
+                    style={dmSans}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Email"
+                    style={dmSans}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowRecipientEditor(false)}
+                className="w-full mt-10 py-4 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                style={dmSans}
+              >
+                SAVE DETAILS
               </button>
             </div>
           </Drawer.Content>
@@ -1705,7 +1810,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
+                  <span className="text-white font-black text-xl">{deliveryFeeBase === null ? <span className="animate-pulse">...</span> : <>₹ {deliveryFeeBase + distanceSurcharge}</>}</span>
                 </div>
               </div>
 
@@ -1900,7 +2005,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
+                  <span className="text-white font-black text-xl">{deliveryFeeBase === null ? <span className="animate-pulse">...</span> : <>₹ {deliveryFeeBase + distanceSurcharge}</>}</span>
                 </div>
               </div>
 

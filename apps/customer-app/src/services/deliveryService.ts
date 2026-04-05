@@ -87,14 +87,15 @@ const PRICING_CONFIG = {
 
 /**
  * Calculates delivery fee dynamically based on the road distance.
+ * Thresholds: INSTANT_MAX_KM=7, SERVICE_MAX_KM=12
  * Rules:
- * - distance ≤ 6km  → flat fee of ₹40
- * - distance > 6km  → ₹40 + (distance - 6) × ₹10 per km
- * Partial kilometers are rounded up using Math.ceil()
+ * - distance ≤ 7km  → flat fee of ₹40
+ * - distance 7-12km → ₹40 + (distance - 7) × ₹20 per km (rounded up)
+ * - distance > 12km → not serviceable (-1)
  */
 export function calculateDeliveryFee(distanceKm: number): number {
-    if (distanceKm <= 6) return 40;
-    if (distanceKm <= 12) return 40 + Math.ceil(distanceKm - 6) * 20;
+    if (distanceKm <= 7) return 40;
+    if (distanceKm <= 12) return 40 + Math.ceil(distanceKm - 7) * 20;
     return -1;
 }
 

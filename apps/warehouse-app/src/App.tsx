@@ -31,6 +31,7 @@ import { ActivePickupsPage } from './pages/ActivePickupsPage';
 import { OrderHistoryPage } from './pages/OrderHistoryPage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { ProductProfilePage } from './pages/ProductProfilePage';
+import { CategoryManagementPage } from './pages/CategoryManagementPage';
 
 function App() {
     const { profile, loading, user } = useAuth();
@@ -85,6 +86,7 @@ function App() {
                                 <Route path="/active-pickups" element={<ActivePickupsPage />} />
                                 <Route path="/order-history" element={<OrderHistoryPage />} />
                                 <Route path="/live-map" element={<LiveMapPage />} />
+                                <Route path="/categories" element={<CategoryManagementPage />} />
                                 <Route path="/product/:productId" element={<ProductProfilePage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
                                 <Route path="/login" element={<LoginPage />} />

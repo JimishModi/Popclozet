@@ -27,8 +27,9 @@ export interface UsePushNotificationsReturn {
   permission: NotificationPermission;
   isSubscribed: boolean;
   isLoading: boolean;
+  isInitializing: boolean; // New state
   error: string | null;
-  subscribe: () => Promise<boolean>;
+  subscribe: (options?: { skipWelcome?: boolean }) => Promise<boolean>;
   unsubscribe: () => Promise<boolean>;
   sendTest: () => Promise<boolean>;
   autoSubscribe: () => Promise<void>;
@@ -41,12 +42,18 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   );
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Default to true
   const [error, setError] = useState<string | null>(null);
   const autoSubscribeInFlightRef = useRef(false);
 
+  const [hasAttemptedAutoSub, setHasAttemptedAutoSub] = useState(false);
+
   // Check for existing subscription on mount
   useEffect(() => {
-    if (!isSupported) return;
+    if (!isSupported) {
+      setIsInitializing(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -59,6 +66,10 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         }
       } catch {
         // Silently fail — user might not be on HTTPS or SW not ready
+      } finally {
+        if (!cancelled) {
+          setIsInitializing(false);
+        }
       }
     })();
 
@@ -68,7 +79,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   }, [isSupported]);
 
   // Subscribe
-  const subscribe = useCallback(async (): Promise<boolean> => {
+  const subscribe = useCallback(async (options?: { skipWelcome?: boolean }): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
 
@@ -78,7 +89,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       if (result.success) {
         setIsSubscribed(true);
-        if (result.createdNewSubscription) {
+        if (result.createdNewSubscription && !options?.skipWelcome) {
           // Send a welcome test push only for brand-new subscriptions.
           try {
             await sendTestPush();
@@ -140,18 +151,22 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       setIsLoading(false);
     }
   }, []);
+
   // Auto-subscribe if permission is already granted but we are not subscribed
   const autoSubscribe = useCallback(async () => {
     if (
       permission !== "granted" ||
       isSubscribed ||
       isLoading ||
+      isInitializing ||
+      hasAttemptedAutoSub ||
       autoSubscribeInFlightRef.current
     ) {
       return;
     }
 
     autoSubscribeInFlightRef.current = true;
+    setHasAttemptedAutoSub(true);
 
     try {
       const existing = await getExistingSubscription();
@@ -163,17 +178,18 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       }
 
       console.log("[Push] Auto-subscribing since permission is already granted...");
-      await subscribe();
+      await subscribe({ skipWelcome: true });
     } finally {
       autoSubscribeInFlightRef.current = false;
     }
-  }, [permission, isSubscribed, isLoading, subscribe]);
+  }, [permission, isSubscribed, isLoading, isInitializing, hasAttemptedAutoSub, subscribe]);
 
   return {
     isSupported,
     permission,
     isSubscribed,
     isLoading,
+    isInitializing,
     error,
     subscribe,
     unsubscribe,

@@ -162,7 +162,7 @@ const CategoryProductsPage: React.FC = () => {
 
         let query = supabase
             .from('products')
-            .select('*, inventory(available_stock)')
+            .select('*, inventory(available_stock, total_stock)')
             .eq('is_available', true);
 
         if (filters.category) {
@@ -177,6 +177,9 @@ const CategoryProductsPage: React.FC = () => {
         if (filters.nameQuery && filters.nameQuery.trim() !== '') {
             query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
         }
+        // Consistent ordering: newest first
+        query = query.order('created_at', { ascending: false });
+
         try {
             const { data, error } = await query;
 
@@ -196,7 +199,10 @@ const CategoryProductsPage: React.FC = () => {
                     sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
                     // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
                     gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
-                    isRentedOut: (p.inventory || []).length > 0 && (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
+                    isSoldOut: (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) === 0,
+                    isRentedOut: (p.inventory || []).length > 0 && 
+                                 (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
+                                 (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
                 }));
 
                 // Show real products immediately, then mix in fakes
@@ -217,11 +223,12 @@ const CategoryProductsPage: React.FC = () => {
                                 const existingIds = new Set(prev.map(p => p.id));
                                 const newFakes = fakes.filter(f => !existingIds.has(f.id));
                                 if (newFakes.length === 0) return prev;
-                                // Shuffle fakes into the list at random positions
+                                // Distribute fakes evenly throughout the list (deterministic positions)
                                 const merged = [...prev];
-                                for (const fake of newFakes) {
-                                    const pos = Math.floor(Math.random() * (merged.length + 1));
-                                    merged.splice(pos, 0, fake);
+                                const step = Math.max(2, Math.floor(merged.length / (newFakes.length + 1)));
+                                for (let i = 0; i < newFakes.length; i++) {
+                                    const pos = Math.min((i + 1) * step, merged.length);
+                                    merged.splice(pos, 0, newFakes[i]);
                                 }
                                 return merged;
                             });
@@ -475,17 +482,23 @@ const CategoryProductsPage: React.FC = () => {
                                 {filteredProducts.map((product, index) => {
                                     // _isFake = product from fake_products table (simulated "rented" items)
                                     // isRentedOut = REAL product with zero available stock
+                                    // isSoldOut = REAL product with zero total stock
                                     const isFake = (product as any)._isFake === true;
-                                    const isRealRentedOut = !isFake && (product as any).isRentedOut === true;
+                                    const isRentedOut = (product as any).isRentedOut === true;
+                                    const isSoldOut = (product as any).isSoldOut === true;
+                                    const isUnavailable = isFake || isRentedOut || isSoldOut;
+
+                                    const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented";
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
+                                    
                                     return (
                                     <motion.div
                                         key={product.id}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
-                                        onClick={() => isFake
-                                            ? navigate(`/product/${product.id}`, { state: { fakeProduct: product, isRented: true } })
+                                        onClick={() => isUnavailable
+                                            ? navigate(`/product/${product.id}`, { state: { fakeProduct: product, isRented: !isSoldOut, isSold: isSoldOut } })
                                             : handleProductClick(product.id)
                                         }
                                         className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
@@ -497,8 +510,7 @@ const CategoryProductsPage: React.FC = () => {
                                                     alt={product.name}
                                                     className={cn(
                                                         "w-full h-full object-cover transition-transform duration-300",
-                                                        // Only blur FAKE products — real rented-out stays crisp (NOW: Blur removed as requested)
-                                                        isFake
+                                                        isUnavailable
                                                             ? "grayscale opacity-25"
                                                             : "group-hover:scale-105"
                                                     )}
@@ -510,28 +522,18 @@ const CategoryProductsPage: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Fake product — "Currently Rented" with blur overlay */}
-                                            {isFake && (
+                                            {/* Status badge — unified for fake, rented out, and sold out */}
+                                            {isUnavailable && (
                                                 <div className="absolute top-2 left-2 z-10">
                                                     <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                                                        Currently Rented
+                                                        <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                                                        {statusLabel}
                                                     </span>
                                                 </div>
                                             )}
 
-                                            {/* Real product that is rented out — badge only, no blur */}
-                                            {isRealRentedOut && (
-                                                <div className="absolute top-2 left-2 z-10">
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
-                                                        Rented Out
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Wishlist — visible for all non-fake products */}
-                                            {!isFake && (
+                                            {/* Wishlist — visible only for available products */}
+                                            {!isUnavailable && (
                                                 <button
                                                     onClick={(e) => toggleWishlist(product.id, e)}
                                                     className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
@@ -546,15 +548,11 @@ const CategoryProductsPage: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="p-3">
-                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isFake ? "text-zinc-500" : "text-white")}>{product.name}</h3>
+                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                            {isFake ? (
-                                                <span className="text-xs text-zinc-600 font-medium">Currently Unavailable</span>
-                                            ) : isRealRentedOut ? (
-                                                <span className="text-xs text-red-500 font-medium">All Rented — Check Back Soon</span>
-                                            ) : (
-                                                <span className="text-base font-bold text-white">₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}</span>
-                                            )}
+                                            <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
+                                            </span>
                                         </div>
                                     </motion.div>
                                     );

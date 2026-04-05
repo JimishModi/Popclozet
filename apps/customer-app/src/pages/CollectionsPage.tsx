@@ -190,11 +190,11 @@ const CollectionsPage = () => {
       </div>
 
       {/* ── Category Cards ── */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-3">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeGender}
-            className="space-y-4"
+            className="space-y-3"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -202,15 +202,7 @@ const CollectionsPage = () => {
           >
             {categories.map((cat, index) => {
               const catId = cat.id.toLowerCase();
-              const isImageCategory = catId === 'jackets' || catId === 'footwear' || catId === 'accessories' || catId === 'accessory';
-              let imageName = '';
-              if (catId === 'jackets') imageName = 'Jackets';
-              else if (catId === 'footwear') imageName = 'Footwear';
-              else if (catId === 'accessories' || catId === 'accessory') imageName = 'Acessories';
-
-              const imageUrl = isImageCategory 
-                ? `https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/assets/collection-page/${imageName}.jpeg`
-                : null;
+              const imageUrl = cat.image;
               const Icon = ICON_MAP[catId] ?? FallbackIcon;
               
               return (
@@ -223,12 +215,12 @@ const CollectionsPage = () => {
                   onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
                   className={cn(
                     "w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center overflow-hidden relative",
-                    isImageCategory ? "h-64" : "py-10 gap-3"
+                    imageUrl ? "h-48" : "py-8 gap-3"
                   )}
                 >
-                  {isImageCategory ? (
+                  {imageUrl ? (
                     <img 
-                      src={imageUrl!} 
+                      src={imageUrl} 
                       alt={cat.title} 
                       className="absolute inset-0 w-full h-full object-cover"
                     />

@@ -142,6 +142,9 @@ export interface PlaceOrderParams {
   returnPickupDate: string | null;
   returnTimeSlot: string | null;
   items: PlaceOrderItem[];
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientEmail?: string | null;
 }
 
 export interface PlaceOrderResult {
@@ -159,9 +162,11 @@ export interface PlaceOrderResult {
 }
 
 export interface PreviewOrderParams {
-  items: { product_id: string; plan: string; quantity: number }[];
+  items: { product_id: string; size?: string; plan: string; quantity: number }[];
   couponCode?: string | null;
-  distanceKm?: number;
+  addressId?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface PreviewOrderResult {
@@ -186,7 +191,9 @@ export async function previewOrder(params: PreviewOrderParams): Promise<PreviewO
   const { data, error } = await supabase.rpc("preview_order", {
     p_items: params.items,
     p_coupon_code: params.couponCode || null,
-    p_distance_km: params.distanceKm ?? 0,
+    p_address_id: params.addressId || null,
+    p_lat: params.lat ?? null,
+    p_lng: params.lng ?? null,
   });
 
   if (error) {
@@ -224,6 +231,9 @@ export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderRe
         p_return_pickup_date: params.returnPickupDate,
         p_return_time_slot: params.returnTimeSlot,
         p_items: params.items,
+        p_recipient_name: params.recipientName || null,
+        p_recipient_phone: params.recipientPhone || null,
+        p_recipient_email: params.recipientEmail || null,
       });
 
       if (error) {

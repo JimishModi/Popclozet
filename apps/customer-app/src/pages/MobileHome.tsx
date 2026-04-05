@@ -66,8 +66,8 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Show delayed delivery only when delivery address is outside 6km radius of warehouse OR the delivery estimate is explicitly 'delayed'
-    const isDelayed = (selectedHub ? selectedHub.distance_km > 6 : false) || deliveryEstimate === 'delayed';
+    // Show delayed delivery only when delivery address is outside threshold radius of warehouse OR the delivery estimate is explicitly 'delayed'
+    const isDelayed = (selectedHub ? selectedHub.distance_km > 7 : false) || deliveryEstimate === 'delayed';
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
@@ -131,10 +131,10 @@ const MobileHome: React.FC = () => {
     useEffect(() => {
         let cancelled = false;
 
-        // Timeout: if detection takes >8s, show fallback text
+        // Timeout: if detection takes >5s, show fallback text
         const timeout = setTimeout(() => {
             if (!cancelled) setUserLocation(prev => prev === "Detecting..." ? "Select Location" : prev);
-        }, 8000);
+        }, 5000);
 
         const detectLocation = async () => {
             try {
@@ -174,18 +174,14 @@ const MobileHome: React.FC = () => {
 
                     // Recalculate Road Distance for New Detection
                     try {
-                        const { getRoadDistance } = await import("@/services/mapServices");
-                        const WAREHOUSE_COORDS = { lat: 19.1306, lng: 72.9155 }; // Hostel 5, IIT Bombay
-                        const distRes = await getRoadDistance(WAREHOUSE_COORDS, {
+                        const { getDeliveryEstimate } = await import("@/services/mapServices");
+                        const deliveryResult = await getDeliveryEstimate({
                             lat: result.lat,
                             lng: result.lng
                         });
 
-                        let estimate: '15min' | 'delayed' = '15min';
-                        if (distRes.status === 'success') {
-                            estimate = distRes.distanceKm > 6 ? 'delayed' : '15min';
-                            console.log(`🌐 Auto-detected Road Distance: ${distRes.distanceKm.toFixed(2)}km -> ${estimate}`);
-                        }
+                        const estimate = deliveryResult.estimate;
+                        console.log(`🌐 Auto-detected Road Distance: ${deliveryResult.distanceKm.toFixed(2)}km -> ${estimate}`);
 
                         if (!cancelled) setDeliveryEstimate(estimate);
 
@@ -529,8 +525,8 @@ const MobileHome: React.FC = () => {
 
 
                 {/* ─── COLLECTIONS: 2 Cards with Gradient Overlay ─── */}
-                <section className="px-4 mt-5 md:px-5 md:mt-8">
-                    <div className="flex items-center justify-between mb-4 md:mb-6">
+                <section className="px-4 mt-4 md:px-5 md:mt-6">
+                    <div className="flex items-center justify-between mb-3 md:mb-4">
                         <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                             Collections
                         </h2>
@@ -544,43 +540,47 @@ const MobileHome: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 md:gap-[18px]">
-                        {collections.slice(0, 5).map((collection, index) => (
-                            <motion.div
-                                key={collection.id}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
-                                className="relative h-[160px] md:h-[250px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
-                            >
-                                {collection.image ? (
-                                    <motion.img
-                                        src={collection.image}
-                                        alt={collection.title}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                        whileHover={{ scale: 1.05 }}
-                                        transition={{ duration: 0.4 }}
+                        {collections.slice(0, 5).map((collection, index) => {
+                            const imageUrl = collection.image;
+
+                            return (
+                                <motion.div
+                                    key={collection.id}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
+                                    className="relative h-[140px] md:h-[210px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
+                                >
+                                    {imageUrl ? (
+                                        <motion.img
+                                            src={imageUrl}
+                                            alt={collection.title}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            whileHover={{ scale: 1.05 }}
+                                            transition={{ duration: 0.4 }}
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
+                                            <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                        </div>
+                                    )}
+                                    {/* Gradient overlay at bottom — reduced height to not cover the text */}
+                                    <div
+                                        className="absolute bottom-0 left-0 right-0 h-[60px] rounded-b-[24px]"
+                                        style={{
+                                            background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.7) 100%)",
+                                        }}
                                     />
-                                ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
-                                        <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                    <div className="absolute bottom-4 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                                        <span className="text-sm md:text-base font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
+                                            {collection.title}
+                                        </span>
                                     </div>
-                                )}
-                                {/* Gradient overlay at bottom */}
-                                <div
-                                    className="absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[24px]"
-                                    style={{
-                                        background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.8) 50%, #111111 100%)",
-                                    }}
-                                />
-                                <div className="absolute bottom-5 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    <span className="text-base md:text-lg font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
-                                        {collection.title}
-                                    </span>
-                                </div>
-                            </motion.div>
-                        ))}
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 </section>
 
@@ -760,6 +760,12 @@ const MobileHome: React.FC = () => {
                             ))
                         ) : catalogueProducts.map((item, index) => {
                             const isFake = (item as any)._isFake === true;
+                            const isRentedOut = (item as any).isRentedOut === true;
+                            const isSoldOut = (item as any).isSoldOut === true;
+                            const isUnavailable = isFake || isRentedOut || isSoldOut;
+                            
+                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented";
+                            
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
                                 <motion.div
@@ -769,14 +775,14 @@ const MobileHome: React.FC = () => {
                                     viewport={{ once: true, margin: "-50px" }}
                                     transition={{ delay: index * 0.05 }}
                                     whileTap={{ scale: 0.97 }}
-                                    onClick={() => isFake
-                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: true } })
+                                    onClick={() => isUnavailable
+                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: !isSoldOut, isSold: isSoldOut } })
                                         : navigate(`/product/${item.id}`)
                                     }
                                     className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                                 >
-                                    {/* Wishlist — hidden for fake items */}
-                                    {!isFake && (
+                                    {/* Wishlist — hidden for fake/unavailable items */}
+                                    {!isUnavailable && (
                                         <button
                                             className="absolute top-4 right-4 z-10"
                                             onClick={(e) => toggleWishlist(item.id, e)}
@@ -798,7 +804,7 @@ const MobileHome: React.FC = () => {
                                                 alt={item.name}
                                                 className={cn(
                                                     "w-full h-full object-cover transition-transform duration-500",
-                                                    isFake ? "grayscale opacity-20" : "group-hover:scale-105"
+                                                    isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
                                                 )}
                                             />
                                         ) : (
@@ -807,12 +813,12 @@ const MobileHome: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Currently Rented badge */}
-                                        {isFake && (
+                                        {/* Status badge */}
+                                        {isUnavailable && (
                                             <div className="absolute top-2 left-2 z-10">
                                                 <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                                                    Currently Rented
+                                                    <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                                                    {statusLabel}
                                                 </span>
                                             </div>
                                         )}
@@ -823,35 +829,21 @@ const MobileHome: React.FC = () => {
 
                                     {/* Product Details */}
                                     <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
+                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isUnavailable ? "text-zinc-500" : "text-white")}>
                                             {item.name}
                                         </h3>
 
                                         <div className="mt-auto">
-                                            {isFake ? (
-                                                <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
-                                            ) : (
-                                                <>
-                                                    {item.price > (item.rentalPrice || item.price) && (
-                                                        <div className="relative inline-block mb-1">
-                                                            <span className="text-[11px] text-[#5f606a] font-semibold">
-                                                                ₹{item.price}
-                                                            </span>
-                                                            <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-white">
-                                                            ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
-                                                        </span>
-                                                        {item.price > (item.rentalPrice || item.price) && (
-                                                            <span className="text-[10px] font-bold text-[#f2546d]">
-                                                                Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn("text-sm font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                    ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
+                                                </span>
+                                                {!isUnavailable && item.price > (item.rentalPrice || item.price) && (
+                                                    <span className="text-[10px] font-bold text-[#f2546d]">
+                                                        Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </motion.div>

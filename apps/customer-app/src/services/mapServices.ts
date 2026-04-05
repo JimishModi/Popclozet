@@ -7,6 +7,8 @@
 
 import { callLocationFn } from "@/utils/env";
 import { haversineDistance } from "@/utils/haversine";
+import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
+import { calculateDeliveryFee } from "./deliveryService";
 
 export interface DistanceResult {
   distanceKm: number;
@@ -123,4 +125,19 @@ export function coordinatesAreSuspiciouslyClose(
     Math.abs(origin.lat - dest.lat) < 0.1 &&
     Math.abs(origin.lng - dest.lng) < 0.1
   );
+}
+
+/**
+ * Centralized delivery estimate based on road distance from warehouse.
+ * Uses WAREHOUSE coords and DELIVERY_THRESHOLDS from serviceAreas.ts.
+ */
+export async function getDeliveryEstimate(
+    destination: { lat: number; lng: number; eLoc?: string }
+): Promise<{ estimate: '15min' | 'delayed'; distanceKm: number; fee: number }> {
+    const res = await getRoadDistance(WAREHOUSE, destination);
+    const distanceKm = res.status === 'success' ? res.distanceKm : 0;
+    const estimate = distanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM ? 'delayed' : '15min';
+    const fee = calculateDeliveryFee(distanceKm);
+    console.log(`[DeliveryEstimate] road=${distanceKm.toFixed(2)}km, threshold=${DELIVERY_THRESHOLDS.INSTANT_MAX_KM}km, result=${estimate}`);
+    return { estimate, distanceKm, fee };
 }

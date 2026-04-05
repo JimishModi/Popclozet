@@ -11,6 +11,8 @@ interface InstantAddButtonProps {
     onDecrement: () => void;
     className?: string;
     productImage?: string;
+    disabled?: boolean;
+    label?: string;
 }
 
 const InstantAddButton = ({
@@ -20,6 +22,8 @@ const InstantAddButton = ({
     onDecrement,
     className,
     productImage,
+    disabled = false,
+    label = "Add",
 }: InstantAddButtonProps) => {
     const isInCart = quantity > 0;
     const { triggerFlyAnimation } = useFlyToCart();
@@ -44,13 +48,18 @@ const InstantAddButton = ({
         >
             {/* Add Button State */}
             <Button
-                onClick={handleAdd}
+                onClick={(e) => {
+                    if (disabled && !isInCart) return;
+                    handleAdd(e);
+                }}
+                disabled={disabled && !isInCart}
                 className={cn(
-                    "absolute inset-0 w-full h-full transition-opacity duration-300",
-                    isInCart ? "opacity-0 pointer-events-none" : "opacity-100"
+                    "absolute inset-0 w-full h-full transition-all duration-300",
+                    isInCart ? "opacity-0 pointer-events-none" : "opacity-100",
+                    disabled ? "bg-zinc-900 text-zinc-600 border-white/5 cursor-not-allowed" : ""
                 )}
             >
-                <ShoppingBag className="mr-2 h-4 w-4" /> Add
+                <ShoppingBag className="mr-2 h-4 w-4" /> {label}
             </Button>
 
             {/* Counter State */}

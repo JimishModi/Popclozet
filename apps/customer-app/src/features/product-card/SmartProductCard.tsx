@@ -48,6 +48,10 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
     longPressDelay: 500,
   });
 
+  const isRentedOut = (product as any).isRentedOut === true;
+  const isSoldOut = (product as any).isSoldOut === true;
+  const isUnavailable = isFake || isRentedOut || isSoldOut;
+
   const imgSrc = normalizeSrc(product.image);
   const videoSrc = product.videoUrl ? normalizeSrc(product.videoUrl) : undefined;
 
@@ -62,20 +66,21 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
       <div
         className={cn(
           "group relative flex flex-col overflow-hidden rounded-xl bg-card border border-border transition-all hover:shadow-lg touch-manipulation",
+          isUnavailable && "opacity-80",
           className
         )}
         {...eventHandlers}
       >
         {/* Image/Video Container */}
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
-          {/* Static Image — greyscale + dimmed when fake */}
+          {/* Static Image — grayscale + dimmed when unavailable */}
           <img
             src={imgSrc}
             alt={product.name}
             className={cn(
               "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
               isPlaying ? "opacity-0" : "opacity-100",
-              isFake && "grayscale opacity-50"
+              isUnavailable && "grayscale opacity-25"
             )}
             loading="lazy"
             onError={(e) => {
@@ -93,7 +98,7 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
               className={cn(
                 "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
                 isPlaying ? "opacity-100" : "opacity-0",
-                isFake && "grayscale opacity-50"
+                isUnavailable && "grayscale opacity-25"
               )}
               muted
               loop
@@ -105,12 +110,12 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
             />
           ) : null}
 
-          {/* "Currently Rented" badge — only for fake products */}
-          {isFake && (
+          {/* Status badge — for fake products, rented out, or sold out */}
+          {isUnavailable && (
             <div className="absolute top-2 left-2 z-10">
               <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                Currently Rented
+                <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                {isSoldOut ? "Sold Out" : "Currently Rented"}
               </span>
             </div>
           )}
@@ -193,8 +198,8 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
                   <Eye className="mr-2 h-4 w-4" /> Quick View
                 </Button>
 
-                {/* Cart button hidden for fake/rented-out items */}
-                {!isFake && (
+                {/* Cart button hidden for fake/rented-out/sold-out items */}
+                {!isUnavailable && (
                   <InstantAddButton
                     quantity={quantity}
                     onAdd={() => { if (!isAtMax) setShowPicker(true); }}
@@ -210,7 +215,7 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
         </div>
 
         {/* Product Info */}
-        <div className="p-4 flex flex-col gap-1">
+        <div className={cn("p-4 flex flex-col gap-1", isUnavailable && "opacity-60")}>
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-medium text-headline truncate">{product.name}</h3>
           </div>
