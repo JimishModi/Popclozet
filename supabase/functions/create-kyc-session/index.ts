@@ -98,7 +98,27 @@ Deno.serve(async (req: Request) => {
 
     // Didit returns session URL — map to verification_url for frontend
     const verificationUrl = data.url || data.verification_url || data.session_url
-    log.info('Didit session created successfully', { session_id: data.session_id, hasUrl: !!verificationUrl })
+    const diditSessionId = data.session_id || data.id
+
+    // Store session → user mapping in our DB so webhook can look it up locally
+    if (diditSessionId) {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      const { error: insertErr } = await supabase
+        .from('kyc_sessions')
+        .insert({ didit_session_id: diditSessionId, user_id: userId })
+      
+      if (insertErr) {
+        log.warn('Failed to store kyc_session mapping (non-fatal)', { error: insertErr })
+      } else {
+        log.info(`Stored kyc_session mapping: ${diditSessionId} → ${userId}`)
+      }
+    }
+
+    log.info('Didit session created successfully', { session_id: diditSessionId, hasUrl: !!verificationUrl })
     log.done(200);
     return jsonResponse({ ...data, verification_url: verificationUrl }, 200)
   } catch (error: any) {

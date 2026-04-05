@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url)
 
     const isBrowserRedirect = req.method === 'GET'
-    const APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://popclozet.vercel.app'
+    const APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://popclozet.in'
 
     // Helper: for browser GET redirects, send user to the customer app instead of returning JSON
     function browserRedirectOrJson(body: unknown, httpStatus: number, kycResult: string = 'success') {
@@ -73,26 +73,48 @@ Deno.serve(async (req: Request) => {
     const status = data?.status
     let userId = data?.vendor_data || data?.user_id
 
-    // If no userId but we have a session ID, fetch it from Didit API
+    // PRIMARY: Look up user_id from our DB (most reliable — no external API dependency)
+    if (!userId && data?.verificationSessionId) {
+      const supabaseLookup = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      const { data: sessionRow } = await supabaseLookup
+        .from('kyc_sessions')
+        .select('user_id')
+        .eq('didit_session_id', data.verificationSessionId)
+        .maybeSingle()
+      
+      if (sessionRow?.user_id) {
+        userId = sessionRow.user_id
+        log.info(`Found user_id from kyc_sessions table: ${userId}`)
+      } else {
+        log.warn(`Session ${data.verificationSessionId} not found in kyc_sessions table`)
+      }
+    }
+
+    // FALLBACK: Try Didit API if DB lookup failed
     if (!userId && data?.verificationSessionId) {
       const DIDIT_API_KEY = Deno.env.get("DIDIT_API_KEY")
       if (DIDIT_API_KEY) {
-        log.info(`Fetching session ${data.verificationSessionId} from Didit to get vendor_data`)
+        log.info(`Fetching session ${data.verificationSessionId} from Didit API (fallback)`)
         const sessionRes = await fetch(`https://verification.didit.me/v3/session/${data.verificationSessionId}/`, {
           headers: { 'x-api-key': DIDIT_API_KEY },
         })
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json()
           userId = sessionData?.vendor_data
-          log.info(`Got vendor_data from session: ${userId}`)
+          log.info(`Got vendor_data from Didit API: ${userId}`)
         } else {
-          log.error(`Failed to fetch session from Didit`, { status: sessionRes.status })
+          log.error(`Didit API failed`, { status: sessionRes.status, body: await sessionRes.text().catch(() => '') })
         }
+      } else {
+        log.error('DIDIT_API_KEY not set — cannot fetch vendor_data from Didit API')
       }
     }
 
     if (!userId) {
-      log.warn('Webhook missing user identification (vendor_data/user_id)')
+      log.warn('Could not resolve user_id from DB or Didit API')
       log.done(200);
       // If browser redirect, still send user to app (they can refresh KYC from profile)
       return browserRedirectOrJson({ error: 'Missing user identification' }, 200, 'pending')
@@ -107,15 +129,22 @@ Deno.serve(async (req: Request) => {
     if (['Approved', 'approved', 'success'].includes(status)) {
       log.info(`User ${userId} verified successfully. Updating DB...`)
       
-      const { error } = await supabase
+      // 1. Update Profile
+      const { error: profileError } = await supabase
         .from('customer_profiles')
         .update({ kyc_verified: true })
         .eq('user_id', userId)
 
-      if (error) {
-        log.error(`DB Update failed for user ${userId}`, { error })
-        log.done(500);
-        return browserRedirectOrJson({ error: 'Database update failed' }, 500, 'error')
+      if (profileError) {
+        log.error(`Profile update failed for user ${userId}`, { error: profileError })
+      }
+
+      // 2. Update Session Record
+      if (data?.verificationSessionId) {
+        await supabase
+          .from('kyc_sessions')
+          .update({ status: 'Approved', updated_at: new Date().toISOString() })
+          .eq('didit_session_id', data.verificationSessionId)
       }
 
       log.info(`User ${userId} marked as kyc_verified=true`)
@@ -152,7 +181,8 @@ Deno.serve(async (req: Request) => {
     // Handle REJECTION (v3: "Declined")
     if (['Rejected', 'rejected', 'failed', 'Declined', 'declined'].includes(status)) {
       log.warn(`User ${userId} verification REJECTED: ${status}`)
-      // Optionally reset verification status if it was previously true
+      
+      // 1. Reset verification status
       const { error: updateError } = await supabase
         .from('customer_profiles')
         .update({ kyc_verified: false })
@@ -160,6 +190,14 @@ Deno.serve(async (req: Request) => {
         
       if (updateError) {
         log.error("Failed to reset verification status:", { error: updateError });
+      }
+
+      // 2. Update Session Record
+      if (data?.verificationSessionId) {
+        await supabase
+          .from('kyc_sessions')
+          .update({ status: 'Rejected', updated_at: new Date().toISOString() })
+          .eq('didit_session_id', data.verificationSessionId)
       }
       
       log.done(200);

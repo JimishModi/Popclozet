@@ -20,27 +20,14 @@
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
-    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@popclozet/ui": [
-        "../../packages/ui/src/index.tsx"
-      ],
-      "@popclozet/map-core": [
-        "../../packages/map-core/src/index.ts"
-      ],
-      "@popclozet/api-client": [
-        "../../packages/api-client/src/index.ts"
-      ],
-      "@popclozet/auth": [
-        "../../packages/auth/src/index.tsx"
-      ],
-      "@popclozet/domain-contracts": [
-        "../../packages/domain-contracts/src/index.ts"
-      ]
-    },
+  "@/*": ["./src/*"],
+  "@popclozet/ui": ["../../packages/ui/src/index.tsx"],
+  "@popclozet/map-core": ["../../packages/map-core/src/index.ts"],
+  "@popclozet/api-client": ["../../packages/api-client/src/index.ts"],
+  "@popclozet/auth": ["../../packages/auth/src/index.tsx"],
+  "@popclozet/domain-contracts": ["../../packages/domain-contracts/src/index.ts"]
+},
     "types": [
       "vite/client",
       "node"
