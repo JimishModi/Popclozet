@@ -166,6 +166,13 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
               }
             }).catch(() => {});
           }
+        } else {
+          // Critical for redirect/reload flows: clear stale cached user/session when
+          // Supabase has no active session (prevents UI from assuming auth exists).
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          initialized.current = false;
         }
       } catch (err) {
         console.warn('[Auth] getSession error or timeout:', err);

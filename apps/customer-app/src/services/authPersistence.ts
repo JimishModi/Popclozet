@@ -11,16 +11,50 @@ export const authPersistence = {
     getCachedSessionSync: (): { session: Session | null } => {
         try {
             if (typeof window === 'undefined') return { session: null };
-            
+
+            const expectedAuthStorageKey = (() => {
+                try {
+                    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+                    if (!supabaseUrl) return null;
+                    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+                    return projectRef ? `sb-${projectRef}-auth-token` : null;
+                } catch {
+                    return null;
+                }
+            })();
+
+            const extractSession = (storedValue: string | null): Session | null => {
+                if (!storedValue) return null;
+                const parsed = JSON.parse(storedValue);
+
+                // Newer Supabase storage format:
+                // { currentSession: Session | null, expiresAt: number | null }
+                if (parsed?.currentSession?.access_token) {
+                    return parsed.currentSession as Session;
+                }
+
+                // Older format: Session object directly
+                if (parsed?.access_token && parsed?.user) {
+                    return parsed as Session;
+                }
+
+                return null;
+            };
+
+            if (expectedAuthStorageKey) {
+                const expectedSession = extractSession(localStorage.getItem(expectedAuthStorageKey));
+                if (expectedSession) {
+                    return { session: expectedSession };
+                }
+            }
+
+            // Fallback: pick the first parseable auth-token key (legacy keys / migrations)
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && key.endsWith('-auth-token')) {
-                    const storedSession = localStorage.getItem(key);
-                    if (storedSession) {
-                        const parsed = JSON.parse(storedSession);
-                        // The stored session in Supabase is usually the Session object itself
-                        return { session: parsed as Session };
-                    }
+                if (!key || !key.endsWith('-auth-token')) continue;
+                const parsedSession = extractSession(localStorage.getItem(key));
+                if (parsedSession) {
+                    return { session: parsedSession };
                 }
             }
         } catch (e) {

@@ -8,6 +8,7 @@ import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useCart } from "@/context/CartContext";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import { supabase } from "@popclozet/api-client";
+import { debugAuthState } from "@/services/supabaseFunctionInvoke";
 
 export default function PaymentProcessingPage() {
     const navigate = useNavigate();
@@ -22,7 +23,7 @@ export default function PaymentProcessingPage() {
     const pickupSlotIso = searchParams.get("pickupSlotIso");
     const pickupAddressId = searchParams.get("pickupAddressId");
 
-    const { user, profile } = useAuth();
+    const { user, profile, session } = useAuth();
     const { cartItems, removeFromCart } = useCart();
     const { initiatePayment, isProcessing } = useRazorpayCheckout();
     const hasInitiated = useRef(false);
@@ -32,6 +33,23 @@ export default function PaymentProcessingPage() {
     const paymentSettled = useRef(false);
 
     const isUpi = method === "upi";
+
+    useEffect(() => {
+        const log = () => {
+            debugAuthState(`payment-processing:${document.visibilityState}`).catch(() => { });
+        };
+
+        log();
+        window.addEventListener("focus", log);
+        window.addEventListener("pageshow", log);
+        document.addEventListener("visibilitychange", log);
+
+        return () => {
+            window.removeEventListener("focus", log);
+            window.removeEventListener("pageshow", log);
+            document.removeEventListener("visibilitychange", log);
+        };
+    }, []);
 
     // Safety timeout: if nothing settles within 5 minutes, something is stuck.
     // This is a last-resort fallback — the Razorpay hook's own ondismiss/handler
@@ -67,6 +85,16 @@ export default function PaymentProcessingPage() {
 
         const startPayment = async () => {
             if (type === "order" && orderId && amountStr) {
+                if (!session?.access_token || !user?.id) {
+                    console.warn("[PaymentProcessing] Missing authenticated session before payment invoke", {
+                        hasSession: !!session,
+                        hasAccessToken: !!session?.access_token,
+                        userId: user?.id || null,
+                    });
+                    navigate("/auth/login", { replace: true });
+                    return;
+                }
+
                 const amount = parseFloat(amountStr);
                 if (isNaN(amount)) {
                     console.error("[PaymentProcessing] Invalid amount:", amountStr);
@@ -137,7 +165,7 @@ export default function PaymentProcessingPage() {
         };
 
         startPayment();
-    }, [type, orderId, amountStr, initiatePayment, profile, user, navigate, planId, cartItems, removeFromCart]);
+    }, [type, orderId, amountStr, initiatePayment, profile, user, session, navigate, planId, cartItems, removeFromCart]);
 
 
     return (

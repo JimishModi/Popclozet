@@ -47,6 +47,7 @@ import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
 import { callLocationFn } from "@/utils/env";
 import { haversineDistance } from "@/utils/haversine";
+import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 
 /* ---------------------------------- */
 /* Constants                          */
@@ -1030,7 +1031,7 @@ export default function CheckoutPage() {
                 onClick={async () => {
                   try {
                     setIsKycLoading(true);
-                    const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                    const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
                       body: { callbackParams: { user_id: user?.id } }
                     });
                     if (error) throw error;
@@ -1486,7 +1487,7 @@ export default function CheckoutPage() {
                   onClick={async () => {
                     try {
                       setIsKycLoading(true);
-                      const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                      const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
                         body: { callbackParams: { user_id: user?.id } }
                       });
                       if (error) throw error;

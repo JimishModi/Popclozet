@@ -15,6 +15,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
+import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 
 
 const ProfilePage: React.FC = () => {
@@ -505,7 +506,7 @@ const ProfilePage: React.FC = () => {
                           onClick={async () => {
                             setIsKycLoading(true);
                             try {
-                              const { data, error } = await supabase.functions.invoke('create-kyc-session', {
+                              const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
                                 body: { callbackParams: { user_id: user.id, callback_path: "/profile" } }
                               });
                               if (error) throw error;

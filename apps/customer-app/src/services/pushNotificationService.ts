@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@popclozet/api-client";
+import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 
 // VAPID public key from environment
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
@@ -296,7 +297,7 @@ export async function sendTestPush(): Promise<boolean> {
       return false;
     }
 
-    const response = await supabase.functions.invoke("send-push-notification", {
+    const response = await invokeWithUserJwt("send-push-notification", {
       body: {
         test: true,
         title: "🎉 Push Notifications Enabled!",
@@ -379,7 +380,7 @@ export async function triggerPushForOrderStatus(
   }
 
   try {
-    const { error } = await supabase.functions.invoke("send-push-notification", {
+    const { error } = await invokeWithUserJwt("send-push-notification", {
       body: {
         user_id: userId,
         title: config.title,

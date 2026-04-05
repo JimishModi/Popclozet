@@ -3,38 +3,7 @@
 
 import { supabase } from '@popclozet/api-client';
 import type { RazorpayPaymentResponse } from '@/lib/razorpay';
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-/**
- * Ensures the Supabase session has a valid (non-expired) access token.
- *
- * getSession() returns the CACHED token which may have expired.
- * getUser() hits the server, which triggers the client's auto-refresh
- * mechanism if the token is expired. If that also fails we fall back
- * to an explicit refreshSession() call.
- *
- * Call this BEFORE every supabase.functions.invoke() to prevent
- * 401 "Invalid JWT" errors from the Supabase gateway.
- */
-async function ensureValidSession(client: SupabaseClient): Promise<void> {
-  const { data: { session } } = await client.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session. Please log in again.');
-  }
-
-  // Force server-side validation — this triggers auto-refresh if needed
-  const { error: userError } = await client.auth.getUser();
-
-  if (userError) {
-    console.warn('[razorpayService] getUser() failed, attempting explicit refresh:', userError.message);
-    const { error: refreshError } = await client.auth.refreshSession();
-    if (refreshError) {
-      console.error('[razorpayService] Session refresh failed:', refreshError);
-      throw new Error('Authentication expired. Please log in again.');
-    }
-  }
-}
+import { debugAuthState, invokeWithUserJwt } from '@/services/supabaseFunctionInvoke';
 
 interface CreateOrderParams {
   receipt: string;         // your internal order ID
@@ -54,10 +23,7 @@ interface CreateOrderResult {
  * Returns the Razorpay order ID and public key for use in the checkout modal.
  */
 export async function createRazorpayOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
-  // Ensure a valid JWT before calling the edge function
-  await ensureValidSession(supabase);
-
-  const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+  const { data, error } = await invokeWithUserJwt<CreateOrderResult>('create-razorpay-order', {
     body: {
       receipt: params.receipt,
       notes: params.notes,
@@ -67,9 +33,10 @@ export async function createRazorpayOrder(params: CreateOrderParams): Promise<Cr
   if (error) {
     // Extract the actual error body from the edge function response
     let detail = error.message;
+    const invokeError = error as any;
     try {
-      if (error.context && typeof error.context.json === 'function') {
-        const body = await error.context.json();
+      if (invokeError.context && typeof invokeError.context.json === 'function') {
+        const body = await invokeError.context.json();
         detail = body?.error || JSON.stringify(body);
       }
     } catch { /* ignore parse errors */ }
@@ -110,12 +77,12 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
 
   let lastError: Error | null = null;
 
-  // Ensure a valid JWT — the user may have spent minutes in the Razorpay modal
-  await ensureValidSession(supabase);
+  // Debug snapshot after user returns from the Razorpay modal/app handoff.
+  await debugAuthState('verify-razorpay-payment:return-from-razorpay');
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const { data, error } = await supabase.functions.invoke('verify-razorpay-payment', {
+      const { data, error } = await invokeWithUserJwt<{ success: boolean; payment_id: string }>('verify-razorpay-payment', {
         body: {
           razorpay_order_id: params.razorpay_order_id,
           razorpay_payment_id: params.razorpay_payment_id,
