@@ -54,10 +54,10 @@ import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 /* ---------------------------------- */
 const WAREHOUSE_LOCATION = {
   name: "Hostel 2, IIT Bombay",
-  lat: 19.1305,
-  lng: 72.9135
+  lat: 19.1306,
+  lng: 72.9155
 };
-const MAX_DELIVERY_DISTANCE_KM = 6;
+const MAX_DELIVERY_DISTANCE_KM = 12;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 
@@ -333,6 +333,9 @@ export default function CheckoutPage() {
         const distance = data.distance;
         console.log("[DistanceCheck] API verified distance:", distance);
         setActualDistance(distance);
+        if (distance > 12) {
+            setDistanceError("This area is out of our current service range (12km).");
+        }
       } catch (error) {
         console.warn("[Checkout] Edge function distance failed, trying Haversine fallback:", error);
 
@@ -346,6 +349,9 @@ export default function CheckoutPage() {
               const km = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, dLat, dLng);
               console.log(`[DistanceCheck] Haversine fallback: ${km.toFixed(2)}km`);
               setActualDistance(km);
+              if (km > 12) {
+                  setDistanceError("This area is out of our current service range (12km).");
+              }
               return;
             }
           }
@@ -462,7 +468,7 @@ export default function CheckoutPage() {
       let productMap: Record<string, any> = {};
       if (data && !error) {
         data.forEach((p: any) => {
-          const mrp = parseFloat(p.mrp ?? '0');
+          const mrp = parseFloat(p.mrp_price ?? p.mrp ?? '0');
           productMap[p.id] = {
             ...p,
             mrp,
@@ -643,7 +649,9 @@ export default function CheckoutPage() {
 
   const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
     if (actualDistance !== null && actualDistance > 0) {
-      return actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
+      if (actualDistance <= 6) return 40;
+      if (actualDistance <= 12) return 40 + Math.ceil(actualDistance - 6) * 20;
+      return -1;
     }
     return profile?.delivery_fee ?? 40;
   })();
@@ -652,7 +660,12 @@ export default function CheckoutPage() {
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0;
-  const total = serverPricing?.total ?? (subtotal - couponDiscount + deliveryFee + insuranceFee);
+  const total = (() => {
+    if (deliveryFeeBase === -1) {
+      return Math.max(0, subtotal - couponDiscount + insuranceFee);
+    }
+    return serverPricing?.total ?? Math.max(0, subtotal - couponDiscount + deliveryFee + insuranceFee);
+  })();
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -684,6 +697,11 @@ export default function CheckoutPage() {
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
       setShowEmailGate(true);
+      return;
+    }
+
+    if (distanceError) {
+      toast.error(distanceError);
       return;
     }
 
@@ -1243,8 +1261,14 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
               <div className="text-right">
-                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
-                {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
+                {deliveryFeeBase === -1 ? (
+                  <span className="text-sm font-bold text-red-500">Not Serviceable</span>
+                ) : (
+                  <>
+                    <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
+                    {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
+                  </>
+                )}
               </div>
             </div>
             {/* Removed Pop Insurance Row */}

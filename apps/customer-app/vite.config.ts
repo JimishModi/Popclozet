@@ -40,10 +40,10 @@ export default defineConfig(({ mode }) => {
         ],
 
         manifest: {
-          name: "PopClozet - Rent the Trend",
-          short_name: "PopClozet",
+          name: "Popclozet - Rent the Trend",
+          short_name: "Popclozet",
           description:
-            "Rent designer fashion for every occasion. PopClozet delivers premium outfits in 60 minutes.",
+            "Rent designer fashion for every occasion. Popclozet delivers premium outfits in 60 minutes.",
           start_url: "/",
           scope: "/",
           display: "standalone",

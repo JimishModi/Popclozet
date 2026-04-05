@@ -346,6 +346,14 @@ export default function MapLocationPage() {
                     deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
                     const { calculateDeliveryFee } = await import("@/services/deliveryService");
                     deliveryFee = calculateDeliveryFee(distanceKm);
+                    
+                    if (deliveryFee === -1) {
+                        const { toast } = await import('sonner');
+                        toast.error("Sorry, this area is not under service yet.");
+                        setIsSaving(false);
+                        return;
+                    }
+                    
                     console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
                 } else {
                     console.warn('Distance API returned error:', res.error);

@@ -32,9 +32,9 @@ export default defineConfig(function (_a) {
                     "icons/icon-maskable-512x512.png",
                 ],
                 manifest: {
-                    name: "PopClozet - Rent the Trend",
-                    short_name: "PopClozet",
-                    description: "Rent designer fashion for every occasion. PopClozet delivers premium outfits in 60 minutes.",
+                    name: "Popclozet - Rent the Trend",
+                    short_name: "Popclozet",
+                    description: "Rent designer fashion for every occasion. Popclozet delivers premium outfits in 60 minutes.",
                     start_url: "/",
                     scope: "/",
                     display: "standalone",
