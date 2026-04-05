@@ -172,15 +172,15 @@ export default function OtpVerificationPage() {
         </button>
       </header>
 
-      <div className="flex flex-col min-h-screen px-6 pt-12">
+      <div className="flex flex-col min-h-screen px-6 pt-12 md:max-w-md md:mx-auto w-full">
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Verify Phone</h1>
-          <p className="text-zinc-400">Enter the 6-digit code sent to +91 {phoneNumber}</p>
+          <h1 className="text-3xl font-bold mb-2 text-center md:text-left">Verify Phone</h1>
+          <p className="text-zinc-400 text-center md:text-left">Enter the 6-digit code sent to +91 {phoneNumber}</p>
         </div>
 
         <div className="space-y-8">
-          <div className="flex justify-center">
+          <div className="flex justify-center md:justify-start">
             <InputOTP maxLength={6} value={otp} onChange={setOtp}>
               <InputOTPGroup className="gap-2">
                 <InputOTPSlot index={0} className="w-12 h-14 text-xl font-bold bg-zinc-900 border-zinc-800 rounded-xl focus:ring-1 focus:ring-[#f2546d]" />
@@ -193,7 +193,7 @@ export default function OtpVerificationPage() {
             </InputOTP>
           </div>
 
-          {error && <p className="text-red-500 text-sm text-center font-medium">{error}</p>}
+          {error && <p className="text-red-500 text-sm text-center md:text-left font-medium">{error}</p>}
 
           <div className="space-y-4">
             <Button

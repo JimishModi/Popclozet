@@ -94,20 +94,20 @@ export default function VerifyEmailPage() {
                     <h1 className="text-xl font-bold">Verify Email</h1>
                 </header>
 
-                <div className="flex flex-col min-h-screen px-6 pt-8 pb-8">
+                <div className="flex flex-col min-h-screen px-6 pt-8 pb-8 md:max-w-md md:mx-auto w-full">
 
                 {/* Content */}
-                <div className="flex-1 flex flex-col items-center">
+                <div className="flex-1 flex flex-col items-center md:items-start">
                     <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-8 border border-zinc-800">
                         <Mail className="w-8 h-8 text-[#f2546d]" />
                     </div>
 
-                    <div className="text-center mb-10">
+                    <div className="text-center md:text-left mb-10 w-full">
                         <p className="text-zinc-400 text-sm mb-1">We've sent a verification code to</p>
                         <p className="text-white font-bold text-lg">{email}</p>
                     </div>
 
-                    <div className="mb-8">
+                    <div className="mb-8 w-full flex justify-center md:justify-start">
                         <InputOTP
                             maxLength={6}
                             value={otp}
@@ -128,22 +128,24 @@ export default function VerifyEmailPage() {
                     </div>
 
                     {error && (
-                        <p className="text-red-500 text-sm mb-6 font-medium text-center">{error}</p>
+                        <p className="text-red-500 text-sm mb-6 font-medium text-center md:text-left w-full">{error}</p>
                     )}
 
-                    <Button
-                        onClick={handleVerify}
-                        disabled={otp.length !== 6 || isLoading}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50"
-                    >
-                        {isLoading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                            "Verify & Continue"
-                        )}
-                    </Button>
+                    <div className="w-full space-y-4">
+                        <Button
+                            onClick={handleVerify}
+                            disabled={otp.length !== 6 || isLoading}
+                            className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-base shadow-lg shadow-[#f2546d]/30 disabled:opacity-50"
+                        >
+                            {isLoading ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                "Verify & Continue"
+                            )}
+                        </Button>
+                    </div>
 
-                    <div className="mt-8 text-center">
+                    <div className="mt-8 text-center md:text-left w-full">
                         <p className="text-zinc-500 text-sm leading-relaxed">
                             If you don't see the email, check your spam folder or try logging in again.
                         </p>

@@ -18,21 +18,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ── CORS: restrict to known origins ──────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://popclozet.com',
-  'https://www.popclozet.com',
-  'https://popclozet.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5500',
-  'http://127.0.0.1:5500',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-];
-
 function getAllowedOrigin(req: Request): string {
-  const origin = req.headers.get('Origin') ?? '';
-  return ALLOWED_ORIGINS.includes(origin) ? origin : 'null';
+  const origin = req.headers.get('Origin');
+  return origin || '*';
 }
 
 function corsHeaders(req: Request): Record<string, string> {

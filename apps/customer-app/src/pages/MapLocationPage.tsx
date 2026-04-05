@@ -445,7 +445,7 @@ export default function MapLocationPage() {
     const canConfirm = selectedAddress && !isAddressLocating && (!hubs.length || selectedHubId);
 
     return (
-        <div className="bg-black text-white min-h-screen">
+        <div className="bg-black text-white min-h-screen md:max-w-2xl md:mx-auto md:border-x md:border-zinc-800 relative">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 sticky top-0 z-50 bg-black/90 backdrop-blur-md">
                 <div className="flex items-center gap-3">
