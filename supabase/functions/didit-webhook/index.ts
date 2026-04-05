@@ -42,11 +42,38 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const data = await req.json().catch(() => ({}))
-    log.info('Webhook Payload', { payload: data })
+    let data: any = {}
+    const url = new URL(req.url)
+
+    if (req.method === 'GET') {
+      // Didit redirects via GET with query params: ?verificationSessionId=...&status=...
+      data = Object.fromEntries(url.searchParams.entries())
+      log.info('Webhook GET params', { params: data })
+    } else {
+      data = await req.json().catch(() => ({}))
+      log.info('Webhook POST Payload', { payload: data })
+    }
 
     const status = data?.status
-    const userId = data?.vendor_data || data?.user_id
+    let userId = data?.vendor_data || data?.user_id
+
+    // If no userId but we have a session ID, fetch it from Didit API
+    if (!userId && data?.verificationSessionId) {
+      const DIDIT_API_KEY = Deno.env.get("DIDIT_API_KEY")
+      if (DIDIT_API_KEY) {
+        log.info(`Fetching session ${data.verificationSessionId} from Didit to get vendor_data`)
+        const sessionRes = await fetch(`https://verification.didit.me/v3/session/${data.verificationSessionId}/`, {
+          headers: { 'x-api-key': DIDIT_API_KEY },
+        })
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json()
+          userId = sessionData?.vendor_data
+          log.info(`Got vendor_data from session: ${userId}`)
+        } else {
+          log.error(`Failed to fetch session from Didit`, { status: sessionRes.status })
+        }
+      }
+    }
 
     if (!userId) {
       log.warn('Webhook missing user identification (vendor_data/user_id)')
