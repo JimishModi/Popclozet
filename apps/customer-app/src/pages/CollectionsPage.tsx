@@ -221,22 +221,25 @@ const CollectionsPage = () => {
                   transition={{ delay: index * 0.08 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
-                  className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3 overflow-hidden"
+                  className={cn(
+                    "w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center overflow-hidden relative",
+                    isImageCategory ? "h-64" : "py-10 gap-3"
+                  )}
                 >
                   {isImageCategory ? (
-                    <div className="w-32 h-32 rounded-xl overflow-hidden mb-2 shadow-2xl border border-white/10">
-                      <img 
-                        src={imageUrl!} 
-                        alt={cat.title} 
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    <img 
+                      src={imageUrl!} 
+                      alt={cat.title} 
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
                   ) : (
-                    <Icon className="w-20 h-20 text-white/80" />
+                    <>
+                      <Icon className="w-20 h-20 text-white/80" />
+                      <span className="text-lg font-bold text-white tracking-[0.2em] relative z-10">
+                        {cat.title.toUpperCase()}
+                      </span>
+                    </>
                   )}
-                  <span className="text-lg font-bold text-white tracking-[0.2em]">
-                    {cat.title.toUpperCase()}
-                  </span>
                 </motion.button>
               );
             })}
