@@ -149,22 +149,6 @@ export default function CheckoutPage() {
     return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
-  // Check URL params for KYC callback — just re-fetch DB status (webhook sets the actual value)
-  useEffect(() => {
-    const kycCallback = searchParams.get("kyc_callback");
-
-    if (kycCallback === "success") {
-      fetchKycStatus();
-      toast.success("Verification submitted! Checking status...");
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete("kyc_callback");
-      newParams.delete("user_id");
-      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
-      window.history.replaceState({}, '', newUrl);
-    }
-  }, [searchParams, fetchKycStatus]);
-
   // Fetch KYC status from DB
   const fetchKycStatus = useCallback(() => {
     if (!user?.id) return;
@@ -190,6 +174,22 @@ export default function CheckoutPage() {
         }
       });
   }, [user?.id]);
+
+  // Check URL params for KYC callback — just re-fetch DB status (webhook sets the actual value)
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+
+    if (kycCallback === "success") {
+      fetchKycStatus();
+      toast.success("Verification submitted! Checking status...");
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("kyc_callback");
+      newParams.delete("user_id");
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, fetchKycStatus]);
 
   // Fetch initial KYC status
   useEffect(() => {
