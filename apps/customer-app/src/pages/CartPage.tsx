@@ -29,6 +29,10 @@ import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
+import { haversineDistance } from "@/utils/haversine";
+
+const WAREHOUSE_LOCATION = { lat: 19.1306, lng: 72.9155 };
+const MAX_SERVICE_DISTANCE_KM = 12;
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -236,7 +240,7 @@ const CartPage = () => {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
           // MRP comes from the DB — this is the true retail price
-          const mrp = parseFloat(p.mrp ?? '0');
+          const mrp = parseFloat(p.mrp_price ?? p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
@@ -307,10 +311,7 @@ const CartPage = () => {
     if (hub) {
       setSelectedHub(hub);
     }
-
   }, []);
-
-  const canCheckout = validCartEntries.length > 0;
 
   const getPlanPrice = (product: any, plan: string) => {
     if (!product) return 0;
@@ -348,15 +349,26 @@ const CartPage = () => {
 
   // Calculate delivery pricing
   const deliveryInfo = useMemo(() => {
-    if (!selectedHub) {
+    let dist = selectedHub?.distance_km;
+    
+    // Fallback order: localStorage hub -> profile saved distance -> haversine calc
+    if (!dist && user?.user_metadata?.delivery_distance_km) {
+      dist = parseFloat(user.user_metadata.delivery_distance_km);
+    }
+    
+    if (!dist && deliveryAddress?.lat && deliveryAddress?.lng) {
+      dist = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, deliveryAddress.lat, deliveryAddress.lng);
+    }
+    
+    if (!dist) {
       return { pricing: null, eta: null };
     }
-    // const isFree = subBenefits?.freeDelivery || false;
+    
     const isFree = false;
-    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', isFree);
-    const eta = calculateETA(selectedHub.distance_km, selectedHub.estimated_minutes);
+    const pricing = calculateDeliveryPricing(dist, subtotal, 'delivery', isFree);
+    const eta = calculateETA(dist, selectedHub?.estimated_minutes || 60);
     return { pricing, eta };
-  }, [selectedHub, subtotal]);
+  }, [selectedHub, subtotal, deliveryAddress, user]);
 
   // const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
   const deliveryFee = deliveryInfo.pricing?.totalFee ?? 40;
@@ -370,7 +382,9 @@ const CartPage = () => {
     return appliedCoupon.discount;
   }, [appliedCoupon, subtotal]);
 
-  const grandTotal = subtotal - couponDiscount + deliveryFee;
+  const grandTotal = subtotal - couponDiscount + (deliveryFee === -1 ? 0 : deliveryFee);
+  
+  const canCheckout = validCartEntries.length > 0 && deliveryFee !== -1;
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
@@ -738,9 +752,15 @@ const CartPage = () => {
                     <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                       Delivery fee
                     </span>
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      ₹ {deliveryFee}
-                    </span>
+                    {deliveryFee === -1 ? (
+                      <span className="text-sm font-bold text-red-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        Not Serviceable
+                      </span>
+                    ) : (
+                      <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        ₹ {deliveryFee}
+                      </span>
+                    )}
                   </div>
                 </div>
 

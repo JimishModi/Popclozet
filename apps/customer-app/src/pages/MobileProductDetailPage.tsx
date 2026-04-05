@@ -208,6 +208,8 @@ const MobileProductDetailPage: React.FC = () => {
                         gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender),
                         category: dbProduct.category || '',
                         eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as any,
+                        mrp: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : (dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined),
+                        mrp_price: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : undefined,
                         occasions: dbProduct.occasion || []
                     });
                 }
@@ -251,7 +253,7 @@ const MobileProductDetailPage: React.FC = () => {
     // 2. Otherwise: Current Rental vs MRP (Market Value)
     const baseRental = product?.price || 699;
     const currentRental = product?.discounted_price || baseRental;
-    const mrp = product?.mrp || (baseRental * 5); // Fallback to 5x if no mrp
+    const mrp = product?.mrp_price || product?.mrp || (baseRental * 5); // Take value from DB if available
 
     const getPlanPrice = (plan: PricingPlan) => {
         if (!product) return 0;

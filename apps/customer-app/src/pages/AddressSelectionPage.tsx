@@ -125,6 +125,14 @@ const AddressSelectionPage = () => {
           deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
           const { calculateDeliveryFee } = await import("@/services/deliveryService");
           deliveryFee = calculateDeliveryFee(distanceKm);
+          
+          if (deliveryFee === -1) {
+            const { toast } = await import('sonner');
+            toast.error("Sorry, this area is not under service yet.");
+            setIsSaving(false);
+            return;
+          }
+          
           console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
         } else {
           console.warn('Distance API returned error:', res.error);
@@ -142,6 +150,13 @@ const AddressSelectionPage = () => {
         locality: addr.label || 'Home',
         delivery_estimate: deliveryEstimate
       });
+
+      // Update selected_hub so CartPage correctly reflects distance
+      localStorage.setItem('selected_hub', JSON.stringify({
+          name: 'Main Hub',
+          distance_km: distanceKm,
+          estimated_minutes: deliveryEstimate === 'delayed' ? 120 : 60
+      }));
 
       // 2. If user is logged in, mark as default in DB + update estimate in profile
       if (user) {
