@@ -3,6 +3,38 @@
 
 import { supabase } from '@popclozet/api-client';
 import type { RazorpayPaymentResponse } from '@/lib/razorpay';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * Ensures the Supabase session has a valid (non-expired) access token.
+ *
+ * getSession() returns the CACHED token which may have expired.
+ * getUser() hits the server, which triggers the client's auto-refresh
+ * mechanism if the token is expired. If that also fails we fall back
+ * to an explicit refreshSession() call.
+ *
+ * Call this BEFORE every supabase.functions.invoke() to prevent
+ * 401 "Invalid JWT" errors from the Supabase gateway.
+ */
+async function ensureValidSession(client: SupabaseClient): Promise<void> {
+  const { data: { session } } = await client.auth.getSession();
+
+  if (!session) {
+    throw new Error('No active session. Please log in again.');
+  }
+
+  // Force server-side validation — this triggers auto-refresh if needed
+  const { error: userError } = await client.auth.getUser();
+
+  if (userError) {
+    console.warn('[razorpayService] getUser() failed, attempting explicit refresh:', userError.message);
+    const { error: refreshError } = await client.auth.refreshSession();
+    if (refreshError) {
+      console.error('[razorpayService] Session refresh failed:', refreshError);
+      throw new Error('Authentication expired. Please log in again.');
+    }
+  }
+}
 
 interface CreateOrderParams {
   receipt: string;         // your internal order ID
@@ -22,16 +54,8 @@ interface CreateOrderResult {
  * Returns the Razorpay order ID and public key for use in the checkout modal.
  */
 export async function createRazorpayOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
-  // Ensure we have a fresh session token before calling the edge function
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
-    // Try refreshing the session
-    const { error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError) {
-      console.error('[razorpayService] Session refresh failed:', refreshError);
-      throw new Error('Authentication expired. Please log in again.');
-    }
-  }
+  // Ensure a valid JWT before calling the edge function
+  await ensureValidSession(supabase);
 
   const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
     body: {
@@ -85,6 +109,9 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
   } catch { /* best-effort */ }
 
   let lastError: Error | null = null;
+
+  // Ensure a valid JWT — the user may have spent minutes in the Razorpay modal
+  await ensureValidSession(supabase);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
