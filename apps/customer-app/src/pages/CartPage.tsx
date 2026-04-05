@@ -278,7 +278,11 @@ const CartPage = () => {
           .limit(8);
 
         if (data && !error) {
-          setAddOnProducts(data);
+          // Only show add-ons that have at least one item available in stock
+          const availableAddOns = data.filter((p: any) => 
+            p.inventory && p.inventory.some((inv: any) => (inv.available_stock || 0) > 0)
+          );
+          setAddOnProducts(availableAddOns);
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
