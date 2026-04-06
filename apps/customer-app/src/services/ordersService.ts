@@ -219,6 +219,9 @@ export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderRe
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // Keep the client aligned with the canonical DB RPC signature.
+      // Recipient overrides are still collected in the UI, but the stable
+      // public.place_order function does not accept those named arguments.
       const { data, error } = await supabase.rpc("place_order", {
         p_idempotency_key: params.idempotencyKey,
         p_address_id: params.addressId,
@@ -231,9 +234,6 @@ export async function placeOrder(params: PlaceOrderParams): Promise<PlaceOrderRe
         p_return_pickup_date: params.returnPickupDate,
         p_return_time_slot: params.returnTimeSlot,
         p_items: params.items,
-        p_recipient_name: params.recipientName || null,
-        p_recipient_phone: params.recipientPhone || null,
-        p_recipient_email: params.recipientEmail || null,
       });
 
       if (error) {
