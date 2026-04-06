@@ -45,8 +45,6 @@ const isRealEmail = (email?: string | null): email is string => {
 
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
-import { callLocationFn } from "@/utils/env";
-import { haversineDistance } from "@/utils/haversine";
 import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
 
 /* ---------------------------------- */
@@ -312,51 +310,48 @@ export default function CheckoutPage() {
 
   // Distance Check Effect (Supabase Edge Function + Haversine fallback)
   useEffect(() => {
-    const fetchDistance = async (destination: string) => {
+    const fetchDistance = async (destination: { lat?: number; lng?: number; eLoc?: string | null }) => {
       setDistanceLoading(true);
       setDistanceError(null);
 
       try {
-        const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
-        console.log(`[Checkout] Calling distance edge function: ${origin} to ${destination}`);
+        const normalizedLat =
+          typeof destination.lat === "number" && Number.isFinite(destination.lat)
+            ? destination.lat
+            : 0;
+        const normalizedLng =
+          typeof destination.lng === "number" && Number.isFinite(destination.lng)
+            ? destination.lng
+            : 0;
 
-        // Abort after 10s to prevent hanging on slow connections
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
+        console.log("[Checkout] Resolving distance via shared map service:", {
+          origin: WAREHOUSE_LOCATION,
+          destination: {
+            lat: normalizedLat,
+            lng: normalizedLng,
+            eLoc: destination.eLoc ?? null,
+          },
+        });
 
-        const data = await callLocationFn(
-          { action: "distance", origin, destination },
-          controller.signal
-        );
-        clearTimeout(timeout);
+        const { getRoadDistance } = await import("@/services/mapServices");
+        const result = await getRoadDistance(WAREHOUSE_LOCATION, {
+          lat: normalizedLat,
+          lng: normalizedLng,
+          ...(destination.eLoc ? { eLoc: destination.eLoc } : {}),
+        });
 
-        const distance = data.distance;
-        console.log("[DistanceCheck] API verified distance:", distance);
+        if (result.status !== "success" || !Number.isFinite(result.distanceKm)) {
+          throw new Error(result.error || "Distance service temporarily unavailable");
+        }
+
+        const distance = result.distanceKm;
+        console.log("[DistanceCheck] Verified distance:", distance);
         setActualDistance(distance);
-        if (distance > 12) {
-            setDistanceError("This area is out of our current service range (12km).");
+        if (distance > MAX_DELIVERY_DISTANCE_KM) {
+          setDistanceError(`This area is out of our current service range (${MAX_DELIVERY_DISTANCE_KM}km).`);
         }
       } catch (error) {
-        console.warn("[Checkout] Edge function distance failed, trying Haversine fallback:", error);
-
-        // Haversine fallback: parse destination coords if available
-        try {
-          const parts = destination.split(",");
-          if (parts.length === 2) {
-            const dLng = parseFloat(parts[0]);
-            const dLat = parseFloat(parts[1]);
-            if (!isNaN(dLat) && !isNaN(dLng)) {
-              const km = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, dLat, dLng);
-              console.log(`[DistanceCheck] Haversine fallback: ${km.toFixed(2)}km`);
-              setActualDistance(km);
-              if (km > 12) {
-                  setDistanceError("This area is out of our current service range (12km).");
-              }
-              return;
-            }
-          }
-        } catch { /* ignore parse errors */ }
-
+        console.warn("[Checkout] Distance resolution failed:", error);
         setDistanceError("Distance service temporarily unavailable");
         setActualDistance(null);
       } finally {
@@ -374,7 +369,11 @@ export default function CheckoutPage() {
         const res = await geocodeAddress(addressText);
 
         if (res.status === 'success' && (res.eLoc || (res.lat && res.lng))) {
-          const dest = res.eLoc ? res.eLoc : `${res.lng},${res.lat}`;
+          const dest = {
+            lat: res.lat,
+            lng: res.lng,
+            eLoc: res.eLoc ?? null,
+          };
           console.log(`[Checkout] Re-geocoded ✓  dest="${dest}" (lat=${res.lat} lng=${res.lng} eLoc=${res.eLoc ?? 'none'})`);
 
           // Update deliveryAddress with fresh coords so the order record is correct
@@ -420,7 +419,11 @@ export default function CheckoutPage() {
         // Preferred path: use the eLoc directly (most accurate with MapMyIndia)
         console.log("[Checkout] Using eLoc for distance:", deliveryAddress.eLoc);
         lastGeocodedAddressRef.current = deliveryAddress.formattedAddress; // mark as handled
-        fetchDistance(deliveryAddress.eLoc);
+        fetchDistance({
+          lat,
+          lng,
+          eLoc: deliveryAddress.eLoc,
+        });
       } else if (deliveryAddress.formattedAddress) {
         const addrText = deliveryAddress.formattedAddress;
 
@@ -429,7 +432,7 @@ export default function CheckoutPage() {
         if (lastGeocodedAddressRef.current === addrText) {
           console.log("[Checkout] Already geocoded this address — using existing coords to avoid loop.");
           if (hasCoords) {
-            fetchDistance(`${lng},${lat}`);
+            fetchDistance({ lat, lng });
           } else {
             setDistanceError("Could not verify delivery address. Please re-select your address.");
             setActualDistance(null);

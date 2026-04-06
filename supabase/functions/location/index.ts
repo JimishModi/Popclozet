@@ -51,6 +51,32 @@ function json(
 
 const REST_KEY = Deno.env.get("MAPPLS_REST_KEY") ?? "";
 
+function parseJsonSafely(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractMatrixDistanceKm(data: any): number | null {
+  const rawDistance =
+    data?.results?.distances?.[0]?.[1] ??
+    data?.distances?.[0]?.[1] ??
+    data?.results?.[0]?.distances?.[0]?.[1];
+
+  const distanceInMeters =
+    typeof rawDistance === "number"
+      ? rawDistance
+      : Number.parseFloat(String(rawDistance ?? ""));
+
+  if (!Number.isFinite(distanceInMeters) || distanceInMeters < 0) {
+    return null;
+  }
+
+  return distanceInMeters / 1000;
+}
+
 // ─── action handlers ────────────────────────────────────────────────
 
 async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
@@ -307,19 +333,28 @@ async function handleDistance(body: any, log: ReturnType<typeof makeLogger>) {
   }
 
   try {
-    const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?region=ind&access_token=${REST_KEY}`;
+    const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?rtype=0&region=ind&access_token=${REST_KEY}`;
     const res = await fetch(url, {
       headers: { Referer: "https://popclozet.vercel.app/" },
     });
-    const data = await res.json();
 
-    if (data?.results?.distances) {
-      return json({ distance: data.results.distances[0][1] / 1000 }, 200, log);
+    const raw = await res.text();
+    const data = parseJsonSafely(raw);
+
+    if (!res.ok) {
+      log.error("Distance matrix request failed", {
+        status: res.status,
+        body: raw.slice(0, 500),
+      });
+      return json({ error: "Failed to calculate distance" }, 500, log);
     }
-    if (data?.distances?.[0]) {
-      return json({ distance: data.distances[0][1] / 1000 }, 200, log);
+
+    const distanceKm = extractMatrixDistanceKm(data);
+    if (distanceKm !== null) {
+      return json({ distance: distanceKm }, 200, log);
     }
-    log.warn("Unexpected structure", { data: JSON.stringify(data) });
+
+    log.warn("Unexpected structure", { data: raw.slice(0, 500) });
     return json({ error: "Unexpected response structure" }, 500, log);
   } catch (e: any) {
     log.error("Failed to calculate distance", { error: e.message });

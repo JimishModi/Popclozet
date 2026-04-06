@@ -37,6 +37,24 @@ app.get('/api/health', (_req, res) => {
 const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
+function extractMatrixDistanceKm(data: any): number | null {
+    const rawDistance =
+        data?.results?.distances?.[0]?.[1] ??
+        data?.distances?.[0]?.[1] ??
+        data?.results?.[0]?.distances?.[0]?.[1];
+
+    const distanceInMeters =
+        typeof rawDistance === 'number'
+            ? rawDistance
+            : Number.parseFloat(String(rawDistance ?? ''));
+
+    if (!Number.isFinite(distanceInMeters) || distanceInMeters < 0) {
+        return null;
+    }
+
+    return distanceInMeters / 1000;
+}
+
 if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
     console.warn('WARNING: MAPPLS_REST_KEY is not configured or using placeholder value.');
 } else {
@@ -425,18 +443,16 @@ app.get("/api/location/distance", async (req, res) => {
 
     try {
         // Mappls Distance Matrix API via route.mappls.com
-        const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?region=ind&access_token=${REST_KEY}`;
+        const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?rtype=0&region=ind&access_token=${REST_KEY}`;
         
         const response = await axios.get(url, {
             headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
 
-        if (response.data && response.data.results && response.data.results.distances) {
-            const distanceInMeters = response.data.results.distances[0][1];
-            res.json({ distance: distanceInMeters / 1000 });
-        } else if (response.data && response.data.distances && response.data.distances[0]) {
-            const distanceInMeters = response.data.distances[0][1];
-            res.json({ distance: distanceInMeters / 1000 });
+        const distanceKm = extractMatrixDistanceKm(response.data);
+
+        if (distanceKm !== null) {
+            res.json({ distance: distanceKm });
         } else {
             console.warn("[DistanceAPI] Unexpected structure:", JSON.stringify(response.data));
             res.status(500).json({ error: "Unexpected response structure" });

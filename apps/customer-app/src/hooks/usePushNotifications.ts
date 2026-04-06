@@ -12,7 +12,7 @@
  *  - sendTest()     — fire a test push notification
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   isPushSupported,
   getPermissionState,
@@ -42,6 +42,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoSubscribeInFlightRef = useRef(false);
 
   // Check for existing subscription on mount
   useEffect(() => {
@@ -77,11 +78,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       if (result.success) {
         setIsSubscribed(true);
-        // Send a welcome test push
-        try {
-          await sendTestPush();
-        } catch {
-          // Non-critical
+        if (result.createdNewSubscription) {
+          // Send a welcome test push only for brand-new subscriptions.
+          try {
+            await sendTestPush();
+          } catch {
+            // Non-critical
+          }
         }
         return true;
       } else {
@@ -139,9 +142,30 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   }, []);
   // Auto-subscribe if permission is already granted but we are not subscribed
   const autoSubscribe = useCallback(async () => {
-    if (permission === 'granted' && !isSubscribed && !isLoading) {
+    if (
+      permission !== "granted" ||
+      isSubscribed ||
+      isLoading ||
+      autoSubscribeInFlightRef.current
+    ) {
+      return;
+    }
+
+    autoSubscribeInFlightRef.current = true;
+
+    try {
+      const existing = await getExistingSubscription();
+
+      if (existing) {
+        setIsSubscribed(true);
+        setPermission(getPermissionState());
+        return;
+      }
+
       console.log("[Push] Auto-subscribing since permission is already granted...");
       await subscribe();
+    } finally {
+      autoSubscribeInFlightRef.current = false;
     }
   }, [permission, isSubscribed, isLoading, subscribe]);
 

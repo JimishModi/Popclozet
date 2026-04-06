@@ -121,7 +121,6 @@ const CreateAccountPage = lazyWithRetry(() => import("./pages/CreateAccountPage"
 const AuthCallback = lazyWithRetry(() => import("./pages/AuthCallback"));
 const MapLocationPage = lazyWithRetry(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackingPage"));
-const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage"));
 const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
 const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
 const CheckoutReturnSchedulePage = lazyWithRetry(() => import("./pages/CheckoutReturnSchedulePage"));
@@ -142,6 +141,7 @@ import ProductIntakePage from "./pages/ProductIntakePage";
 import AdminHygieneDashboard from "./pages/AdminHygieneDashboard";
 import ProductQRGalleryPage from "./pages/ProductQRGalleryPage";
 import MobileProductDetailPage from "./pages/MobileProductDetailPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import OfflinePage from "./pages/OfflinePage";
 import NotFound from "./pages/NotFound";
 import SearchResultsPage from "./pages/SearchResultsPage";

@@ -7,6 +7,7 @@ export default defineConfig(function (_a) {
     var mode = _a.mode;
     // Load env file from the current directory
     var env = loadEnv(mode, path.resolve(__dirname, '../../'), '');
+    var useDevHttps = env.VITE_DEV_HTTPS === "true";
     return {
         base: "/",
         // Point specifically to the current directory for .env files
@@ -19,7 +20,7 @@ export default defineConfig(function (_a) {
             port: 5500,
         },
         plugins: [
-            basicSsl(),
+            useDevHttps ? basicSsl() : null,
             react(),
             VitePWA({
                 registerType: "autoUpdate",
@@ -77,11 +78,11 @@ export default defineConfig(function (_a) {
                     maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
                 },
                 devOptions: {
-                    enabled: true,
+                    enabled: false,
                     type: "module",
                 },
             }),
-        ],
+        ].filter(Boolean),
         /**
          * 🔑 Monorepo internal package resolution
          */
