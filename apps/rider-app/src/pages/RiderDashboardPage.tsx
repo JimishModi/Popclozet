@@ -68,11 +68,14 @@ export const RiderDashboardPage: React.FC = () => {
 
             if (error) throw error;
 
-            const orders = (data || []).map(o => ({
+            const orders: RiderOrder[] = (data || []).map(o => ({
                 ...o,
                 delivery_address: Array.isArray(o.delivery_address)
                     ? o.delivery_address[0]
-                    : o.delivery_address
+                    : o.delivery_address,
+                customer_profiles: Array.isArray(o.customer_profiles)
+                    ? o.customer_profiles[0]
+                    : o.customer_profiles
             }));
 
             setAssignedOrders(orders);
