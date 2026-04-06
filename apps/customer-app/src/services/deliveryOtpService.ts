@@ -39,7 +39,7 @@ function getLocalOtps(): Record<string, DeliveryOtp> {
 }
 
 function saveLocalOtps(otps: Record<string, DeliveryOtp>): void {
-    localStorage.setItem(OTP_STORAGE_KEY, JSON.stringify(otps));
+    try { localStorage.setItem(OTP_STORAGE_KEY, JSON.stringify(otps)); } catch {}
 }
 
 // ==========================================

@@ -57,9 +57,13 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error loading wishlist from IndexedDB:', error);
             // Fallback: use user-scoped localStorage key to avoid leakage
             const key = userId ? `wishlist_${userId}` : 'wishlist';
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                setWishlistItems(JSON.parse(saved));
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    setWishlistItems(JSON.parse(saved));
+                }
+            } catch (err) {
+                console.warn('localStorage access failed in fallback:', err);
             }
         }
     };

@@ -206,7 +206,7 @@ const CollectionsPage = () => {
               let imageName = '';
               if (catId === 'jackets') imageName = 'Jackets';
               else if (catId === 'footwear') imageName = 'Footwear';
-              else if (catId === 'accessories' || catId === 'accessory') imageName = 'Acessories';
+              else if (catId === 'accessories' || catId === 'accessory') imageName = 'Accessories';
 
               const imageUrl = isImageCategory 
                 ? `https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/assets/collection-page/${imageName}.jpeg`
@@ -227,11 +227,18 @@ const CollectionsPage = () => {
                   )}
                 >
                   {isImageCategory ? (
-                    <img 
-                      src={imageUrl!} 
-                      alt={cat.title} 
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
+                    <>
+                      <img 
+                        src={imageUrl!} 
+                        alt={cat.title} 
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <span className="text-xl font-black text-white tracking-[0.25em] relative z-10 drop-shadow-lg">
+                          {cat.title.toUpperCase()}
+                        </span>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <Icon className="w-20 h-20 text-white/80" />

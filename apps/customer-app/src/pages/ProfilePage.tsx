@@ -81,18 +81,26 @@ const ProfilePage: React.FC = () => {
   const [kycVerified, setKycVerified] = useState<boolean | null>(null);
   const [isKycLoading, setIsKycLoading] = useState(false);
   
+  // Safe localStorage helper
+  const getStorageItem = (key: string) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  };
+  const setStorageItem = (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch {}
+  };
+
   // KYC Banner dismissal states
-  const [showKycBanner, setShowKycBanner] = useState(() => localStorage.getItem('pop_kyc_dismissed') !== 'true');
-  const [showVerifiedBanner, setShowVerifiedBanner] = useState(() => localStorage.getItem('pop_verified_dismissed') !== 'true');
+  const [showKycBanner, setShowKycBanner] = useState(() => getStorageItem('pop_kyc_dismissed') !== 'true');
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(() => getStorageItem('pop_verified_dismissed') !== 'true');
 
   const dismissKyc = () => {
     setShowKycBanner(false);
-    localStorage.setItem('pop_kyc_dismissed', 'true');
+    setStorageItem('pop_kyc_dismissed', 'true');
   };
 
   const dismissVerified = () => {
     setShowVerifiedBanner(false);
-    localStorage.setItem('pop_verified_dismissed', 'true');
+    setStorageItem('pop_verified_dismissed', 'true');
   };
 
   const fetchKycStatus = React.useCallback(() => {
@@ -225,13 +233,15 @@ const ProfilePage: React.FC = () => {
         setEditCoords({ lat: returnedAddr.lat || 0, lng: returnedAddr.lng || 0 });
         
         // Restore Name & Phone from session storage if available
-        const savedData = sessionStorage.getItem('profile_edit_draft');
-        if (savedData) {
-          const { name, phone, email } = JSON.parse(savedData);
-          setEditName(name);
-          setEditPhone(phone);
-          setEditEmail(email);
-        }
+        try {
+          const savedData = sessionStorage.getItem('profile_edit_draft');
+          if (savedData) {
+            const { name, phone, email } = JSON.parse(savedData);
+            setEditName(name);
+            setEditPhone(phone);
+            setEditEmail(email);
+          }
+        } catch {}
         return;
       }
 
@@ -292,7 +302,7 @@ const ProfilePage: React.FC = () => {
             .insert([addressPayload]);
         }
         // Success - clear draft
-        sessionStorage.removeItem('profile_edit_draft');
+        try { sessionStorage.removeItem('profile_edit_draft'); } catch {}
       }
 
       toast.success("Profile updated successfully!");
@@ -750,11 +760,13 @@ const ProfilePage: React.FC = () => {
                   <button
                     onClick={() => {
                       // Save current draft state to session storage
-                      sessionStorage.setItem('profile_edit_draft', JSON.stringify({
-                        name: editName,
-                        phone: editPhone,
-                        email: editEmail
-                      }));
+                      try {
+                        sessionStorage.setItem('profile_edit_draft', JSON.stringify({
+                          name: editName,
+                          phone: editPhone,
+                          email: editEmail
+                        }));
+                      } catch {}
                       navigate('/map-location?returnTo=/profile');
                     }}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#f2546d]/30 transition-all text-left group"

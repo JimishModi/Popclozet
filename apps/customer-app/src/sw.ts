@@ -203,7 +203,20 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     console.log('✅ Service worker activated');
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        // Purge ALL runtime caches on activate so stale chunk-hashed JS/CSS
+        // from previous deploys never cause blank screens.
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys
+                    .filter((key) => !key.includes('precache'))
+                    .map((key) => {
+                        console.log('🗑️ Purging old cache:', key);
+                        return caches.delete(key);
+                    })
+            );
+        }).then(() => self.clients.claim())
+    );
 });
 
 // Listen for messages from clients

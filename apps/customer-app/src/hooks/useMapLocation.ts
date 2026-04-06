@@ -89,10 +89,14 @@ export function useMapLocation() {
                 });
             
             // Also persist
-            localStorage.setItem(
-                'user_location',
-                JSON.stringify({ ...finalLoc, allowed: true })
-            );
+            try {
+                localStorage.setItem(
+                    'user_location',
+                    JSON.stringify({ ...finalLoc, allowed: true })
+                );
+            } catch (err) {
+                console.warn('[useMapLocation] Failed to save location to localStorage', err);
+            }
         };
 
         // Timeout fallback: after 20s, take whatever we have
@@ -214,10 +218,14 @@ export function useMapLocation() {
         }));
 
         // Also save to localStorage for persistence
-        localStorage.setItem(
-            'user_location',
-            JSON.stringify({ lat, lng, allowed: true })
-        );
+        try {
+            localStorage.setItem(
+                'user_location',
+                JSON.stringify({ lat, lng, allowed: true })
+            );
+        } catch (err) {
+            console.warn('[useMapLocation] Failed to save location to localStorage', err);
+        }
     }, []);
 
     // Set location coordinates only — no reverse geocode, no address change.
@@ -228,7 +236,7 @@ export function useMapLocation() {
 
     // Clear location
     const clearLocation = useCallback(() => {
-        localStorage.removeItem('user_location');
+        try { localStorage.removeItem('user_location'); } catch {}
         setState({
             location: null,
             address: null,
@@ -241,7 +249,8 @@ export function useMapLocation() {
 
     // Load saved location on mount or auto-request if granted
     useEffect(() => {
-        const saved = localStorage.getItem('user_location');
+        let saved = null;
+        try { saved = localStorage.getItem('user_location'); } catch {}
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);

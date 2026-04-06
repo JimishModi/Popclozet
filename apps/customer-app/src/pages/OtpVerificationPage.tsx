@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MobileShell } from '@/components/layout/MobileShell';
-import { useAuth } from '@/context/SupabaseAuthContext';
 import { loadAndInitMsg91, sendOtp, verifyOtp } from '@/services/msg91OtpService';
 import { supabase } from '@popclozet/api-client';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
@@ -16,15 +15,10 @@ export default function OtpVerificationPage() {
   const queryPhone = (queryParams.get('phone') || '').replace(/\D/g, '').slice(-10);
   const phoneNumber = (routeState?.phone || queryPhone || '').replace(/\D/g, '').slice(-10);
   const sendOnLoad = queryParams.get('send') === '1';
-  // FIX: Removed checkAndRoute — AuthGate handles all routing based on needsOnboarding.
-  // Using needsOnboarding directly from context instead.
-  const { user, needsOnboarding, loading } = useAuth();
-
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isBootstrappingOtp, setIsBootstrappingOtp] = useState(sendOnLoad);
   const [error, setError] = useState('');
-  const [verified, setVerified] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const didBootstrapRef = useRef(false);
 
@@ -117,7 +111,6 @@ export default function OtpVerificationPage() {
       });
       if (sessionError) throw new Error(sessionError.message);
 
-      setVerified(true);
     } catch (err: any) {
       if (err.message?.includes('expired')) {
         setError('OTP has expired. Please request a new one.');
@@ -131,19 +124,10 @@ export default function OtpVerificationPage() {
     }
   };
 
-  // FIX: Let AuthGate drive navigation. Once verified + auth context has settled,
-  // nudge to the right place based on needsOnboarding from context.
-  // Previously this used checkAndRoute which could conflict with AuthGate.
-  useEffect(() => {
-    if (!verified || loading) return;
-    if (!user) return;
-
-    if (needsOnboarding) {
-      navigate('/auth/create-account', { replace: true });
-    } else {
-      navigate('/home', { replace: true });
-    }
-  }, [verified, user, loading, needsOnboarding, navigate]);
+  // Navigation after OTP is handled exclusively by AuthGate.
+  // On iOS PWA, calling navigate() here AND in AuthGate simultaneously causes
+  // a blank screen due to two rapid history.replaceState calls in WebKit standalone mode.
+  // AuthGate already redirects: /auth/otp → /home (logged in) or → /auth/create-account (onboarding).
 
   const handleResend = async () => {
     if (resendTimer > 0 || isBootstrappingOtp) return;

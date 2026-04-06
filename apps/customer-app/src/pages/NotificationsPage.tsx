@@ -55,14 +55,19 @@ const NotificationsPage: React.FC = () => {
     const [isClearingAll, setIsClearingAll] = useState(false);
     const [orderActivityClearedAt, setOrderActivityClearedAt] = useState<string | null>(null);
 
+    // Safe localStorage helper
+    const getStorageItem = (key: string) => {
+        try { return localStorage.getItem(key); } catch { return null; }
+    };
+
     // In-app notification toggles – persisted to localStorage
-    const [orderUpdates, setOrderUpdates] = useState(() => localStorage.getItem("notif_orders") !== "false");
-    const [promoAlerts, setPromoAlerts] = useState(() => localStorage.getItem("notif_promos") === "true");
-    const [wishlistAlerts, setWishlistAlerts] = useState(() => localStorage.getItem("notif_wishlist") !== "false");
+    const [orderUpdates, setOrderUpdates] = useState(() => getStorageItem("notif_orders") !== "false");
+    const [promoAlerts, setPromoAlerts] = useState(() => getStorageItem("notif_promos") === "true");
+    const [wishlistAlerts, setWishlistAlerts] = useState(() => getStorageItem("notif_wishlist") !== "false");
 
     const toggle = (key: string, val: boolean, setter: (v: boolean) => void) => {
         setter(val);
-        localStorage.setItem(key, String(val));
+        try { localStorage.setItem(key, String(val)); } catch {}
     };
 
     const persistOrderActivityClearedAt = (value: string | null) => {

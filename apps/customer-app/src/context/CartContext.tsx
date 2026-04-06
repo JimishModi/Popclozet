@@ -118,9 +118,13 @@ export const CartProvider = ({
       console.error("IndexedDB load failed:", error);
       // Fallback: avoid leaking another user's localStorage key
       const key = userId ? `cart_${userId}` : "cart";
-      const savedCart = localStorage.getItem(key);
-      if (savedCart) {
-        setCartItems(JSON.parse(savedCart));
+      try {
+        const savedCart = localStorage.getItem(key);
+        if (savedCart) {
+          setCartItems(JSON.parse(savedCart));
+        }
+      } catch (err) {
+        console.warn('localStorage access failed in fallback:', err);
       }
     }
   };

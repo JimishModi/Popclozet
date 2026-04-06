@@ -4,14 +4,17 @@ import { ValidatedAddress } from "@/services/addressService"
 const STORAGE_KEY = "popclozet_location"
 
 export function saveLocation(address: ValidatedAddress) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(address))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(address))
+  } catch (e) {
+    console.warn("localStorage not available", e);
+  }
 }
 
 export function loadLocation(): ValidatedAddress | null {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return null
-
   try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
     return JSON.parse(raw)
   } catch {
     return null
@@ -19,5 +22,9 @@ export function loadLocation(): ValidatedAddress | null {
 }
 
 export function clearLocation() {
-  localStorage.removeItem(STORAGE_KEY)
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch (e) {
+    console.warn("localStorage not available", e);
+  }
 }
