@@ -167,7 +167,7 @@ export function MandatoryReviewGate() {
           <div className="text-center mt-12 mb-8">
             <h1 className="text-3xl font-heading font-bold mb-3">Rate Your Rentals</h1>
             <p className="text-neutral-400 text-sm">
-              Please review your recently rented items to continue using PopClozet.
+              Please review your recently rented items to continue using Popclozet.
             </p>
           </div>
 

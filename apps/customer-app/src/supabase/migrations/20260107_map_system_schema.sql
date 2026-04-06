@@ -1,4 +1,4 @@
--- Migration: Map & Location System Schema for PopClozet
+-- Migration: Map & Location System Schema for Popclozet
 -- Generated: 2026-01-07
 -- Description: Creates tables for rental hubs, user addresses, delivery orders, tracking, and notifications
 
@@ -202,7 +202,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 -- ============================================
 INSERT INTO rental_hubs (name, address, city, lat, lng, operating_hours, avg_delivery_minutes) VALUES
   (
-    'PopClozet Mumbai Central',
+    'Popclozet Mumbai Central',
     'Kamala Mills Compound, Lower Parel, Mumbai 400013',
     'Mumbai',
     19.0048,
@@ -211,7 +211,7 @@ INSERT INTO rental_hubs (name, address, city, lat, lng, operating_hours, avg_del
     45
   ),
   (
-    'PopClozet Bandra',
+    'Popclozet Bandra',
     'Turner Road, Bandra West, Mumbai 400050',
     'Mumbai',
     19.0596,
@@ -220,7 +220,7 @@ INSERT INTO rental_hubs (name, address, city, lat, lng, operating_hours, avg_del
     50
   ),
   (
-    'PopClozet Andheri',
+    'Popclozet Andheri',
     'Lokhandwala Complex, Andheri West, Mumbai 400053',
     'Mumbai',
     19.1384,
@@ -229,7 +229,7 @@ INSERT INTO rental_hubs (name, address, city, lat, lng, operating_hours, avg_del
     55
   ),
   (
-    'PopClozet South Mumbai',
+    'Popclozet South Mumbai',
     'Colaba Causeway, Colaba, Mumbai 400005',
     'Mumbai',
     18.9067,

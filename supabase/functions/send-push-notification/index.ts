@@ -461,7 +461,7 @@ Deno.serve(async (req: Request) => {
   const VAPID_PUBLIC_KEY_ENV = Deno.env.get("VAPID_PUBLIC_KEY");
   const VAPID_PRIVATE_KEY_ENV = Deno.env.get("VAPID_PRIVATE_KEY");
   const VAPID_SUBJECT =
-    Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.com";
+    Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.in";
 
   if (!VAPID_PUBLIC_KEY_ENV || !VAPID_PRIVATE_KEY_ENV) {
     log.error("VAPID secrets not configured");

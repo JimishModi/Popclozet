@@ -152,6 +152,9 @@ export default function PaymentProcessingPage() {
                         // User cancelled → go back to checkout so they can retry
                         if (error.message === 'PAYMENT_CANCELLED') {
                             navigate('/checkout', { replace: true });
+                        } else if (error.message?.includes('verification failed') || error.message?.includes('signature mismatch')) {
+                            // Money may have been charged but verification failed
+                            navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
                         } else {
                             navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
                         }

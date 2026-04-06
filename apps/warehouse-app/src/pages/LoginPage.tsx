@@ -78,7 +78,7 @@ export function LoginPage() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="warehouse@popclozet.com"
+                                placeholder="warehouse@popclozet.in"
                                 className="input-field pl-9 h-11 text-sm"
                                 autoComplete="email"
                             />

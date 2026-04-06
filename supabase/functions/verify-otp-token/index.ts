@@ -158,9 +158,9 @@ Deno.serve(async (req: Request) => {
 
         // Check if user already has a "real" email
         const { data: { user: currentUser }, error: getErr } = await adminClient.auth.admin.getUserById(userId);
-        const hasRealEmail = currentUser?.email && !currentUser.email.endsWith('@phone.popclozet.com');
+        const hasRealEmail = currentUser?.email && !currentUser.email.endsWith('@phone.popclozet.in');
         
-        const loginEmail = hasRealEmail ? currentUser.email : `${digitsWithCountry}@phone.popclozet.com`;
+        const loginEmail = hasRealEmail ? currentUser.email : `${digitsWithCountry}@phone.popclozet.in`;
 
         if (!hasRealEmail) {
             log.info('CP 6: Updating user with temp email', { loginEmail });

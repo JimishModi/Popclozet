@@ -90,7 +90,7 @@ export default function OrderDeliveredPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `PopClozet_Invoice_${order.id.slice(0, 8).toUpperCase()}.pdf`;
+            a.download = `Popclozet_Invoice_${order.id.slice(0, 8).toUpperCase()}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

@@ -104,7 +104,7 @@ export function useRazorpayCheckout() {
           supabase_order_id: internalOrderId,
         },
         theme: {
-          color: '#f2546d',  // PopClozet brand pink
+          color: '#f2546d',  // Popclozet brand pink
           hide_topbar: false,
         },
         modal: {
@@ -173,7 +173,7 @@ export function useRazorpayCheckout() {
             if (onFailure) {
               onFailure(verifyErr);
             } else {
-              navigate(`/payment-failed?orderId=${internalOrderId}`, { replace: true });
+              navigate(`/payment-failed?orderId=${internalOrderId}&reason=verification_failed`, { replace: true });
             }
           } finally {
             setIsProcessing(false);

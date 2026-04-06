@@ -1,7 +1,7 @@
 /**
  * ReceiptPDF — Client-side PDF receipt template
  *
- * Uses @react-pdf/renderer to generate a branded PopClozet receipt
+ * Uses @react-pdf/renderer to generate a branded Popclozet receipt
  * entirely in the browser. Works offline when order data is in IndexedDB.
  */
 
@@ -244,12 +244,12 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                 <View style={styles.headerLeft}>
                     <Image src={POPCLOZET_LOGO_BASE64} style={styles.logo} />
                     <View style={styles.brandTextBlock}>
-                        <Text style={styles.brandName}>PopClozet</Text>
+                        <Text style={styles.brandName}>Popclozet</Text>
                         <Text style={styles.brandTagline}>Rent the Trend</Text>
                     </View>
                 </View>
                 <View style={styles.companyInfo}>
-                    <Text>popclozet Fashion Pvt. Ltd.</Text>
+                    <Text>Popclozet Fashion Pvt. Ltd.</Text>
                     <Text>IIT Bombay, Powai</Text>
                     <Text>Mumbai, Maharashtra 400076</Text>
                     <Text>businessrep@popclozet.in</Text>
@@ -369,9 +369,9 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
             {/* Footer */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                    Thank you for renting with PopClozet!
+                    Thank you for renting with Popclozet!
                 </Text>
-                <Text style={styles.footerBrand}>popclozet.com</Text>
+                <Text style={styles.footerBrand}>popclozet.in</Text>
             </View>
         </Page>
     </Document>

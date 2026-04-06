@@ -12,7 +12,8 @@ const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://popclozet.vercel.app',
+    'https://popclozet.in',
+    'https://www.popclozet.in',
 ];
 
 app.use(cors({
@@ -102,7 +103,7 @@ app.get("/api/location/search", async (req, res) => {
             // Fallback: Nominatim (OpenStreetMap) — no key needed, great for addresses
             const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query as string)}&format=json&addressdetails=1&countrycodes=in&limit=10`;
             const nomResponse = await axios.get(nomUrl, {
-                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+                headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' }
             });
             
             const results = nomResponse.data.map((place: any) => ({
@@ -205,7 +206,7 @@ app.get("/api/location/reverse", async (req, res) => {
         try {
             const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
             const nomResponse = await axios.get(nominatimUrl, {
-                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+                headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' }
             });
 
             if (nomResponse.data && nomResponse.data.display_name) {
@@ -385,7 +386,7 @@ app.get("/api/location/geocode", async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 const response = await axios.get(nominatimUrl, {
-                    headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' },
+                    headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' },
                     timeout: 5000
                 });
 

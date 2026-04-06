@@ -29,7 +29,7 @@ function clearCachedProfile() {
 }
 
 // ── Placeholder email helpers ──────────────────────────────────────────────
-const PLACEHOLDER_DOMAINS = ['@phone.popclozet.com', '@phone.popclozet.internal'];
+const PLACEHOLDER_DOMAINS = ['@phone.popclozet.in', '@phone.popclozet.internal'];
 
 export function isPlaceholderEmail(email: string | undefined | null): boolean {
   if (!email) return true;
