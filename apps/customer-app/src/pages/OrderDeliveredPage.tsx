@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { supabase } from "@popclozet/api-client";
+import { toast } from "sonner";
+import type { ReceiptData } from "@/lib/db";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -12,6 +14,7 @@ export default function OrderDeliveredPage() {
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -49,6 +52,58 @@ export default function OrderDeliveredPage() {
         };
         fetchOrder();
     }, [orderId]);
+
+    const handleDownloadInvoice = async () => {
+        if (!order) return toast.error("Invoice not ready");
+
+        setIsGeneratingPdf(true);
+        try {
+            const { pdf } = await import("@react-pdf/renderer");
+            const { ReceiptPDF } = await import("@/components/receipt/ReceiptPDF");
+
+            const rentalDays = order.order_items?.[0]?.rental_duration_days || 3;
+            const startDate = order.rental_start_date || order.created_at || new Date().toISOString();
+            const endDate = order.rental_end_date || new Date(new Date(startDate).getTime() + rentalDays * 86400000).toISOString();
+
+            const receiptData: ReceiptData = {
+                orderId: order.id,
+                placedAt: order.created_at || new Date().toISOString(),
+                subtotal: Math.round(orderValue),
+                discount: Math.round(discount),
+                deliveryFee: Math.round(deliveryFee),
+                total: Math.round(totalAmount),
+                paymentMethod: order.payment_method || 'cod',
+                deliveryAddress: order.addresses?.full_address || "N/A",
+                rentalStartDate: startDate,
+                rentalEndDate: endDate,
+                items: (order.order_items || []).map((item: any) => ({
+                    name: item.products?.name || "Premium Item",
+                    brand: item.products?.brand || "",
+                    size: item.size || "Free",
+                    quantity: item.quantity || 1,
+                    days: item.rental_duration_days || rentalDays,
+                    rentalPrice: Number(item.rental_price) || 0,
+                })),
+            };
+
+            const blob = await pdf(<ReceiptPDF data={receiptData} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `PopClozet_Invoice_${order.id.slice(0, 8).toUpperCase()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            toast.success("Invoice downloaded!");
+        } catch (err) {
+            console.error("PDF generation failed:", err);
+            toast.error("Failed to generate invoice. Please try again.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -228,11 +283,12 @@ export default function OrderDeliveredPage() {
                 {/* ─── BOTTOM BUTTONS ─── */}
                 <div className="flex gap-4 px-5 pb-8 pt-6">
                     <button
-                        onClick={() => navigate(-1)}
-                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl border border-[#484848] bg-transparent"
+                        onClick={handleDownloadInvoice}
+                        disabled={isGeneratingPdf}
+                        className="flex-1 h-[50px] flex items-center justify-center rounded-2xl border border-[#484848] bg-transparent disabled:opacity-50"
                     >
                         <span className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]" style={dmSans}>
-                            Invoice
+                            {isGeneratingPdf ? "Generating..." : "Invoice"}
                         </span>
                     </button>
                     <button

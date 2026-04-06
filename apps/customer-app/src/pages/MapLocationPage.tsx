@@ -56,6 +56,7 @@ export default function MapLocationPage() {
         address,
         isLoading: locationLoading,
         accuracy: locationAccuracy,
+        error: locationError,
         requestLocation,
         setLocation,
         setLocationCoords,
@@ -110,10 +111,11 @@ export default function MapLocationPage() {
             if (isMatch || useGps || isLocating) {
                 console.log('[MapLocation] Address sync:', address.formattedAddress);
                 // Keep the exact user-clicked pin coordinates, just absorb the resolved address components
+                const shouldKeepExistingCoords = isLocating && !useGps;
                 setSelectedAddress({
                     ...address,
-                    lat: selectedAddress?.lat ?? address.lat,
-                    lng: selectedAddress?.lng ?? address.lng
+                    lat: shouldKeepExistingCoords ? (selectedAddress?.lat ?? address.lat) : address.lat,
+                    lng: shouldKeepExistingCoords ? (selectedAddress?.lng ?? address.lng) : address.lng
                 });
             }
         } else if (location && useGps) {
@@ -493,6 +495,9 @@ export default function MapLocationPage() {
                         <p className="text-[11px] text-zinc-500">Get your GPS location automatically</p>
                     </div>
                 </button>
+                {locationError && (
+                    <p className="mt-2 px-1 text-xs text-red-400">{locationError}</p>
+                )}
             </div>
 
             {/* Map */}

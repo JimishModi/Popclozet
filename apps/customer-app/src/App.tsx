@@ -236,14 +236,13 @@ function App() {
                   {/* ROUTES CONTAINER with persistent background to prevent flashes */}
                   <AppErrorBoundary>
                   <GlobalLayout>
-                    <AnimatePresence mode="popLayout" initial={false}>
+                    <AnimatePresence mode="wait" initial={false}>
                       <motion.div
                         key={location.pathname}
-                        variants={pageVariants}
-                        initial="initial"
-                        animate="enter"
-                        exit="exit"
-                        transition={pageTransition}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
                         className="w-full min-h-screen"
                       >
                         <Routes location={location}>
@@ -391,17 +390,6 @@ function PushNotificationManager() {
 
   return null;
 }
-
-const pageVariants = {
-  initial: { opacity: 0 },
-  enter: { opacity: 1 },
-  exit: { opacity: 0 },
-};
-
-const pageTransition = {
-  duration: 0.2,
-  ease: [0.22, 1, 0.36, 1],
-};
 
 // Persistent layout to keep BottomNav and Shell stable during page transitions
 const GlobalLayout = ({ children }: { children: React.ReactNode }) => {

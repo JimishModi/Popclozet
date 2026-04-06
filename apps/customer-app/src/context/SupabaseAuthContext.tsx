@@ -68,15 +68,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const initialized = useRef(!!authPersistence.getCachedSessionSync().session);
 
   // ── Safety timeout — never leave the app stuck on loading ─────────────────
+  // Re-arms every time loading flips to true (e.g. after SIGNED_IN event)
   useEffect(() => {
+    if (!loading) return;
     const timeout = setTimeout(() => {
-      setLoading(prev => {
-        if (prev) console.warn('[Auth] Safety timeout — forcing loading=false after 4s');
-        return false;
-      });
+      console.warn('[Auth] Safety timeout — forcing loading=false after 4s');
+      setLoading(false);
     }, 4000);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [loading]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const resolveNeedsOnboarding = (p: any) =>

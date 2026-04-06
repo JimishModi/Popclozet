@@ -118,10 +118,6 @@ const ClosetPage: React.FC = () => {
     const arrivingItems = rentals.filter(r => r.isInTransit);
     const returningItems = rentals.filter(r => r.isReturnInProgress);
 
-    const handleKeepIt = (orderId: string) => {
-        navigate(`/checkout?buyoutOrderId=${orderId}`);
-    };
-
     const renderCard = (item: RentalItem) => (
         <motion.div
             key={item.id}
@@ -165,21 +161,6 @@ const ClosetPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Buyout button - overlapping */}
-            <button
-                onClick={() => !item.isInTransit && handleKeepIt(item.id)}
-                disabled={item.isInTransit}
-                className={`-mt-10 mx-5 h-20 rounded-2xl border-2 flex items-end justify-center pb-4 transition-all active:scale-95 shadow-xl ${
-                    item.isInTransit 
-                        ? 'bg-zinc-800 border-zinc-700 opacity-50' 
-                        : 'bg-gradient-to-r from-[#f2546d] to-pink-600 border-[#ff8597]'
-                }`}
-            >
-                <div className="text-center">
-                    <span className="block text-[10px] font-black uppercase text-white/70 tracking-widest leading-none mb-1">Buyout Price</span>
-                    <span className="text-lg font-black text-white" style={dmSans}>₹ {Math.round(item.currentPrice * 0.7)}</span>
-                </div>
-            </button>
 
             {/* Bottom Actions */}
             <div className="px-5 mt-4">
@@ -238,10 +219,10 @@ const ClosetPage: React.FC = () => {
                     <button onClick={() => navigate('/wishlist')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
                         <Heart className="w-5 h-5 text-white" />
                     </button>
-                    <button onClick={() => navigate('/cart')} className="relative w-10 h-10 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg shadow-[#f2546d]/30">
+                    <button onClick={() => navigate('/cart')} className="relative w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
                         <ShoppingBag className="w-5 h-5 text-white" />
                         {totalItems > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[9px] font-bold text-black bg-white rounded-full">
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full shadow-lg shadow-[#f2546d]/30">
                                 {totalItems}
                             </span>
                         )}

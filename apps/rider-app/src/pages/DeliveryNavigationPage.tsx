@@ -28,6 +28,7 @@ interface DeliveryOrder {
   user_id: string;
   otp_delivery?: string;
   otp_return?: string;
+  payment_method?: string | null;
   customer_profiles?: {
     full_name?: string;
     phone?: string;
@@ -96,7 +97,7 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,user_id,otp_delivery,otp_return,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
+          .select('id,status,user_id,otp_delivery,otp_return,payment_method,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
@@ -400,6 +401,17 @@ export const DeliveryNavigationPage: React.FC = () => {
                 <p className="text-sm text-zinc-500 mt-1">{customerInfo.phone}</p>
               )}
            </div>
+
+           {/* Payment Mode */}
+           {order?.payment_method && (
+             <span className={`inline-block px-3 py-1.5 text-xs font-bold uppercase rounded-xl ${
+               order.payment_method === 'cod'
+                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
+             }`}>
+               {order.payment_method === 'cod' ? '💵 Cash on Delivery' : '✅ Paid Online'}
+             </span>
+           )}
 
            {/* Call button — always visible, greyed out only if no phone */}
            {customerInfo?.phone ? (

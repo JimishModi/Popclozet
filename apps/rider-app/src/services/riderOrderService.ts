@@ -16,6 +16,7 @@ export interface RiderOrder {
     customerId: string;
     customerName?: string;
     customerPhone?: string;
+    paymentMethod?: string | null;
     orderType: 'delivery' | 'pickup' | 'return';
     status: OrderStatus;
     pickupAddress: { fullAddress: string; lat: number; lng: number };
@@ -196,9 +197,9 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
     const { data, error } = await supabase
         .from('orders')
         .select(`
-            id, user_id, status, order_type, total_amount, delivery_fee, created_at, delivery_eta,
+            id, user_id, status, order_type, total_amount, delivery_fee, payment_method, created_at, delivery_eta,
             route_distance_km,
-            customer_profiles!orders_user_id_fkey1(full_name),
+            customer_profiles!orders_user_id_fkey1(full_name, phone),
             addresses:delivery_address_id (full_address, latitude, longitude),
             order_items (
                 id, 
@@ -251,7 +252,10 @@ export async function getRiderOrders(riderId: string): Promise<RiderOrder[]> {
 
         return {
             id: order.id, orderId: order.id, customerId: order.user_id,
-            customerName: order.customer_profiles?.full_name, orderType: isReturn ? 'return' as const : 'delivery' as const,
+            customerName: order.customer_profiles?.full_name,
+            customerPhone: order.customer_profiles?.phone || undefined,
+            paymentMethod: order.payment_method || null,
+            orderType: isReturn ? 'return' as const : 'delivery' as const,
             status: order.status,
             pickupAddress,
             deliveryAddress,

@@ -160,7 +160,19 @@ export function OrderFulfillmentPage() {
                                     <div className="flex items-start justify-between mb-2">
                                         <div>
                                             <p className="text-sm font-bold text-white mb-0.5">Order #{order.id.slice(0, 8).toUpperCase()}</p>
-                                            <p className="text-xs text-zinc-400 font-medium">₹{order.total_amount}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-zinc-400 font-medium">₹{order.total_amount}</p>
+                                                {order.payment_method && (
+                                                    <span className={clsx(
+                                                        'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
+                                                        order.payment_method === 'cod'
+                                                            ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                                                            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                    )}>
+                                                        {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={clsx(

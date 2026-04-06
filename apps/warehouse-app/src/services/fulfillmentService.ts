@@ -20,6 +20,7 @@ export interface OrderWithItems {
     delivery_eta: string | null;
     rider_id: string | null;
     rider_name?: string | null;
+    payment_method?: string | null;
     warehouse_otp?: string | null;
     warehouse_otp_expires_at?: string | null;
     warehouse_otp_used?: boolean;

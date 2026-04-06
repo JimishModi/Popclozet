@@ -52,6 +52,7 @@ interface IncomingOrder {
     pickup: { name: string; address: string };
     dropoff: { name: string; address: string };
     customerName: string;
+    paymentMethod?: string | null;
     items?: Array<{ name: string; qty: number; imageUrl?: string }>;
     earnings: number;
     distance: string;
@@ -62,8 +63,8 @@ interface IncomingOrder {
 // ─── Mapper ───────────────────────────────────────────────────────────────────
 
 const ORDER_SELECT = `
-    *, 
-    customer_profiles!orders_user_id_fkey1(full_name),
+    *,
+    customer_profiles!orders_user_id_fkey1(full_name, phone),
     addresses:delivery_address_id(full_address, latitude, longitude), 
     order_items(
         id, 
@@ -150,7 +151,9 @@ function mapDbOrderToIncoming(
         dropoff: isReturn
             ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
             : { name: 'Customer', address: fullAddr },
-        customerName: dbOrder.customer_profiles?.full_name || 'Customer', items,
+        customerName: dbOrder.customer_profiles?.full_name || 'Customer',
+        paymentMethod: dbOrder.payment_method || null,
+        items,
         earnings: dbOrder.delivery_fee > 0
             ? dbOrder.delivery_fee
             : Math.round((dbOrder.total_amount ?? 0) * 0.15),

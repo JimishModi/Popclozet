@@ -276,7 +276,19 @@ export function OrderHistoryPage() {
                                             </div>
                                             <div>
                                                 <p className="text-[10px] text-zinc-500 font-medium">TOTAL</p>
-                                                <p className="text-xs font-bold text-white">₹{order.total_amount}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-bold text-white">₹{order.total_amount}</p>
+                                                    {order.payment_method && (
+                                                        <span className={clsx(
+                                                            'text-[8px] font-bold uppercase px-1 py-0.5 rounded border',
+                                                            order.payment_method === 'cod'
+                                                                ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                                                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                        )}>
+                                                            {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
