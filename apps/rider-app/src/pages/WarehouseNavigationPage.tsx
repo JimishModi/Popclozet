@@ -302,15 +302,22 @@ export const WarehouseNavigationPage: React.FC = () => {
         if (otpValue.length !== 6) { showToast('Please enter a 6-digit PIN', 'error'); return; }
 
         setOtpVerifying(true);
+        console.log(`[handleVerifyOtp] Verifying PIN for order ${id} with PIN ${otpValue} by rider ${user.id}`);
         try {
             const result = await verifyWarehouseOtp(id, otpValue, user.id);
-            if (!result.success) throw new Error(result.message);
+            console.log(`[handleVerifyOtp] Result:`, result);
+            
+            if (!result || !result.success) {
+                const errMsg = result?.message || 'Failed to verify PIN (Unknown error)';
+                throw new Error(errMsg);
+            }
 
             showToast('Arrival verified! Now confirm the pickup.', 'success');
             setStep('arrived');
             setOrder(prev => prev ? { ...prev, status: 'driver_arrived_warehouse' } : prev);
             setShowOtpModal(false);
         } catch (err: any) {
+            console.error(`[handleVerifyOtp] Error:`, err);
             showToast(err.message || 'Failed to verify PIN', 'error');
         } finally {
             setOtpVerifying(false);

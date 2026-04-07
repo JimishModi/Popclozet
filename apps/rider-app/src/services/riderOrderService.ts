@@ -88,8 +88,18 @@ export async function claimOrder(
     });
 
     if (error) {
-        console.error('[riderOrderService] claimOrder:', error);
-        return { success: false, message: error.message };
+        console.error('[riderOrderService] claimOrder failed', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            orderId,
+            riderId,
+        });
+        const debugMessage = [error.message, error.details, error.hint]
+            .filter(Boolean)
+            .join(' | ');
+        return { success: false, message: debugMessage || 'Failed to claim order' };
     }
 
     const result = data as { success: boolean; message?: string };

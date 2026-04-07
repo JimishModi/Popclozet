@@ -281,17 +281,6 @@ Deno.serve(async (req: Request) => {
           title: "🚗 Rider Assigned for Pickup",
           message: "A rider is heading to pick up your return items.",
         },
-        return_picked_up: {
-          type: "return_completed",
-          title: "📦 Items Picked Up",
-          message:
-            "Your return items have been collected and are heading to our warehouse.",
-        },
-        returned: {
-          type: "return_completed",
-          title: "✅ Return Complete",
-          message: "Your return is complete! Thank you.",
-        },
       };
 
       if (oldStatus !== newStatus && customerInAppNotifs[newStatus]) {
@@ -567,12 +556,30 @@ Deno.serve(async (req: Request) => {
         oldStatus !== "return_picked_up" &&
         newStatus === "return_picked_up"
       ) {
+        let driverName = "the driver";
+        if (record.rider_id) {
+          const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", record.rider_id).single();
+          if (profile?.full_name) {
+            driverName = profile.full_name;
+          }
+        }
+
         await sendPush(
           record.user_id,
-          "📦 Items Picked Up!",
-          "Your return items have been collected. They're on the way to our warehouse.",
+          "✅ Return Complete!",
+          `Your return is completed. Package handed over to ${driverName}.`,
           "/orders",
         );
+        
+        await supabase.from("notifications").insert({
+          user_id: record.user_id,
+          type: "return_completed",
+          title: "✅ Return Complete",
+          message: `Your return is completed. Package handed over to ${driverName}.`,
+          order_id: record.id,
+          is_read: false,
+        });
+
         await sendWarehouseAll(
           "📦 Return Picked Up",
           `Items picked up for Order #${shortId(record.id)}. Rider heading to warehouse.`,
@@ -615,12 +622,6 @@ Deno.serve(async (req: Request) => {
 
       // 18. Return complete
       if (oldStatus !== "returned" && newStatus === "returned") {
-        await sendPush(
-          record.user_id,
-          "✅ Return Complete!",
-          "Your return is complete! Thank you.",
-          "/orders",
-        );
         await sendWarehouseAll(
           "✅ Return Completed",
           `Return for Order #${shortId(record.id)} completed.`,
@@ -803,18 +804,26 @@ Deno.serve(async (req: Request) => {
       // Return items collected from customer
       if (oldStatus !== "picked_up" && newStatus === "picked_up") {
         if (customerId) {
+          let driverName = "the driver";
+          if (record.rider_id) {
+            const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", record.rider_id).single();
+            if (profile?.full_name) {
+              driverName = profile.full_name;
+            }
+          }
+
           await sendPush(
             customerId,
-            "📦 Items Collected",
-            "Your return items have been picked up by the rider!",
+            "✅ Return Complete!",
+            `Your return is completed. Package handed over to ${driverName}.`,
             "/orders",
           );
+          
           await supabase.from("notifications").insert({
             user_id: customerId,
             type: "return_completed",
-            title: "📦 Return Items Collected",
-            message:
-              "The rider has collected your items and is heading to the warehouse.",
+            title: "✅ Return Complete",
+            message: `Your return is completed. Package handed over to ${driverName}.`,
             order_id: record.order_id,
             is_read: false,
           });
@@ -828,22 +837,6 @@ Deno.serve(async (req: Request) => {
 
       // Return flow completed
       if (oldStatus !== "completed" && newStatus === "completed") {
-        if (customerId) {
-          await sendPush(
-            customerId,
-            "✅ Return Completed",
-            "Your return is complete! Thank you.",
-            "/orders",
-          );
-          await supabase.from("notifications").insert({
-            user_id: customerId,
-            type: "return_completed",
-            title: "✅ Return Complete",
-            message: "Your return has been processed. Thank you!",
-            order_id: record.order_id,
-            is_read: false,
-          });
-        }
         await sendWarehouseAll(
           "✅ Return Completed",
           `Return for Order #${shortId(record.order_id)} is completed.`,
