@@ -363,7 +363,8 @@ const SettingsPage: React.FC = () => {
                         <motion.div
                             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-10"
+                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-5 pt-5"
+                            style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
                         >
                             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
                             <div className="flex flex-col items-center text-center mb-6">
@@ -405,7 +406,8 @@ const SettingsPage: React.FC = () => {
                         <motion.div
                             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5 pb-12"
+                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5"
+                            style={{ paddingBottom: 'max(48px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
                         >
                             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
                             <div className="flex flex-col items-center text-center">

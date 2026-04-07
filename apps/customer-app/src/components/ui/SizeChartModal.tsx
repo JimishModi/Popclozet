@@ -144,7 +144,7 @@ export function SizeChartModal({ isOpen, onClose, gender = "womens", selectedSiz
                         </div>
 
                         {/* Table */}
-                        <div className="flex-1 overflow-y-auto px-5 pb-6">
+                        <div className="flex-1 overflow-y-auto px-5 bottom-sheet-safe">
                             <div className="rounded-2xl border border-[#333] overflow-hidden">
                                 {/* Table header */}
                                 <div className="grid grid-cols-5 bg-[#232323]">

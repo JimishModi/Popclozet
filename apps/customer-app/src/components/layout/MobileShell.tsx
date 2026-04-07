@@ -23,11 +23,11 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     isGlobalShell = false,
 }) => {
     return (
-        <div className="min-h-screen bg-black flex justify-center">
+        <div className="min-h-dvh bg-black flex justify-center">
             {/* Responsive Container */}
             <div
                 className={cn(
-                    "w-full min-h-screen relative overflow-clip",
+                    "w-full min-h-dvh relative overflow-clip",
                     // Mobile constraints
                     "max-w-[430px]",
                     // Tablet constraints (md+)
@@ -38,6 +38,12 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                     "shadow-2xl shadow-black/50 md:shadow-none",
                     className
                 )}
+                style={{
+                    // iOS safe area: ensure content never hides under notch / Dynamic Island / status bar
+                    paddingTop: 'env(safe-area-inset-top, 0px)',
+                    paddingLeft: 'env(safe-area-inset-left, 0px)',
+                    paddingRight: 'env(safe-area-inset-right, 0px)',
+                }}
             >
 
                 {/* ── Global red glow orb – top-left ── */}
@@ -55,10 +61,16 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                 {isGlobalShell && !hideBottomNav && <BottomNavBar />}
 
                 {/* Main content area */}
-                <div className={cn(
-                    "flex flex-col min-h-screen relative z-[1] flex-1 min-w-0 w-full",
-                    !hideBottomNav && "pb-20 md:pb-0 md:pt-20 lg:pt-0"
-                )}>
+                <div
+                    className={cn(
+                        "flex flex-col min-h-dvh relative z-[1] flex-1 min-w-0 w-full",
+                        !hideBottomNav && "md:pb-0 md:pt-20 lg:pt-0"
+                    )}
+                    style={!hideBottomNav ? {
+                        // iOS: add safe-area-inset-bottom on top of the 80px nav height so content clears the home indicator
+                        paddingBottom: 'max(80px, calc(80px + env(safe-area-inset-bottom, 0px)))',
+                    } : undefined}
+                >
                     {children}
                 </div>
             </div>

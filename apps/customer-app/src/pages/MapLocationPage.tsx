@@ -637,7 +637,10 @@ export default function MapLocationPage() {
             )}
 
             {/* Confirm button */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-black/80 backdrop-blur-sm border-t border-zinc-800">
+            <div
+                className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-black/80 backdrop-blur-sm border-t border-zinc-800"
+                style={{ paddingBottom: 'max(16px, calc(16px + env(safe-area-inset-bottom, 0px)))' }}
+            >
                 <div className="max-w-[430px] mx-auto w-full">
                     <button
                         onClick={handleConfirm}

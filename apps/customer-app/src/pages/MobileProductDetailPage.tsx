@@ -947,7 +947,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl">
+                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl pb-safe">
                         <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto no-scrollbar">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-800 mb-8" />
                             <h2 className="text-2xl font-black text-white mb-2 text-center tracking-tighter">Write a Review</h2>
@@ -1013,7 +1013,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isSizeGuideOpen} onOpenChange={setIsSizeGuideOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh]">
+                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh] pb-safe">
                         <div className="p-4 bg-[#191919] rounded-t-[20px] flex-1 overflow-y-auto">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-700 mb-6" />
                             <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
@@ -1061,7 +1061,7 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden pb-safe">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented || isProductRentedOut ? (
                         /* Rented-out state — cannot order */

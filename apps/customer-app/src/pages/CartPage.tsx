@@ -881,7 +881,7 @@ const CartPage = () => {
 
       {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {hasItems && !loadingProducts && (
-        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
+        <div className="bg-[#232323] rounded-t-[20px] px-5 pt-6 bottom-sheet-safe space-y-4 lg:hidden">
           {/* Checkout CTA */}
           <button
             onClick={canCheckout ? handleCheckout : undefined}

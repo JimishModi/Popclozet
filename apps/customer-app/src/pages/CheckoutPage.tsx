@@ -1622,7 +1622,10 @@ export default function CheckoutPage() {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
-        <div className="bg-[#232323] rounded-t-[32px] px-5 py-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
+        <div
+          className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]"
+          style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div onClick={() => setShowTermsModal(true)} className="flex items-center gap-2 cursor-pointer">
               <div className={cn("w-4 h-4 rounded border border-[#5f606a] flex items-center justify-center transition-colors", (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent")}>
@@ -1672,7 +1675,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showAddressSelector} onOpenChange={setShowAddressSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex justify-between items-center mb-6">
@@ -1724,7 +1727,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showPaymentMethodSelector} onOpenChange={setShowPaymentMethodSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Choose Payment Method</Drawer.Title>
@@ -1803,7 +1806,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showRecipientEditor} onOpenChange={setShowRecipientEditor}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Delivery Contact</Drawer.Title>
@@ -2016,7 +2019,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -2103,7 +2106,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">
@@ -2211,7 +2214,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -2298,7 +2301,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">

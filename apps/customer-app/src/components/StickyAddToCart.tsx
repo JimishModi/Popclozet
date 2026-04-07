@@ -119,7 +119,7 @@ export default function StickyAddToCart({
                         "fixed bottom-0 left-0 right-0 z-50 md:hidden",
                         "bg-background/95 backdrop-blur-xl",
                         "border-t border-border shadow-2xl",
-                        "safe-area-pb", // Safe area for iPhone notch
+                        "pb-safe", // iOS safe area for home indicator
                         className
                     )}
                 >
