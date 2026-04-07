@@ -184,6 +184,7 @@ export function HomePage() {
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dismissedDirectOrderIdsRef = useRef<Set<string>>(new Set());
+    const navigatingRef = useRef(false);
 
     // ── Stable fetch: single source of truth for "what order am I showing?" ──
     //
@@ -192,6 +193,8 @@ export function HomePage() {
 
     const fetchPendingOrder = useCallback(async () => {
         if (!user?.id) return;
+        // Skip fetching if we're navigating away after a successful accept
+        if (navigatingRef.current) return;
         try {
             const { data: assignedOrders, error: assignedError } = await supabase
                 .from('orders')
@@ -294,6 +297,9 @@ export function HomePage() {
 
     useEffect(() => {
         if (!isOnline || !user?.id) return;
+
+        // Reset navigation guard — we're back on the home page
+        navigatingRef.current = false;
 
         setIsSearching(true);
 
@@ -462,36 +468,43 @@ export function HomePage() {
         if (!pendingOrder || !user?.id) return;
 
         if (pendingOrder.source === 'assigned') {
+            navigatingRef.current = true;
             navigate(getAssignedOrderRoute(pendingOrder));
             return;
         }
 
-        const result = await claimOrder(pendingOrder.id, user.id);
-
-        // Remove the card regardless of outcome — never leave a stale card showing
-        dismissedDirectOrderIdsRef.current.delete(pendingOrder.id);
-        setPendingOrder(null);
+        const orderId = pendingOrder.id;
+        const orderType = pendingOrder.orderType;
+        const result = await claimOrder(orderId, user.id);
 
         if (result.success) {
-            if (pendingOrder.orderType === 'return') {
+            // Set navigating guard BEFORE clearing state — prevents realtime/polling
+            // from re-fetching the now-assigned order and overwriting the navigation
+            navigatingRef.current = true;
+            dismissedDirectOrderIdsRef.current.delete(orderId);
+            setPendingOrder(null);
+
+            if (orderType === 'return') {
                 showToast('Return accepted! Head to the customer for pickup.', 'success');
-                navigate(`/delivery/${pendingOrder.id}`);
+                navigate(`/delivery/${orderId}`);
             } else {
                 showToast('Order accepted! Head to the warehouse.', 'success');
-                navigate(`/warehouse/${pendingOrder.id}`);
+                navigate(`/warehouse/${orderId}`);
             }
             return;
         }
 
+        // Failed — clear the card and let realtime find the next order
+        dismissedDirectOrderIdsRef.current.delete(orderId);
+        setPendingOrder(null);
+
         if (result.already_claimed) {
             showToast('Order was taken by another rider', 'info');
-            // Fetch next pending order if any
             setTimeout(() => fetchPendingOrder(), 500);
             return;
         }
 
         showToast(result.message ?? 'Could not accept order', 'error');
-        // Re-fetch in case there's another order available
         setTimeout(() => fetchPendingOrder(), 500);
     }, [pendingOrder, user?.id, navigate, showToast, fetchPendingOrder]);
 
