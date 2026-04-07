@@ -9,17 +9,17 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta name="theme-color" content="#0a0a0a" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-<<<<<<< HEAD
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Popclozet" />
-=======
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <!-- Prevent white flash on iOS PWA before React/CSS mounts -->
-  <style>html,body{background-color:#0a0a0a;margin:0}</style>
+  <style>
+    html,
+    body {
+      background-color: #0a0a0a;
+      margin: 0
+    }
+  </style>
   <meta name="apple-mobile-web-app-title" content="PopClozet" />
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: https://verify.msg91.com https://checkout.razorpay.com https://*.mappls.com https://*.mapmyindia.com;
@@ -95,9 +95,18 @@
 
 <body>
   <!-- Fallback loading UI — visible until React mounts (prevents blank white on iOS) -->
-  <div id="__boot" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0a0a0a;z-index:99999;font-family:'DM Sans',system-ui,sans-serif">
-    <div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(242,84,109,0.15);border-top-color:#f2546d;animation:__spin .7s linear infinite"></div>
-    <style>@keyframes __spin{to{transform:rotate(360deg)}}</style>
+  <div id="__boot"
+    style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0a0a0a;z-index:99999;font-family:'DM Sans',system-ui,sans-serif">
+    <div
+      style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(242,84,109,0.15);border-top-color:#f2546d;animation:__spin .7s linear infinite">
+    </div>
+    <style>
+      @keyframes __spin {
+        to {
+          transform: rotate(360deg)
+        }
+      }
+    </style>
   </div>
   <div id="root"></div>
 
@@ -107,10 +116,10 @@
       window.__popclozetRecover = function () {
         var clearCaches = window.caches
           ? caches.keys().then(function (keys) {
-              return Promise.all(keys.map(function (key) {
-                return caches.delete(key);
-              }));
-            })
+            return Promise.all(keys.map(function (key) {
+              return caches.delete(key);
+            }));
+          })
           : Promise.resolve();
 
         clearCaches.finally(function () {

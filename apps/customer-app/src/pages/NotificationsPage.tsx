@@ -61,15 +61,9 @@ const NotificationsPage: React.FC = () => {
     };
 
     // In-app notification toggles – persisted to localStorage
-<<<<<<< HEAD
-    const [orderUpdates, setOrderUpdates] = useState(() => localStorage.getItem("notif_orders") !== "false");
-    const [promoAlerts, setPromoAlerts] = useState(() => localStorage.getItem("notif_promos") !== "false");
-    const [wishlistAlerts, setWishlistAlerts] = useState(() => localStorage.getItem("notif_wishlist") !== "false");
-=======
     const [orderUpdates, setOrderUpdates] = useState(() => getStorageItem("notif_orders") !== "false");
     const [promoAlerts, setPromoAlerts] = useState(() => getStorageItem("notif_promos") === "true");
     const [wishlistAlerts, setWishlistAlerts] = useState(() => getStorageItem("notif_wishlist") !== "false");
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
 
     const toggle = (key: string, val: boolean, setter: (v: boolean) => void) => {
         setter(val);
