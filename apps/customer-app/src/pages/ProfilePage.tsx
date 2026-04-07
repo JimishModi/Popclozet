@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
   HelpCircle, Shield, Sparkles, X,
-  Edit3, Check, Loader2, Phone, Mail, Package
+  Edit3, Check, Loader2, Phone, Mail, Package, Download, Share, Smartphone
 } from "lucide-react";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -73,6 +74,8 @@ const ProfilePage: React.FC = () => {
 
 
   const { orders, activeOrders, loading: ordersLoading } = useOrders();
+  const { isInstallableNatively, isIOS, isStandalone, triggerInstallPrompt } = usePWAInstall();
+  const [showIOSInstallGuide, setShowIOSInstallGuide] = useState(false);
 
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState('');
@@ -692,6 +695,54 @@ const ProfilePage: React.FC = () => {
               ))}
             </div>
 
+            {/* ── Install App (PWA) ── */}
+            {!isStandalone && (isInstallableNatively || isIOS) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">App</h2>
+                <div className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden">
+                  {isInstallableNatively && (
+                    <button
+                      onClick={async () => {
+                        await triggerInstallPrompt();
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all",
+                        isIOS && "border-b border-white/5"
+                      )}
+                    >
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                        <Download className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block">Install App</span>
+                        <span className="text-[11px] text-zinc-500">Fast access from home screen</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  )}
+                  {isIOS && (
+                    <button
+                      onClick={() => setShowIOSInstallGuide(true)}
+                      className="w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all"
+                    >
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                        <Share className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block">Add to Home Screen</span>
+                        <span className="text-[11px] text-zinc-500">Get the full app experience</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {user && (
               <div className="mt-8">
                 <button
@@ -823,6 +874,57 @@ const ProfilePage: React.FC = () => {
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Check className="w-4 h-4" /> Save Changes</>}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* iOS Install Guide Modal */}
+      <AnimatePresence>
+        {showIOSInstallGuide && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowIOSInstallGuide(false)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200]"
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[200] bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5 pb-12"
+            >
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-[#f2546d]/15 flex items-center justify-center mb-5">
+                  <Smartphone className="w-8 h-8 text-[#f2546d]" />
+                </div>
+                <h2 className="text-white font-bold text-xl mb-3">Install Popclozet</h2>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                  Follow these steps to add Popclozet to your home screen for a better shopping experience.
+                </p>
+
+                <div className="w-full space-y-4 mb-8">
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">1</div>
+                    <p className="text-zinc-300 text-sm">Tap the <span className="font-bold text-white">Share</span> button in Safari's bottom toolbar.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">2</div>
+                    <p className="text-zinc-300 text-sm">Scroll down and tap <span className="font-bold text-white">"Add to Home Screen"</span>.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">3</div>
+                    <p className="text-zinc-300 text-sm">Tap <span className="font-bold text-white">"Add"</span> in the top-right corner.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowIOSInstallGuide(false)}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-base shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
+                >
+                  Got it
                 </button>
               </div>
             </motion.div>

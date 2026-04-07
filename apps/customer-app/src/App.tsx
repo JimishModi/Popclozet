@@ -21,6 +21,7 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { UpdatePrompt } from "./components/pwa/UpdatePrompt";
 import { recoverPendingVerifications, recoverPendingCancellations } from "./services/razorpayService";
 import { toast } from "sonner";
 import { useAuth } from "./context/SupabaseAuthContext";
@@ -243,6 +244,7 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
+                  <UpdatePrompt />
                   <PushNotificationManager />
 
                   {/* LOCATION */}

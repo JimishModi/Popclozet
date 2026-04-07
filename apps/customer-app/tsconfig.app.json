@@ -30,7 +30,9 @@
 },
     "types": [
       "vite/client",
-      "node"
+      "node",
+      "vite-plugin-pwa/client",
+      "vite-plugin-pwa/react"
     ]
   },
   "include": [
