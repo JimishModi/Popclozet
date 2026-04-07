@@ -144,14 +144,6 @@ export function useMapLocation() {
                         permissionState: 'granted',
                     }));
                 });
-<<<<<<< HEAD
-
-            localStorage.setItem(
-                'user_location',
-                JSON.stringify({ ...finalLoc, allowed: true })
-            );
-=======
-            
             // Also persist
             try {
                 localStorage.setItem(
@@ -161,7 +153,6 @@ export function useMapLocation() {
             } catch (err) {
                 console.warn('[useMapLocation] Failed to save location to localStorage', err);
             }
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
         };
 
         settlingTimeout = setTimeout(() => {
@@ -304,12 +295,6 @@ export function useMapLocation() {
             isLoading: false,
         }));
 
-<<<<<<< HEAD
-        localStorage.setItem(
-            'user_location',
-            JSON.stringify({ lat, lng, allowed: true })
-        );
-=======
         // Also save to localStorage for persistence
         try {
             localStorage.setItem(
@@ -319,7 +304,6 @@ export function useMapLocation() {
         } catch (err) {
             console.warn('[useMapLocation] Failed to save location to localStorage', err);
         }
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
     }, []);
 
     const setLocationCoords = useCallback((lat: number, lng: number) => {

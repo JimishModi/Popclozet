@@ -202,19 +202,8 @@ const CollectionsPage = () => {
           >
             {categories.map((cat, index) => {
               const catId = cat.id.toLowerCase();
-<<<<<<< HEAD
               const imageUrl = cat.image;
-=======
-              const isImageCategory = catId === 'jackets' || catId === 'footwear' || catId === 'accessories' || catId === 'accessory';
-              let imageName = '';
-              if (catId === 'jackets') imageName = 'Jackets';
-              else if (catId === 'footwear') imageName = 'Footwear';
-              else if (catId === 'accessories' || catId === 'accessory') imageName = 'Accessories';
-
-              const imageUrl = isImageCategory 
-                ? `https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/assets/collection-page/${imageName}.jpeg`
-                : null;
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
+              const hasImage = Boolean(imageUrl);
               const Icon = ICON_MAP[catId] ?? FallbackIcon;
               
               return (
@@ -227,24 +216,13 @@ const CollectionsPage = () => {
                   onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
                   className={cn(
                     "w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center overflow-hidden relative",
-<<<<<<< HEAD
-                    imageUrl ? "h-48" : "py-8 gap-3"
+                    hasImage ? "h-64" : "py-10 gap-3"
                   )}
                 >
-                  {imageUrl ? (
-                    <img 
-                      src={imageUrl} 
-                      alt={cat.title} 
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-=======
-                    isImageCategory ? "h-64" : "py-10 gap-3"
-                  )}
-                >
-                  {isImageCategory ? (
+                  {hasImage ? (
                     <>
                       <img 
-                        src={imageUrl!} 
+                        src={imageUrl} 
                         alt={cat.title} 
                         className="absolute inset-0 w-full h-full object-cover"
                       />
@@ -254,7 +232,6 @@ const CollectionsPage = () => {
                         </span>
                       </div>
                     </>
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
                   ) : (
                     <>
                       <Icon className="w-20 h-20 text-white/80" />

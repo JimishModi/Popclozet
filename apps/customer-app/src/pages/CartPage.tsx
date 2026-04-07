@@ -281,19 +281,11 @@ const CartPage = () => {
           .limit(20);
 
         if (data && !error) {
-<<<<<<< HEAD
-          // Only show add-ons that have at least one item available in stock
-          const availableAddOns = data.filter((p: any) => 
-            p.inventory && p.inventory.some((inv: any) => (inv.available_stock || 0) > 0)
-          );
-          setAddOnProducts(availableAddOns);
-=======
           // Only show add-ons that have at least one size with stock available
           const inStock = data.filter((p: any) =>
-            (p.inventory || []).some((inv: any) => inv.available_stock > 0)
+            (p.inventory || []).some((inv: any) => (inv.available_stock || 0) > 0)
           );
           setAddOnProducts(inStock.slice(0, 8));
->>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
