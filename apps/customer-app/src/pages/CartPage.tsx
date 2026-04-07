@@ -318,36 +318,41 @@ const CartPage = () => {
 
 
 
-  const getPlanPrice = (product: any, plan: string) => {
+  const getPlanPrice = (product: any, plan: string): number => {
     if (!product) return 0;
+    let raw: any;
     switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
+      case '1d': raw = product.rental_price_1d; break;
+      case '2d': raw = product.rental_price_2d; break;
+      case '3d': raw = product.rental_price_3d ?? product.price; break;
+      case 'buy': raw = product.buy_price; break;
+      default: raw = product.price;
     }
+    const n = parseFloat(raw);
+    return isNaN(n) ? 0 : n;
   };
 
   // Calculate subtotal
   const subtotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
+      return sum + price * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   // Original total = sum of MRP (if available) or plan price for each item
   const originalTotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp_val = product?.mrp_price || product?.mrp || planPrice;
-      return total + Math.max(mrp_val, planPrice) * data.quantity;
-    }, 0);
+      const planPrice = getPlanPrice(product, data.plan);
+      // mrp is already parseFloat'd in fetchCartProducts; mrp_price may be raw string from ...p spread
+      const mrp = typeof product?.mrp === 'number' ? product.mrp : parseFloat(product?.mrp_price ?? planPrice);
+      const safeMrp = isNaN(mrp) ? planPrice : mrp;
+      return sum + Math.max(safeMrp, planPrice) * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   const discount = Math.max(0, originalTotal - subtotal);
@@ -364,6 +369,7 @@ const CartPage = () => {
   const addressId = deliveryAddress?.id || null;
   const addressLat = deliveryAddress?.lat || null;
   const addressLng = deliveryAddress?.lng || null;
+  const previewDistanceKm = selectedHub?.distance_km ?? 0;
   const addressKey = addressId || (addressLat && addressLng ? `${addressLat},${addressLng}` : 'none');
 
   // Build preview items for server RPC — JSON key for stable dependency
@@ -393,6 +399,7 @@ const CartPage = () => {
     previewOrder({
       items,
       couponCode: appliedCouponKey,
+      distanceKm: previewDistanceKm,
       addressId,
       lat: addressLat,
       lng: addressLng,
@@ -436,7 +443,7 @@ const CartPage = () => {
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewItemsKey, addressKey, appliedCouponKey]);
+  }, [previewItemsKey, addressKey, appliedCouponKey, previewDistanceKm]);
 
   // Delivery fee is ONLY from server — no client-side default
   const deliveryFee = serverPricing?.delivery_fee ?? null;
@@ -474,6 +481,7 @@ const CartPage = () => {
       const result = await previewOrder({
         items: previewItems,
         couponCode: couponCode.trim(),
+        distanceKm: previewDistanceKm,
         addressId,
         lat: addressLat,
         lng: addressLng,

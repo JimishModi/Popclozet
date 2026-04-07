@@ -30,7 +30,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder, previewOrder } from "@/services/ordersService";
+import { placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import {
@@ -42,6 +42,13 @@ import {
   saveCheckoutAddressContext,
   type ManualAddressDetails,
 } from "@/lib/addressAccuracy";
+import {
+  clearCheckoutDraft,
+  readCheckoutDraft,
+  saveCheckoutDraft,
+  type CheckoutReturnSchedule,
+} from "@/lib/checkoutDraft";
+import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -108,6 +115,7 @@ export default function CheckoutPage() {
   const [searchParams] = useSearchParams();
   const buyoutOrderId = searchParams.get("buyoutOrderId");
   const skipDelivery = searchParams.get("skipDelivery") === 'true';
+  const [checkoutDraft] = useState(() => readCheckoutDraft());
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
@@ -115,13 +123,13 @@ export default function CheckoutPage() {
 
   // Coupon code passed from CartPage via location state or search params
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
-    () => location.state?.couponCode || searchParams.get("coupon") || null
+    () => location.state?.couponCode || searchParams.get("coupon") || checkoutDraft?.appliedCouponCode || null
   );
 
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [agreedToSizing, setAgreedToSizing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(() => checkoutDraft?.agreedToTerms ?? false);
+  const [agreedToSizing, setAgreedToSizing] = useState(() => checkoutDraft?.agreedToSizing ?? false);
   const [userIp, setUserIp] = useState<string>("");
 
   // FIX 2: Declare missing showTermsModal state
@@ -147,9 +155,9 @@ export default function CheckoutPage() {
   const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
 
   // RECIPIENT INFORMATION (Editable overrides for ordering for others)
-  const [recipientName, setRecipientName] = useState<string>("");
-  const [recipientPhone, setRecipientPhone] = useState<string>("");
-  const [recipientEmail, setRecipientEmail] = useState<string>("");
+  const [recipientName, setRecipientName] = useState<string>(() => checkoutDraft?.recipientName ?? "");
+  const [recipientPhone, setRecipientPhone] = useState<string>(() => checkoutDraft?.recipientPhone ?? "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(() => checkoutDraft?.recipientEmail ?? "");
   const [showRecipientEditor, setShowRecipientEditor] = useState(false);
 
   // Sync recipient state with profile/user initially
@@ -287,13 +295,48 @@ export default function CheckoutPage() {
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
   const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
-  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
+  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>(
+    () => checkoutDraft?.selectedOrderType ?? 'rental'
+  );
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
   // Read return schedule from state (set by CheckoutReturnSchedulePage)
-  const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
+  const returnSchedule =
+    (location.state?.returnSchedule as CheckoutReturnSchedule | undefined) ??
+    checkoutDraft?.returnSchedule ??
+    undefined;
   const manualAddressSummary = buildManualAddressSummary(manualAddressDetails);
   const showManualAddress = hasManualAddressDetails(manualAddressDetails);
+
+  useEffect(() => {
+    saveCheckoutDraft({
+      appliedCouponCode,
+      agreedToTerms,
+      agreedToSizing,
+      recipientName,
+      recipientPhone,
+      recipientEmail,
+      selectedOrderType,
+      returnSchedule: returnSchedule ?? null,
+    });
+  }, [
+    appliedCouponCode,
+    agreedToTerms,
+    agreedToSizing,
+    recipientName,
+    recipientPhone,
+    recipientEmail,
+    selectedOrderType,
+    returnSchedule,
+  ]);
+
+  useEffect(() => {
+    if (paymentMethod !== "upi") return;
+
+    preloadRazorpayCheckout().catch((err) => {
+      console.warn("[Checkout] Razorpay preload failed:", err);
+    });
+  }, [paymentMethod]);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
@@ -575,15 +618,18 @@ export default function CheckoutPage() {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
 
-  const getPlanPrice = (product: any, plan: string) => {
+  const getPlanPrice = (product: any, plan: string): number => {
     if (!product) return 0;
+    let raw: any;
     switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
+      case '1d': raw = product.rental_price_1d; break;
+      case '2d': raw = product.rental_price_2d; break;
+      case '3d': raw = product.rental_price_3d ?? product.price; break;
+      case 'buy': raw = product.buy_price; break;
+      default: raw = product.price;
     }
+    const n = parseFloat(raw);
+    return isNaN(n) ? 0 : n;
   };
 
   // Load Buyout Order if specified
@@ -671,12 +717,22 @@ export default function CheckoutPage() {
   // Fetch server-side pricing whenever cart items or address change
   useEffect(() => {
     const items = JSON.parse(previewItemsKey);
-    if (items.length === 0 || buyoutOrderData) return;
+    if (items.length === 0 || buyoutOrderData) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
+    if (invalidCatalogItem) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
       items,
       couponCode: appliedCouponCode,
+      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0),
       addressId: isNoDeliveryFlow ? null : (deliveryAddress?.id || null),
       lat: isNoDeliveryFlow ? null : (deliveryAddress?.lat || null),
       lng: isNoDeliveryFlow ? null : (deliveryAddress?.lng || null),
@@ -697,47 +753,59 @@ export default function CheckoutPage() {
         console.warn("[Checkout] preview_order returned:", result.code, result.message);
       }
     }).catch((err) => {
-      if (!cancelled) console.warn("[Checkout] preview_order failed:", err);
+      if (!cancelled) {
+        console.warn("[Checkout] preview_order failed:", err);
+      }
     }).finally(() => {
       if (!cancelled) setPricingLoading(false);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData]);
+  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData, actualDistance, selectedHub?.distance_km, profile?.delivery_distance_km, invalidCatalogItem]);
 
   // ── Display values: prefer server pricing, fall back to client estimates ──
-  const subtotal = serverPricing?.subtotal ?? (() => {
-    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
-  })();
+  const subtotal = serverPricing?.subtotal != null
+    ? Math.round(serverPricing.subtotal)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const price = getPlanPrice(product, data.plan);
+        return sum + price * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const originalTotal = serverPricing?.original_total ?? (() => {
-    if (buyoutOrderData) return buyoutOrderData.total_amount;
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp = product?.mrp || planPrice;
-      return total + Math.max(mrp, planPrice) * data.quantity;
-    }, 0);
-  })();
+  const originalTotal = serverPricing?.original_total != null
+    ? Math.round(serverPricing.original_total)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const planPrice = getPlanPrice(product, data.plan);
+        const mrp = typeof product?.mrp === 'number' ? product.mrp : planPrice;
+        return sum + Math.max(mrp, planPrice) * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
-  const couponDiscount = serverPricing?.coupon_discount ?? 0;
+  const discount = serverPricing?.discount != null
+    ? Math.round(serverPricing.discount)
+    : Math.max(0, originalTotal - subtotal);
+  const couponDiscount = serverPricing?.coupon_discount != null
+    ? Math.round(serverPricing.coupon_discount)
+    : 0;
 
   // Delivery fee is computed server-side by preview_order RPC — no client-side default.
-  const deliveryFeeBase = serverPricing?.delivery_fee ?? null;
+  const deliveryFeeBase = serverPricing?.delivery_fee != null
+    ? Math.round(serverPricing.delivery_fee)
+    : null;
   const distanceSurcharge = 0;
 
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0;
-  const total = serverPricing?.total ?? null;
+  const total = serverPricing?.total != null ? Math.round(serverPricing.total) : null;
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -822,6 +890,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (invalidCatalogItem) {
+      toast.error("One or more items are unavailable right now. Please remove them and try again.");
+      return;
+    }
+
     // Return schedule is mandatory for rental orders
     if (hasRentals && !returnSchedule?.pickupSlotIso) {
       toast.error("Please select a return pickup slot before placing your order.");
@@ -863,6 +936,7 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
+          clearCheckoutDraft();
           navigate(`/order-confirmed/${targetId}`, { replace: true });
         } else {
           setIsPlacingOrder(false);
@@ -921,8 +995,8 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const actualDistance = selectedHub?.distance_km ?? 0;
-      const isDelayed = actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
+      const routeDistanceKm = actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0;
+      const isDelayed = routeDistanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
       const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
       const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
@@ -957,6 +1031,43 @@ export default function CheckoutPage() {
         };
       });
 
+      // ── STOCK RESERVATION ──────────────────────────────────
+      // Resolve cart items to inventory variant_ids, then reserve stock
+      // atomically BEFORE order creation. If reservation fails, stop.
+      console.log('[Checkout] Resolving variant IDs for stock reservation...');
+      let reservedItems: { variant_id: string; quantity: number }[] = [];
+      try {
+        const variantItems = await resolveVariantIds(
+          orderItems.map(i => ({ product_id: i.product_id, size: i.size, quantity: i.quantity }))
+        );
+
+        // Reserve stock with a 15-second timeout
+        const reservationPromise = reserveCheckoutStock(variantItems);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Stock reservation timed out. Please try again.')), 15000)
+        );
+        const reserveResult = await Promise.race([reservationPromise, timeoutPromise]);
+
+        if (!reserveResult.success) {
+          toast.error("Some items are out of stock. Please update your cart and try again.");
+          setError("Out of stock — one or more items could not be reserved.");
+          return;
+        }
+
+        reservedItems = variantItems;
+        console.log('[Checkout] Stock reserved successfully', reservedItems);
+      } catch (stockErr: any) {
+        console.error('[Checkout] Stock reservation failed:', stockErr);
+        const msg = stockErr.message?.includes('timed out')
+          ? stockErr.message
+          : stockErr.message?.includes('Insufficient stock')
+            ? "Some items are out of stock. Please update your cart and try again."
+            : "Could not check stock availability. Please try again.";
+        toast.error(msg);
+        setError(msg);
+        return;
+      }
+
       // Generate idempotency key (once per click — survives retries within the same attempt)
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
@@ -965,24 +1076,39 @@ export default function CheckoutPage() {
       // ATOMIC order placement — order + items in a single DB transaction.
       // Server fetches prices from DB, computes delivery fee & coupon discount.
       // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
-      const orderResult = await placeOrder({
-        idempotencyKey: idempotencyKeyRef.current,
-        addressId: addressId,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        paymentMethod: paymentMethod,
-        couponCode: appliedCouponCode || null,
-        routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
-        deliveryEta: deliveryEtaStr,
-        returnPickupDate: returnPickupDate,
-        returnTimeSlot: returnTimeSlot,
-        items: orderItems,
-        recipientName: recipientName,
-        recipientPhone: recipientPhone,
-        recipientEmail: recipientEmail,
-      });
+      let orderResult;
+      try {
+        orderResult = await placeOrder({
+          idempotencyKey: idempotencyKeyRef.current,
+          addressId: addressId,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          paymentMethod: paymentMethod,
+          couponCode: appliedCouponCode || null,
+          routeDistanceKm,
+          deliveryEta: deliveryEtaStr,
+          returnPickupDate: returnPickupDate,
+          returnTimeSlot: returnTimeSlot,
+          items: orderItems,
+          recipientName: recipientName,
+          recipientPhone: recipientPhone,
+          recipientEmail: recipientEmail,
+        });
+      } catch (orderErr: any) {
+        // Order creation failed AFTER stock was reserved — release stock
+        console.error('[Checkout] Order creation failed, releasing reserved stock:', orderErr);
+        await releaseCheckoutStock(reservedItems).catch(() => {});
+        throw orderErr; // Re-throw to hit the outer catch
+      }
 
       const createdOrderId = orderResult.order_id;
+
+      // Persist reservation records so backend can release on cancel/timeout
+      if (createdOrderId && reservedItems.length > 0) {
+        await persistOrderReservations(createdOrderId, reservedItems).catch((e) => {
+          console.warn('[Checkout] Failed to persist reservation records (non-fatal):', e);
+        });
+      }
 
       // Reset idempotency key after successful creation
       idempotencyKeyRef.current = null;
@@ -1032,6 +1158,7 @@ export default function CheckoutPage() {
           const parts = key.split('_');
           removeFromCart(parts[0], data.size, data.plan);
         }
+        clearCheckoutDraft();
       }
 
       // Navigate based on payment method
@@ -1464,7 +1591,9 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
               <div className="text-right">
-                {pricingLoading || deliveryFeeBase === null ? (
+                {invalidCatalogItem ? (
+                  <span className="text-sm font-bold text-amber-500">Item Unavailable</span>
+                ) : pricingLoading || deliveryFeeBase === null ? (
                   <span className="text-zinc-500 animate-pulse">...</span>
                 ) : deliveryFeeBase === -1 ? (
                   <span className="text-sm font-bold text-red-500">Not Serviceable</span>
@@ -1479,7 +1608,13 @@ export default function CheckoutPage() {
             {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
-              <span>{pricingLoading || total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</span>
+              <span>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : pricingLoading || total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </span>
             </div>
           </div>
         </section>
@@ -1499,15 +1634,21 @@ export default function CheckoutPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-black text-white" style={dmSans}>{total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</p>
+              <p className="text-2xl font-black text-white" style={dmSans}>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </p>
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null || !!invalidCatalogItem}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError || !!invalidCatalogItem) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
