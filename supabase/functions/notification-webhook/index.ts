@@ -307,10 +307,14 @@ Deno.serve(async (req: Request) => {
       }
 
       // 4. Driver assigned for delivery (rider_id set for the first time, non-return)
+      // Only notify AFTER the rider has actually claimed/accepted the order
+      // (status moves to driver_arrived_warehouse or rider_assigned),
+      // NOT when rider_id is merely set on a ready_for_pickup order.
       if (
         !old_record.rider_id &&
         record.rider_id &&
-        !String(newStatus).startsWith("return_")
+        !String(newStatus).startsWith("return_") &&
+        newStatus !== "ready_for_pickup"
       ) {
         await sendPush(
           record.user_id,
@@ -326,7 +330,6 @@ Deno.serve(async (req: Request) => {
           order_id: record.id,
           is_read: false,
         });
-        // FIXED: was "/warehouse/orders"
         await sendWarehouseAll(
           "🚗 Driver Dispatched",
           `Driver assigned to Order #${shortId(record.id)}.`,
@@ -338,6 +341,49 @@ Deno.serve(async (req: Request) => {
           `Assigned to deliver Order #${shortId(record.id)}. Head to the warehouse!`,
           "/deliveries",
         );
+      }
+
+      // 4b. Order becomes ready_for_pickup — notify all riders about the new ride request
+      if (oldStatus !== "ready_for_pickup" && newStatus === "ready_for_pickup" && !record.rider_id) {
+        // Fetch all riders to send push notifications about the new request
+        const { data: riderProfiles } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("role", "rider");
+
+        if (riderProfiles) {
+          // Exclude riders who have cancelled this order
+          const { data: cancellations } = await supabase
+            .from("order_cancellations")
+            .select("rider_id")
+            .eq("order_id", record.id);
+
+          const cancelledRiderIds = new Set(
+            (cancellations ?? []).map((c: any) => c.rider_id),
+          );
+
+          // Exclude riders who already declined this order
+          const { data: declinedNotifs } = await supabase
+            .from("rider_notifications")
+            .select("rider_id")
+            .eq("order_id", record.id)
+            .eq("status", "declined");
+
+          const declinedRiderIds = new Set(
+            (declinedNotifs ?? []).map((d: any) => d.rider_id),
+          );
+
+          for (const rider of riderProfiles) {
+            if (!cancelledRiderIds.has(rider.user_id) && !declinedRiderIds.has(rider.user_id)) {
+              await sendPush(
+                rider.user_id,
+                "🚀 New Ride Request!",
+                `New order #${shortId(record.id)} available for pickup. Open the app to accept!`,
+                "/",
+              );
+            }
+          }
+        }
       }
 
       // 5. Order packed — warehouse push (NEW)
