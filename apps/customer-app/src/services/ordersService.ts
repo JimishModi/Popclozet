@@ -70,6 +70,23 @@ export interface SavedAddressRecord {
   is_default?: boolean | null;
 }
 
+const ACTIVE_CLOSET_STATUSES = [
+  "pending",
+  "confirmed",
+  "packed",
+  "ready_for_pickup",
+  "rider_assigned",
+  "driver_arrived_warehouse",
+  "order_picked_up",
+  "dispatched",
+  "out_for_delivery",
+  "delivered",
+  "in_use",
+  "return_requested",
+  "return_scheduled",
+  "return_dispatched",
+] as const;
+
 /**
  * Get all orders for current user
  */
@@ -503,12 +520,7 @@ export async function getMyActiveRentals() {
       )
     `)
     .eq("user_id", user.id)
-    .in("status", [
-      "pending", "confirmed", "packed", "ready_for_pickup", "rider_assigned",
-      "driver_arrived_warehouse", "order_picked_up",
-      "dispatched", "out_for_delivery", "delivered", "in_use",
-      "return_requested", "return_scheduled", "return_dispatched"
-    ])
+    .in("status", [...ACTIVE_CLOSET_STATUSES])
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -517,6 +529,32 @@ export async function getMyActiveRentals() {
   }
 
   return data ?? [];
+}
+
+export async function getMyActiveClosetItemCount(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      id,
+      order_items (
+        id
+      )
+    `)
+    .eq("user_id", user.id)
+    .in("status", [...ACTIVE_CLOSET_STATUSES]);
+
+  if (error) {
+    console.error("getMyActiveClosetItemCount error:", error);
+    throw error;
+  }
+
+  return (data ?? []).reduce((total, order) => {
+    const itemCount = Array.isArray(order.order_items) ? order.order_items.length : 0;
+    return total + itemCount;
+  }, 0);
 }
 
 /**

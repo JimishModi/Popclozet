@@ -21,7 +21,7 @@ export default defineConfig(function (_a) {
             // basicSsl(),
             react(),
             VitePWA({
-                registerType: "autoUpdate",
+                registerType: "prompt",
                 includeAssets: [
                     "favicon.ico",
                     "robots.txt",

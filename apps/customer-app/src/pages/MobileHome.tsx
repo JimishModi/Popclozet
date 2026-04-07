@@ -10,6 +10,7 @@ import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
+import { useClosetCount } from "@/hooks/useClosetCount";
 import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
@@ -71,7 +72,7 @@ const MobileHome: React.FC = () => {
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
-    const wishlistCount = wishlistItems.length;
+    const { closetCount } = useClosetCount();
     const { unreadCount } = useNotifications({ limit: 5, autoSubscribe: true });
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
@@ -356,9 +357,9 @@ const MobileHome: React.FC = () => {
                                 className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
                                 <ClosetIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white/80" />
-                                {wishlistCount > 0 && (
+                                {closetCount > 0 && (
                                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
-                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                        {closetCount > 9 ? '9+' : closetCount}
                                     </span>
                                 )}
                             </button>

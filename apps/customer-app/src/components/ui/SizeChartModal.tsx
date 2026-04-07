@@ -84,6 +84,7 @@ export function SizeChartModal({ isOpen, onClose, gender = "womens", selectedSiz
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 28, stiffness: 300 }}
                         className="fixed bottom-0 left-0 right-0 z-[101] bg-[#1a1a1a] rounded-t-3xl max-h-[85vh] flex flex-col max-w-md mx-auto w-full"
+                        style={{ maxHeight: 'var(--mobile-overlay-max-height)' }}
                     >
                         {/* Handle */}
                         <div className="flex justify-center py-3">

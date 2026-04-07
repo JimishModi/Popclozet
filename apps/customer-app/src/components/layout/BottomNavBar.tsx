@@ -1,11 +1,10 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
-import { useWishlist } from '@/context/WishlistContext';
-import { useAuth } from '@/context/SupabaseAuthContext';
 import { Home, LayoutGrid, User } from 'lucide-react';
 import { ClosetIcon } from '@/components/icons/ClosetIcon';
+import { useClosetCount } from '@/hooks/useClosetCount';
 
 interface NavItem {
     path: string;
@@ -27,10 +26,7 @@ interface BottomNavBarProps {
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
     const location = useLocation();
     const { totalItems: cartCount } = useCart();
-    const { wishlistItems } = useWishlist();
-    const { user } = useAuth();
-    const navigate = useNavigate();
-    const wishlistCount = wishlistItems.length;
+    const { closetCount } = useClosetCount();
 
     const isActive = (path: string) => {
         if (path === '/home') {
@@ -116,10 +112,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                         {cartCount > 9 ? '9+' : cartCount}
                                     </span>
                                 )}
-                                {/* Closet/Wishlist badge */}
-                                {item.path === '/closet' && wishlistCount > 0 && (
+                                {/* Closet badge */}
+                                {item.path === '/closet' && closetCount > 0 && (
                                     <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
-                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                        {closetCount > 9 ? '9+' : closetCount}
                                     </span>
                                 )}
                             </div>

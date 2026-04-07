@@ -67,8 +67,8 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                         !hideBottomNav && "md:pb-0 md:pt-20 lg:pt-0"
                     )}
                     style={!hideBottomNav ? {
-                        // iOS: add safe-area-inset-bottom on top of the 80px nav height so content clears the home indicator
-                        paddingBottom: 'max(80px, calc(80px + env(safe-area-inset-bottom, 0px)))',
+                        // Keep scrollable content clear of the floating bottom nav on every phone size.
+                        paddingBottom: 'var(--mobile-bottom-nav-offset)',
                     } : undefined}
                 >
                     {children}
