@@ -91,7 +91,8 @@ Deno.serve(async (req: Request) => {
   // FIXED: was "profiles" (which does not exist). Correct table is "warehouse_profiles"
   const { data: warehouseProfiles, error: warehouseErr } = await supabase
     .from("warehouse_profiles")
-    .select("id");
+    .select("user_id")
+    .not("user_id", "is", null);
 
   if (warehouseErr) {
     log.error("Failed to fetch warehouse users", {
@@ -156,7 +157,7 @@ Deno.serve(async (req: Request) => {
     url = "/orders",
   ) => {
     for (const w of warehouseUsers) {
-      await sendPush(w.id, title, body, url);
+      await sendPush(w.user_id, title, body, url);
     }
   };
 
@@ -487,7 +488,7 @@ Deno.serve(async (req: Request) => {
         );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
-            user_id: w.id,
+            user_id: w.user_id,
             type: "return_scheduled",
             title: "🔔 New Return Request",
             message: `Customer requested a return for Order #${shortId(record.id)}. Action required.`,
@@ -541,7 +542,7 @@ Deno.serve(async (req: Request) => {
         );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
-            user_id: w.id,
+            user_id: w.user_id,
             type: "return_scheduled",
             title: "🏍️ Rider Dispatched for Return",
             message: `Rider is en route to pick up return for Order #${shortId(record.id)}.`,
@@ -587,7 +588,7 @@ Deno.serve(async (req: Request) => {
         );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
-            user_id: w.id,
+            user_id: w.user_id,
             type: "return_completed",
             title: "📦 Return Items Picked Up",
             message: `Rider collected return items for Order #${shortId(record.id)}. Expect warehouse arrival soon.`,
@@ -610,7 +611,7 @@ Deno.serve(async (req: Request) => {
         );
         for (const w of warehouseUsers) {
           await supabase.from("notifications").insert({
-            user_id: w.id,
+            user_id: w.user_id,
             type: "return_completed",
             title: "🏭 Return Arrived at Warehouse",
             message: `Return items for Order #${shortId(record.id)} received. Please inspect and complete.`,

@@ -148,7 +148,10 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[9999] flex flex-col justify-end items-center">
+                <div
+                    className="fixed inset-0 z-[9999] flex flex-col justify-end items-center"
+                    style={{ paddingBottom: 'var(--mobile-bottom-nav-offset)' }}
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -165,7 +168,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                         className="relative bg-zinc-950 border-t border-zinc-800 rounded-t-3xl px-4 pt-4 flex flex-col min-h-0 w-full max-w-[430px] sm:px-5 sm:pt-5"
-                        style={{ maxHeight: 'var(--mobile-overlay-max-height)' }}
+                        style={{ maxHeight: 'calc(var(--mobile-overlay-max-height) - var(--mobile-bottom-nav-offset))' }}
                     >
                         <div className="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-4 sm:mb-5" />
 

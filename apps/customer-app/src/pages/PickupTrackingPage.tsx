@@ -480,7 +480,10 @@ export default function PickupTrackingPage() {
 
             {/* ── Instant Return Confirmation Modal ── */}
             {showInstantReturnConfirm && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center px-3">
+                <div
+                    className="fixed inset-0 z-50 flex items-end justify-center px-3"
+                    style={{ paddingBottom: 'var(--mobile-bottom-nav-offset)' }}
+                >
                     <div
                         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                         onClick={() => setShowInstantReturnConfirm(false)}
@@ -491,7 +494,7 @@ export default function PickupTrackingPage() {
                         exit={{ y: 80, opacity: 0 }}
                         className="relative w-full max-w-[430px] bg-zinc-900 border border-zinc-800 rounded-t-3xl px-4 pt-4 sm:px-6 sm:pt-6 overflow-y-auto"
                         style={{
-                            maxHeight: 'var(--mobile-overlay-max-height)',
+                            maxHeight: 'calc(var(--mobile-overlay-max-height) - var(--mobile-bottom-nav-offset))',
                             paddingBottom: 'var(--mobile-overlay-padding-bottom)',
                         }}
                     >
