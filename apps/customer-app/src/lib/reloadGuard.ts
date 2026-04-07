@@ -66,3 +66,14 @@ export function safeSetSessionStorageItem(key: string, value: string) {
     // iOS standalone PWAs can throw here. Ignore and continue.
   }
 }
+
+export function safeGetSessionStorageItem(key: string): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    // iOS standalone PWAs can throw here. Ignore and continue.
+    return null;
+  }
+}

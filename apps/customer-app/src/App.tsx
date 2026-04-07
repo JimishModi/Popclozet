@@ -29,7 +29,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { MandatoryReviewGate } from "@/components/MandatoryReviewGate";
-import { clearReloadGuard, hasReloadGuard, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
+import { clearReloadGuard, hasReloadGuard, safeGetSessionStorageItem, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
 
 
 // Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
@@ -393,7 +393,7 @@ function PushNotificationManager() {
   // We show a small toast-style prompt after they land on home or orders
   useEffect(() => {
     const isMainPage = location.pathname === '/home' || location.pathname === '/orders';
-    const hasBeenPrompted = sessionStorage.getItem('push_prompt_seen');
+    const hasBeenPrompted = safeGetSessionStorageItem('push_prompt_seen');
 
     if (user && !push.isInitializing && push.isSupported && push.permission === 'default' && isMainPage && !hasBeenPrompted && !push.isLoading) {
       // Delay slightly to not overwhelm on page load
@@ -401,13 +401,13 @@ function PushNotificationManager() {
         console.log("[Push] Showing proactive notification prompt...");
         // For now, we'll use a small console log but in a real app this would be a custom UI banner or toast
         // We'll mark as prompted to avoid spamming
-        sessionStorage.setItem('push_prompt_seen', 'true');
+        safeSetSessionStorageItem('push_prompt_seen', 'true');
         
         // We could call push.subscribe() here if we want to be very aggressive, 
         // but it's better to show a UI first. However, to fulfill "on by default",
         // we will at least try to trigger the native prompt if they are on a high-intent page.
         if (location.pathname === '/orders') {
-          push.subscribe();
+          void push.subscribe();
         }
       }, 3000);
       return () => clearTimeout(timer);

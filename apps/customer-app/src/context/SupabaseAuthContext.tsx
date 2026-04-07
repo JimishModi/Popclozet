@@ -225,25 +225,40 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Listen for real-time changes to the user's profile
     // This allows across-device sync (e.g. verifying email on desktop reflects on mobile)
-    const profileSync = supabase
-      .channel(`profile-sync-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'customer_profiles',
-          filter: `user_id=eq.${user.id}`,
-        },
-        async (payload) => {
-          console.info('[Auth] Real-time profile change detected. Syncing...', payload.new);
-          await refreshProfile();
-        }
-      )
-      .subscribe();
+    let profileSync: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      profileSync = supabase
+        .channel(`profile-sync-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'customer_profiles',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.info('[Auth] Real-time profile change detected. Syncing...', payload.new);
+            try {
+              await refreshProfile();
+            } catch (error) {
+              console.warn('[Auth] Real-time refreshProfile failed:', error);
+            }
+          }
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('[Auth] Failed to start profile realtime sync:', error);
+    }
 
     return () => {
-      supabase.removeChannel(profileSync);
+      if (!profileSync) return;
+      try {
+        supabase.removeChannel(profileSync);
+      } catch (error) {
+        console.warn('[Auth] Failed to remove profile realtime sync channel:', error);
+      }
     };
   }, [user?.id]);
 
