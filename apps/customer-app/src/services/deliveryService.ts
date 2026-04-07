@@ -16,6 +16,16 @@ export interface DeliveryOrder {
         full_address: string;
         lat: number;
         lng: number;
+        address_id?: string;
+    } | null;
+    manual_address_details?: {
+        contactName?: string;
+        phoneNumber?: string;
+        houseNumber?: string;
+        streetAddress?: string;
+        landmark?: string;
+        city?: string;
+        pincode?: string;
     } | null;
     order_type: 'delivery' | 'pickup' | 'return' | 'rental' | 'home_try_on';
     status: OrderStatus;

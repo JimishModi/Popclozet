@@ -27,6 +27,8 @@ import {
 import { clsx } from 'clsx';
 import { getOrderHistory, type OrderWithItems } from '../services/fulfillmentService';
 import { OrderTimelineOverlay } from '../components/OrderTimelineOverlay';
+import { buildManualAddressSummary } from '../services/addressDetails';
+import { OrderCustomerInfoPanel } from '../components/OrderCustomerInfoPanel';
 
 import { RotateCcw } from 'lucide-react';
 
@@ -50,6 +52,7 @@ export function OrderHistoryPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [viewingActivity, setViewingActivity] = useState<string | null>(null);
+    const [viewingCustomerInfo, setViewingCustomerInfo] = useState<string | null>(null);
 
     const fetchOrders = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true);
@@ -211,6 +214,12 @@ export function OrderHistoryPage() {
                         <div className="space-y-3.5">
                             {orders.map((order, idx) => {
                                 const returnRequest = order.return_requests?.[0];
+                                const fetchedAddress =
+                                    order.delivery_address_snapshot?.full_address ||
+                                    order.addresses?.full_address ||
+                                    '';
+                                const manualAddressSummary = buildManualAddressSummary(order.manual_address_details);
+                                const isViewingCustomerInfo = viewingCustomerInfo === order.id;
 
                                 return (
                                 <motion.div
@@ -329,10 +338,22 @@ export function OrderHistoryPage() {
 
                                     {/* Details */}
                                     <div className="space-y-2">
-                                        {order.addresses?.full_address && (
+                                        {fetchedAddress && (
                                             <div className="flex items-start gap-2 text-zinc-400">
                                                 <MapPin size={12} className="mt-0.5 shrink-0" />
-                                                <p className="text-[11px] line-clamp-1">{order.addresses.full_address}</p>
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Address Fetched</p>
+                                                    <p className="text-[11px] line-clamp-2">{fetchedAddress}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {manualAddressSummary && (
+                                            <div className="flex items-start gap-2 text-zinc-300">
+                                                <MapPin size={12} className="mt-0.5 shrink-0 text-[#f2546d]" />
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Manual Address</p>
+                                                    <p className="text-[11px] line-clamp-3">{manualAddressSummary}</p>
+                                                </div>
                                             </div>
                                         )}
                                         {order.rider_name && (
@@ -343,17 +364,41 @@ export function OrderHistoryPage() {
                                         )}
                                     </div>
 
+                                    {isViewingCustomerInfo ? (
+                                        <OrderCustomerInfoPanel
+                                            customerName={order.customer_profile?.full_name}
+                                            customerPhone={order.customer_profile?.phone}
+                                            customerEmail={order.customer_profile?.email}
+                                            fetchedAddress={fetchedAddress}
+                                            manualAddressDetails={order.manual_address_details}
+                                            riderName={order.rider_name || order.riders?.name || order.riders?.full_name}
+                                            riderPhone={order.riders?.phone}
+                                        />
+                                    ) : null}
+
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setViewingActivity(order.id);
-                                            }} 
-                                            className="flex items-center gap-1.5 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-bold uppercase tracking-wider"
-                                        >
-                                            <Activity size={12} />
-                                            View Updates
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewingCustomerInfo((current) => current === order.id ? null : order.id);
+                                                }}
+                                                className="flex items-center gap-1.5 text-[10px] text-zinc-300 hover:text-white transition-colors font-bold uppercase tracking-wider"
+                                            >
+                                                <User size={12} />
+                                                {isViewingCustomerInfo ? 'Hide Customer Info' : 'Customer Info'}
+                                            </button>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewingActivity(order.id);
+                                                }} 
+                                                className="flex items-center gap-1.5 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-bold uppercase tracking-wider"
+                                            >
+                                                <Activity size={12} />
+                                                View Updates
+                                            </button>
+                                        </div>
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                             <ChevronRight size={18} className="text-zinc-600" />
                                         </div>

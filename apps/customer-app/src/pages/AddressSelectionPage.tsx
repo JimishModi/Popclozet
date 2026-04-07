@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ChevronLeft, MapPin, Plus, Check, Trash2 } from "lucide-react";
 import { getLocalAddresses, ValidatedAddress, deleteRecentAddress } from "@/services/addressService";
+import { clearCheckoutAddressContext } from "@/lib/addressAccuracy";
 import { cn } from "@/lib/utils";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -182,13 +183,14 @@ const AddressSelectionPage = () => {
       }
 
       setIsSaving(false);
-      
-      // 3. Redirect back to returnTo or return-schedule step
-      if (returnTo) {
-        navigate(returnTo);
-      } else {
-        navigate("/checkout/return-schedule", { state: { selectedAddress: addr } });
-      }
+
+      clearCheckoutAddressContext();
+      navigate("/checkout/address-details", {
+        state: {
+          selectedAddress: addr,
+          nextRoute: returnTo || "/checkout/return-schedule",
+        },
+      });
     }
   };
 

@@ -275,6 +275,8 @@ export type Database = {
           delivery_eta?: string | null
           payment_method?: string | null
           delivery_fee?: number | null
+          delivery_address_snapshot?: Json | null
+          manual_address_details?: Json | null
           subscription_id?: string | null
           order_type?: string | null
           scheduled_slot?: Json | null
@@ -300,6 +302,8 @@ export type Database = {
           delivery_eta?: string | null
           payment_method?: string | null
           delivery_fee?: number | null
+          delivery_address_snapshot?: Json | null
+          manual_address_details?: Json | null
           subscription_id?: string | null
           order_type?: string | null
           scheduled_slot?: Json | null
@@ -325,6 +329,8 @@ export type Database = {
           delivery_eta?: string | null
           payment_method?: string | null
           delivery_fee?: number | null
+          delivery_address_snapshot?: Json | null
+          manual_address_details?: Json | null
           subscription_id?: string | null
           order_type?: string | null
           scheduled_slot?: Json | null

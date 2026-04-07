@@ -4,14 +4,26 @@ import { BrowserRouter } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import { AuthProvider } from '@popclozet/auth';
 import { ToastProvider } from './contexts/ToastContext';
+import { hasReloadGuard, setReloadGuard } from './lib/reloadGuard';
 import App from './App';
 import './index.css';
 
 // Register PWA Service Worker
-registerSW({
+const updateServiceWorker = registerSW({
     onNeedRefresh() {
-        console.log('[PWA] New content available, reloading...');
-        window.location.reload();
+        if (import.meta.env.PROD) {
+            const reloadKey = 'sw_reload_warehouse_v1';
+            if (!hasReloadGuard(reloadKey)) {
+                setReloadGuard(reloadKey);
+                console.log('[PWA] New content available, reloading once to apply assets');
+                window.location.reload();
+            } else {
+                console.log('[PWA] New content available (already reloaded this session)');
+            }
+            return;
+        }
+
+        console.log('[PWA] New content available (dev mode)');
     },
     onOfflineReady() {
         console.log('[PWA] App ready for offline usage');
@@ -21,14 +33,16 @@ registerSW({
     },
 });
 
-// Listen for the new service worker taking control
-if ('serviceWorker' in navigator) {
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-            refreshing = true;
-            console.log('🔄 Service Worker updated. Reloading page...');
-            window.location.reload();
+if (import.meta.env.PROD) {
+    setInterval(() => {
+        if (typeof updateServiceWorker === 'function') {
+            void updateServiceWorker(true);
+        }
+    }, 60 * 60 * 1000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && typeof updateServiceWorker === 'function') {
+            void updateServiceWorker(true);
         }
     });
 }

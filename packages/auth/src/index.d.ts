@@ -15,6 +15,8 @@ interface AuthContextType {
     signUp: (email: string, password: string, fullName: string, phone: string, metadata?: Record<string, any>) => Promise<void>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+    refreshProfile: () => Promise<void>;
+    recoverFromStuckAuth: () => void;
 }
 export declare const useAuth: () => AuthContextType;
 export declare const AuthProvider: React.FC<{

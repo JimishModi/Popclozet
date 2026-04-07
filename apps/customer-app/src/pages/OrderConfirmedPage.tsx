@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useCart } from "@/context/CartContext";
 import { clearCartDB } from "@/lib/db";
 import type { ReceiptData } from "@/lib/db";
+import { buildManualAddressSummary } from "@/lib/addressAccuracy";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -125,6 +126,11 @@ export default function OrderConfirmedPage() {
     // Order value = MRP total, discount = MRP - rental subtotal
     const orderValue = mrpTotal > 0 ? mrpTotal : subtotal;
     const discount = Math.max(0, orderValue - subtotal);
+    const fetchedAddress =
+        order?.delivery_address_snapshot?.full_address ||
+        order?.addresses?.full_address ||
+        "Delivery address loading or unavailable";
+    const manualAddressSummary = buildManualAddressSummary(order?.manual_address_details);
 
     const handleDownloadInvoice = async () => {
         if (!order) return toast.error("Invoice not ready");
@@ -246,8 +252,21 @@ export default function OrderConfirmedPage() {
                     {!isBuyoutOrder && (
                         <>
                             <h3 className="text-xl font-black text-white mb-3" style={dmSans}>Address</h3>
-                            <div className="text-[#8e8e93] text-sm font-medium leading-relaxed max-w-[280px]" style={dmSans}>
-                                {order?.addresses?.full_address || "Delivery address loading or unavailable"}
+                            <div className="space-y-4 max-w-[320px]">
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 mb-1">Address Fetched</p>
+                                    <div className="text-[#8e8e93] text-sm font-medium leading-relaxed" style={dmSans}>
+                                        {fetchedAddress}
+                                    </div>
+                                </div>
+                                {manualAddressSummary && (
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 mb-1">Manual Address</p>
+                                        <div className="text-[#8e8e93] text-sm font-medium leading-relaxed" style={dmSans}>
+                                            {manualAddressSummary}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
@@ -273,8 +292,16 @@ export default function OrderConfirmedPage() {
                                 <div className="mt-4 pt-4 border-t border-white/5">
                                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Pickup Address</p>
                                     <p className="text-xs text-[#8e8e93] leading-relaxed line-clamp-2" style={dmSans}>
-                                        {order?.addresses?.full_address || "Delivery address loading or unavailable"}
+                                        {fetchedAddress}
                                     </p>
+                                    {manualAddressSummary && (
+                                        <>
+                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-3 mb-1">Manual Address</p>
+                                            <p className="text-xs text-[#8e8e93] leading-relaxed line-clamp-3" style={dmSans}>
+                                                {manualAddressSummary}
+                                            </p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

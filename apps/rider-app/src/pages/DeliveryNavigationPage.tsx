@@ -38,6 +38,15 @@ interface DeliveryOrder {
     lat?: number;
     lng?: number;
   } | null;
+  manual_address_details?: {
+    contactName?: string | null;
+    phoneNumber?: string | null;
+    houseNumber?: string | null;
+    streetAddress?: string | null;
+    landmark?: string | null;
+    city?: string | null;
+    pincode?: string | null;
+  } | null;
   addresses?: {
     full_address: string;
     latitude: number | null;
@@ -97,7 +106,7 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,user_id,otp_delivery,otp_return,payment_method,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
+          .select('id,status,user_id,otp_delivery,otp_return,payment_method,manual_address_details,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
@@ -429,9 +438,9 @@ export const DeliveryNavigationPage: React.FC = () => {
              </div>
            )}
 
-           {/* Address + copy */}
+           {/* Map Address */}
            <div className="space-y-3">
-              <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Delivery Address</h2>
+              <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Map Address</h2>
               <p className="text-sm text-zinc-400 leading-relaxed">{destAddress}</p>
               <button
                 onClick={() => {
@@ -444,6 +453,36 @@ export const DeliveryNavigationPage: React.FC = () => {
                 Copy Address
               </button>
            </div>
+
+           {/* Manual Form Address */}
+           {order?.manual_address_details && (
+             <div className="space-y-3">
+               <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Form Address</h2>
+               <div className="text-sm text-zinc-400 leading-relaxed space-y-1">
+                 {order.manual_address_details.houseNumber && (
+                   <p><span className="text-zinc-600">House: </span>{order.manual_address_details.houseNumber}</p>
+                 )}
+                 {order.manual_address_details.streetAddress && (
+                   <p><span className="text-zinc-600">Street: </span>{order.manual_address_details.streetAddress}</p>
+                 )}
+                 {order.manual_address_details.landmark && (
+                   <p><span className="text-zinc-600">Landmark: </span>{order.manual_address_details.landmark}</p>
+                 )}
+                 {order.manual_address_details.city && (
+                   <p><span className="text-zinc-600">City: </span>{order.manual_address_details.city}</p>
+                 )}
+                 {order.manual_address_details.pincode && (
+                   <p><span className="text-zinc-600">Pincode: </span>{order.manual_address_details.pincode}</p>
+                 )}
+                 {order.manual_address_details.contactName && (
+                   <p><span className="text-zinc-600">Contact: </span>{order.manual_address_details.contactName}</p>
+                 )}
+                 {order.manual_address_details.phoneNumber && (
+                   <p><span className="text-zinc-600">Phone: </span>{order.manual_address_details.phoneNumber}</p>
+                 )}
+               </div>
+             </div>
+           )}
         </section>
 
         {/* Package Contents */}

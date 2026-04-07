@@ -21,7 +21,8 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { recoverPendingVerifications } from "./services/razorpayService";
+import { recoverPendingVerifications, recoverPendingCancellations } from "./services/razorpayService";
+import { toast } from "sonner";
 import { useAuth } from "./context/SupabaseAuthContext";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 
@@ -122,6 +123,7 @@ const AuthCallback = lazyWithRetry(() => import("./pages/AuthCallback"));
 const MapLocationPage = lazyWithRetry(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackingPage"));
 const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
+const AddressAccuracyPage = lazyWithRetry(() => import("./pages/AddressAccuracyPage"));
 const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
 const CheckoutReturnSchedulePage = lazyWithRetry(() => import("./pages/CheckoutReturnSchedulePage"));
 const WelcomePage = lazyWithRetry(() => import("./pages/WelcomePage"));
@@ -201,9 +203,32 @@ function App() {
     }
   }, []);
 
-  // Recover any payment verifications interrupted by tab close / network drop
+  // Recover any interrupted payment verifications or cancellations
   useEffect(() => {
-    recoverPendingVerifications();
+    const runRecovery = async () => {
+      const results = await recoverPendingVerifications();
+      for (const r of results) {
+        if (r.status === 'confirmed') {
+          toast.success(`Your payment for order has been confirmed!`);
+        } else if (r.status === 'pending') {
+          toast.info('We\'re still verifying a recent payment. This usually takes a few minutes.');
+        } else if (r.status === 'cancelled') {
+          toast.info('A recent order was cancelled. If money was deducted, it will be refunded within 5-7 business days.');
+        }
+      }
+      await recoverPendingCancellations();
+    };
+
+    runRecovery();
+
+    // Also run recovery when the app regains focus (user returns after being offline)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runRecovery();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
   return (
@@ -259,6 +284,7 @@ function App() {
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
                           <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                           <Route path="/checkout/address" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressSelectionPage /></Suspense></PageTransition>} />
+                          <Route path="/checkout/address-details" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressAccuracyPage /></Suspense></PageTransition>} />
                           <Route path="/checkout/return-schedule" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutReturnSchedulePage /></Suspense></PageTransition>} />
                           <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                           <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />

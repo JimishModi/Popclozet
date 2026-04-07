@@ -27,6 +27,21 @@ export interface Order {
   return_time_slot?: string | null;
   created_at: string;
   delivery_address?: SavedAddressRecord | null;
+  delivery_address_snapshot?: {
+    full_address?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    address_id?: string | null;
+  } | null;
+  manual_address_details?: {
+    contactName?: string | null;
+    phoneNumber?: string | null;
+    houseNumber?: string | null;
+    streetAddress?: string | null;
+    landmark?: string | null;
+    city?: string | null;
+    pincode?: string | null;
+  } | null;
 }
 
 export interface OrderItem {

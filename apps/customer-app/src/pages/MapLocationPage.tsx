@@ -2,7 +2,7 @@
 // Full-screen interactive map for address selection and hub discovery
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Check, Navigation } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
@@ -20,6 +20,7 @@ import { fetchPlaceDetails } from '@/services/mapplsService';
 import { geocodeAddress } from '@/services/mapServices';
 import { geocodeWithMappls } from '@/services/mapplsGeocode';
 import { HubWithDistance } from '@/services/hubService';
+import { clearCheckoutAddressContext } from '@/lib/addressAccuracy';
 
 import { WAREHOUSE } from '@/lib/serviceAreas';
 
@@ -27,9 +28,11 @@ type ViewMode = 'search' | 'hubs';
 
 export default function MapLocationPage() {
     const navigate = useNavigate();
+    const locationState = useLocation();
     const [searchParams] = useSearchParams();
     const { user } = useAuth();
     const returnTo = searchParams.get('returnTo') || '/home';
+    const forwardState = locationState.state?.forwardState || {};
 
     const [viewMode, setViewMode] = useState<ViewMode>('search');
     // Restore last confirmed address on mount so it survives reload
@@ -442,8 +445,14 @@ export default function MapLocationPage() {
                 }));
             }
 
-            // Navigate back
-            navigate(returnTo);
+            clearCheckoutAddressContext();
+            navigate('/checkout/address-details', {
+                state: {
+                    selectedAddress,
+                    nextRoute: returnTo,
+                    forwardState,
+                },
+            });
         }
     };
 

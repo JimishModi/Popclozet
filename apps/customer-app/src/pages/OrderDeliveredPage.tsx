@@ -6,6 +6,9 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { supabase } from "@popclozet/api-client";
 import { toast } from "sonner";
 import type { ReceiptData } from "@/lib/db";
+import { buildManualAddressSummary } from "@/lib/addressAccuracy";
+import { useAuth } from "@/hooks/useAuth";
+import { CustomerDeliveryInfoCard } from "@/components/orders/CustomerDeliveryInfoCard";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -15,6 +18,7 @@ export default function OrderDeliveredPage() {
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const { profile, user } = useAuth();
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -142,6 +146,13 @@ export default function OrderDeliveredPage() {
     const firstItem = order.order_items?.[0];
     const product = firstItem?.products;
     const address = order.addresses;
+    const fetchedAddress =
+        order?.delivery_address_snapshot?.full_address ||
+        address?.full_address ||
+        "Address not available";
+    const manualAddressSummary = buildManualAddressSummary(order?.manual_address_details);
+    const customerName = order?.manual_address_details?.contactName || profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Customer";
+    const customerPhone = order?.manual_address_details?.phoneNumber || profile?.phone || user?.phone || null;
 
     return (
         <MobileShell className="bg-[#111111] text-white" hideBottomNav>
@@ -207,19 +218,15 @@ export default function OrderDeliveredPage() {
                         </div>
                     ))}
 
-                    {/* Address */}
-                    <h3
-                        className="text-lg font-black text-white tracking-[-0.54px] mt-4"
-                        style={dmSans}
-                    >
-                        Address
-                    </h3>
-                    <p
-                        className="text-sm font-normal text-[#b4b4b4] tracking-[-0.42px] mt-1.5 leading-relaxed"
-                        style={dmSans}
-                    >
-                        {address?.full_address || "Address not available"}
-                    </p>
+                </section>
+
+                <section className="px-5 mt-6">
+                    <CustomerDeliveryInfoCard
+                        customerName={customerName}
+                        customerPhone={customerPhone}
+                        fetchedAddress={fetchedAddress}
+                        manualAddressSummary={manualAddressSummary}
+                    />
                 </section>
 
                 {/* ─── PRICE DETAILS ─── */}

@@ -126,16 +126,87 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
   );
 }
 
+export type RecoveryResult = {
+  orderId: string;
+  status: 'confirmed' | 'pending' | 'cancelled' | 'stale' | 'error';
+};
+
 /**
  * Recovers any pending verifications that were interrupted (e.g. tab closed,
  * network drop after Razorpay handler fired but before verification completed).
  *
- * Call this once on app startup (e.g. in a top-level useEffect).
- * For each pending record, it re-attempts verification. If it succeeds or
- * gets a definitive "already processed" response, it clears the record.
+ * With the Razorpay webhook as server-side safety net, this function only needs
+ * to CHECK order status and INFORM the caller — not re-verify.
+ *
+ * Returns results so the caller (App.tsx) can show appropriate toasts.
  */
-export async function recoverPendingVerifications(): Promise<void> {
+export async function recoverPendingVerifications(): Promise<RecoveryResult[]> {
   const PREFIX = 'rzp_pending_verify:';
+  const keys: string[] = [];
+  const results: RecoveryResult[] = [];
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(PREFIX)) keys.push(key);
+  }
+
+  if (keys.length === 0) return results;
+
+  console.log(`[razorpayService] Found ${keys.length} pending verification(s), checking status...`);
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) { localStorage.removeItem(key); continue; }
+
+      const pending = JSON.parse(raw);
+      const orderId = pending.internal_order_id;
+
+      // Remove records older than 24 hours — Razorpay payments expire
+      if (pending.timestamp && Date.now() - pending.timestamp > 24 * 60 * 60 * 1000) {
+        console.warn('[razorpayService] Stale pending verification, removing:', orderId);
+        localStorage.removeItem(key);
+        results.push({ orderId, status: 'stale' });
+        continue;
+      }
+
+      // Check if the order was confirmed (by webhook or earlier client verification)
+      const { data: order } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single();
+
+      if (order && ['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
+        console.log('[razorpayService] Order confirmed (likely by webhook), clearing:', orderId);
+        localStorage.removeItem(key);
+        results.push({ orderId, status: 'confirmed' });
+      } else if (order && order.status === 'cancelled') {
+        console.warn('[razorpayService] Order was cancelled. If money was deducted, refund needed:', orderId);
+        localStorage.removeItem(key);
+        results.push({ orderId, status: 'cancelled' });
+      } else {
+        // Still pending — webhook hasn't fired yet, or payment wasn't captured
+        console.warn('[razorpayService] Order still pending verification:', orderId, 'razorpay_payment_id:', pending.razorpay_payment_id);
+        results.push({ orderId, status: 'pending' });
+        // Keep the record for next check
+      }
+    } catch (err) {
+      console.warn('[razorpayService] Error recovering pending verification for', key, err);
+      results.push({ orderId: key.replace(PREFIX, ''), status: 'error' });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Retries any order cancellations that failed due to network issues.
+ * Called on app startup alongside recoverPendingVerifications.
+ * The server-side cron is the ultimate fallback — this just speeds things up.
+ */
+export async function recoverPendingCancellations(): Promise<void> {
+  const PREFIX = 'pending_cancel:';
   const keys: string[] = [];
 
   for (let i = 0; i < localStorage.length; i++) {
@@ -145,7 +216,7 @@ export async function recoverPendingVerifications(): Promise<void> {
 
   if (keys.length === 0) return;
 
-  console.log(`[razorpayService] Found ${keys.length} pending verification(s), attempting recovery...`);
+  console.log(`[razorpayService] Found ${keys.length} pending cancellation(s), retrying...`);
 
   for (const key of keys) {
     try {
@@ -154,35 +225,33 @@ export async function recoverPendingVerifications(): Promise<void> {
 
       const pending = JSON.parse(raw);
 
-      // Skip records older than 24 hours — Razorpay payments expire
+      // Skip records older than 24 hours — cron will have handled these
       if (pending.timestamp && Date.now() - pending.timestamp > 24 * 60 * 60 * 1000) {
-        console.warn('[razorpayService] Stale pending verification, removing:', pending.internal_order_id);
         localStorage.removeItem(key);
         continue;
       }
 
-      // Signature is not stored in localStorage (intentionally — it's sensitive).
-      // We can't re-verify without it. But we can check if the order was already
-      // verified by querying the order status.
+      // Check if order is already cancelled or confirmed
       const { data: order } = await supabase
         .from('orders')
         .select('status')
-        .eq('id', pending.internal_order_id)
+        .eq('id', pending.orderId)
         .single();
 
-      if (order && ['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
-        console.log('[razorpayService] Order already confirmed, clearing pending record:', pending.internal_order_id);
+      if (!order || ['cancelled', 'confirmed', 'paid', 'completed'].includes(order.status)) {
+        // Already resolved — clear entry
         localStorage.removeItem(key);
-      } else {
-        console.warn(
-          '[razorpayService] Order not yet confirmed. Payment may need manual reconciliation:',
-          pending.internal_order_id,
-          'razorpay_payment_id:', pending.razorpay_payment_id,
-        );
-        // Keep the record so support can find it
+        continue;
+      }
+
+      // Attempt cancellation via RPC
+      const { error } = await supabase.rpc('cancel_order_safe', { p_order_id: pending.orderId });
+      if (!error) {
+        console.log('[razorpayService] Successfully cancelled order on retry:', pending.orderId);
+        localStorage.removeItem(key);
       }
     } catch (err) {
-      console.warn('[razorpayService] Error recovering pending verification for', key, err);
+      console.warn('[razorpayService] Cancel retry failed for', key, '— cron will handle it');
     }
   }
 }

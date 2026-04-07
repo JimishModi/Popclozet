@@ -33,6 +33,15 @@ import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits
 import { placeOrder, previewOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
+import {
+  buildManualAddressSummary,
+  clearCheckoutAddressContext,
+  getCheckoutAddressContext,
+  hasManualAddressDetails,
+  normalizeManualAddressDetails,
+  saveCheckoutAddressContext,
+  type ManualAddressDetails,
+} from "@/lib/addressAccuracy";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -239,6 +248,7 @@ export default function CheckoutPage() {
   }, [isNoDeliveryFlow, paymentMethod]);
 
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
+  const [manualAddressDetails, setManualAddressDetails] = useState<ManualAddressDetails | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,19 +288,33 @@ export default function CheckoutPage() {
 
   // Read return schedule from state (set by CheckoutReturnSchedulePage)
   const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
+  const manualAddressSummary = buildManualAddressSummary(manualAddressDetails);
+  const showManualAddress = hasManualAddressDetails(manualAddressDetails);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
     const passedAddress = location.state?.selectedAddress;
+    const passedManualAddress = normalizeManualAddressDetails(location.state?.manualAddressDetails);
+    const storedAddressContext = getCheckoutAddressContext();
+    const addresses = getLocalAddresses();
+
+    setAddressList(addresses);
+
     if (passedAddress) {
       setDeliveryAddress(passedAddress);
+      setManualAddressDetails(passedManualAddress);
+      saveCheckoutAddressContext({
+        selectedAddress: passedAddress,
+        manualAddressDetails: passedManualAddress,
+      });
+    } else if (storedAddressContext?.selectedAddress) {
+      setDeliveryAddress(storedAddressContext.selectedAddress);
+      setManualAddressDetails(storedAddressContext.manualAddressDetails);
     } else {
-      const addresses = getLocalAddresses();
-      // FIX 4: Populate addressList so the drawer isn't empty
-      setAddressList(addresses);
       if (addresses.length > 0) {
         setDeliveryAddress(addresses[0]);
       }
+      setManualAddressDetails(null);
     }
 
     const hub = getSavedHub();
@@ -314,7 +338,7 @@ export default function CheckoutPage() {
     setSubBenefits(null);
     setHasFreeDeliveryBenefit(false);
     setHasInsuranceBenefit(false);
-  }, []);
+  }, [location.state]);
 
   useEffect(() => {
     if (!subBenefits?.hasFreeHomeTryOn && selectedOrderType === 'home_try_on') {
@@ -325,6 +349,15 @@ export default function CheckoutPage() {
       setSelectedScheduledSlot(null);
     }
   }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
+
+  useEffect(() => {
+    if (!deliveryAddress) return;
+
+    saveCheckoutAddressContext({
+      selectedAddress: deliveryAddress,
+      manualAddressDetails,
+    });
+  }, [deliveryAddress, manualAddressDetails]);
 
 
   // Distance Check Effect (Supabase Edge Function + Haversine fallback)
@@ -715,6 +748,40 @@ export default function CheckoutPage() {
   // Synchronous lock to prevent double-submit (React state is async and can't block rapid clicks)
   const placingOrderLockRef = useRef(false);
 
+  const syncOrderAddressDetails = useCallback(
+    async (orderId: string, userId: string, addressId: string) => {
+      if (!deliveryAddress) return;
+
+      const normalizedManualAddress = normalizeManualAddressDetails(manualAddressDetails);
+      const deliveryAddressSnapshot = {
+        address_id: addressId,
+        full_address: deliveryAddress.formattedAddress,
+        lat: deliveryAddress.lat,
+        lng: deliveryAddress.lng,
+      };
+
+      const { error: addressDetailsError } = await supabase.rpc(
+        "sync_order_address_details",
+        {
+          p_order_id: orderId,
+          p_delivery_address_snapshot: deliveryAddressSnapshot,
+          p_manual_address_details: normalizedManualAddress,
+        }
+      );
+
+      if (addressDetailsError) {
+        console.warn(
+          "[Checkout] Could not sync address details to order:",
+          addressDetailsError.message
+        );
+        return;
+      }
+
+      clearCheckoutAddressContext();
+    },
+    [deliveryAddress, manualAddressDetails]
+  );
+
   const handlePlaceOrder = async () => {
     // Network check — fail fast on offline
     if (!isOnline) {
@@ -754,7 +821,7 @@ export default function CheckoutPage() {
     // Return schedule is mandatory for rental orders
     if (hasRentals && !returnSchedule?.pickupSlotIso) {
       toast.error("Please select a return pickup slot before placing your order.");
-      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } });
+      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } });
       return;
     }
 
@@ -792,7 +859,7 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
-          navigate('/home', { replace: true });
+          navigate(`/order-confirmed/${targetId}`, { replace: true });
         } else {
           setIsPlacingOrder(false);
           placingOrderLockRef.current = false;
@@ -920,6 +987,10 @@ export default function CheckoutPage() {
         console.warn("[Checkout] Duplicate order prevented — returning existing order:", createdOrderId);
       }
 
+      if (createdOrderId) {
+        await syncOrderAddressDetails(createdOrderId, userId, addressId);
+      }
+
       // Create pre-scheduled return request — COD only (already confirmed).
       // For online/UPI payments, the return request is created AFTER payment
       // succeeds in PaymentProcessingPage to avoid false notifications.
@@ -963,7 +1034,7 @@ export default function CheckoutPage() {
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate('/home', { replace: true });
+        navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
       } else {
         // Pass return schedule data so PaymentProcessingPage can create the
         // return_request AFTER payment succeeds (avoids false notifications).
@@ -1114,7 +1185,74 @@ export default function CheckoutPage() {
               </div>
               {deliveryAddress ? (
                 <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
-                  <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                  <div className="relative z-10 space-y-4">
+                    <div>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                        Address Fetched
+                      </p>
+                      <p className="text-sm text-[#b4b4b4] leading-relaxed" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                    </div>
+
+                    {showManualAddress && (
+                      <div className="pt-4 border-t border-white/5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                              Manual Address
+                            </p>
+                            <p className="text-sm text-white leading-relaxed" style={dmSans}>
+                              {manualAddressSummary}
+                            </p>
+                            {(manualAddressDetails?.contactName || manualAddressDetails?.phoneNumber) && (
+                              <p className="text-xs text-zinc-400 mt-2" style={dmSans}>
+                                {[manualAddressDetails?.contactName, manualAddressDetails?.phoneNumber].filter(Boolean).join(" • ")}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() =>
+                              navigate("/checkout/address-details", {
+                                state: {
+                                  selectedAddress: deliveryAddress,
+                                  manualAddressDetails,
+                                  nextRoute: "/checkout",
+                                  forwardState: {
+                                    returnSchedule,
+                                  },
+                                },
+                              })
+                            }
+                            className="text-[10px] font-bold uppercase text-[#f2546d] shrink-0"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!showManualAddress && (
+                      <button
+                        onClick={() =>
+                          navigate("/checkout/address-details", {
+                            state: {
+                              selectedAddress: deliveryAddress,
+                              manualAddressDetails,
+                              nextRoute: "/checkout",
+                              forwardState: {
+                                returnSchedule,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full rounded-2xl border border-dashed border-[#f2546d]/30 bg-[#f2546d]/5 px-4 py-3 text-left"
+                      >
+                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add More Accuracy</p>
+                        <p className="text-xs text-zinc-400 mt-1" style={dmSans}>
+                          Flat number, landmark aur contact detail add kar do.
+                        </p>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="mt-3 flex items-center gap-2 relative z-10">
                     {/* Delayed Delivery Badge */}
@@ -1142,7 +1280,14 @@ export default function CheckoutPage() {
                   <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
                 </div>
               ) : (
-                <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
+                <button
+                  onClick={() =>
+                    navigate("/map?returnTo=/checkout", {
+                      state: { forwardState: { returnSchedule } },
+                    })
+                  }
+                  className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm"
+                >
                   + Select Address
                 </button>
               )}
@@ -1164,7 +1309,7 @@ export default function CheckoutPage() {
                 <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
                 {returnSchedule?.pickupSlotIso && (
                   <button
-                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } })}
                     className="text-xs font-bold text-[#f2546d] uppercase"
                   >
                     Change
@@ -1193,6 +1338,14 @@ export default function CheckoutPage() {
                         <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
                           {deliveryAddress.formattedAddress}
                         </p>
+                        {showManualAddress && (
+                          <>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-3 mb-1">Manual Address</p>
+                            <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3" style={dmSans}>
+                              {manualAddressSummary}
+                            </p>
+                          </>
+                        )}
                       </div>
                     )}
                     <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
@@ -1200,7 +1353,7 @@ export default function CheckoutPage() {
                 );
               })() : (
                 <button
-                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } })}
                   className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
                 >
                   <div className="flex items-center gap-4">
@@ -1380,11 +1533,36 @@ export default function CheckoutPage() {
               <div className="flex justify-between items-center mb-6">
                 <Drawer.Title className="text-xl font-black text-white" style={dmSans}>Select Address</Drawer.Title>
                 <Drawer.Description className="sr-only">Choose a delivery address</Drawer.Description>
-                <button onClick={() => navigate("/map?returnTo=/checkout")} className="text-sm font-bold text-[#f2546d]">+ Add New</button>
+                <button
+                  onClick={() =>
+                    navigate("/map?returnTo=/checkout", {
+                      state: { forwardState: { returnSchedule } },
+                    })
+                  }
+                  className="text-sm font-bold text-[#f2546d]"
+                >
+                  + Add New
+                </button>
               </div>
               <div className="space-y-4">
                 {addressList.map((addr) => (
-                  <button key={addr.formattedAddress} onClick={() => { setDeliveryAddress(addr); setShowAddressSelector(false); }} className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.formattedAddress === addr.formattedAddress ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}>
+                  <button
+                    key={addr.formattedAddress}
+                    onClick={() => {
+                      setShowAddressSelector(false);
+                      navigate("/checkout/address-details", {
+                        state: {
+                          selectedAddress: addr,
+                          manualAddressDetails,
+                          nextRoute: "/checkout",
+                          forwardState: {
+                            returnSchedule,
+                          },
+                        },
+                      });
+                    }}
+                    className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.formattedAddress === addr.formattedAddress ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}
+                  >
                     <div className="flex items-start gap-4">
                       <MapPin className={cn("w-5 h-5 mt-0.5", deliveryAddress?.formattedAddress === addr.formattedAddress ? "text-[#f2546d]" : "text-zinc-600")} />
                       <p className="text-sm text-white font-bold leading-relaxed">{addr.formattedAddress}</p>

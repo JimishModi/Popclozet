@@ -6,6 +6,7 @@
  * Supports dev mode (localStorage flag) to skip auth for testing.
  */
 
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { Loader, WrongRoleScreen } from '@popclozet/ui';
@@ -34,13 +35,43 @@ import { ProductProfilePage } from './pages/ProductProfilePage';
 import { CategoryManagementPage } from './pages/CategoryManagementPage';
 
 function App() {
-    const { profile, loading, user } = useAuth();
+    const { profile, loading, user, recoverFromStuckAuth } = useAuth();
+    const [showRecovery, setShowRecovery] = useState(false);
+
+    useEffect(() => {
+        if (!loading) {
+            setShowRecovery(false);
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setShowRecovery(true);
+        }, 6000);
+
+        return () => window.clearTimeout(timer);
+    }, [loading]);
 
     if (loading) {
         return (
             <WarehouseShell hideBottomNav>
-                <div className="flex-1 flex items-center justify-center">
-                    <Loader size="lg" text="Loading Warehouse..." />
+                <div className="flex-1 flex items-center justify-center px-6">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                        <Loader size="lg" text="Loading Warehouse..." />
+                        {showRecovery ? (
+                            <>
+                                <p className="max-w-xs text-xs text-zinc-500">
+                                    The app is taking longer than expected. Reset the cached session and continue to login.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={recoverFromStuckAuth}
+                                    className="rounded-xl border border-warehouse-500/30 bg-warehouse-500/10 px-4 py-2 text-sm font-semibold text-warehouse-300 transition-colors hover:bg-warehouse-500/20"
+                                >
+                                    Reset Session
+                                </button>
+                            </>
+                        ) : null}
+                    </div>
                 </div>
             </WarehouseShell>
         );

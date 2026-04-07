@@ -124,19 +124,9 @@ registerRoute(
     })
 );
 
-// Offline fallback
-self.addEventListener('fetch', (event) => {
-    if (event.request.mode === 'navigate') {
-        event.respondWith(
-            fetch(event.request).catch((error) => {
-                console.warn('[SW] Navigation failed, serving fallback:', error);
-                return caches.match('/index.html').then((response) => {
-                    return response || caches.match('/offline.html');
-                });
-            })
-        );
-    }
-});
+// Navigation fallback is already handled by the Workbox NetworkFirst
+// route above. A second manual fetch handler here can interrupt startup
+// and cause blank or half-booted app states on fresh PWA loads.
 
 // Background Sync - Sync pending mutations when connection is restored
 self.addEventListener('sync', (event: any) => {
