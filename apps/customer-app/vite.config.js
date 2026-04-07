@@ -38,8 +38,8 @@ export default defineConfig(function (_a) {
                     scope: "/",
                     display: "standalone",
                     orientation: "portrait-primary",
-                    background_color: "#F6F0E0",
-                    theme_color: "#F6F0E0",
+                    background_color: "#0a0a0a",
+                    theme_color: "#0a0a0a",
                     categories: ["shopping", "lifestyle", "fashion"],
                     icons: [
                         {

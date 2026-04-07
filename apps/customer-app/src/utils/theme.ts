@@ -11,7 +11,14 @@ const applyTheme = (theme: Theme) => {
   const root = document.documentElement;
   root.setAttribute("data-theme", theme);
   root.classList.remove("no-theme-transitions");
-  localStorage.setItem(STORAGE_KEY, theme);
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, theme);
+  } catch (e) {
+    // iOS Safari PWA might throw SecurityError
+    console.warn("localStorage not available", e);
+  }
+
   if (theme === "dark") {
     root.classList.add("dark");
     root.style.colorScheme = "dark";
@@ -24,7 +31,14 @@ const applyTheme = (theme: Theme) => {
 export const initTheme = () => {
   const root = document.documentElement;
   root.classList.add("no-theme-transitions");
-  const saved = (localStorage.getItem(STORAGE_KEY) as Theme | null);
+  
+  let saved: Theme | null = null;
+  try {
+    saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
+  } catch (e) {
+    console.warn("localStorage not available", e);
+  }
+
   const theme: Theme = saved ?? "light";
   root.setAttribute("data-theme", theme);
   if (theme === "dark") {

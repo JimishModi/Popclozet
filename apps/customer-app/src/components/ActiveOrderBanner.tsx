@@ -84,7 +84,7 @@ export function ActiveOrderBanner() {
         e.stopPropagation();
         setIsDismissed(true);
         // Store dismissal in session storage (will show again on page refresh)
-        sessionStorage.setItem(`dismissed_order_${activeOrder?.id}`, "true");
+        try { sessionStorage.setItem(`dismissed_order_${activeOrder?.id}`, "true"); } catch {}
     };
 
     if (loading || !activeOrder || isDismissed) return null;

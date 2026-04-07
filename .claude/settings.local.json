@@ -11,6 +11,7 @@
       "Bash(grep -A 20 \"CREATE TABLE.*notifications\\\\|CREATE TABLE.*push_subscriptions\" /c/Users/madha/Desktop/doc popclozet/popclozet/supabase/migrations/*.sql)",
       "mcp__claude_ai_Supabase__deploy_edge_function",
 <<<<<<< HEAD
+<<<<<<< HEAD
       "Bash(npx supabase:*)",
       "WebFetch(domain:docs.didit.me)",
       "Bash(pnpm install:*)",
@@ -21,6 +22,10 @@
       "mcp__code-review-graph__semantic_search_nodes_tool",
       "Bash(npm install:*)"
 >>>>>>> 96f0ede3b (fix categories image card layout)
+=======
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "Bash(npm install:*)"
+>>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
     ]
   }
 }

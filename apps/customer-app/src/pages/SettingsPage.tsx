@@ -13,16 +13,20 @@ import { useAuth } from '@/hooks/useAuth';
 import { MobileShell } from '@/components/layout/MobileShell';
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
-const storeBool = (key: string, value: boolean) =>
-    localStorage.setItem(key, String(value));
-
-const loadBool = (key: string, def: boolean): boolean => {
-    const v = localStorage.getItem(key);
-    return v !== null ? v === 'true' : def;
+const storeBool = (key: string, value: boolean) => {
+    try { localStorage.setItem(key, String(value)); } catch {}
 };
 
-const loadStr = (key: string, def: string): string =>
-    localStorage.getItem(key) ?? def;
+const loadBool = (key: string, def: boolean): boolean => {
+    try {
+        const v = localStorage.getItem(key);
+        return v !== null ? v === 'true' : def;
+    } catch { return def; }
+};
+
+const loadStr = (key: string, def: string): string => {
+    try { return localStorage.getItem(key) ?? def; } catch { return def; }
+};
 
 /* ─── Sub-components ──────────────────────────────────────────────────────── */
 

@@ -144,11 +144,24 @@ export function useMapLocation() {
                         permissionState: 'granted',
                     }));
                 });
+<<<<<<< HEAD
 
             localStorage.setItem(
                 'user_location',
                 JSON.stringify({ ...finalLoc, allowed: true })
             );
+=======
+            
+            // Also persist
+            try {
+                localStorage.setItem(
+                    'user_location',
+                    JSON.stringify({ ...finalLoc, allowed: true })
+                );
+            } catch (err) {
+                console.warn('[useMapLocation] Failed to save location to localStorage', err);
+            }
+>>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
         };
 
         settlingTimeout = setTimeout(() => {
@@ -291,10 +304,22 @@ export function useMapLocation() {
             isLoading: false,
         }));
 
+<<<<<<< HEAD
         localStorage.setItem(
             'user_location',
             JSON.stringify({ lat, lng, allowed: true })
         );
+=======
+        // Also save to localStorage for persistence
+        try {
+            localStorage.setItem(
+                'user_location',
+                JSON.stringify({ lat, lng, allowed: true })
+            );
+        } catch (err) {
+            console.warn('[useMapLocation] Failed to save location to localStorage', err);
+        }
+>>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
     }, []);
 
     const setLocationCoords = useCallback((lat: number, lng: number) => {
@@ -302,7 +327,7 @@ export function useMapLocation() {
     }, []);
 
     const clearLocation = useCallback(() => {
-        localStorage.removeItem('user_location');
+        try { localStorage.removeItem('user_location'); } catch {}
         setState({
             location: null,
             address: null,
@@ -314,7 +339,8 @@ export function useMapLocation() {
     }, [state.permissionState]);
 
     useEffect(() => {
-        const saved = localStorage.getItem('user_location');
+        let saved = null;
+        try { saved = localStorage.getItem('user_location'); } catch {}
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);

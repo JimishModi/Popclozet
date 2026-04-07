@@ -48,7 +48,7 @@ const TOLERANCE_CM = 3;
 const STORAGE_KEY = 'user_measurements';
 
 export async function saveUserMeasurements(data: UserMeasurements): Promise<void> {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 
     try {
         if (supabase) {
@@ -90,7 +90,7 @@ export async function getUserMeasurements(userId: string): Promise<UserMeasureme
                     bodyType: data.body_type,
                     updatedAt: data.updated_at,
                 };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(measurements));
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(measurements)); } catch {}
                 return measurements;
             }
         }
@@ -98,13 +98,13 @@ export async function getUserMeasurements(userId: string): Promise<UserMeasureme
         // Fall through to localStorage
     }
 
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-        try {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
             return JSON.parse(stored) as UserMeasurements;
-        } catch {
-            return null;
         }
+    } catch {
+        return null;
     }
 
     return null;

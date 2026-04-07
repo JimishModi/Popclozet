@@ -209,9 +209,14 @@ export async function recoverPendingCancellations(): Promise<void> {
   const PREFIX = 'pending_cancel:';
   const keys: string[] = [];
 
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(PREFIX)) keys.push(key);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(PREFIX)) keys.push(key);
+    }
+  } catch (err) {
+    console.warn('[razorpayService] Cannot access localStorage to recover verifications', err);
+    return;
   }
 
   if (keys.length === 0) return;

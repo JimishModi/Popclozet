@@ -4,12 +4,22 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#6366f1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta name="theme-color" content="#0a0a0a" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+<<<<<<< HEAD
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Popclozet" />
+=======
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <!-- Prevent white flash on iOS PWA before React/CSS mounts -->
+  <style>html,body{background-color:#0a0a0a;margin:0}</style>
+  <meta name="apple-mobile-web-app-title" content="PopClozet" />
+>>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: https://verify.msg91.com https://checkout.razorpay.com https://*.mappls.com https://*.mapmyindia.com;
@@ -40,7 +50,7 @@
   <script>
     (function () {
       try {
-        const saved = localStorage.getItem("theme");
+        const saved = localStorage.getItem("popclozet-theme");
 
         if (saved === "dark") {
           // User explicitly selected dark → respect it
@@ -84,7 +94,51 @@
 </head>
 
 <body>
+  <!-- Fallback loading UI — visible until React mounts (prevents blank white on iOS) -->
+  <div id="__boot" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0a0a0a;z-index:99999;font-family:'DM Sans',system-ui,sans-serif">
+    <div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(242,84,109,0.15);border-top-color:#f2546d;animation:__spin .7s linear infinite"></div>
+    <style>@keyframes __spin{to{transform:rotate(360deg)}}</style>
+  </div>
   <div id="root"></div>
+
+  <!-- Global crash handler — if JS fails entirely, show recovery UI -->
+  <script>
+    (function () {
+      window.__popclozetRecover = function () {
+        var clearCaches = window.caches
+          ? caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (key) {
+                return caches.delete(key);
+              }));
+            })
+          : Promise.resolve();
+
+        clearCaches.finally(function () {
+          location.reload();
+        });
+      };
+
+      function renderBootError(message) {
+        var boot = document.getElementById('__boot');
+        if (!boot) return;
+
+        boot.innerHTML = '<p style="color:#fff;font-size:16px;font-weight:700;margin:0">Something went wrong</p>'
+          + '<p style="color:#71717a;font-size:13px;text-align:center;max-width:280px;margin:8px 0 0">' + message + '</p>'
+          + '<button onclick="window.__popclozetRecover()" style="margin-top:16px;padding:12px 28px;border-radius:14px;background:#f2546d;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer">Clear Cache & Reload</button>';
+      }
+
+      window.addEventListener('error', function (event) {
+        renderBootError(event.message || 'The app could not load.');
+      });
+
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event && event.reason;
+        var message = (reason && reason.message) || (typeof reason === 'string' ? reason : 'The app could not load.');
+        renderBootError(message);
+      });
+    })();
+  </script>
+
   <!-- Razorpay Payment SDK -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script type="module" src="/src/main.tsx"></script>

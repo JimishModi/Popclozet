@@ -129,7 +129,11 @@ export default function CheckoutPage() {
 
   // Payment method: 'upi' (online) or 'cod'
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(() => {
-    return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+    try {
+      return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+    } catch {
+      return null;
+    }
   });
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();

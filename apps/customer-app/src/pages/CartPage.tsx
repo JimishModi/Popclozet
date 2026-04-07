@@ -155,7 +155,9 @@ const AddOnsCarousel = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    addToCart(product.id, 'One Size', '1d');
+                    // Better fallback: find the first size that actually has stock
+                    const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
+                    addToCart(product.id, bestSize, '1d');
                   }}
                   className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg"
                 >
@@ -275,14 +277,23 @@ const CartPage = () => {
           .from('products')
           .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
           .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .limit(8);
+          .eq('is_available', true)
+          .limit(20);
 
         if (data && !error) {
+<<<<<<< HEAD
           // Only show add-ons that have at least one item available in stock
           const availableAddOns = data.filter((p: any) => 
             p.inventory && p.inventory.some((inv: any) => (inv.available_stock || 0) > 0)
           );
           setAddOnProducts(availableAddOns);
+=======
+          // Only show add-ons that have at least one size with stock available
+          const inStock = data.filter((p: any) =>
+            (p.inventory || []).some((inv: any) => inv.available_stock > 0)
+          );
+          setAddOnProducts(inStock.slice(0, 8));
+>>>>>>> e77cbea193e9e5613a5a5498d7c84442e5f10158
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
