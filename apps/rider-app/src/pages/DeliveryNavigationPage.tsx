@@ -108,6 +108,9 @@ export const DeliveryNavigationPage: React.FC = () => {
   const [otpError, setOtpError] = useState('');
   const [deliveryCompleting, setDeliveryCompleting] = useState(false);
 
+  // POD payment gate state
+  const [showPaymentStep, setShowPaymentStep] = useState(false);
+
   const loadPaymentRecord = useCallback(async (orderId: string) => {
     try {
       const payment = await getOrderPaymentRecord(orderId);
@@ -264,13 +267,24 @@ export const DeliveryNavigationPage: React.FC = () => {
     runTracking();
   }, [id, user?.id, globalLocation]);
 
+  // ── Derived payment state (needed before callbacks) ──────────────────────────
+
+  const isPayOnDelivery = order?.payment_method === 'cod';
+  const isPaymentCompleted = paymentRecord?.status === 'completed' || (!isPayOnDelivery && !!order?.payment_method);
+  const shouldShowOnlineCollection = Boolean(isPayOnDelivery && !isPaymentCompleted && order?.total_amount);
+
   // ── OTP-gated delivery completion ────────────────────────────────────────────
 
   const handleRequestDelivery = useCallback(() => {
+    // For POD orders where payment hasn't been collected yet, show payment step first
+    if (isPayOnDelivery && !isPaymentCompleted) {
+      setShowPaymentStep(true);
+      return;
+    }
     setOtpValue('');
     setOtpError('');
     setShowOtpModal(true);
-  }, []);
+  }, [isPayOnDelivery, isPaymentCompleted]);
 
   const handleVerifyAndDeliver = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -348,10 +362,6 @@ export const DeliveryNavigationPage: React.FC = () => {
     customerInfo.full_name.trim() !== order.manual_address_details.contactName.trim()
       ? customerInfo.full_name.trim()
       : null;
-  const isPayOnDelivery = order?.payment_method === 'cod';
-  const isPaymentCompleted = paymentRecord?.status === 'completed' || (!isPayOnDelivery && !!order?.payment_method);
-  const shouldShowOnlineCollection = Boolean(isPayOnDelivery && !isPaymentCompleted && order?.total_amount);
-
   const handleCollectOnlinePayment = useCallback(async () => {
     if (!id || !order?.total_amount || paymentCollecting) return;
 
@@ -406,6 +416,15 @@ export const DeliveryNavigationPage: React.FC = () => {
 
                   await loadPaymentRecord(id);
                   showToast('Payment collected successfully', 'success');
+
+                  // If triggered from POD payment gate, advance to OTP step
+                  if (showPaymentStep) {
+                    setShowPaymentStep(false);
+                    setOtpValue('');
+                    setOtpError('');
+                    setShowOtpModal(true);
+                  }
+
                   resolve();
                 } catch (error) {
                   outcome = 'failed';
@@ -433,6 +452,13 @@ export const DeliveryNavigationPage: React.FC = () => {
       } else if (String(error?.message || '').toLowerCase().includes('already completed')) {
         await loadPaymentRecord(id);
         showToast('This order is already paid', 'success');
+        // Already paid — advance to OTP if in payment gate flow
+        if (showPaymentStep) {
+          setShowPaymentStep(false);
+          setOtpValue('');
+          setOtpError('');
+          setShowOtpModal(true);
+        }
       } else {
         showToast(error?.message || 'Failed to collect payment', 'error');
       }
@@ -446,6 +472,7 @@ export const DeliveryNavigationPage: React.FC = () => {
     loadPaymentRecord,
     order?.total_amount,
     paymentCollecting,
+    showPaymentStep,
     showToast,
   ]);
 
@@ -720,6 +747,8 @@ export const DeliveryNavigationPage: React.FC = () => {
           >
             {deliveryCompleting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : isPayOnDelivery && !isPaymentCompleted ? (
+              <><IndianRupee size={18} /> Collect &amp; Complete</>
             ) : (
               <><CheckCircle size={18} /> Complete</>
             )}
@@ -788,6 +817,59 @@ export const DeliveryNavigationPage: React.FC = () => {
                     <><Loader2 size={18} className="animate-spin" /> Verifying...</>
                   ) : (
                     'Confirm OTP'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* POD Payment Collection Modal */}
+      <AnimatePresence>
+        {showPaymentStep && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-white/5 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-white/5">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <IndianRupee size={18} className="text-emerald-400" /> Collect Payment
+                </h3>
+                <button
+                  onClick={() => { if (!paymentCollecting) setShowPaymentStep(false); }}
+                  disabled={paymentCollecting}
+                  className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-8 space-y-6 text-center">
+                <div className="space-y-2">
+                  <p className="text-sm text-zinc-500">Collect payment before completing delivery</p>
+                  <div className="flex items-center justify-center gap-1 text-white">
+                    <IndianRupee size={28} className="text-emerald-400" />
+                    <span className="text-4xl font-black">{Number(order?.total_amount || 0).toFixed(0)}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Opens Popclozet's secure UPI/QR checkout for the customer to pay online at the doorstep.
+                </p>
+
+                <button
+                  onClick={handleCollectOnlinePayment}
+                  disabled={paymentCollecting}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-xl shadow-emerald-500/20"
+                >
+                  {paymentCollecting ? (
+                    <><Loader2 size={18} className="animate-spin" /> Opening payment...</>
+                  ) : (
+                    <><Smartphone size={18} /> Collect Online via QR</>
                   )}
                 </button>
               </div>

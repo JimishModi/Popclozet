@@ -949,6 +949,7 @@ export default function CheckoutPage() {
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
+            preferredMethod: 'upi',
             userName: profile?.full_name || user?.user_metadata?.full_name,
             userEmail: profile?.email,
             userPhone: profile?.phone || user?.phone,
@@ -1527,7 +1528,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-white" style={dmSans}>Pay Online</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">UPI, Card, Netbanking & more</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">UPI apps and QR</p>
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -1760,7 +1761,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
+                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI apps and QR through Razorpay</p>
                     </div>
                     <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
                       {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
@@ -1768,7 +1769,7 @@ export default function CheckoutPage() {
                   </div>
                   {paymentMethod === 'upi' && (
                     <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
-                      ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
+                      UPI opens securely through Razorpay. Use your UPI app or QR.
                     </p>
                   )}
                 </button>

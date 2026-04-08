@@ -115,6 +115,7 @@ export default function PaymentProcessingPage() {
                 initiatePayment({
                     internalOrderId: orderId,
                     amountInRupees: amount,
+                    preferredMethod: isUpi ? 'upi' : undefined,
                     userName: profile?.full_name || user?.user_metadata?.full_name || "",
                     userEmail: profile?.email || user?.email || "",
                     userPhone: profile?.phone || user?.phone || "",
@@ -181,7 +182,7 @@ export default function PaymentProcessingPage() {
         };
 
         startPayment();
-    }, [type, orderId, amountStr, initiatePayment, profile, user, session, navigate, planId, cartItems, removeFromCart]);
+    }, [type, orderId, amountStr, initiatePayment, profile, user, session, navigate, planId, cartItems, removeFromCart, isUpi, pickupSlotIso, pickupAddressId]);
 
 
     return (

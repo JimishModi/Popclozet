@@ -25,6 +25,7 @@ type PaymentOutcome = 'none' | 'success' | 'failed' | 'cancelled';
 interface UseRazorpayCheckoutOptions {
   internalOrderId: string;    // Supabase order ID (already created before calling this)
   amountInRupees: number;
+  preferredMethod?: 'upi';
   userName?: string;
   userEmail?: string;
   userPhone?: string;
@@ -46,6 +47,7 @@ export function useRazorpayCheckout() {
     const {
       internalOrderId,
       amountInRupees,
+      preferredMethod,
       userName,
       userEmail,
       userPhone,
@@ -99,6 +101,28 @@ export function useRazorpayCheckout() {
         },
         notes: {
           supabase_order_id: internalOrderId,
+        },
+        ...(preferredMethod === 'upi'
+          ? {
+              config: {
+                display: {
+                  blocks: {
+                    upi: {
+                      name: 'Pay via UPI',
+                      instruments: [{ method: 'upi' }],
+                    },
+                  },
+                  sequence: ['block.upi'],
+                  preferences: {
+                    show_default_blocks: false,
+                  },
+                },
+              },
+            }
+          : {}),
+        retry: {
+          enabled: true,
+          max_count: 3,
         },
         theme: {
           color: '#f2546d',  // Popclozet brand pink

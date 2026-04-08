@@ -26,6 +26,25 @@ export interface RazorpayOptions {
     escape?: boolean;
     backdropclose?: boolean;
   };
+  config?: {
+    display?: {
+      blocks?: Record<string, {
+        name: string;
+        instruments: Array<{
+          method: string;
+          [key: string]: unknown;
+        }>;
+      }>;
+      sequence?: string[];
+      preferences?: {
+        show_default_blocks?: boolean;
+      };
+    };
+  };
+  retry?: {
+    enabled?: boolean;
+    max_count?: number;
+  };
 }
 
 export interface RazorpayPaymentResponse {
