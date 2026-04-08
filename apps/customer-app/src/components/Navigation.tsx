@@ -209,7 +209,8 @@ const Navigation = () => {
                   src={logoSrc}
                   alt="Popclozet logo"
                   className="h-12 w-auto object-contain"
-                  loading="lazy"
+                  loading="eager"
+                  fetchPriority="high"
                 />
               </div>
             </a>
@@ -388,7 +389,7 @@ const Navigation = () => {
               aria-label="Popclozet home"
               type="button"
             >
-              <img src={logoSrc} alt="Popclozet logo" className="h-10 w-auto object-contain" loading="lazy" />
+              <img src={logoSrc} alt="Popclozet logo" className="h-10 w-auto object-contain" loading="eager" fetchPriority="high" />
             </button>
 
             <div className="flex items-center gap-2">

@@ -235,6 +235,26 @@
 }
 
 @layer utilities {
+  /* ============================
+     iOS SAFE AREA UTILITIES
+     ============================ */
+  /* --sai-b evaluates to the bottom safe area inset (34px on Face ID iPhones, 0 elsewhere).
+     --nav-h is the total bottom nav clearance: nav content (60px) + safe area. */
+  :root {
+    --sai-b: env(safe-area-inset-bottom, 0px);
+    --nav-h: calc(60px + var(--sai-b));
+  }
+
+  /* Padding-bottom equal to the safe area inset (replaces the ghost pb-safe class) */
+  .pb-safe {
+    padding-bottom: var(--sai-b);
+  }
+
+  /* Padding-bottom equal to full nav clearance (nav + safe area) */
+  .pb-nav {
+    padding-bottom: var(--nav-h);
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;

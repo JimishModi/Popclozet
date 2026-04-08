@@ -27,15 +27,13 @@ export const SmartProductCard = ({ product }: SmartProductCardProps) => {
         {...bind}
       >
         <div className="relative aspect-square md:aspect-[3/4] overflow-hidden">
-          <picture>
-            <source srcSet={product.image} />
-            <img
-              src={product.image}
-              alt={product.name}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              loading="lazy"
-            />
-          </picture>
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            loading="lazy"
+            decoding="async"
+          />
 
           {product.video && shouldLoad && (
             <video
