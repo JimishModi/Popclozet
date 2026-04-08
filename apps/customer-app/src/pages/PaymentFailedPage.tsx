@@ -69,7 +69,7 @@ export default function PaymentFailedPage() {
     // ── Money may have been charged — show verification pending UI ──
     if (moneyMayBeCharged) {
         return (
-            <MobileShell className="bg-black text-white" hideBottomNav>
+            <MobileShell className="bg-black text-white">
                 <div className="flex flex-col items-center justify-center h-full px-8 text-center">
                     <motion.div
                         initial={{ scale: 0, opacity: 0 }}
@@ -128,7 +128,7 @@ export default function PaymentFailedPage() {
 
     // ── Money was NOT charged — show standard failure UI ──
     return (
-        <MobileShell className="bg-black text-white" hideBottomNav>
+        <MobileShell className="bg-black text-white">
             <div className="flex flex-col items-center justify-center h-full px-8 text-center">
                 <motion.div
                     initial={{ scale: 0, opacity: 0 }}

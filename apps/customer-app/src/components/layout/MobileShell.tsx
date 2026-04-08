@@ -57,7 +57,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                 {/* Main content area */}
                 <div className={cn(
                     "flex flex-col min-h-screen relative z-[1] flex-1 min-w-0 w-full",
-                    !hideBottomNav && "pb-20 md:pb-0 md:pt-20 lg:pt-0"
+                    !hideBottomNav && "pb-nav md:pb-0 md:pt-20 lg:pt-0"
                 )}>
                     {children}
                 </div>
