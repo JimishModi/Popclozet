@@ -263,8 +263,7 @@ export async function getProductsWithFakeMix(
       discount_type:  discount?.discount_type as 'percentage' | 'fixed_amount' | undefined,
       discount_value: discount?.discount_value as number | undefined,
       isSoldOut: (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) === 0,
-      isRentedOut: (row.inventory as any[] || []).length > 0 && 
-                   (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
+      isRentedOut: (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
                    (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0,
       _isFake:        false,
     };

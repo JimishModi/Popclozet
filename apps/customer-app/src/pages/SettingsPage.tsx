@@ -179,6 +179,7 @@ const SettingsPage: React.FC = () => {
     };
 
     // ── Notification toggles ──────────────────────────────────────────────
+    /* FUTURE TODO: Implement backend preferences
     const [pushOrders, setPushOrders] = useState(() => loadBool('s_push_orders', true));
     const [pushDelivery, setPushDelivery] = useState(() => loadBool('s_push_delivery', true));
     const [pushReturn, setPushReturn] = useState(() => loadBool('s_push_return', true));
@@ -189,6 +190,7 @@ const SettingsPage: React.FC = () => {
         setter(v);
         storeBool(key, v);
     };
+    */
 
     const saveStr = (setter: (v: string) => void, key: string) => (v: string) => {
         setter(v);
@@ -271,12 +273,15 @@ const SettingsPage: React.FC = () => {
                                 ? <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin" />
                                 : <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${push.isSubscribed ? 'bg-[#f2546d]' : 'bg-zinc-700'}`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-300 ${push.isSubscribed ? 'translate-x-6' : 'translate-x-1'}`} /></div>}
                             onClick={handlePushToggle}
+                            last
                         />
+                        {/* FUTURE TODO: Implement backend preferences
                         <ToggleRow icon={Package} label="Order Status Updates" sub="Confirmed, preparing, out for delivery" value={pushOrders} onChange={toggle(setPushOrders, 's_push_orders')} />
                         <ToggleRow icon={Zap} label="Delivery Alerts" sub="Rider nearby, delivered" value={pushDelivery} onChange={toggle(setPushDelivery, 's_push_delivery')} />
                         <ToggleRow icon={RefreshCw} label="Return Reminders" sub="24h & same-day pickup alerts" value={pushReturn} onChange={toggle(setPushReturn, 's_push_return')} />
                         <ToggleRow icon={Bell} label="Offers & New Arrivals" sub="Deals, discounts, new styles" value={pushPromo} onChange={toggle(setPushPromo, 's_push_promo')} />
                         <ToggleRow icon={Mail} label="Email Updates" sub="Receipts & rental summaries" value={emailUpdates} onChange={toggle(setEmailUpdates, 's_email_updates')} last />
+                        */}
                     </Card>
                 </motion.div>
 

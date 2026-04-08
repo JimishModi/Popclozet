@@ -2,22 +2,12 @@
  * Home Page (Dashboard)
  *
  * Main rider dashboard with earnings, online toggle, and real-time order popups.
- *
- * Fixes applied:
- * 1. Removed delivery_tracking insert (table doesn't exist — was swallowed silently)
- * 2. Replaced inline supabase.rpc('claim_order') with claimOrder() service wrapper
- *    so already_claimed is detected and handled correctly
- * 3. Fixed stale closure in polling: replaced interval ref with a stable callback ref
- * 4. Added user?.id to the subscription effect's dep array
- * 5. Extracted fetchPendingOrder into a stable useCallback so both the effect and
- *    the polling share the exact same code path
- * 6. pendingOrder null-guard added before all async calls
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
-import { Zap, Bell, X, ScanLine } from 'lucide-react';
+import { Zap, Bell, FileText, CalendarDays, Search, ScanLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -34,136 +24,47 @@ import { useLocation } from '../contexts/LocationContext';
 import { getEarningsSummary, type EarningsSummary } from '../services/walletService';
 import { updateRiderStatus } from '../services/riderProfileService';
 import { getUnreadCount } from '../services/notificationsService';
+import { ensurePushSubscription } from '../services/pushNotificationService';
 import {
     claimOrder,
-    declineOrderNotification,
+    dismissOrderNotification,
+    upsertRiderNotificationStatus,
 } from '../services/riderOrderService';
+import {
+    getAssignedActionLabel,
+    getAssignedOrderRoute,
+    getIncomingOrderCardStatus,
+    getTopPendingIncomingOrder,
+    type IncomingOrder,
+} from '../services/rideFeedService';
 import { supabase } from '@popclozet/api-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const getDismissedHomeRideStorageKey = (riderId: string) => `rider_home_dismissed:${riderId}`;
 
-interface IncomingOrder {
-    id: string;
-    notificationId: string;   // needed for decline
-    source: 'assigned' | 'notification' | 'direct';
-    workflowStatus: string;
-    orderType: 'delivery' | 'pickup' | 'return';
-    pickup: { name: string; address: string };
-    dropoff: { name: string; address: string };
-    customerName: string;
-    paymentMethod?: string | null;
-    items?: Array<{ name: string; qty: number; imageUrl?: string }>;
-    earnings: number;
-    distance: string;
-    duration: string;
-    totalAmount?: number;
-}
-
-// ─── Mapper ───────────────────────────────────────────────────────────────────
-
-const ORDER_SELECT = `
-    *,
-    customer_profiles!orders_user_id_fkey1(full_name, phone),
-    addresses:delivery_address_id(full_address, latitude, longitude), 
-    order_items(
-        id, 
-        product_id, 
-        products(name, images)
-    )
-`;
-const ASSIGNED_ORDER_STATUSES = [
-    'rider_assigned',
-    'ready_for_pickup',
-    'driver_arrived_warehouse',
-    'order_picked_up',
-    'dispatched',
-    'out_for_delivery',
-    'return_scheduled',
-    'return_dispatched',
-    'return_picked_up',
-] as const;
-
-function getIncomingOrderCardStatus(order: IncomingOrder): 'pending' | 'accepted' | 'picked_up' | 'delivering' {
-    if (order.source !== 'assigned') return 'pending';
-
-    if (['order_picked_up', 'dispatched'].includes(order.workflowStatus)) {
-        return 'picked_up';
+function readDismissedHomeRideIds(riderId: string): Set<string> {
+    try {
+        const raw = localStorage.getItem(getDismissedHomeRideStorageKey(riderId));
+        if (!raw) return new Set<string>();
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return new Set<string>();
+        return new Set(parsed.filter((value): value is string => typeof value === 'string'));
+    } catch (error) {
+        console.error('[HomePage] readDismissedHomeRideIds:', error);
+        return new Set<string>();
     }
+}
 
-    if (['out_for_delivery', 'return_scheduled', 'return_dispatched', 'return_picked_up'].includes(order.workflowStatus)) {
-        return 'delivering';
+function persistDismissedHomeRideIds(riderId: string, dismissedOrderIds: Set<string>) {
+    try {
+        localStorage.setItem(
+            getDismissedHomeRideStorageKey(riderId),
+            JSON.stringify(Array.from(dismissedOrderIds)),
+        );
+    } catch (error) {
+        console.error('[HomePage] persistDismissedHomeRideIds:', error);
     }
-
-    return 'accepted';
 }
-
-function getAssignedOrderRoute(order: IncomingOrder): string {
-    // return_picked_up = rider has collected from customer, next step is warehouse drop-off
-    if (order.workflowStatus === 'return_picked_up') {
-        return `/warehouse/${order.id}`;
-    }
-    if (order.orderType === 'return' || ['out_for_delivery', 'return_scheduled', 'return_dispatched'].includes(order.workflowStatus)) {
-        return `/delivery/${order.id}`;
-    }
-
-    return `/warehouse/${order.id}`;
-}
-
-function getAssignedActionLabel(order: IncomingOrder): string {
-    if (order.workflowStatus === 'return_picked_up') return 'Drop off at Warehouse';
-    if (order.orderType === 'return') return 'Open Return Pickup';
-    if (order.workflowStatus === 'out_for_delivery') return 'Open Delivery';
-    return 'Open Warehouse Pickup';
-}
-
-function mapDbOrderToIncoming(
-    dbOrder: any,
-    notificationId: string,
-    source: IncomingOrder['source'],
-): IncomingOrder {
-    const addr = dbOrder.addresses;
-    const fullAddr = addr?.full_address ?? 'Customer Address';
-
-    const items = (dbOrder.order_items ?? []).map((i: any) => ({
-        name: i.products?.name || `Product ${i.product_id.slice(0, 8)}`,
-        qty: 1,
-        imageUrl: Array.isArray(i.products?.images) ? i.products.images[0] : null,
-    }));
-
-    const estimatedKm = dbOrder.route_distance_km ?? 3;
-    const etaMinutes = dbOrder.delivery_eta
-        ? Math.max(1, Math.round((new Date(dbOrder.delivery_eta).getTime() - Date.now()) / 60000))
-        : Math.round(estimatedKm * 3);
-    const isReturn = ['return_scheduled', 'return_dispatched', 'return_picked_up'].includes(dbOrder.status);
-
-    return {
-        id: dbOrder.id,
-        notificationId,
-        source,
-        workflowStatus: dbOrder.status ?? 'ready_for_pickup',
-        orderType: isReturn
-            ? 'return'
-            : (dbOrder.order_type === 'pickup' || dbOrder.order_type === 'return' ? 'pickup' : 'delivery'),
-        pickup: isReturn
-            ? { name: 'Customer Pickup', address: fullAddr }
-            : { name: 'Popclozet Warehouse', address: 'Near IIT Main Gate, Powai' },
-        dropoff: isReturn
-            ? { name: 'Warehouse Drop-off', address: 'Near IIT Main Gate, Powai' }
-            : { name: 'Customer', address: fullAddr },
-        customerName: dbOrder.customer_profiles?.full_name || 'Customer',
-        paymentMethod: dbOrder.payment_method || null,
-        items,
-        earnings: dbOrder.delivery_fee > 0
-            ? dbOrder.delivery_fee
-            : Math.round((dbOrder.total_amount ?? 0) * 0.15),
-        distance: `${estimatedKm.toFixed(1)} km`,
-        duration: `${etaMinutes} mins`,
-        totalAmount: dbOrder.total_amount,
-    };
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function HomePage() {
     const navigate = useNavigate();
@@ -186,128 +87,36 @@ export function HomePage() {
     const dismissedDirectOrderIdsRef = useRef<Set<string>>(new Set());
     const navigatingRef = useRef(false);
 
-    // ── Stable fetch: single source of truth for "what order am I showing?" ──
-    //
-    // Fix 3 + 6: extracted so both initial load and polling use the same path.
-    // useCallback with [user?.id] so it's only recreated when the user changes.
-
     const fetchPendingOrder = useCallback(async () => {
-        if (!user?.id) return;
-        // Skip fetching if we're navigating away after a successful accept
-        if (navigatingRef.current) return;
+        if (!user?.id || navigatingRef.current) return;
+
         try {
-            const { data: assignedOrders, error: assignedError } = await supabase
-                .from('orders')
-                .select(ORDER_SELECT)
-                .eq('rider_id', user.id)
-                .in('status', [...ASSIGNED_ORDER_STATUSES])
-                .order('updated_at', { ascending: false })
-                .limit(1);
-
-            if (assignedError) {
-                console.error('[HomePage] fetchAssignedOrders:', assignedError);
-            }
-
-            if (assignedOrders?.length) {
-                setPendingOrder(
-                    mapDbOrderToIncoming(assignedOrders[0], `assigned:${assignedOrders[0].id}`, 'assigned'),
-                );
-                return;
-            }
-
-            const { data: notifs } = await supabase
-                .from('rider_notifications')
-                .select('id, order_id')
-                .eq('rider_id', user.id)
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            if (!notifs?.length) {
-                // Get order IDs this rider has already declined (persisted)
-                const { data: declinedNotifs } = await supabase
-                    .from('rider_notifications')
-                    .select('order_id')
-                    .eq('rider_id', user.id)
-                    .eq('status', 'declined');
-
-                const declinedOrderIds = new Set(
-                    (declinedNotifs ?? []).map((n: any) => n.order_id)
-                );
-
-                const { data: availableOrders, error: availableError } = await supabase
-                    .from('orders')
-                    .select(ORDER_SELECT)
-                    .is('rider_id', null)
-                    .in('status', ['ready_for_pickup', 'return_scheduled'])
-                    .order('updated_at', { ascending: false })
-                    .limit(10);
-
-                if (availableError) {
-                    console.error('[HomePage] fetchAvailableOrders:', availableError);
-                    setPendingOrder(null);
-                    return;
-                }
-
-                const nextDirectOrder = (availableOrders ?? []).find(
-                    (order: any) =>
-                        !dismissedDirectOrderIdsRef.current.has(order.id) &&
-                        !declinedOrderIds.has(order.id),
-                );
-
-                if (nextDirectOrder) {
-                    setPendingOrder(
-                        mapDbOrderToIncoming(nextDirectOrder, `direct:${nextDirectOrder.id}`, 'direct'),
-                    );
-                } else {
-                    setPendingOrder(null);
-                }
-                return;
-            }
-
-            const notif = notifs[0];
-            const { data: orderData } = await supabase
-                .from('orders')
-                .select(ORDER_SELECT)
-                .eq('id', notif.order_id)
-                .single();
-
-            if (orderData) {
-                setPendingOrder(mapDbOrderToIncoming(orderData, notif.id, 'notification'));
-            } else {
-                setPendingOrder(null);
-            }
+            const nextOrder = await getTopPendingIncomingOrder(
+                user.id,
+                dismissedDirectOrderIdsRef.current,
+            );
+            setPendingOrder(nextOrder);
         } catch (err) {
             console.error('[HomePage] fetchPendingOrder:', err);
         }
     }, [user?.id]);
 
-    // ── Load earnings + unread count ──────────────────────────────────────────
-
     useEffect(() => {
         if (!user?.id) return;
+
+        dismissedDirectOrderIdsRef.current = readDismissedHomeRideIds(user.id);
         getEarningsSummary(user.id).then(setEarnings);
         getUnreadCount(user.id).then(setUnread);
     }, [user?.id]);
 
-    // ── Realtime subscription + polling when online ────────────────────────────
-    //
-    // Fix 4: added user?.id to dep array so the subscription starts correctly
-    // when a user loads after isOnline is already true.
-
     useEffect(() => {
         if (!isOnline || !user?.id) return;
 
-        // Reset navigation guard — we're back on the home page
         navigatingRef.current = false;
-
         setIsSearching(true);
+        void fetchPendingOrder().finally(() => setIsSearching(false));
 
-        // Initial load
-        fetchPendingOrder().finally(() => setIsSearching(false));
-
-        // Realtime subscription on rider_notifications
-        const channel = supabase
+        const riderNotificationsChannel = supabase
             .channel(`rider-notifs-${user.id}`)
             .on(
                 'postgres_changes',
@@ -317,45 +126,9 @@ export function HomePage() {
                     table: 'rider_notifications',
                     filter: `rider_id=eq.${user.id}`,
                 },
-                async (payload) => {
-                    if (payload.eventType === 'DELETE') {
-                        // Another rider claimed the order — re-fetch to get next one
-                        setPendingOrder((curr) => {
-                            const old = payload.old as any;
-                            if (curr?.notificationId === old?.id || curr?.id === old?.order_id) {
-                                fetchPendingOrder();
-                                return null;
-                            }
-                            return curr;
-                        });
-                        return;
-                    }
-
-                    const n = payload.new as any;
-
-                    if (n.status !== 'pending') {
-                        // Declined or otherwise dismissed
-                        setPendingOrder((curr) => {
-                            if (curr?.notificationId === n.id) {
-                                fetchPendingOrder();
-                                return null;
-                            }
-                            return curr;
-                        });
-                        return;
-                    }
-
-                    // New pending notification — fetch the order and show it
-                    const { data: orderData } = await supabase
-                        .from('orders')
-                        .select(ORDER_SELECT)
-                        .eq('id', n.order_id)
-                        .single();
-
-                    if (orderData) {
-                        setPendingOrder(mapDbOrderToIncoming(orderData, n.id, 'notification'));
-                        setIsSearching(false);
-                    }
+                () => {
+                    setIsSearching(false);
+                    void fetchPendingOrder();
                 },
             )
             .subscribe();
@@ -381,34 +154,19 @@ export function HomePage() {
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'orders',
                 },
-                (payload) => {
-                    const n = payload.new as any;
-                    // If an order gets a rider_id and it's someone else, 
-                    // instantly hide it from this rider's screen!
-                    if (n.rider_id && n.rider_id !== user.id) {
-                        setPendingOrder((curr) => {
-                            if (curr?.id === n.id) {
-                                void fetchPendingOrder();
-                                return null;
-                            }
-                            return curr;
-                        });
-                    }
-                }
+                () => {
+                    void fetchPendingOrder();
+                },
             )
             .subscribe();
 
-        channelRef.current = channel;
-
-        // Fix 2: polling uses the stable fetchPendingOrder callback.
-        // The interval closure no longer captures stale pendingOrder state —
-        // fetchPendingOrder reads from the DB and calls setPendingOrder directly.
+        channelRef.current = riderNotificationsChannel;
         pollingRef.current = setInterval(() => {
-            fetchPendingOrder();
+            void fetchPendingOrder();
         }, 15_000);
 
         return () => {
@@ -425,15 +183,12 @@ export function HomePage() {
         };
     }, [isOnline, user?.id, fetchPendingOrder]);
 
-    // ── Toggle online/offline ─────────────────────────────────────────────────
-
     const handleToggleOnline = async () => {
         if (!user?.id) return;
         setIsLoading(true);
 
         const turningOnline = !isOnline;
 
-        // If turning online, ensure we have location permission first
         if (turningOnline) {
             const granted = await requestPermission();
             if (!granted) {
@@ -449,20 +204,18 @@ export function HomePage() {
         if (result.success) {
             setIsOnline(turningOnline);
             localStorage.setItem('rider_is_online', String(turningOnline));
-            if (!turningOnline) {
+
+            if (turningOnline) {
+                void ensurePushSubscription({ promptIfDefault: true });
+            } else {
                 setPendingOrder(null);
                 setIsSearching(false);
                 stopWatching();
             }
         }
+
         setIsLoading(false);
     };
-
-    // ── Accept order ──────────────────────────────────────────────────────────
-    //
-    // Fix 1: removed delivery_tracking insert (table doesn't exist)
-    // Fix 2: using claimOrder() service wrapper for already_claimed detection
-    // Fix 5: user?.id null guard
 
     const handleAcceptOrder = useCallback(async () => {
         if (!pendingOrder || !user?.id) return;
@@ -478,10 +231,9 @@ export function HomePage() {
         const result = await claimOrder(orderId, user.id);
 
         if (result.success) {
-            // Set navigating guard BEFORE clearing state — prevents realtime/polling
-            // from re-fetching the now-assigned order and overwriting the navigation
             navigatingRef.current = true;
             dismissedDirectOrderIdsRef.current.delete(orderId);
+            persistDismissedHomeRideIds(user.id, dismissedDirectOrderIdsRef.current);
             setPendingOrder(null);
 
             if (orderType === 'return') {
@@ -494,46 +246,49 @@ export function HomePage() {
             return;
         }
 
-        // Failed — clear the card and let realtime find the next order
         dismissedDirectOrderIdsRef.current.delete(orderId);
+        persistDismissedHomeRideIds(user.id, dismissedDirectOrderIdsRef.current);
         setPendingOrder(null);
 
         if (result.already_claimed) {
             showToast('Order was taken by another rider', 'info');
-            setTimeout(() => fetchPendingOrder(), 500);
+            setTimeout(() => {
+                void fetchPendingOrder();
+            }, 500);
             return;
         }
 
         showToast(result.message ?? 'Could not accept order', 'error');
-        setTimeout(() => fetchPendingOrder(), 500);
+        setTimeout(() => {
+            void fetchPendingOrder();
+        }, 500);
     }, [pendingOrder, user?.id, navigate, showToast, fetchPendingOrder]);
-
-    // ── Decline order ─────────────────────────────────────────────────────────
 
     const handleDeclineOrder = useCallback(async () => {
         if (!pendingOrder || !user?.id) return;
 
         const notifId = pendingOrder.notificationId;
-        setPendingOrder(null);        // Optimistic remove
+        setPendingOrder(null);
         setIsSearching(true);
 
         try {
             if (notifId.startsWith('direct:')) {
-                // Persist decline in DB so it survives re-login
                 dismissedDirectOrderIdsRef.current.add(pendingOrder.id);
-                const { error: upsertErr } = await supabase.from('rider_notifications').upsert({
-                    order_id: pendingOrder.id,
-                    rider_id: user.id,
-                    status: 'declined',
-                }, { onConflict: 'order_id,rider_id' });
-                if (upsertErr) {
-                    console.error('[HomePage] Failed to persist decline:', upsertErr);
+                persistDismissedHomeRideIds(user.id, dismissedDirectOrderIdsRef.current);
+                const saved = await upsertRiderNotificationStatus(pendingOrder.id, user.id, 'dismissed');
+                if (!saved) {
+                    console.warn('[HomePage] Falling back to local dismiss cache for direct ride', pendingOrder.id);
                 }
-                showToast('Order declined.', 'info');
+                showToast('Ride hidden from Home.', 'info');
             } else {
-                await declineOrderNotification(notifId);
+                dismissedDirectOrderIdsRef.current.add(pendingOrder.id);
+                persistDismissedHomeRideIds(user.id, dismissedDirectOrderIdsRef.current);
+                const saved = await dismissOrderNotification(notifId);
+                if (!saved) {
+                    console.warn('[HomePage] Falling back to local dismiss cache for notification ride', pendingOrder.id);
+                }
+                showToast('Ride hidden from Home.', 'info');
             }
-            // After declining, check if there's another order waiting
             await fetchPendingOrder();
         } catch (err) {
             console.error('[HomePage] handleDeclineOrder:', err);
@@ -542,13 +297,8 @@ export function HomePage() {
         }
     }, [pendingOrder, user?.id, fetchPendingOrder, showToast]);
 
-    // ── Render ────────────────────────────────────────────────────────────────
-
-    // ── Render ────────────────────────────────────────────────────────────────
-
     return (
         <RiderShell>
-            {/* Header */}
             <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-zinc-800/50">
                 <div className="flex items-center justify-between px-4 h-16">
                     <StatusToggle
@@ -579,9 +329,7 @@ export function HomePage() {
                 </div>
             </header>
 
-            {/* Main content */}
             <main className="px-4 py-6 space-y-4 flex-1">
-                {/* Searching indicator */}
                 <AnimatePresence>
                     {isSearching && (
                         <motion.div
@@ -601,7 +349,6 @@ export function HomePage() {
                     )}
                 </AnimatePresence>
 
-                {/* Incoming order card */}
                 <AnimatePresence>
                     {pendingOrder && !isSearching && (
                         <motion.div
@@ -631,7 +378,7 @@ export function HomePage() {
                                         className="w-16 h-14 flex items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all"
                                         aria-label="Decline order"
                                     >
-                                        ✕
+                                        X
                                     </button>
                                     <div className="flex-1">
                                         <SwipeToAccept onAccept={handleAcceptOrder} />
@@ -642,7 +389,6 @@ export function HomePage() {
                     )}
                 </AnimatePresence>
 
-                {/* Dashboard (no pending order) */}
                 {!pendingOrder && !isSearching && (
                     <>
                         <EarningsCard
@@ -670,7 +416,7 @@ export function HomePage() {
                             <motion.div
                                 animate={isOnline ? {
                                     scale: [1, 1.05, 1],
-                                    rotate: [0, 5, -5, 0]
+                                    rotate: [0, 5, -5, 0],
                                 } : {}}
                                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                                 className={clsx(
@@ -686,24 +432,38 @@ export function HomePage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <button
-                                onClick={() => navigate('/slots')}
-                                className="p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-left group"
+                                onClick={() => navigate('/available-rides')}
+                                className="p-5 rounded-3xl bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 active:scale-95 transition-all text-left group"
                             >
-                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📅</span>
-                                <span className="text-white font-bold text-sm tracking-tight">Book Slots</span>
-                                <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Schedule shifts</span>
+                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">
+                                    <Search size={28} className="text-blue-400" />
+                                </span>
+                                <span className="text-white font-bold text-sm tracking-tight">Available Rides</span>
+                                <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">See all claimable jobs</span>
                             </button>
                             <button
                                 onClick={() => navigate('/orders')}
                                 className="p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-left group"
                             >
-                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">📋</span>
+                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">
+                                    <FileText size={28} className="text-zinc-300" />
+                                </span>
                                 <span className="text-white font-bold text-sm tracking-tight">History</span>
                                 <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Past deliveries</span>
                             </button>
                             <button
+                                onClick={() => navigate('/slots')}
+                                className="p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-left group"
+                            >
+                                <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">
+                                    <CalendarDays size={28} className="text-zinc-300" />
+                                </span>
+                                <span className="text-white font-bold text-sm tracking-tight">Book Slots</span>
+                                <span className="block text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-medium">Schedule shifts</span>
+                            </button>
+                            <button
                                 onClick={() => setShowQRScanner(true)}
-                                className="p-5 rounded-3xl bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 active:scale-95 transition-all text-left group col-span-2"
+                                className="p-5 rounded-3xl bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 active:scale-95 transition-all text-left group"
                             >
                                 <div className="flex items-center gap-4">
                                     <span className="text-3xl group-hover:scale-110 transition-transform"><ScanLine size={28} className="text-blue-400" /></span>
@@ -718,7 +478,6 @@ export function HomePage() {
                 )}
             </main>
 
-            {/* QR Scanner Overlay */}
             {showQRScanner && (
                 <QRScannerOverlay onClose={() => setShowQRScanner(false)} />
             )}

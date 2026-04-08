@@ -61,6 +61,7 @@ const NotificationsPage: React.FC = () => {
     };
 
     // In-app notification toggles – persisted to localStorage
+    /* FUTURE TODO: Implement backend preferences
     const [orderUpdates, setOrderUpdates] = useState(() => getStorageItem("notif_orders") !== "false");
     const [promoAlerts, setPromoAlerts] = useState(() => getStorageItem("notif_promos") === "true");
     const [wishlistAlerts, setWishlistAlerts] = useState(() => getStorageItem("notif_wishlist") !== "false");
@@ -69,6 +70,7 @@ const NotificationsPage: React.FC = () => {
         setter(val);
         try { localStorage.setItem(key, String(val)); } catch {}
     };
+    */
 
     const persistOrderActivityClearedAt = (value: string | null) => {
         if (!orderActivityStorageKey) return;
@@ -424,6 +426,7 @@ const NotificationsPage: React.FC = () => {
                         </div>
 
                         {/* ─── In-app preference toggles ─── */}
+                        {/* FUTURE TODO: Implement backend preferences
                         {[
                             { key: "notif_orders", label: "Order Updates", sub: "Delivery & pickup status", icon: Package, value: orderUpdates, setter: setOrderUpdates },
                             { key: "notif_promos", label: "Promotions & Offers", sub: "Deals and new arrivals", icon: Tag, value: promoAlerts, setter: setPromoAlerts },
@@ -446,6 +449,7 @@ const NotificationsPage: React.FC = () => {
                                 </div>
                             );
                         })}
+                        */}
                     </div>
                 </motion.div>
 

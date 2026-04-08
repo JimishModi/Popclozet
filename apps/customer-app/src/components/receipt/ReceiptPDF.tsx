@@ -339,7 +339,9 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                     </Text>
                 </View>
                 <View style={styles.grandTotalRow}>
-                    <Text style={styles.grandTotalLabel}>Total Paid</Text>
+                    <Text style={styles.grandTotalLabel}>
+                        {data.paymentMethod?.toUpperCase() === 'COD' ? 'Total Due on Delivery' : 'Total Paid'}
+                    </Text>
                     <Text style={styles.grandTotalValue}>
                         {formatRupees(data.total)}
                     </Text>
@@ -353,7 +355,7 @@ export const ReceiptPDF = ({ data }: ReceiptPDFProps) => (
                         <Text style={styles.addressLabel}>Payment Method</Text>
                         <Text style={[styles.addressText, { fontWeight: 600 }]}>
                             {data.paymentMethod.toUpperCase() === 'COD'
-                                ? 'Cash on Delivery'
+                                ? 'Pay on Delivery'
                                 : data.paymentMethod.toUpperCase() === 'UPI'
                                     ? 'UPI (Online)'
                                     : data.paymentMethod.toUpperCase()}

@@ -185,10 +185,9 @@ class ProductService {
         const totalStock = inventory.reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0);
         const totalAvailableStock = inventory.reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0);
         
-        // isSoldOut: Total stock across all sizes is zero
-        // isRentedOut: Has total stock but none is available (all out with customers)
+        // Sold Out wins when total stock is zero; otherwise zero available means rented out.
         const isSoldOut = totalStock === 0;
-        const isRentedOut = !isSoldOut && inventory.length > 0 && totalAvailableStock === 0;
+        const isRentedOut = totalStock > 0 && totalAvailableStock === 0;
 
         return {
             id: dbProduct.id,

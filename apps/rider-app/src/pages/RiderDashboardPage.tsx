@@ -189,7 +189,7 @@ export const RiderDashboardPage: React.FC = () => {
                                     ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                     : 'bg-green-500/20 text-green-400 border border-green-500/30'
                             }`}>
-                                {activeDelivery.payment_method === 'cod' ? '💵 Cash on Delivery' : '✅ Paid Online'}
+                                {activeDelivery.payment_method === 'cod' ? 'Pay on Delivery' : 'Paid Online'}
                             </span>
                         )}
                         <div className="flex gap-3">
@@ -253,7 +253,7 @@ export const RiderDashboardPage: React.FC = () => {
                                                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
                                         }`}>
-                                            {order.payment_method === 'cod' ? '💵 Cash on Delivery' : '✅ Paid Online'}
+                                            {order.payment_method === 'cod' ? 'Pay on Delivery' : 'Paid Online'}
                                         </span>
                                     )}
                                     <div className="flex items-center justify-between">

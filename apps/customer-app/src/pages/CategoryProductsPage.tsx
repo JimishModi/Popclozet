@@ -200,8 +200,7 @@ const CategoryProductsPage: React.FC = () => {
                     // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
                     gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
                     isSoldOut: (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) === 0,
-                    isRentedOut: (p.inventory || []).length > 0 && 
-                                 (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
+                    isRentedOut: (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
                                  (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
                 }));
 

@@ -28,6 +28,7 @@ import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
+import { getPlanPrice } from "@/lib/pricing";
 const MAX_SERVICE_DISTANCE_KM = 12;
 
 /* ---------------------------------- */
@@ -99,74 +100,73 @@ const AddOnsCarousel = ({
             Add-Ons
           </h2>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2">
+        {addOnProducts.length > cardsPerPage && (
+          <div className="hidden lg:flex items-center gap-2">
             <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === 0 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: -pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronLeft className="w-4 h-4 text-white" />
             </button>
             <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page === totalPages - 1}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === totalPages - 1 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronRight className="w-4 h-4 text-white" />
             </button>
           </div>
         )}
       </div>
-      <div className="overflow-hidden w-full">
-        <motion.div
-          className="flex"
-          style={{ gap: CARD_GAP }}
-          animate={{ x: -page * pageOffset }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-        >
-          {addOnProducts.map((product: any) => {
-            const basePrice = product.rental_price_1d || product.rental_price || 0;
-            const displayPrice = basePrice * primaryRentalDays;
-            return (
-              <motion.div
-                key={product.id}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/product/${product.id}`)}
-                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
-                style={{ width: cardWidth }}
-              >
-                <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
-                  {product.images?.[0] && (
-                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                  )}
-                </div>
-                <div className="p-2.5">
-                  <p className="text-xs font-semibold text-white truncate">{product.name}</p>
-                  <p className="text-xs text-[#f2546d] font-black mt-0.5">
+      <div
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 -mx-5 px-5 lg:mx-0 lg:px-0"
+        style={{ gap: CARD_GAP }}
+        ref={containerRef}
+      >
+        {addOnProducts.map((product: any) => {
+          const basePrice = product.rental_price_1d || product.rental_price || 0;
+          const displayPrice = basePrice * primaryRentalDays;
+          return (
+            <motion.div
+              key={product.id}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(`/product/${product.id}`)}
+              className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0 snap-start"
+              style={{ width: cardWidth }}
+            >
+              <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
+                {product.images?.[0] && (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="p-2.5">
+                <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-[#f2546d] font-black">
                     ₹{displayPrice}
                     {primaryRentalDays > 1 && (
                       <span className="text-white/30 font-normal ml-1">({primaryRentalDays}d)</span>
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Better fallback: find the first size that actually has stock
-                    const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
-                    addToCart(product.id, bestSize, '1d');
-                  }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg"
-                >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                </button>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
+                  addToCart(product.id, bestSize, '1d');
+                  toast.success(`Added ${product.name} to bag`);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+              </button>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );
@@ -273,26 +273,33 @@ const CartPage = () => {
   useEffect(() => {
     const fetchAddOns = async () => {
       try {
-        const { data, error } = await supabase
+        const cartProductIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
+
+        let query = supabase
           .from('products')
           .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
           .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .eq('is_available', true)
-          .limit(20);
+          .eq('is_available', true);
+
+        if (cartProductIds.length > 0) {
+          query = query.not('id', 'in', `(${cartProductIds.join(',')})`);
+        }
+
+        const { data, error } = await query.limit(20);
 
         if (data && !error) {
-          // Only show add-ons that have at least one size with stock available
+          // Only show add-ons that have at least one size with stock available (not sold/rented)
           const inStock = data.filter((p: any) =>
             (p.inventory || []).some((inv: any) => (inv.available_stock || 0) > 0)
           );
-          setAddOnProducts(inStock.slice(0, 8));
+          setAddOnProducts(inStock.slice(0, 10));
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
       }
     };
     fetchAddOns();
-  }, []);
+  }, [JSON.stringify(cartEntries.map(([k]) => k.split('_')[0]))]);
 
   // Calculate cart metrics
   const totalQty = useMemo(() => {
@@ -317,20 +324,6 @@ const CartPage = () => {
   }, []);
 
 
-
-  const getPlanPrice = (product: any, plan: string): number => {
-    if (!product) return 0;
-    let raw: any;
-    switch (plan) {
-      case '1d': raw = product.rental_price_1d; break;
-      case '2d': raw = product.rental_price_2d; break;
-      case '3d': raw = product.rental_price_3d ?? product.price; break;
-      case 'buy': raw = product.buy_price; break;
-      default: raw = product.price;
-    }
-    const n = parseFloat(raw);
-    return isNaN(n) ? 0 : n;
-  };
 
   // Calculate subtotal
   const subtotal = useMemo(() => {
@@ -518,6 +511,19 @@ const CartPage = () => {
   const hasItems = validCartEntries.length > 0;
   const meetsMinimum = (grandTotal ?? subtotal) >= 350;
   const canCheckout = hasItems && meetsMinimum;
+  const hasRentalItems = useMemo(
+    () => validCartEntries.some(([, data]) => ['1d', '2d', '3d'].includes(data.plan)),
+    [validCartEntries]
+  );
+  const hasBuyItems = useMemo(
+    () => validCartEntries.some(([, data]) => data.plan === 'buy'),
+    [validCartEntries]
+  );
+  const cartSectionLabel = hasRentalItems && hasBuyItems
+    ? 'Shopping Bag Items'
+    : hasBuyItems
+      ? 'Instant Buy Items'
+      : 'Rentals';
 
   /* ---------------------------------- */
   /* Checkout handler                   */
@@ -720,7 +726,7 @@ const CartPage = () => {
           {/* Subtitle */}
           {validCartEntries.length > 0 && !loadingProducts && (
             <p className="mt-2 ml-8 text-base md:text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
+              {cartSectionLabel} ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
           )}
         </header>

@@ -30,7 +30,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
+import { cancelOrder, placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import {
@@ -38,6 +38,7 @@ import {
   clearCheckoutAddressContext,
   getCheckoutAddressContext,
   hasManualAddressDetails,
+  isManualAddressComplete,
   normalizeManualAddressDetails,
   saveCheckoutAddressContext,
   type ManualAddressDetails,
@@ -48,6 +49,7 @@ import {
   saveCheckoutDraft,
   type CheckoutReturnSchedule,
 } from "@/lib/checkoutDraft";
+import { getPlanPrice } from "@/lib/pricing";
 import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
@@ -293,7 +295,6 @@ export default function CheckoutPage() {
   }, [cartEntries, cartProducts]);
 
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
   const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>(
     () => checkoutDraft?.selectedOrderType ?? 'rental'
@@ -305,6 +306,9 @@ export default function CheckoutPage() {
     (location.state?.returnSchedule as CheckoutReturnSchedule | undefined) ??
     checkoutDraft?.returnSchedule ??
     undefined;
+
+  const isAddressComplete = useMemo(() => isNoDeliveryFlow || isManualAddressComplete(manualAddressDetails), [isNoDeliveryFlow, manualAddressDetails]);
+
   const manualAddressSummary = buildManualAddressSummary(manualAddressDetails);
   const showManualAddress = hasManualAddressDetails(manualAddressDetails);
 
@@ -618,20 +622,6 @@ export default function CheckoutPage() {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
 
-  const getPlanPrice = (product: any, plan: string): number => {
-    if (!product) return 0;
-    let raw: any;
-    switch (plan) {
-      case '1d': raw = product.rental_price_1d; break;
-      case '2d': raw = product.rental_price_2d; break;
-      case '3d': raw = product.rental_price_3d ?? product.price; break;
-      case 'buy': raw = product.buy_price; break;
-      default: raw = product.price;
-    }
-    const n = parseFloat(raw);
-    return isNaN(n) ? 0 : n;
-  };
-
   // Load Buyout Order if specified
   useEffect(() => {
     if (!buyoutOrderId) return;
@@ -864,6 +854,21 @@ export default function CheckoutPage() {
     // KYC Gate
     if (!kycVerified) {
       setShowKycGate(true);
+      return;
+    }
+
+    if (!isAddressComplete) {
+      toast.error("Please add address details (flat no, landmark, etc) to continue");
+      navigate("/checkout/address-details", {
+        state: {
+          selectedAddress: deliveryAddress,
+          manualAddressDetails,
+          nextRoute: "/checkout",
+          forwardState: {
+            returnSchedule,
+          },
+        },
+      });
       return;
     }
 
@@ -1105,9 +1110,16 @@ export default function CheckoutPage() {
 
       // Persist reservation records so backend can release on cancel/timeout
       if (createdOrderId && reservedItems.length > 0) {
-        await persistOrderReservations(createdOrderId, reservedItems).catch((e) => {
-          console.warn('[Checkout] Failed to persist reservation records (non-fatal):', e);
-        });
+        try {
+          await persistOrderReservations(createdOrderId, reservedItems);
+        } catch (e) {
+          console.error('[Checkout] Failed to persist reservation records, releasing stock and cancelling order:', e);
+          await releaseCheckoutStock(reservedItems).catch(() => {});
+          await cancelOrder(createdOrderId).catch((cancelErr) => {
+            console.warn('[Checkout] Failed to cancel order after reservation persistence failure:', cancelErr);
+          });
+          throw new Error('Could not safely reserve stock for this order. Please try again.');
+        }
       }
 
       // Reset idempotency key after successful creation
@@ -1377,9 +1389,9 @@ export default function CheckoutPage() {
                         }
                         className="w-full rounded-2xl border border-dashed border-[#f2546d]/30 bg-[#f2546d]/5 px-4 py-3 text-left"
                       >
-                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add More Accuracy</p>
+                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add Address Details <span className="text-[#f2546d] ml-1">*</span></p>
                         <p className="text-xs text-zinc-400 mt-1" style={dmSans}>
-                          Flat number, landmark aur contact detail add kar do.
+                          Flat number, landmark aur contact detail add kar do. (Required)
                         </p>
                       </button>
                     )}
@@ -1524,7 +1536,7 @@ export default function CheckoutPage() {
                     <Banknote className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>Cash on Delivery</p>
+                    <p className="text-sm font-bold text-white" style={dmSans}>Pay on Delivery</p>
                     <p className="text-xs text-zinc-500 mt-0.5">Pay when you receive</p>
                   </div>
                 </>
@@ -1648,10 +1660,10 @@ export default function CheckoutPage() {
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null || !!invalidCatalogItem}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null || !!invalidCatalogItem || !isAddressComplete}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError || !!invalidCatalogItem) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError || !!invalidCatalogItem || !isAddressComplete) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
@@ -1775,7 +1787,7 @@ export default function CheckoutPage() {
                         <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
                       </div>
                       <div className="flex-1">
-                        <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
+                        <p className="text-white font-bold text-base" style={dmSans}>Pay on Delivery</p>
                         <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
                       </div>
                       <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>

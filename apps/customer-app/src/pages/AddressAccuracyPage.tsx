@@ -8,6 +8,7 @@ import type { ValidatedAddress } from "@/services/addressService";
 import {
   buildManualAddressSummary,
   getCheckoutAddressContext,
+  isManualAddressComplete,
   normalizeManualAddressDetails,
   saveCheckoutAddressContext,
   type ManualAddressDetails,
@@ -81,7 +82,11 @@ export default function AddressAccuracyPage() {
       setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
+  const isFormValid = useMemo(() => isManualAddressComplete(form), [form]);
+
   const handleContinue = () => {
+    if (!isFormValid) return;
+
     const normalizedManualAddressDetails = normalizeManualAddressDetails(form);
 
     saveCheckoutAddressContext({
@@ -136,7 +141,7 @@ export default function AddressAccuracyPage() {
           <div className="grid grid-cols-1 gap-4">
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                Name
+                Name <span className="text-[#f2546d] ml-1">*</span>
               </span>
               <input
                 value={form.contactName}
@@ -148,7 +153,7 @@ export default function AddressAccuracyPage() {
 
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                Phone Number
+                Phone Number <span className="text-[#f2546d] ml-1">*</span>
               </span>
               <input
                 value={form.phoneNumber}
@@ -161,7 +166,7 @@ export default function AddressAccuracyPage() {
 
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                House / Flat Number
+                House / Flat Number <span className="text-[#f2546d] ml-1">*</span>
               </span>
               <input
                 value={form.houseNumber}
@@ -173,7 +178,7 @@ export default function AddressAccuracyPage() {
 
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                Street / Area
+                Street / Area <span className="text-[#f2546d] ml-1">*</span>
               </span>
               <textarea
                 value={form.streetAddress}
@@ -186,7 +191,7 @@ export default function AddressAccuracyPage() {
 
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                Landmark
+                Landmark <span className="text-[#f2546d] ml-1">*</span>
               </span>
               <input
                 value={form.landmark}
@@ -199,7 +204,7 @@ export default function AddressAccuracyPage() {
             <div className="grid grid-cols-2 gap-4">
               <label className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                  City
+                  City <span className="text-[#f2546d] ml-1">*</span>
                 </span>
                 <input
                   value={form.city}
@@ -211,7 +216,7 @@ export default function AddressAccuracyPage() {
 
               <label className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                  Pincode
+                  Pincode <span className="text-[#f2546d] ml-1">*</span>
                 </span>
                 <input
                   value={form.pincode}
@@ -238,7 +243,12 @@ export default function AddressAccuracyPage() {
       <div className="sticky bottom-0 px-5 py-6 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent">
         <button
           onClick={handleContinue}
-          className="w-full h-14 rounded-2xl bg-[#f2546d] text-white text-lg font-bold shadow-lg shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+          disabled={!isFormValid}
+          className={`w-full h-14 rounded-2xl text-white text-lg font-bold shadow-lg transition-all ${
+            isFormValid
+              ? "bg-[#f2546d] shadow-[#f2546d]/20 active:scale-[0.98]"
+              : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50"
+          }`}
         >
           Continue
         </button>

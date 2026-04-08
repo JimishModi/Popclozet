@@ -45,9 +45,11 @@ export interface RiderOrderRequest {
     id: string;
     order_id: string;
     rider_id: string;
-    status: 'pending' | 'declined';
+    status: 'pending' | 'dismissed' | 'declined';
     created_at: string;
 }
+
+export type RiderNotificationStatus = RiderOrderRequest['status'];
 
 export interface ClaimResult {
     success: boolean;
@@ -141,13 +143,53 @@ export async function releaseOrder(
  * Sets notification status to 'declined' so the DB keeps a record,
  * but the card is removed from the UI immediately before this call.
  */
-export async function declineOrderNotification(notificationId: string): Promise<void> {
+async function updateOrderNotificationStatus(
+    notificationId: string,
+    status: RiderNotificationStatus,
+): Promise<boolean> {
     const { error } = await supabase
         .from('rider_notifications')
-        .update({ status: 'declined' })
+        .update({ status })
         .eq('id', notificationId);
 
-    if (error) console.error('[riderOrderService] declineNotification:', error);
+    if (error) {
+        console.error('[riderOrderService] updateOrderNotificationStatus:', error);
+        return false;
+    }
+
+    return true;
+}
+
+export async function dismissOrderNotification(notificationId: string): Promise<boolean> {
+    return updateOrderNotificationStatus(notificationId, 'dismissed');
+}
+
+export async function declineOrderNotification(notificationId: string): Promise<boolean> {
+    return updateOrderNotificationStatus(notificationId, 'declined');
+}
+
+export async function upsertRiderNotificationStatus(
+    orderId: string,
+    riderId: string,
+    status: RiderNotificationStatus,
+): Promise<boolean> {
+    const { error } = await supabase
+        .from('rider_notifications')
+        .upsert(
+            {
+                order_id: orderId,
+                rider_id: riderId,
+                status,
+            },
+            { onConflict: 'order_id,rider_id' },
+        );
+
+    if (error) {
+        console.error('[riderOrderService] upsertRiderNotificationStatus:', error);
+        return false;
+    }
+
+    return true;
 }
 
 /**

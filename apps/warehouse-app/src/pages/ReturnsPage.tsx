@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,50 +59,9 @@ export function ReturnsPage() {
     const [otpModalOrderId, setOtpModalOrderId] = useState<string | null>(null);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
-    const [otpExpiresAt, setOtpExpiresAt] = useState<Date | null>(null);
-    const [otpSecondsLeft, setOtpSecondsLeft] = useState<number | null>(null);
-    const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [riders, setRiders] = useState<{ user_id: string; full_name: string }[]>([]);
     const [selectedReturnRiders, setSelectedReturnRiders] = useState<Record<string, string>>({});
     const [assigningRider, setAssigningRider] = useState<string | null>(null);
-
-    // Fetch OTP expiry and start countdown whenever the modal opens
-    useEffect(() => {
-        if (otpTimerRef.current) clearInterval(otpTimerRef.current);
-        setOtpExpiresAt(null);
-        setOtpSecondsLeft(null);
-
-        if (!otpModalOrderId) return;
-
-        supabase
-            .from('orders')
-            .select('warehouse_otp_expires_at')
-            .eq('id', otpModalOrderId)
-            .single()
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error('Failed to fetch OTP expiry:', error);
-                    return;
-                }
-                if (!data?.warehouse_otp_expires_at) return;
-                const exp = new Date(data.warehouse_otp_expires_at);
-                setOtpExpiresAt(exp);
-
-                const tick = () => {
-                    const secs = Math.floor((exp.getTime() - Date.now()) / 1000);
-                    setOtpSecondsLeft(secs);
-                    if (secs <= 0 && otpTimerRef.current) {
-                        clearInterval(otpTimerRef.current);
-                        otpTimerRef.current = null;
-                    }
-                };
-                tick();
-                otpTimerRef.current = setInterval(tick, 1000);
-            });
-        return () => {
-            if (otpTimerRef.current) clearInterval(otpTimerRef.current);
-        };
-    }, [otpModalOrderId]);
 
     const loadData = useCallback(async () => {
         try {
@@ -555,7 +514,7 @@ export function ReturnsPage() {
                                     Verify Return OTP
                                 </h3>
                                 <button
-                                    onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); setOtpExpiresAt(null); setOtpSecondsLeft(null); } }}
+                                    onClick={() => { if (!otpVerifying) { setOtpModalOrderId(null); setOtpValue(''); } }}
                                     disabled={otpVerifying}
                                     className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-50"
                                 >
@@ -566,24 +525,6 @@ export function ReturnsPage() {
                                 <p className="text-sm text-zinc-400">
                                     Enter the 6-digit OTP shown on the rider's screen to confirm receipt of the return.
                                 </p>
-                                {otpExpiresAt && (
-                                    <div className={clsx(
-                                        'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg',
-                                        otpSecondsLeft !== null && otpSecondsLeft <= 0
-                                            ? 'bg-red-500/15 text-red-400'
-                                            : otpSecondsLeft !== null && otpSecondsLeft <= 60
-                                                ? 'bg-amber-500/15 text-amber-400'
-                                                : 'bg-zinc-800 text-zinc-400'
-                                    )}>
-                                        <Clock size={12} />
-                                        {otpSecondsLeft !== null && otpSecondsLeft <= 0
-                                            ? 'OTP expired — ask rider to regenerate'
-                                            : otpSecondsLeft !== null
-                                                ? `Expires in ${Math.floor(otpSecondsLeft / 60)}m ${otpSecondsLeft % 60}s`
-                                                : `Expires at ${otpExpiresAt.toLocaleTimeString()}`
-                                        }
-                                    </div>
-                                )}
                                 <input
                                     type="text"
                                     inputMode="numeric"
@@ -597,7 +538,7 @@ export function ReturnsPage() {
                                 />
                                 <button
                                     onClick={() => handleReceive(otpModalOrderId)}
-                                    disabled={otpValue.length !== 6 || otpVerifying || (otpSecondsLeft !== null && otpSecondsLeft <= 0)}
+                                    disabled={otpValue.length !== 6 || otpVerifying}
                                     className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
                                 >
                                     {otpVerifying ? (

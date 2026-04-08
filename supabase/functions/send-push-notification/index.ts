@@ -520,6 +520,7 @@ Deno.serve(async (req: Request) => {
     title?: string;
     body?: string;
     type?: string;
+    tag?: string;
     order_id?: string;
     url?: string;
     status?: string;
@@ -585,6 +586,7 @@ Deno.serve(async (req: Request) => {
   let title: string;
   let notifBody: string;
   let type: string;
+  let tag: string;
   let url: string;
 
   if (body.status && STATUS_MESSAGES[body.status]) {
@@ -592,11 +594,13 @@ Deno.serve(async (req: Request) => {
     title = cfg.title;
     notifBody = cfg.body;
     type = cfg.type;
+    tag = body.tag || cfg.type;
     url = "/orders";
   } else {
     title = body.title || "";
     notifBody = body.body || "";
     type = body.type || "general";
+    tag = body.tag || type;
     url = body.url || "/notifications";
   }
 
@@ -637,7 +641,7 @@ Deno.serve(async (req: Request) => {
     body: notifBody,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
-    tag: type,
+    tag,
     data: {
       url,
       type,

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { supabase } from '@popclozet/api-client';
 import { useAuth } from '@/context/SupabaseAuthContext';
+import { cancelOrder } from '@/services/ordersService';
 
 interface InstantBuyDrawerProps {
     isOpen: boolean;
@@ -131,10 +132,9 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                 },
                 onFailure: async (err) => {
                     console.error('[Instant Buy] Razorpay failed:', err);
-                    await supabase
-                        .from('orders')
-                        .update({ status: 'cancelled', lifecycle_state: 'cancelled' })
-                        .eq('id', newOrder.id);
+                    await cancelOrder(newOrder.id).catch((cancelErr) => {
+                        console.warn('[Instant Buy] Failed to cancel abandoned buyout order:', cancelErr);
+                    });
                     toast.error('Instant buy payment was not completed');
                 }
             });

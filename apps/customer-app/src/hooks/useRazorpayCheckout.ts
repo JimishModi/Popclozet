@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { openRazorpayCheckout, type RazorpayPaymentResponse, type RazorpayFailedResponse } from '@/lib/razorpay';
 import { createRazorpayOrder, verifyRazorpayPayment } from '@/services/razorpayService';
-import { supabase, transitionOrderState } from '@popclozet/api-client';
+import { cancelOrder } from '@/services/ordersService';
 
 const popclozet_LOGO = '/icons/icon-192x192.png';
 
@@ -67,10 +67,7 @@ export function useRazorpayCheckout() {
     /** Safely mark the order as cancelled/failed in DB */
     const markOrderFailed = async (reason: string) => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await transitionOrderState(internalOrderId, 'cancelled' as any, 'customer', user.id);
-        }
+        await cancelOrder(internalOrderId);
       } catch (cancelErr) {
         console.warn(`[useRazorpayCheckout] Failed to cancel order (${reason}):`, cancelErr);
       }
