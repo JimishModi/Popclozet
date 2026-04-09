@@ -409,27 +409,32 @@ export async function archivePhysicalUnit(individualId: string, actorId: string 
 
 /**
  * Permanently delete a physical unit row from all_products.
- * The DB requires status = 'archived' before deletion, so we archive first.
- * Inventory counts are kept in sync by the database delete trigger.
+ * The DB trigger requires status = 'archived' before deletion is allowed,
+ * so we archive first. Inventory counts are kept in sync by the database
+ * delete trigger (recalculate_inventory_stock_from_units).
  */
-export async function deletePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
-    // Step 1: Archive the unit first (DB trigger requires this before deletion)
+export async function deletePhysicalUnit(
+    individualId: string,
+    actorId: string = 'system',
+    unitStatus?: string,
+): Promise<void> {
+    // DB trigger requires status='archived' before DELETE is allowed
     await archivePhysicalUnit(individualId, actorId);
 
-    // Step 2: Now permanently delete the archived row
-    const { error } = await supabase
+    const { error, count } = await supabase
         .from('all_products')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('individual_id', individualId);
 
     if (error) throw error;
+    if (count === 0) throw new Error(`Unit ${individualId} not found or could not be deleted`);
 
     await supabase.from('warehouse_activity_log').insert({
         actor_id: actorId === 'system' ? null : actorId,
         action: 'delete_unit',
         entity_type: 'individual_unit',
         entity_id: null,
-        details: { individual_id: individualId },
+        details: { individual_id: individualId, status_at_deletion: unitStatus ?? 'unknown' },
     });
 }
 

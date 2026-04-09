@@ -319,25 +319,108 @@ function AddDiscountModal({
 }
 
 /* -----------------------------------------------------------
+   Shared helpers
+   ----------------------------------------------------------- */
+const statusColor = (s: string) => ({
+    available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    archived:  'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
+    damaged:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
+    lost:      'text-rose-400 bg-rose-500/10 border-rose-500/20',
+    sold:      'text-red-400 bg-red-500/10 border-red-500/20',
+    instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+}[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
+
+function stockImpactLabel(status: string): string {
+    if (['available', 'ready'].includes(status)) return 'Available stock will decrease by 1';
+    if (status === 'rented') return 'Rented stock will decrease by 1';
+    if (['returned', 'washing'].includes(status)) return 'Wash queue will decrease by 1';
+    return 'Total stock will decrease by 1';
+}
+
+/* -----------------------------------------------------------
+   Delete Unit Confirm Modal
+   ----------------------------------------------------------- */
+function DeleteUnitConfirmModal({
+    unit,
+    onClose,
+    onDone,
+    actorId,
+}: {
+    unit: { individual_id: string; status: string };
+    onClose: () => void;
+    onDone: () => void;
+    actorId: string;
+}) {
+    const [deleting, setDeleting] = useState(false);
+    const { showToast } = useToast();
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        try {
+            await deletePhysicalUnit(unit.individual_id, actorId, unit.status);
+            showToast('Unit deleted successfully');
+            onDone();
+        } catch (err: any) {
+            showToast(err.message || 'Failed to delete unit', 'error');
+            setDeleting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="bg-zinc-900/60 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-zinc-500">Unit ID</p>
+                <p className="text-sm font-mono text-white">{unit.individual_id}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500">Current status:</span>
+                <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase', statusColor(unit.status))}>
+                    {unit.status === 'instantly_bought' ? 'Instant Buy' : unit.status}
+                </span>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-400">Stock Impact</p>
+                <p className="text-xs text-amber-300/80">{stockImpactLabel(unit.status)}</p>
+            </div>
+
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                <p className="text-xs text-red-400">This permanently removes the unit from inventory. This cannot be undone.</p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+                <button
+                    onClick={onClose}
+                    disabled={deleting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+                >
+                    {deleting ? 'Deleting…' : 'Delete Unit'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+/* -----------------------------------------------------------
    Size Sub-Profile Card
    ----------------------------------------------------------- */
-function SizeCard({ product, inv }: { product: FullProductProfile; inv: InventorySubProfile }) {
+function SizeCard({ product, inv, onRefresh }: { product: FullProductProfile; inv: InventorySubProfile; onRefresh: () => void }) {
     const [open, setOpen] = useState(false);
     const { showToast } = useToast();
     const { user } = useAuth();
+    const [pendingDeleteUnit, setPendingDeleteUnit] = useState<{ individual_id: string; status: string } | null>(null);
     const activeUnits = inv.units.filter(
         unit => !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status)
     );
-
-    const statusColor = (s: string) => ({
-        available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-        rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
-        archived:  'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
-        damaged:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
-        lost:      'text-rose-400 bg-rose-500/10 border-rose-500/20',
-        sold:      'text-red-400 bg-red-500/10 border-red-500/20',
-        instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-    }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
         try {
@@ -403,17 +486,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                         <div className="flex items-center gap-2">
                                              {!['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status) && (
                                                 <button
-                                                    onClick={async () => {
-                                                        if (confirm(`Delete unit ${unit.individual_id} permanently from warehouse stock?`)) {
-                                                            try {
-                                                                await deletePhysicalUnit(unit.individual_id, user?.id);
-                                                                showToast('Unit deleted from all_products');
-                                                                window.location.reload();
-                                                            } catch (err: any) {
-                                                                showToast(err.message || 'Failed to remove unit', 'error');
-                                                            }
-                                                        }
-                                                    }}
+                                                    onClick={() => setPendingDeleteUnit(unit)}
                                                     className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
                                                     title="Delete physical unit"
                                                 >
@@ -439,6 +512,42 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                 ))
                             )}
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Delete confirmation modal */}
+            <AnimatePresence>
+                {pendingDeleteUnit && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+                        onClick={() => setPendingDeleteUnit(null)}
+                    >
+                        <motion.div
+                            initial={{ y: 60, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 60, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 380 }}
+                            className="w-full max-w-[430px] bg-surface-card border-t border-surface-border rounded-t-3xl p-5 space-y-4"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-sm font-bold text-white">Delete Physical Unit</h2>
+                                <button onClick={() => setPendingDeleteUnit(null)} className="text-zinc-500 hover:text-white"><X size={18} /></button>
+                            </div>
+                            <DeleteUnitConfirmModal
+                                unit={pendingDeleteUnit}
+                                actorId={user?.id || 'system'}
+                                onClose={() => setPendingDeleteUnit(null)}
+                                onDone={() => {
+                                    setPendingDeleteUnit(null);
+                                    onRefresh();
+                                }}
+                            />
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1041,7 +1150,7 @@ export function ProductProfilePage() {
                     <div className="space-y-2">
                         <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">📐 Inventory by Size</p>
                         {product.inventory.map(inv => (
-                            <SizeCard key={inv.id} product={product} inv={inv} />
+                            <SizeCard key={inv.id} product={product} inv={inv} onRefresh={load} />
                         ))}
                     </div>
                 )}
