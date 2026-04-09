@@ -584,7 +584,7 @@ export default function CheckoutPage() {
       let productMap: Record<string, any> = {};
       if (data && !error) {
         data.forEach((p: any) => {
-          const mrp = parseFloat(p.mrp_price ?? p.mrp ?? '0');
+          const mrp = parseFloat(p.mrp ?? '0');
           productMap[p.id] = {
             ...p,
             mrp,

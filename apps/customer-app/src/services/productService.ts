@@ -39,7 +39,6 @@ export interface Product {
     discount_value?: number;
     discounted_price?: number;
     mrp?: number;
-    mrp_price?: number;
     earlyAccessUntil?: string | null;
     // Hygiene-related fields
     fabricType?: string;
@@ -195,8 +194,7 @@ class ProductService {
             rental_price_2d: dbProduct.rental_price_2d ? parseFloat(dbProduct.rental_price_2d) : undefined,
             rental_price_3d: dbProduct.rental_price_3d ? parseFloat(dbProduct.rental_price_3d) : undefined,
             buy_price: dbProduct.buy_price ? parseFloat(dbProduct.buy_price) : undefined,
-            mrp: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : (dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined),
-            mrp_price: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : undefined,
+            mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
             category: dbProduct.category || '',
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
             eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as EventCategory, 

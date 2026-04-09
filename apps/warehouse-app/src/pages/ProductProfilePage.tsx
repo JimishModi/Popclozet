@@ -392,7 +392,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                                     {unit.status === 'instantly_bought' ? 'Instant Buy' : unit.status}
                                                 </span>
                                                 <span className="text-[9px] text-zinc-600">×{unit.times_rented} rented</span>
-                                                {unit.mrp_price && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp_price.toLocaleString()}</span>}
+                                                {unit.mrp && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp.toLocaleString()}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -453,6 +453,7 @@ export function ProductProfilePage() {
 
     const [product, setProduct] = useState<FullProductProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [replacingIndex, setReplacingIndex] = useState<number | undefined>(undefined);
@@ -471,11 +472,17 @@ export function ProductProfilePage() {
 
     const load = useCallback(async () => {
         if (!productId) return;
+        setLoadError(null);
         try {
             const data = await getFullProductProfile(productId);
             setProduct(data);
+            if (!data) {
+                setLoadError('Product could not be found.');
+            }
         } catch (err) {
             console.error(err);
+            setProduct(null);
+            setLoadError('Failed to load product details.');
         } finally {
             setLoading(false);
         }
@@ -490,7 +497,7 @@ export function ProductProfilePage() {
             mrp: product.mrp ?? null,
             category: product.category || '',
             gender: product.gender || '',
-            rental_price: product.rental_price ?? 0,
+            rental_price: product.rental_price ?? 299,
             rental_price_1d: product.rental_price_1d ?? 0,
             rental_price_2d: product.rental_price_2d ?? 0,
             rental_price_3d: product.rental_price_3d ?? 0,
@@ -650,7 +657,7 @@ export function ProductProfilePage() {
         return (
             <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
                 <Package size={40} className="text-zinc-600 mb-3" />
-                <p className="text-white font-bold">Product Not Found</p>
+                <p className="text-white font-bold">{loadError ?? 'Product Not Found'}</p>
                 <button onClick={() => navigate(-1)} className="mt-4 text-xs text-warehouse-400 underline">Go Back</button>
             </div>
         );

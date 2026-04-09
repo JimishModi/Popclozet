@@ -23,7 +23,7 @@ export interface PhysicalUnitInProfile {
     last_washed: string | null;
     times_rented: number;
     times_washed: number;
-    mrp_price: number | null;
+    mrp: number | null;
     actual_cost: number | null;
     created_at: string;
 }
@@ -75,6 +75,11 @@ export interface ProductUpdate {
     is_available?: boolean;
 }
 
+const normalizePhysicalUnit = (unit: any): PhysicalUnitInProfile => ({
+    ...unit,
+    mrp: unit.mrp ?? unit.mrp_price ?? null,
+});
+
 /**
  * Fetch the full product profile: product info + inventory breakdown + discounts
  */
@@ -84,16 +89,27 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         .from('products')
         .select('*')
         .eq('id', productId)
-        .single();
+        .maybeSingle();
 
     if (prodErr || !product) return null;
 
     // Fetch inventory rows
-    const { data: inventoryRows, error: invErr } = await supabase
+    let { data: inventoryRows, error: invErr } = await supabase
         .from('inventory')
         .select('*')
         .eq('product_id', productId)
         .order('size');
+
+    if (invErr || !inventoryRows || inventoryRows.length === 0) {
+        const fallbackInventory = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('item_id', productId)
+            .order('size');
+
+        inventoryRows = fallbackInventory.data || [];
+        invErr = fallbackInventory.error;
+    }
 
     if (invErr) throw invErr;
 
@@ -109,7 +125,7 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
             .order('created_at', { ascending: false });
 
         if (unitsErr) throw unitsErr;
-        allUnits = (units || []) as PhysicalUnitInProfile[];
+        allUnits = (units || []).map(normalizePhysicalUnit);
     }
 
     // Fetch discounts
@@ -239,7 +255,7 @@ export async function addStockToInventory(
     productId: string,
     size: string,
     qty: number,
-    mrpPrice?: number,
+    mrp?: number,
     actualCost?: number,
     actorId: string = 'system'
 ): Promise<string[]> {
@@ -254,7 +270,7 @@ export async function addStockToInventory(
                 inventory_id: inventoryId,
                 status: 'available',
                 available: true,
-                mrp_price: mrpPrice ?? null,
+                mrp_price: mrp ?? null,
                 actual_cost: actualCost ?? null,
             });
 
@@ -268,7 +284,7 @@ export async function addStockToInventory(
         action: 'add_stock',
         entity_type: 'inventory',
         entity_id: inventoryId,
-        details: { size, qty, mrp_price: mrpPrice, actual_cost: actualCost },
+        details: { size, qty, mrp, actual_cost: actualCost },
     });
 
     return createdIds;
@@ -281,7 +297,7 @@ export async function addNewSizeToProduct(
     productId: string,
     size: string,
     qty: number,
-    mrpPrice?: number,
+    mrp?: number,
     actualCost?: number,
     actorId: string = 'system'
 ): Promise<{ inventoryId: string; unitIds: string[] }> {
@@ -297,7 +313,7 @@ export async function addNewSizeToProduct(
 
     if (invErr) throw invErr;
 
-    const unitIds = await addStockToInventory(inv.id, productId, size, qty, mrpPrice, actualCost, actorId);
+    const unitIds = await addStockToInventory(inv.id, productId, size, qty, mrp, actualCost, actorId);
 
     return { inventoryId: inv.id, unitIds };
 }

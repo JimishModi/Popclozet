@@ -517,7 +517,7 @@ export async function getMyActiveRentals() {
           brand,
           images,
           rental_price,
-          mrp_price,
+          mrp,
           buy_price
         )
       )

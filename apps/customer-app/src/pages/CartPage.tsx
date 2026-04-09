@@ -237,18 +237,18 @@ const CartPage = () => {
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
-          // mrp_price comes from the DB — this is the true retail price
-          const mrp_val = parseFloat(p.mrp_price ?? p.mrp ?? '0');
+          // Normalize the product retail price into the canonical mrp field
+          const mrpVal = parseFloat(p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
-            mrp: mrp_val,
+            mrp: mrpVal,
             rental_price_1d: parseFloat(p.rental_price_1d ?? '0'),
             rental_price_2d: parseFloat(p.rental_price_2d ?? '0'),
             rental_price_3d: parseFloat(p.rental_price_3d ?? p.rental_price ?? p.price ?? '0'),
             buy_price: parseFloat(p.buy_price ?? '0'),
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: mrp_val,
+            originalPrice: mrpVal,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -341,8 +341,7 @@ const CartPage = () => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const planPrice = getPlanPrice(product, data.plan);
-      // mrp is already parseFloat'd in fetchCartProducts; mrp_price may be raw string from ...p spread
-      const mrp = typeof product?.mrp === 'number' ? product.mrp : parseFloat(product?.mrp_price ?? planPrice);
+      const mrp = typeof product?.mrp === 'number' ? product.mrp : parseFloat(product?.mrp ?? product?.originalPrice ?? planPrice);
       const safeMrp = isNaN(mrp) ? planPrice : mrp;
       return sum + Math.max(safeMrp, planPrice) * (data.quantity || 1);
     }, 0));
@@ -668,9 +667,9 @@ const CartPage = () => {
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            {(product.mrp_price > 0 || product.mrp > 0) && (product.mrp_price !== itemPrice && product.mrp !== itemPrice) && (
+            {(product.mrp > 0) && product.mrp !== itemPrice && (
               <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                ₹ {(product.mrp_price || product.mrp) * quantity}
+                ₹ {product.mrp * quantity}
               </span>
             )}
             {isRental && (
