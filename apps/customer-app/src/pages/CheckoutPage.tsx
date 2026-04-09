@@ -30,7 +30,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { cancelOrder, placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
+import { cancelOrder, placeOrder, previewOrder } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import {
@@ -1039,51 +1039,15 @@ export default function CheckoutPage() {
         };
       });
 
-      // ── STOCK RESERVATION ──────────────────────────────────
-      // Resolve cart items to inventory variant_ids, then reserve stock
-      // atomically BEFORE order creation. If reservation fails, stop.
-      console.log('[Checkout] Resolving variant IDs for stock reservation...');
-      let reservedItems: { variant_id: string; quantity: number }[] = [];
-      try {
-        const variantItems = await resolveVariantIds(
-          orderItems.map(i => ({ product_id: i.product_id, size: i.size, quantity: i.quantity }))
-        );
-
-        // Reserve stock with a 15-second timeout
-        const reservationPromise = reserveCheckoutStock(variantItems);
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Stock reservation timed out. Please try again.')), 15000)
-        );
-        const reserveResult = await Promise.race([reservationPromise, timeoutPromise]);
-
-        if (!reserveResult.success) {
-          toast.error("Some items are out of stock. Please update your cart and try again.");
-          setError("Out of stock — one or more items could not be reserved.");
-          return;
-        }
-
-        reservedItems = variantItems;
-        console.log('[Checkout] Stock reserved successfully', reservedItems);
-      } catch (stockErr: any) {
-        console.error('[Checkout] Stock reservation failed:', stockErr);
-        const msg = stockErr.message?.includes('timed out')
-          ? stockErr.message
-          : stockErr.message?.includes('Insufficient stock')
-            ? "Some items are out of stock. Please update your cart and try again."
-            : "Could not check stock availability. Please try again.";
-        toast.error(msg);
-        setError(msg);
-        return;
-      }
-
       // Generate idempotency key (once per click — survives retries within the same attempt)
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
       }
 
-      // ATOMIC order placement — order + items in a single DB transaction.
-      // Server fetches prices from DB, computes delivery fee & coupon discount.
-      // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
+      // ATOMIC order placement — stock reservation + order + items + reservation
+      // records all happen in a SINGLE DB transaction inside place_order.
+      // If stock is insufficient, the entire transaction rolls back cleanly.
+      // No separate reserve/persist steps needed.
       let orderResult;
       try {
         orderResult = await placeOrder({
@@ -1103,27 +1067,19 @@ export default function CheckoutPage() {
           recipientEmail: recipientEmail,
         });
       } catch (orderErr: any) {
-        // Order creation failed AFTER stock was reserved — release stock
-        console.error('[Checkout] Order creation failed, releasing reserved stock:', orderErr);
-        await releaseCheckoutStock(reservedItems).catch(() => { });
-        throw orderErr; // Re-throw to hit the outer catch
+        console.error('[Checkout] Order creation failed:', orderErr);
+        // Stock reservation is inside the DB transaction — auto-rolled back on failure
+        const msg = orderErr.message?.includes('Insufficient stock')
+          ? "Some items are out of stock. Please update your cart and try again."
+          : orderErr.message?.includes('No inventory')
+            ? "Some items are out of stock. Please update your cart and try again."
+            : orderErr.message;
+        toast.error(msg || "Failed to place order. Please try again.");
+        setError(msg || "Order creation failed");
+        return;
       }
 
       const createdOrderId = orderResult.order_id;
-
-      // Persist reservation records so backend can release on cancel/timeout
-      if (createdOrderId && reservedItems.length > 0) {
-        try {
-          await persistOrderReservations(createdOrderId, reservedItems);
-        } catch (e) {
-          console.error('[Checkout] Failed to persist reservation records, releasing stock and cancelling order:', e);
-          await releaseCheckoutStock(reservedItems).catch(() => { });
-          await cancelOrder(createdOrderId).catch((cancelErr) => {
-            console.warn('[Checkout] Failed to cancel order after reservation persistence failure:', cancelErr);
-          });
-          throw new Error('Could not safely reserve stock for this order. Please try again.');
-        }
-      }
 
       // Reset idempotency key after successful creation
       idempotencyKeyRef.current = null;

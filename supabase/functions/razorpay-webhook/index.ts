@@ -184,27 +184,14 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Razorpay may emit payment.failed for an earlier attempt and then
-    // payment.captured for a later retry on the same order. Do not mutate the
-    // order or release stock here; explicit cancel/cleanup handles abandonment.
+    // Handle payment.failed events.
+    // Razorpay may emit payment.failed for an earlier attempt before a later retry
+    // succeeds. We mark the order as payment_failed but do NOT release stock yet —
+    // the user may retry within the same Razorpay order. Stock is released by:
+    //   1. Client-side immediate cancel (PaymentProcessingPage onFailure)
+    //   2. pg_cron cleanup after 10 minutes
+    //   3. A subsequent payment.captured webhook overrides payment_failed
     if (isFailureEvent) {
-      if (['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
-        log.info('Ignoring retryable payment.failed event for still-open order', {
-          orderId: order.id,
-          status: order.status,
-          razorpayPaymentId,
-        });
-        log.done(200);
-        return new Response(JSON.stringify({
-          status: 'ignored_retryable_failure',
-          order_id: order.id,
-          payment_id: razorpayPaymentId,
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
       if (['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
         log.info('Payment failure event for already-confirmed order - ignoring', {
           orderId: order.id,
@@ -217,12 +204,41 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      log.info('Payment failure for order in non-actionable state', {
-        orderId: order.id,
-        status: order.status,
-      });
+      if (order.status === 'cancelled') {
+        log.info('Payment failure for already-cancelled order - no action', {
+          orderId: order.id,
+        });
+        log.done(200);
+        return new Response(JSON.stringify({ status: 'already_cancelled', order_id: order.id }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Mark as payment_failed so the UI can show appropriate feedback.
+      // Stock stays reserved — user may retry, or cron/client will cancel.
+      if (['pending', 'pending_payment'].includes(order.status)) {
+        const { error: updateErr } = await adminClient
+          .from('orders')
+          .update({ status: 'payment_failed', updated_at: new Date().toISOString() })
+          .eq('id', order.id);
+
+        if (updateErr) {
+          log.error('Failed to mark order as payment_failed', {
+            orderId: order.id,
+            error: updateErr.message,
+          });
+        } else {
+          log.info('Order marked as payment_failed', { orderId: order.id });
+        }
+      }
+
       log.done(200);
-      return new Response(JSON.stringify({ status: 'no_action', order_id: order.id }), {
+      return new Response(JSON.stringify({
+        status: 'marked_payment_failed',
+        order_id: order.id,
+        payment_id: razorpayPaymentId,
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

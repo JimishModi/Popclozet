@@ -153,11 +153,47 @@ export default function PaymentProcessingPage() {
                         clearCheckoutDraft();
                         navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
-                    onFailure: (error) => {
+                    onFailure: async (error) => {
                         if (paymentSettled.current) return;
                         paymentSettled.current = true;
 
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
+
+                        // Immediately cancel the order and release stock.
+                        // Don't wait for cron — the user expects instant feedback.
+                        // Verification failures are the exception: money may have been
+                        // charged, so we must NOT cancel (webhook will reconcile).
+                        const isVerificationFailure =
+                          error.message?.includes('verification failed') ||
+                          error.message?.includes('signature mismatch');
+
+                        if (orderId && !isVerificationFailure) {
+                            try {
+                                const { error: cancelErr } = await supabase.rpc('cancel_order_safe', {
+                                    p_order_id: orderId,
+                                });
+                                if (cancelErr) {
+                                    console.warn('[PaymentProcessing] Cancel RPC failed:', cancelErr.message);
+                                    // Save for retry on next app start
+                                    try {
+                                        localStorage.setItem(`pending_cancel:${orderId}`, JSON.stringify({
+                                            orderId,
+                                            timestamp: Date.now(),
+                                        }));
+                                    } catch { /* best-effort */ }
+                                } else {
+                                    console.log('[PaymentProcessing] Order cancelled immediately, stock released');
+                                }
+                            } catch (e) {
+                                console.warn('[PaymentProcessing] Cancel failed:', e);
+                                try {
+                                    localStorage.setItem(`pending_cancel:${orderId}`, JSON.stringify({
+                                        orderId,
+                                        timestamp: Date.now(),
+                                    }));
+                                } catch { /* best-effort */ }
+                            }
+                        }
 
                         // User cancelled → go back to checkout so they can retry
                         if (error.message === 'PAYMENT_CANCELLED') {
@@ -166,7 +202,7 @@ export default function PaymentProcessingPage() {
                             } else {
                                 navigate('/checkout', { replace: true });
                             }
-                        } else if (error.message?.includes('verification failed') || error.message?.includes('signature mismatch')) {
+                        } else if (isVerificationFailure) {
                             // Money may have been charged but verification failed
                             navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
                         } else {
