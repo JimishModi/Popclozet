@@ -475,8 +475,6 @@ const MobileHome: React.FC = () => {
                                     loading="lazy"
                                     decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
-                                    loading="eager"
-                                    decoding="async"
                                 />
                             </motion.div>
 
@@ -493,7 +491,6 @@ const MobileHome: React.FC = () => {
                                     <img
                                         src={filteredSlides[activeSlide].image}
                                         alt={filteredSlides[activeSlide].title}
-                                        decoding="async"
                                         className="w-full h-full object-cover"
                                         loading="eager"
                                         fetchPriority="high"
@@ -513,8 +510,6 @@ const MobileHome: React.FC = () => {
                                     loading="lazy"
                                     decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
-                                    loading="eager"
-                                    decoding="async"
                                 />
                             </motion.div>
                         </div>
@@ -585,8 +580,6 @@ const MobileHome: React.FC = () => {
                                             className="absolute inset-0 w-full h-full object-cover"
                                             whileHover={{ scale: 1.05 }}
                                             transition={{ duration: 0.4 }}
-                                            loading="lazy"
-                                            decoding="async"
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
@@ -835,8 +828,6 @@ const MobileHome: React.FC = () => {
                                                     "w-full h-full object-cover transition-transform duration-500",
                                                     isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
                                                 )}
-                                                loading="lazy"
-                                                decoding="async"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
