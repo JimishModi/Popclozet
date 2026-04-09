@@ -178,6 +178,11 @@ const CartPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Guard against the auto-removal cascade:
+  // When a PRODUCT_NOT_FOUND triggers removeFromCart, previewItemsKey changes and
+  // re-fires the pricing useEffect. This ref breaks that loop.
+  const isRemovingStaleRef = useRef(false);
+
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [checkoutBlocked, setCheckoutBlocked] = useState(false);
   const [citySelectorOpen, setCitySelectorOpen] = useState(false);
@@ -386,6 +391,10 @@ const CartPage = () => {
       setServerPricing(null);
       return;
     }
+    // Skip re-running while we're in the middle of removing stale items
+    // to prevent the cascade: remove item → previewItemsKey changes → useEffect fires again
+    if (isRemovingStaleRef.current) return;
+
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
@@ -403,26 +412,30 @@ const CartPage = () => {
           subtotal: result.subtotal ?? 0,
           discount: result.discount ?? 0,
           coupon_discount: result.coupon_discount ?? 0,
-          delivery_fee: result.delivery_fee ?? 40,
+          delivery_fee: result.delivery_fee ?? 60,
           total: result.total ?? 0,
         });
       } else {
         console.warn("[Cart] preview_order returned:", result.code, result.message);
-        
+
         // Handle specific errors
         if (result.code === 'PRODUCT_NOT_FOUND' && result.message) {
           // Extract product ID from message if possible "Product <id> not found"
           const match = result.message.match(/Product ([a-f0-9-]+) not found/i);
           const failedId = match ? match[1] : null;
-          
+
           if (failedId) {
             toast.error("An item in your bag is no longer available and has been removed.");
-            // Find all cart entries for this product and remove them
+            // Set flag BEFORE removing to prevent the cascade loop:
+            // removeFromCart → previewItemsKey changes → useEffect re-fires → removes next item → ...
+            isRemovingStaleRef.current = true;
             validCartEntries.forEach(([key, data]) => {
               if (key.startsWith(failedId)) {
                 removeFromCart(failedId, data.size, data.plan);
               }
             });
+            // Allow one fresh re-run after all removals are flushed
+            setTimeout(() => { isRemovingStaleRef.current = false; }, 500);
           }
         } else if (result.code === 'PRODUCT_UNAVAILABLE') {
           toast.error(result.message || "An item in your bag is currently unavailable.");
@@ -434,8 +447,8 @@ const CartPage = () => {
           subtotal,
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
-          delivery_fee: 40,
-          total: subtotal + 40,
+          delivery_fee: 60,
+          total: subtotal + 60,
         });
       }
     }).catch((err) => {
@@ -446,8 +459,8 @@ const CartPage = () => {
           subtotal,
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
-          delivery_fee: 40,
-          total: subtotal + 40,
+          delivery_fee: 60,
+          total: subtotal + 60,
         });
       }
     }).finally(() => {
@@ -518,7 +531,7 @@ const CartPage = () => {
         subtotal: result.subtotal ?? 0,
         discount: result.discount ?? 0,
         coupon_discount: result.coupon_discount ?? 0,
-        delivery_fee: result.delivery_fee ?? 40,
+        delivery_fee: result.delivery_fee ?? 60,
         total: result.total ?? 0,
       });
       toast.success(`Coupon applied! -₹${serverDiscount} off`);

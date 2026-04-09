@@ -56,6 +56,10 @@ const CategoryProductsPage: React.FC = () => {
     // Category and title from search params
     const category = searchParams.get('category') || '';
     const brandParam = searchParams.get('brand') || '';
+    
+    // Fallback gender from localStorage if path is missing it (e.g. /category?brand=X)
+    const effectiveGender = genderFromPath || localStorage.getItem('activeGender') || 'womens';
+    
     const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -152,7 +156,7 @@ const CategoryProductsPage: React.FC = () => {
         const timer = setTimeout(() => {
             fetchProductsInBackground({
                 category: category,
-                gender: genderFromPath,
+                gender: effectiveGender,
                 nameQuery: nameQuery,
                 brands: Array.from(selectedBrands),
                 sizes: Array.from(selectedSizes),
@@ -161,7 +165,7 @@ const CategoryProductsPage: React.FC = () => {
 
         return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
+    }, [category, effectiveGender, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
 
     // Fix: Ensure priceRange stays within the 2000 limit for UI consistency
     useEffect(() => {
@@ -318,8 +322,8 @@ const CategoryProductsPage: React.FC = () => {
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
-        // Only show available products — exclude sold out, rented out, and fake/placeholder items
-        filtered = filtered.filter((p: any) => !p.isSoldOut && !p.isRentedOut && p._isFake !== true);
+        // Only show available products — exclude sold out and rented out real products
+        filtered = filtered.filter((p: any) => !p.isSoldOut && !p.isRentedOut);
 
         // Case-insensitive category filter
         if (category) {
@@ -331,10 +335,10 @@ const CategoryProductsPage: React.FC = () => {
 
         // Filter by gender — include unisex in both mens and womens
         // Normalize app gender ('womens'/'mens') to DB gender ('women'/'men') for comparison
-        if (genderFromPath && genderFromPath !== 'all') {
+        if (effectiveGender && effectiveGender !== 'all') {
             filtered = filtered.filter((p: any) => {
                 const pGender = (p.gender as string || '').toLowerCase();
-                const targetGender = genderFromPath.toLowerCase();
+                const targetGender = effectiveGender.toLowerCase();
                 const dbGender = targetGender === 'womens' ? 'women' : targetGender === 'mens' ? 'men' : targetGender;
                 return pGender === dbGender || pGender === targetGender || pGender === 'unisex';
             });
@@ -447,7 +451,7 @@ const CategoryProductsPage: React.FC = () => {
                             }}
                             className={cn(
                                 "flex-1 py-2 rounded-xl text-sm font-bold border transition-all text-center uppercase",
-                                genderFromPath === g
+                                effectiveGender === g
                                     ? "bg-[#FF4D6D]/10 border-[#FF4D6D] text-[#FF4D6D]"
                                     : "bg-[#1C1C1E] border-white/10 text-zinc-400"
                             )}

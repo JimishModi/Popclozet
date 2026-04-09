@@ -51,7 +51,7 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
             last_washed,
             times_rented,
             times_washed,
-            mrp:mrp_price,
+            mrp,
             actual_cost,
             created_at,
             inventory:inventory_id (

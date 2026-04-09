@@ -136,6 +136,7 @@ const MobileProductDetailPage: React.FC = () => {
 
     // Size Guide State
     const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+    const [categorySizes, setCategorySizes] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -251,6 +252,24 @@ const MobileProductDetailPage: React.FC = () => {
         fetchProduct();
     }, [productId]);
 
+    // Fetch category-specific sizes from category_configs
+    useEffect(() => {
+        if (!product?.category) return;
+        const cat = product.category.toLowerCase();
+        // Accessories have no sizes
+        if (['accessories', 'accessory', 'neck chain', 'neclace', 'bracelet'].includes(cat)) return;
+        (async () => {
+            const { data } = await supabase
+                .from('category_configs')
+                .select('sizes')
+                .eq('category', cat)
+                .single();
+            if (data?.sizes && Array.isArray(data.sizes) && data.sizes.length > 0) {
+                setCategorySizes(data.sizes);
+            }
+        })();
+    }, [product?.category]);
+
     const cartKey = product && selectedSize ? `${product.id}_${selectedSize}_${selectedPlan}` : null;
     const isAdded = cartKey ? !!cartItems[cartKey] : false;
 
@@ -286,6 +305,9 @@ const MobileProductDetailPage: React.FC = () => {
     };
 
     const handleAddToCart = () => {
+        // Never add fake/placeholder products — their IDs don't exist in the products table
+        // and will cause PRODUCT_NOT_FOUND in preview_order / place_order
+        if (fakeProductData) return;
         if (product && selectedSize) {
             const sizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
             if (sizeStock > 0) {
@@ -670,6 +692,8 @@ const MobileProductDetailPage: React.FC = () => {
                     </div>
 
                     {/* ─── SELECT SIZE ─── */}
+                    {!['accessories', 'accessory', 'neck chain', 'neclace', 'bracelet'].includes(product?.category?.toLowerCase() || '') && (
+                    <>
                     <div className="flex items-center justify-between mt-6 md:mt-10">
                         <span
                             className="text-base md:text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
@@ -691,9 +715,14 @@ const MobileProductDetailPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Size buttons — show all standard sizes, mark unavailable ones as out of stock */}
+                    {/* Size buttons — driven by category_configs from DB */}
                     <div className="flex items-center gap-2 md:gap-3 mt-3 md:mt-5 relative flex-wrap pb-2">
-                        {(['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const).map((size) => {
+                        {(categorySizes.length > 0
+                            ? categorySizes
+                            : ['footwear', 'shoes'].includes(product?.category?.toLowerCase() || '')
+                                ? ['6', '7', '8', '9', '10', '11', '12']
+                                : ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+                        ).map((size) => {
                             const row = inventory.find(r => r.size === size);
                             const isSelected = selectedSize === size;
                             const isOutOfStock = !row || row.available_stock <= 0;
@@ -729,6 +758,8 @@ const MobileProductDetailPage: React.FC = () => {
                             );
                         })}
                     </div>
+                    </>
+                    )}
 
                     <div className="hidden lg:block mt-8 mb-4">
                         {isProductSoldOut ? (
@@ -824,7 +855,7 @@ const MobileProductDetailPage: React.FC = () => {
                                 {(() => {
                                     try {
                                         const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                        return loc.delivery_estimate === 'delayed' ? 'Delayed\nDelivery' : '60-Min\nDelivery';
+                                        return '60-Min\nDelivery';
                                     } catch {
                                         return '60-Min\nDelivery';
                                     }
@@ -1014,38 +1045,82 @@ const MobileProductDetailPage: React.FC = () => {
                     <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh] pb-safe">
                         <div className="p-4 bg-[#191919] rounded-t-[20px] flex-1 overflow-y-auto">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-700 mb-6" />
-                            <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
 
-                            <div className="overflow-hidden rounded-xl border border-[#333] mb-6">
-                                <table className="w-full text-left text-sm text-white">
-                                    <thead className="bg-[#232323]">
-                                        <tr>
-                                            <th className="p-3 font-semibold text-zinc-300">Size</th>
-                                            <th className="p-3 font-semibold text-zinc-300">Chest</th>
-                                            <th className="p-3 font-semibold text-zinc-300">Length</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#333]">
-                                        {[
-                                            { s: 'S', c: '38', l: '28' },
-                                            { s: 'M', c: '40', l: '29' },
-                                            { s: 'L', c: '42', l: '30' },
-                                            { s: 'XL', c: '44', l: '31' },
-                                            { s: 'XXL', c: '46', l: '32' },
-                                        ].map((row) => (
-                                            <tr key={row.s} className="hover:bg-white/5 transition-colors">
-                                                <td className="p-3 font-bold">{row.s}</td>
-                                                <td className="p-3 text-zinc-400">{row.c}"</td>
-                                                <td className="p-3 text-zinc-400">{row.l}"</td>
+                            {['footwear', 'shoes'].includes(product?.category?.toLowerCase() || '') ? (
+                              <>
+                                <h2 className="text-xl font-bold text-white mb-6 text-center">Footwear Size Guide</h2>
+                                <div className="overflow-hidden rounded-xl border border-[#333] mb-6">
+                                    <table className="w-full text-left text-sm text-white">
+                                        <thead className="bg-[#232323]">
+                                            <tr>
+                                                <th className="p-3 font-semibold text-zinc-300">EU/IN</th>
+                                                <th className="p-3 font-semibold text-zinc-300">US</th>
+                                                <th className="p-3 font-semibold text-zinc-300">UK</th>
+                                                <th className="p-3 font-semibold text-zinc-300">CM</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <p className="text-xs text-zinc-500 text-center px-4 mb-4">
-                                Measurements are approximate and may vary slightly by specific garment style.
-                            </p>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#333]">
+                                            {[
+                                                { eu: '34', us: '3', uk: '1', cm: '21.5' },
+                                                { eu: '35', us: '4', uk: '2', cm: '22' },
+                                                { eu: '36', us: '5', uk: '3', cm: '23' },
+                                                { eu: '37', us: '5.5', uk: '3.5', cm: '23.5' },
+                                                { eu: '38', us: '6', uk: '4', cm: '24' },
+                                                { eu: '39', us: '7', uk: '5.5', cm: '25' },
+                                                { eu: '40', us: '7.5', uk: '6', cm: '25.5' },
+                                                { eu: '41', us: '8', uk: '7', cm: '26' },
+                                                { eu: '42', us: '9', uk: '8', cm: '27' },
+                                                { eu: '43', us: '10', uk: '9', cm: '28' },
+                                                { eu: '44', us: '11', uk: '10', cm: '29' },
+                                            ].map((row) => (
+                                                <tr key={row.eu} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-3 font-bold">{row.eu}</td>
+                                                    <td className="p-3 text-zinc-400">{row.us}</td>
+                                                    <td className="p-3 text-zinc-400">{row.uk}</td>
+                                                    <td className="p-3 text-zinc-400">{row.cm}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="text-xs text-zinc-500 text-center px-4 mb-4">
+                                    Sizes may vary slightly between brands. When in doubt, go half a size up.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
+                                <div className="overflow-hidden rounded-xl border border-[#333] mb-6">
+                                    <table className="w-full text-left text-sm text-white">
+                                        <thead className="bg-[#232323]">
+                                            <tr>
+                                                <th className="p-3 font-semibold text-zinc-300">Size</th>
+                                                <th className="p-3 font-semibold text-zinc-300">Chest</th>
+                                                <th className="p-3 font-semibold text-zinc-300">Length</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#333]">
+                                            {[
+                                                { s: 'S', c: '38', l: '28' },
+                                                { s: 'M', c: '40', l: '29' },
+                                                { s: 'L', c: '42', l: '30' },
+                                                { s: 'XL', c: '44', l: '31' },
+                                                { s: 'XXL', c: '46', l: '32' },
+                                            ].map((row) => (
+                                                <tr key={row.s} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-3 font-bold">{row.s}</td>
+                                                    <td className="p-3 text-zinc-400">{row.c}"</td>
+                                                    <td className="p-3 text-zinc-400">{row.l}"</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="text-xs text-zinc-500 text-center px-4 mb-4">
+                                    Measurements are approximate and may vary slightly by specific garment style.
+                                </p>
+                              </>
+                            )}
 
                             <button
                                 onClick={() => setIsSizeGuideOpen(false)}

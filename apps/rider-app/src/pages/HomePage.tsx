@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@popclozet/auth';
-import { Zap, Bell, FileText, CalendarDays, Search, ScanLine } from 'lucide-react';
+import { Zap, Bell, FileText, CalendarDays, Search, ScanLine, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -17,6 +17,7 @@ import { OrderCard } from '../components/OrderCard';
 import { SwipeToAccept } from '../components/SwipeToAccept';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { QRScannerOverlay } from '../components/QRScannerOverlay';
+import { PaymentQRModal } from '../components/PaymentQRModal';
 import { RiderShell } from '../components/layout/RiderShell';
 import { useToast } from '../contexts/ToastContext';
 import { useLocation } from '../contexts/LocationContext';
@@ -81,6 +82,7 @@ export function HomePage() {
     const [unreadNotifications, setUnread] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [showQRScanner, setShowQRScanner] = useState(false);
+    const [showPaymentQR, setShowPaymentQR] = useState(false);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -308,6 +310,13 @@ export function HomePage() {
                     />
                     <div className="flex items-center gap-1">
                         <button
+                            onClick={() => setShowPaymentQR(true)}
+                            className="p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
+                            aria-label="Show Payment QR"
+                        >
+                            <QrCode size={22} className="text-emerald-400" />
+                        </button>
+                        <button
                             onClick={() => setShowQRScanner(true)}
                             className="p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
                             aria-label="Scan QR Code"
@@ -480,6 +489,12 @@ export function HomePage() {
 
             {showQRScanner && (
                 <QRScannerOverlay onClose={() => setShowQRScanner(false)} />
+            )}
+
+            {showPaymentQR && (
+                <PaymentQRModal
+                    onClose={() => setShowPaymentQR(false)}
+                />
             )}
 
             <BottomNavigation />

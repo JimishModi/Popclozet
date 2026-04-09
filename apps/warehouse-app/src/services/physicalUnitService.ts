@@ -49,7 +49,7 @@ export async function getPhysicalUnits(inventoryId?: string): Promise<PhysicalUn
             last_washed,
             times_rented,
             times_washed,
-            mrp:mrp_price,
+            mrp,
             actual_cost,
             created_at,
             inventory:inventory_id (
@@ -85,7 +85,7 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
             last_washed,
             times_rented,
             times_washed,
-            mrp:mrp_price,
+            mrp,
             actual_cost,
             created_at,
             inventory:inventory_id (
@@ -136,7 +136,7 @@ export async function createPhysicalUnit(
             inventory_id: inventoryId,
             status: 'available',
             available: true,
-            mrp_price: mrp,
+            mrp: mrp,
             actual_cost: actualCost,
         })
         .select()

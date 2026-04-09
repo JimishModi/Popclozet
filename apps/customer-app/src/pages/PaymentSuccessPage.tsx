@@ -177,7 +177,7 @@ export default function PaymentSuccessPage() {
                                         {(() => {
                                             try {
                                                 const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '45-60 MINS';
+                                                return '45-60 MINS';
                                             } catch {
                                                 return '45-60 MINS';
                                             }

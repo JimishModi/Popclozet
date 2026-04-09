@@ -32,7 +32,7 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
     const location = useLocation();
 
     // Hide on certain pages
-    const hiddenPaths = ['/login', '/signup', '/delivery/', '/verify/', '/otp/'];
+    const hiddenPaths = ['/login', '/signup', '/delivery/', '/verify/', '/otp/', '/warehouse/'];
     const shouldHide = hiddenPaths.some(path => location.pathname.startsWith(path));
 
     if (shouldHide) return null;

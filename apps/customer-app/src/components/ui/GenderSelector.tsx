@@ -1,6 +1,8 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import genderMenImg from '@/assets/gender-men.png';
+import genderWomenImg from '@/assets/gender-women.png';
 
 export type GenderType = 'womens' | 'mens';
 
@@ -39,79 +41,61 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
         );
     }
 
-    const womenImg = "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500&q=80";
-    const menImg = "https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=500&q=80";
+   return (
+  <div
+    className={cn(
+      "relative flex items-center h-[190px] w-full max-w-[420px] mx-auto overflow-visible",
+      className
+    )}
+  >
+    {/* MEN */}
+    <motion.button
+      onClick={() => onChange("mens")}
+      type="button"
+      aria-pressed={!isWomens}
+      className="absolute left-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden bg-black"
+      initial={false}
+      animate={{
+        zIndex: !isWomens ? 20 : 10,
+        scale: !isWomens ? 1 : 0.92,
+        x: !isWomens ? 0 : 6,
+        opacity: !isWomens ? 1 : 0.75,
+        boxShadow: !isWomens
+          ? "12px 0 30px rgba(0,0,0,0.7)"
+          : "none",
+      }}
+      transition={{ type: "spring", stiffness: 260, damping: 25 }}
+    >
+      <img
+        src={genderMenImg}
+        alt="Men"
+        className="absolute inset-0 w-full h-full object-cover scale-110"
+      />
+    </motion.button>
 
-    return (
-        <div className={cn("relative flex items-center h-[130px] w-full max-w-[320px] mx-auto overflow-visible", className)}>
-
-            {/* Women Card */}
-            <motion.button
-                onClick={() => onChange('womens')}
-                className="absolute left-0 top-0 bottom-0 w-[56%] rounded-[24px] overflow-hidden outline-none"
-                initial={false}
-                animate={{
-                    zIndex: isWomens ? 20 : 10,
-                    scale: isWomens ? 1 : 0.94,
-                    x: isWomens ? 0 : 3,
-                    filter: isWomens ? 'blur(0px)' : 'blur(1.5px) grayscale(10%)',
-                    opacity: isWomens ? 1 : 0.7,
-                    boxShadow: isWomens ? '10px 0 25px rgba(0,0,0,0.7)' : 'none',
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-                {/* Image Background */}
-                <img
-                    src={womenImg}
-                    alt="Women"
-                    className="absolute inset-0 w-full h-full object-cover"
-                />
-
-                {/* Overlay for better text readability */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-
-                <span className={cn(
-                    "absolute bottom-4 right-6 font-black text-[10px] tracking-[0.2em] transition-all duration-300",
-                    isWomens ? "text-white opacity-100 scale-100" : "text-zinc-400 opacity-60 scale-90"
-                )}>
-                    WOMEN
-                </span>
-            </motion.button>
-
-            {/* Men Card */}
-            <motion.button
-                onClick={() => onChange('mens')}
-                type="button"
-                aria-pressed={!isWomens}
-                className="absolute right-0 top-0 bottom-0 w-[56%] rounded-[24px] overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
-                initial={false}
-                animate={{
-                    zIndex: !isWomens ? 20 : 10,
-                    scale: !isWomens ? 1 : 0.94,
-                    x: !isWomens ? 0 : -3,
-                    filter: !isWomens ? 'blur(0px)' : 'blur(1.5px) grayscale(10%)',
-                    opacity: !isWomens ? 1 : 0.7,
-                    boxShadow: !isWomens ? '-10px 0 25px rgba(0,0,0,0.7)' : 'none',
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-                {/* Image Background */}
-                <img
-                    src={menImg}
-                    alt="Men"
-                    className="absolute inset-0 w-full h-full object-cover"
-                />
-
-                {/* Overlay for better text readability */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-
-                <span className={cn(
-                    "absolute bottom-4 left-8 font-black text-[10px] tracking-[0.2em] transition-all duration-300",
-                    !isWomens ? "text-white opacity-100 scale-100" : "text-zinc-400 opacity-60 scale-90"
-                )}>
-                    MEN
-                </span>
-            </motion.button>
-        </div>
-    );
-};
+    {/* WOMEN */}
+    <motion.button
+      onClick={() => onChange("womens")}
+      type="button"
+      aria-pressed={isWomens}
+      className="absolute right-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden bg-black"
+      initial={false}
+      animate={{
+        zIndex: isWomens ? 20 : 10,
+        scale: isWomens ? 1 : 0.92,
+        x: isWomens ? 0 : -6,
+        opacity: isWomens ? 1 : 0.75,
+        boxShadow: isWomens
+          ? "-12px 0 30px rgba(0,0,0,0.7)"
+          : "none",
+      }}
+      transition={{ type: "spring", stiffness: 260, damping: 25 }}
+    >
+      <img
+        src={genderWomenImg}
+        alt="Women"
+        className="absolute inset-0 w-full h-full object-cover scale-110"
+      />
+    </motion.button>
+  </div>
+)};

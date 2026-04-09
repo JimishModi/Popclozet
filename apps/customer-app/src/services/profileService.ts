@@ -32,7 +32,7 @@ export interface ProfileRow {
     role?: string;
     created_at: string;
     updated_at: string;
-    delivery_estimate?: '15min' | 'delayed';
+    delivery_estimate?: '60min';
     delivery_fee?: number;
     delivery_distance_km?: number;
 }
@@ -46,7 +46,7 @@ type ProfileWriteFields = Partial<{
     gender: string;
     onboarding_completed: boolean;
     measurements: Record<string, number>;
-    delivery_estimate: '15min' | 'delayed';
+    delivery_estimate: '60min';
     delivery_fee: number;
     delivery_distance_km: number;
 }>;
@@ -299,7 +299,7 @@ export async function createProfile(fields: {
     email_verified?: boolean;
     onboarding_completed?: boolean;
     role?: string;
-    delivery_estimate?: '15min' | 'delayed';
+    delivery_estimate?: '60min';
     delivery_fee?: number;
     delivery_distance_km?: number;
 }): Promise<ProfileRow> {
@@ -313,8 +313,8 @@ export async function createProfile(fields: {
         role: 'customer',
         gender: fields.gender || undefined,
         onboarding_completed: true,
-        delivery_estimate: fields.delivery_estimate || '15min',
-        delivery_fee: fields.delivery_fee ?? 40,
+        delivery_estimate: fields.delivery_estimate || '60min',
+        delivery_fee: fields.delivery_fee ?? 60,
         delivery_distance_km: fields.delivery_distance_km ?? 0,
     });
 
@@ -358,7 +358,7 @@ export async function updateProfile(updates: Partial<{
     onboarding_completed: boolean;
     role: string;
     measurements: Record<string, number>;
-    delivery_estimate: '15min' | 'delayed';
+    delivery_estimate: '60min';
     delivery_fee: number;
     delivery_distance_km: number;
 }>): Promise<ProfileRow> {

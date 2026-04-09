@@ -752,38 +752,9 @@ class ProductService {
     // Get distinct categories with a representative image each
     async getCategories(): Promise<{ id: string; title: string; image: string }[]> {
         try {
-            // Primary source: category_configs table
-            const { data: configs, error: configError } = await (supabase as any)
-                .from('category_configs')
-                .select('category, display_name, image_url');
-
-            if (!configError && configs && configs.length > 0) {
-                // Determine which categories still need a fallback image
-                const categoriesNeedImage = configs.filter((c: any) => !c.image_url).map((c: any) => c.category);
-
-                let fallbackImages = new Map<string, string>();
-                if (categoriesNeedImage.length > 0) {
-                    const { data: products } = await (supabase as any)
-                        .from('products')
-                        .select('category, images')
-                        .in('category', categoriesNeedImage)
-                        .eq('is_available', true);
-
-                    for (const p of products || []) {
-                        if (p.category && !fallbackImages.has(p.category)) {
-                            fallbackImages.set(p.category, (Array.isArray(p.images) ? p.images[0] : null) || '');
-                        }
-                    }
-                }
-
-                return configs.map((c: any) => ({
-                    id: c.category,
-                    title: c.display_name || (c.category.charAt(0).toUpperCase() + c.category.slice(1)),
-                    image: c.image_url || fallbackImages.get(c.category) || '',
-                }));
-            }
-
-            // Fallback: the old derivation for robustness
+            // Source of truth: category_configs table.
+            // Adding a new category to the app only requires inserting a row there —
+            // no code changes needed.
             const { data, error } = await (supabase as any)
                 .from('category_configs')
                 .select('category, display_name, image_url')
@@ -798,7 +769,7 @@ class ProductService {
             }));
         } catch (error) {
             console.error('Error fetching categories:', (error as any)?.message ?? error);
-            // Deep fallback from IndexedDB
+            // Fallback: derive distinct categories from cached IndexedDB products
             const db = await this.initDB();
             const products = await db.getAll('products');
             const seen = new Map<string, string>();

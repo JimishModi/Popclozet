@@ -13,6 +13,7 @@ import {
   getCartItemsDB,
   migrateAnonymousCartDB,
 } from "@/lib/db";
+import { supabase } from "@popclozet/api-client";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useAuth } from "@/context/SupabaseAuthContext";
 
@@ -113,6 +114,26 @@ export const CartProvider = ({
         removeFromCartDB(item.productId, item.size, item.plan, userId).catch(() => { });
       });
 
+      // Purge stale product IDs that no longer exist in the products table.
+      // This cleans up fake/deleted product IDs that bypass the addToCart guard.
+      const uniqueProductIds = Array.from(new Set(items.map(i => i.productId).filter(Boolean)));
+      if (uniqueProductIds.length > 0) {
+        const { data: validProducts } = await supabase
+          .from('products')
+          .select('id')
+          .in('id', uniqueProductIds)
+          .eq('is_available', true);
+
+        const validIds = new Set((validProducts || []).map((p: any) => p.id));
+        items.forEach((item) => {
+          if (item.productId && !validIds.has(item.productId)) {
+            // Stale / non-existent product — remove from IDB silently
+            removeFromCartDB(item.productId, item.size, item.plan, userId).catch(() => { });
+            delete cartMap[`${item.productId}_${item.size}_${item.plan}`];
+          }
+        });
+      }
+
       setCartItems(cartMap);
     } catch (error) {
       console.error("IndexedDB load failed:", error);
@@ -135,6 +156,21 @@ export const CartProvider = ({
 
   const addToCart = async (productId: string, size: string, plan: PricingPlan) => {
     try {
+      // Validate that the product actually exists in the products table before adding.
+      // This prevents fake/deleted product IDs from entering the cart and causing
+      // PRODUCT_NOT_FOUND errors in preview_order / place_order.
+      const { data: productCheck, error: checkError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('id', productId)
+        .eq('is_available', true)
+        .maybeSingle();
+
+      if (checkError || !productCheck) {
+        toast.error("This item is no longer available.");
+        return;
+      }
+
       // Prevent adding multiple different plans for the same product+size
       // If found, update the plan of the existing item instead of creating a new entry.
       const existingKey = Object.keys(cartItems).find(

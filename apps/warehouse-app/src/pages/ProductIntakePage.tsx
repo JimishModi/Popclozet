@@ -310,7 +310,7 @@ export function ProductIntakePage() {
                                 inventory_id: inv.id,
                                 status: 'available',
                                 available: true,
-                                mrp_price: parseFloat(mrp) || null,
+                                mrp: parseFloat(mrp) || null,
                                 actual_cost: parseFloat(actualCost) || null
                             });
 

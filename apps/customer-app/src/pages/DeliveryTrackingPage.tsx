@@ -32,7 +32,7 @@ export default function DeliveryTrackingPage() {
     const distance = userLocation
         ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE.lat, WAREHOUSE.lng)
         : null;
-    const isDelayed = distance !== null ? distance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM : false;
+    const isDelayed = false;
     const fetchedAddress =
         order?.delivery_address_snapshot?.full_address ||
         (order as any)?.delivery_address?.full_address ||

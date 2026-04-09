@@ -60,7 +60,7 @@ const MobileHome: React.FC = () => {
     const [loadingCatalogue, setLoadingCatalogue] = useState(true);
     const [catalogueError, setCatalogueError] = useState(false);
     const catalogueRetryCount = useRef(0);
-    const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed'>('15min');
+    const [deliveryEstimate, setDeliveryEstimate] = useState<'60min'>('60min');
     const [collections, setCollections] = useState<{ id: string; title: string; image: string }[]>([]);
 
     const { selectedHub } = useNearbyHubs({
@@ -68,8 +68,7 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Show delayed delivery only when delivery address is outside threshold radius of warehouse OR the delivery estimate is explicitly 'delayed'
-    const isDelayed = (selectedHub ? selectedHub.distance_km > 7 : false) || deliveryEstimate === 'delayed';
+    const isDelayed = false;
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
@@ -336,24 +335,17 @@ const MobileHome: React.FC = () => {
                                 "text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-70",
                                 isDelayed ? "text-amber-500" : "text-[#f2546d]"
                             )}>
-                                {isDelayed ? "Expected" : "Delivery in"}
+                                {"Delivery in"}
                             </span>
                             <div className="flex items-center gap-2">
                                 <h1 className={cn(
                                     "font-bold leading-none tracking-tight transition-all duration-500 flex items-center gap-1.5 md:gap-2",
                                     isDelayed ? "text-amber-500 text-lg md:text-2xl" : "text-white text-2xl md:text-3xl"
                                 )}>
-                                    {isDelayed ? (
-                                        <>
-                                            <span className="text-lg md:text-xl">🕐</span>
-                                            <span>Delayed Delivery</span>
-                                        </>
-                                    ) : (
                                         <>
                                             <span className="text-[#f2546d]">⚡</span>
                                             <span>60 Minutes</span>
                                         </>
-                                    )}
                                 </h1>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5 md:gap-1.5">
@@ -443,9 +435,12 @@ const MobileHome: React.FC = () => {
 
                 {/* ─── FEATURED CAROUSEL: 3-Card Peek with Swipe Support ─── */}
                 <section className="mt-5 md:mt-8 overflow-hidden">
-                    <motion.div 
-                        className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px] touch-pan-y"
-                        onPanEnd={(e, info) => {
+                    <motion.div
+                        className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px]"
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.1}
+                        onDragEnd={(e, info) => {
                             const threshold = 30;
                             if (info.offset.x > threshold) {
                                 // Swipe Right -> Previous Slide
@@ -692,7 +687,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`left-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}
@@ -724,7 +719,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`right-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}
