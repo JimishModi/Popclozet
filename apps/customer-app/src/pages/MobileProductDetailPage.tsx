@@ -15,6 +15,7 @@ import shareButtonIcon from "@/assets/icons/share-button.svg";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { toast } from "sonner";
 import type { PricingPlan } from "@/context/CartContext";
+import { computeInventoryAvailability } from "@/lib/inventoryAvailability";
 // import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -82,7 +83,7 @@ const MobileProductDetailPage: React.FC = () => {
 
     const { addToCart, cartItems, totalItems } = useCart();
     const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-    const { user } = useAuth();
+    const { user, profile, updateProfile } = useAuth();
 
     const handleShare = async () => {
         const url = window.location.href;
@@ -130,7 +131,14 @@ const MobileProductDetailPage: React.FC = () => {
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [reviewRating, setReviewRating] = useState(0);
     const [reviewText, setReviewText] = useState("");
+    const [reviewerName, setReviewerName] = useState("");
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    useEffect(() => {
+        if (profile?.full_name && !reviewerName) {
+            setReviewerName(profile.full_name);
+        }
+    }, [profile?.full_name]);
 
     // Size Guide State
     const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
@@ -217,18 +225,25 @@ const MobileProductDetailPage: React.FC = () => {
                 if (!inventoryRes.error && inventoryRes.data) {
                     const rows = inventoryRes.data as InventoryRow[];
                     setInventory(rows);
+                    const availability = computeInventoryAvailability(rows);
+                    const isSold = availability.isSoldOut;
+                    const allRented = availability.isRentedOut;
+
+                    // Fallback to empty object if productRes.data is not available (it should be)
+                    const _dbProduct = productRes.data || {};
+                    const isStrictlyUnavailable = _dbProduct.is_available === false;
+                    const isNotYetReleased = _dbProduct.early_access_until ? new Date() < new Date(_dbProduct.early_access_until) : false;
                     
-                    const totalStock = rows.reduce((acc, r) => acc + (r.total_stock || 0), 0);
-                    const totalAvailable = rows.reduce((acc, r) => acc + (r.available_stock || 0), 0);
-                    
-                    const isSold = totalStock === 0;
-                    const allRented = !isSold && totalAvailable === 0;
-                    
-                    setIsProductRentedOut(allRented);
-                    setIsProductSoldOut(isSold);
-                    
+                    if (isStrictlyUnavailable || isNotYetReleased) {
+                        setIsProductRentedOut(false);
+                        setIsProductSoldOut(true);
+                    } else {
+                        setIsProductRentedOut(allRented);
+                        setIsProductSoldOut(isSold);
+                    }
+
                     const firstAvailable = rows.find(r => r.available_stock > 0);
-                    if (firstAvailable) setSelectedSize(firstAvailable.size);
+                    if (firstAvailable && !isStrictlyUnavailable && !isNotYetReleased) setSelectedSize(firstAvailable.size);
                 }
 
                 if (!ratingRes.error && ratingRes.data && ratingRes.data.length > 0) {
@@ -310,6 +325,15 @@ const MobileProductDetailPage: React.FC = () => {
 
         setIsSubmittingReview(true);
         try {
+            // Update name if changed
+            if (reviewerName && reviewerName.trim() !== profile?.full_name) {
+                try {
+                    await updateProfile({ full_name: reviewerName.trim() });
+                } catch (e) {
+                    console.error("Failed to update profile name:", e);
+                }
+            }
+
             const { data, error } = await supabase
                 .from('product_reviews')
                 .insert([
@@ -327,7 +351,7 @@ const MobileProductDetailPage: React.FC = () => {
                 const newReview = {
                     ...data,
                     profiles: {
-                        full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
+                        full_name: reviewerName.trim() || profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
                     }
                 };
 
@@ -866,73 +890,131 @@ const MobileProductDetailPage: React.FC = () => {
                     <RecommendedProducts currentProduct={product} />
 
                     {/* ─── REVIEWS ─── */}
-                    <div className="mt-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2
-                                className="text-lg font-semibold text-white tracking-[-0.54px] leading-[21.6px]"
-                                style={dmSans}
-                            >
-                                Reviews ({ratingStats.total})
-                            </h2>
-                            <button
-                                onClick={() => user ? setIsReviewModalOpen(true) : alert("Please log in to write a review")}
-                                className="text-sm font-semibold text-[#f2546d]"
-                            >
-                                Write a Review
-                            </button>
+                    <div className="mt-12 mb-8">
+                        {/* Header Area */}
+                        <div className="flex flex-col gap-3 mb-6">
+                            <div className="flex items-center justify-between">
+                                <h2
+                                    className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2"
+                                    style={dmSans}
+                                >
+                                    Customer Reviews
+                                    {ratingStats.total > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-xs font-medium text-zinc-300">
+                                            {ratingStats.total}
+                                        </span>
+                                    )}
+                                </h2>
+                                <button
+                                    onClick={() => user ? setIsReviewModalOpen(true) : toast.error("Please log in to write a review")}
+                                    className="text-sm font-bold text-[#f2546d] hover:text-[#ff7b92] transition-colors"
+                                >
+                                    Write a Review
+                                </button>
+                            </div>
+                            
+                            {/* Average Rating Summary */}
+                            {ratingStats.total > 0 && (
+                                <div className="flex items-center gap-3">
+                                    <div className="flex gap-0.5">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <Star
+                                                key={star}
+                                                className={cn(
+                                                    "w-5 h-5",
+                                                    star <= Math.round(ratingStats.average)
+                                                        ? "fill-[#f2546d] text-[#f2546d] filter drop-shadow-[0_0_6px_rgba(242,84,109,0.4)]"
+                                                        : "text-zinc-800 fill-zinc-900"
+                                                )}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-white">{ratingStats.average.toFixed(1)}</span>
+                                        <span className="text-sm text-zinc-500 font-medium">/ 5</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-4">
                             {recentReviews.length === 0 ? (
-                                <p className="text-sm text-zinc-500 italic">No reviews yet. Be the first to review!</p>
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-gradient-to-br from-[#1a1a1a] to-[#111] p-8 rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center shadow-lg"
+                                >
+                                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                                        <Star className="w-8 h-8 text-zinc-600" />
+                                    </div>
+                                    <h3 className="text-white font-bold text-lg mb-2 tracking-tight">No reviews yet</h3>
+                                    <p className="text-zinc-500 text-sm max-w-[200px] leading-relaxed">
+                                        Be the first to share your thoughts and help others make a decision.
+                                    </p>
+                                </motion.div>
                             ) : (
-                                recentReviews.map(review => {
+                                recentReviews.map((review, idx) => {
                                     // Handle cases where profiles might be an array or object
                                     const profileData = Array.isArray(review.profiles) ? review.profiles[0] : review.profiles;
                                     const name = profileData?.full_name || "Verified Customer";
                                     const initial = name.charAt(0).toUpperCase();
 
                                     return (
-                                        <div key={review.id} className="bg-[#141414] p-5 rounded-3xl border border-white/5 shadow-xl shadow-black/20">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#f2546d]/20 to-[#f2546d]/5 flex items-center justify-center text-[#f2546d] font-bold text-lg border border-[#f2546d]/20">
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                            key={review.id} 
+                                            className="group relative bg-[#141414]/80 backdrop-blur-md p-5 rounded-3xl border border-white/5 shadow-lg shadow-black/20 hover:bg-[#1a1a1a] transition-all duration-300 overflow-hidden"
+                                        >
+                                            {/* Decorative Quote Mark */}
+                                            <div className="absolute -bottom-2 -right-1 text-8xl text-white/[0.02] font-serif leading-none select-none pointer-events-none group-hover:text-white/[0.04] transition-colors">
+                                                "
+                                            </div>
+
+                                            <div className="flex items-start justify-between mb-4 relative z-10">
+                                                <div className="flex items-center gap-3.5">
+                                                    {/* Avatar */}
+                                                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#f2546d] to-[#ff7b92] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-[#f2546d]/20 relative">
                                                         {initial}
+                                                        <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20"></div>
                                                     </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
+                                                    
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2 mb-1">
                                                             <span className="text-white font-bold text-sm tracking-tight">{name}</span>
-                                                            <span className="px-1.5 py-0.5 rounded-md bg-zinc-800 text-[10px] font-bold text-zinc-400 border border-white/5">VERIFIED</span>
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-[9px] font-black text-emerald-400 border border-emerald-500/20 tracking-wider">VERIFIED</span>
                                                         </div>
-                                                        <div className="flex mt-1">
+                                                        <div className="flex gap-0.5">
                                                             {[...Array(5)].map((_, i) => (
                                                                 <Star
                                                                     key={i}
                                                                     className={cn(
-                                                                        "w-3 h-3 transition-colors",
-                                                                        i < review.rating ? "fill-[#f2546d] text-[#f2546d]" : "text-zinc-700 fill-zinc-800"
+                                                                        "w-3.5 h-3.5 transition-all duration-300",
+                                                                        i < review.rating ? "fill-[#f2546d] text-[#f2546d]" : "text-zinc-800 fill-zinc-900"
                                                                     )}
                                                                 />
                                                             ))}
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] font-bold text-zinc-600">
-                                                        {new Date(review.created_at).toLocaleDateString()}
+                                                
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <span className="text-[10px] font-bold text-zinc-600 tracking-wider uppercase">
+                                                        {new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </span>
                                                     {user && review.user_id === user.id && (
                                                         <button
                                                             onClick={() => handleDeleteReview(review.id)}
-                                                            className="p-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-500 hover:text-red-500 transition-colors"
+                                                            className="p-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all duration-300"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                 </div>
                                             </div>
-                                            <p className="text-sm font-medium text-zinc-400 leading-relaxed pl-1">{review.review_text}</p>
-                                        </div>
+                                            <p className="text-[14px] font-normal text-zinc-300 leading-[1.6] pl-1 relative z-10" style={dmSans}>{review.review_text}</p>
+                                        </motion.div>
                                     );
                                 })
                             )}
@@ -983,7 +1065,16 @@ const MobileProductDetailPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="mb-8">
+                            <div className="mb-4">
+                                <label className="text-[13px] font-bold text-zinc-400 uppercase tracking-wider mb-2 block text-left">Your Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter your name"
+                                    value={reviewerName}
+                                    onChange={(e) => setReviewerName(e.target.value)}
+                                    className="w-full bg-[#141414] border border-white/5 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-all font-medium mb-4 placeholder:text-zinc-600"
+                                />
+                                <label className="text-[13px] font-bold text-zinc-400 uppercase tracking-wider mb-2 block text-left">Your Review</label>
                                 <textarea
                                     value={reviewText}
                                     onChange={e => setReviewText(e.target.value)}
@@ -994,10 +1085,10 @@ const MobileProductDetailPage: React.FC = () => {
 
                             <button
                                 onClick={submitReview}
-                                disabled={isSubmittingReview || reviewRating === 0}
+                                disabled={isSubmittingReview || reviewRating === 0 || !reviewerName.trim()}
                                 className={cn(
                                     "w-full py-5 rounded-3xl text-white font-black tracking-tight transition-all duration-300 active:scale-[0.98]",
-                                    (isSubmittingReview || reviewRating === 0)
+                                    (isSubmittingReview || reviewRating === 0 || !reviewerName.trim())
                                         ? "bg-zinc-900 text-zinc-700 border border-white/5"
                                         : "bg-[#f2546d] shadow-xl shadow-[#f2546d]/20"
                                 )}

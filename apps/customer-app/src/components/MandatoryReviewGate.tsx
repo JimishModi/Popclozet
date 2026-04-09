@@ -16,7 +16,7 @@ export interface PendingReviewItem {
 }
 
 export function MandatoryReviewGate() {
-  const { user, loading } = useAuth();
+  const { user, profile, updateProfile, loading } = useAuth();
   const { toast } = useToast();
   const [pendingItems, setPendingItems] = useState<PendingReviewItem[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -24,6 +24,13 @@ export function MandatoryReviewGate() {
   // State to hold reviews: mapping order_item_id -> rating & text
   const [reviews, setReviews] = useState<Record<string, { rating: number; text: string }>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [reviewerName, setReviewerName] = useState("");
+
+  useEffect(() => {
+    if (profile?.full_name && !reviewerName) {
+      setReviewerName(profile.full_name);
+    }
+  }, [profile?.full_name]);
 
   useEffect(() => {
     if (loading) return;
@@ -46,7 +53,7 @@ export function MandatoryReviewGate() {
             products(name, images)
           `)
           .eq("orders.user_id", user.id)
-          .in("orders.status", ["returned", "return_completed"])
+          .in("orders.status", ["returned", "return_completed", "completed"])
           .eq("is_reviewed", false);
 
         if (error) {
@@ -118,6 +125,15 @@ export function MandatoryReviewGate() {
         review_text: reviews[item.id].text || null,
       }));
 
+      // Update name if changed
+      if (reviewerName && reviewerName.trim() !== profile?.full_name) {
+        try {
+          await updateProfile({ full_name: reviewerName.trim() });
+        } catch (e) {
+          console.error("Failed to update profile name:", e);
+        }
+      }
+
       const { error } = await supabase.from("product_reviews").insert(inserts);
 
       if (error) {
@@ -172,6 +188,16 @@ export function MandatoryReviewGate() {
           </div>
 
           <div className="space-y-6 flex-1">
+            <div className="bg-neutral-900 border border-white/5 rounded-2xl p-5 shadow-soft mb-2 block">
+                <label className="text-[13px] font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Your Name</label>
+                <input
+                    type="text"
+                    placeholder="Enter your name"
+                    value={reviewerName}
+                    onChange={(e) => setReviewerName(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-[#f2546d]/50 transition-all font-medium"
+                />
+            </div>
             {pendingItems.map((item) => (
               <div key={item.id} className="bg-neutral-900 border border-white/5 rounded-2xl p-5 shadow-soft">
                 <div className="flex items-center gap-4 mb-4">
@@ -220,7 +246,7 @@ export function MandatoryReviewGate() {
               )}
               <Button 
                 onClick={handleSubmit} 
-                disabled={submitting || missingRatingsCheck(pendingItems, reviews)}
+                disabled={submitting || missingRatingsCheck(pendingItems, reviews) || !reviewerName.trim()}
                 className="w-full h-14 rounded-2xl bg-[#f2546d] hover:bg-[#e0435c] text-white font-bold text-lg shadow-glow"
               >
                 {submitting ? "Submitting..." : "Submit Reviews"}

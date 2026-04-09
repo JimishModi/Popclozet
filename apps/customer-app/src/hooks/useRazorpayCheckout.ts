@@ -93,7 +93,7 @@ export function useRazorpayCheckout() {
         currency: rzpOrder.currency,
         name: 'Popclozet',
         description: 'Fashion Rental Payment',
-        image: popclozet_LOGO,
+        image: window.location.origin + popclozet_LOGO,
         order_id: rzpOrder.id,
         prefill: {
           name: userName || '',
@@ -105,7 +105,6 @@ export function useRazorpayCheckout() {
         },
         theme: {
           color: '#f2546d',  // Popclozet brand pink
-          hide_topbar: false,
         },
         modal: {
           // Ask user to confirm before closing the payment modal
@@ -124,6 +123,7 @@ export function useRazorpayCheckout() {
               return;
             }
 
+            console.log('[useRazorpayCheckout] Razorpay modal dismissed by user');
             outcomeRef.current = 'cancelled';
             setIsProcessing(false);
             toast.info('Payment cancelled');
@@ -154,11 +154,16 @@ export function useRazorpayCheckout() {
 
             toast.success('Payment successful!');
 
-            if (onSuccess) {
-              onSuccess(response.razorpay_payment_id);
-            } else {
-              navigate('/home', { replace: true });
-            }
+            // Buffer time to let Razorpay internal modal cleanup logic finish
+            // before we abruptly unmount the DOM (which can sometimes cause it to crash 
+            // inside its own iframe boundary and throw the "Uh oh" sandbox error)
+            setTimeout(() => {
+              if (onSuccess) {
+                onSuccess(response.razorpay_payment_id);
+              } else {
+                navigate('/home', { replace: true });
+              }
+            }, 500);
           } catch (verifyErr: any) {
             console.error('[useRazorpayCheckout] Verification failed:', verifyErr);
             const msg = verifyErr?.message || '';

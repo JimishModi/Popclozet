@@ -409,6 +409,20 @@ const CartPage = () => {
         });
       } else {
         console.warn("[Cart] preview_order returned:", result.code, result.message);
+
+        // Handle specific errors
+        if (result.code === 'PRODUCT_NOT_FOUND' && result.message) {
+          // Extract product ID from message if possible "Product <id> not found"
+          const match = result.message.match(/Product ([a-f0-9-]+) not found/i);
+          const failedId = match ? match[1] : null;
+          
+          if (failedId) {
+            toast.error("An item in your bag is no longer available. Please remove it to proceed.");
+          }
+        } else if (result.code === 'PRODUCT_UNAVAILABLE') {
+          toast.error(result.message || "An item in your bag is currently unavailable.");
+        }
+
         // Still show pricing with client-side subtotal so UI doesn't stay stuck on "..."
         setServerPricing({
           original_total: originalTotal,
