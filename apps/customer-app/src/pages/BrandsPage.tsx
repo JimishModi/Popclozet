@@ -30,6 +30,11 @@ const BrandsPage: React.FC = () => {
         return matchesSearch;
     });
 
+    const handleBrandClick = (brand: string) => {
+        const activeGender = localStorage.getItem('activeGender') || 'womens';
+        navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`);
+    };
+
     return (
         <MobileShell className="bg-[#111111] text-white">
             <main className="flex-1 overflow-y-auto pb-24">
@@ -76,7 +81,7 @@ const BrandsPage: React.FC = () => {
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
                                         whileTap={{ scale: 0.97 }}
-                                        onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                        onClick={() => handleBrandClick(brand)}
                                         className="relative rounded-3xl overflow-hidden cursor-pointer bg-[#1E1E1E] border border-white/5 hover:border-[#E95466]/50 transition-all group flex flex-col items-center p-6 text-center shadow-lg"
                                     >
                                         <div className="w-16 h-16 rounded-full bg-black/50 border border-white/5 flex items-center justify-center mb-4 group-hover:bg-[#E95466]/10 transition-colors">

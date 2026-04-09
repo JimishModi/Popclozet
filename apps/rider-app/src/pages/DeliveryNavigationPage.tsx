@@ -19,12 +19,14 @@ import {
   createRiderCollectionOrder,
   getOrderPaymentRecord,
   verifyRiderCollectionPayment,
+  markManualPaymentCollected,
   type OrderPaymentRecord,
 } from '@/services/riderPaymentCollectionService';
 import {
   MapPin, Navigation, CheckCircle, X, KeyRound, Loader2, Package, ScanLine, IndianRupee, Smartphone,
 } from 'lucide-react';
 import { QRScannerOverlay } from '@/components/QRScannerOverlay';
+import { PaymentQRModal } from '@/components/PaymentQRModal';
 
 // ─── Constants & Utils ────────────────────────────────────────────────────────
 
@@ -111,6 +113,9 @@ export const DeliveryNavigationPage: React.FC = () => {
 
   // POD payment gate state
   const [showPaymentStep, setShowPaymentStep] = useState(false);
+
+  // Hardcoded QR payment modal (shown after OTP for COD orders)
+  const [showPaymentQR, setShowPaymentQR] = useState(false);
 
   const loadPaymentRecord = useCallback(async (orderId: string) => {
     try {
@@ -283,11 +288,7 @@ export const DeliveryNavigationPage: React.FC = () => {
       });
     }
 
-    // For POD orders where payment hasn't been collected yet, show payment step first
-    if (isPayOnDelivery && !isPaymentCompleted) {
-      setShowPaymentStep(true);
-      return;
-    }
+    // For POD orders, go directly to OTP — payment QR is shown after OTP verification
     setOtpValue('');
     setOtpError('');
     setShowOtpModal(true);
@@ -336,7 +337,13 @@ export const DeliveryNavigationPage: React.FC = () => {
 
         setShowOtpModal(false);
         showToast('Delivery completed! ✅', 'success');
-        navigate('/');
+
+        // For COD orders, show payment QR after delivery is marked complete
+        if (isPayOnDelivery) {
+          setShowPaymentQR(true);
+        } else {
+          navigate('/');
+        }
         return;
       }
 
@@ -621,27 +628,6 @@ export const DeliveryNavigationPage: React.FC = () => {
                  </div>
                </div>
 
-               {shouldShowOnlineCollection && (
-                 <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5 space-y-4">
-                   <div className="space-y-1">
-                     <h3 className="text-sm font-bold text-white">Collect online on delivery</h3>
-                     <p className="text-xs text-zinc-400 leading-relaxed">
-                       Opens Popclozet&apos;s secure UPI/QR checkout for the exact order amount so the customer can pay online at the doorstep.
-                     </p>
-                   </div>
-                   <button
-                     onClick={handleCollectOnlinePayment}
-                     disabled={paymentCollecting}
-                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-xl shadow-emerald-500/20"
-                   >
-                     {paymentCollecting ? (
-                       <><Loader2 size={18} className="animate-spin" /> Opening payment...</>
-                     ) : (
-                       <><Smartphone size={18} /> Collect Online via QR</>
-                     )}
-                   </button>
-                 </div>
-               )}
              </div>
            )}
 
@@ -737,7 +723,47 @@ export const DeliveryNavigationPage: React.FC = () => {
       </div>
 
       {/* Floating Action Bar */}
-      <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
+      <div className="absolute bottom-0 inset-x-0 px-6 pb-6 pt-12 bg-gradient-to-t from-black via-black/90 to-transparent space-y-4">
+
+        {/* Step Indicator */}
+        {(() => {
+          const isReturn = order ? RETURN_STATUSES.includes(order.status) : false;
+          const steps = isReturn
+            ? ['Navigate', 'Verify OTP', 'To Warehouse']
+            : isPayOnDelivery
+              ? ['Navigate', 'Verify OTP', 'Collect Payment']
+              : ['Navigate', 'Verify OTP', 'Done'];
+          const currentStep = 0; // rider is always on step 1 (navigate) until OTP modal opens
+          return (
+            <div className="flex items-center justify-center gap-2">
+              {steps.map((label, idx) => (
+                <div key={label} className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                      idx === currentStep
+                        ? 'bg-emerald-500 text-white'
+                        : idx < currentStep
+                          ? 'bg-emerald-500/30 text-emerald-400'
+                          : 'bg-zinc-800 text-zinc-600'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      idx === currentStep ? 'text-emerald-400' : idx < currentStep ? 'text-zinc-500' : 'text-zinc-700'
+                    }`}>
+                      {label}
+                    </span>
+                  </div>
+                  {idx < steps.length - 1 && (
+                    <div className={`w-4 h-px ${idx < currentStep ? 'bg-emerald-500/40' : 'bg-zinc-800'}`} />
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-4">
           <button
             onClick={handleOpenGoogleMaps}
@@ -746,7 +772,7 @@ export const DeliveryNavigationPage: React.FC = () => {
             <Navigation size={18} fill="currentColor" />
             Navigate
           </button>
-          
+
           <button
             onClick={handleRequestDelivery}
             disabled={deliveryCompleting}
@@ -754,10 +780,10 @@ export const DeliveryNavigationPage: React.FC = () => {
           >
             {deliveryCompleting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : isPayOnDelivery && !isPaymentCompleted ? (
-              <><IndianRupee size={18} /> Collect &amp; Complete</>
+            ) : RETURN_STATUSES.includes(order.status) ? (
+              <><KeyRound size={18} /> Verify Return OTP</>
             ) : (
-              <><CheckCircle size={18} /> Complete</>
+              <><CheckCircle size={18} /> Verify OTP</>
             )}
           </button>
         </div>
@@ -765,6 +791,19 @@ export const DeliveryNavigationPage: React.FC = () => {
 
       {/* QR Scanner */}
       {showQRScanner && <QRScannerOverlay onClose={() => setShowQRScanner(false)} />}
+
+      {/* Hardcoded Payment QR (shown after OTP for COD orders) */}
+      {showPaymentQR && (
+        <PaymentQRModal
+          onClose={() => { setShowPaymentQR(false); navigate('/'); }}
+          onPaymentConfirmed={async () => {
+            if (id) {
+              await markManualPaymentCollected(id);
+            }
+            navigate('/');
+          }}
+        />
+      )}
 
       {/* OTP Verification Modal */}
       <AnimatePresence>

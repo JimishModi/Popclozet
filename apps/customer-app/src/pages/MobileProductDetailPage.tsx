@@ -305,6 +305,9 @@ const MobileProductDetailPage: React.FC = () => {
     };
 
     const handleAddToCart = () => {
+        // Never add fake/placeholder products — their IDs don't exist in the products table
+        // and will cause PRODUCT_NOT_FOUND in preview_order / place_order
+        if (fakeProductData) return;
         if (product && selectedSize) {
             const sizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
             if (sizeStock > 0) {

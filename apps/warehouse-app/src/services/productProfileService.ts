@@ -409,9 +409,14 @@ export async function archivePhysicalUnit(individualId: string, actorId: string 
 
 /**
  * Permanently delete a physical unit row from all_products.
+ * The DB requires status = 'archived' before deletion, so we archive first.
  * Inventory counts are kept in sync by the database delete trigger.
  */
 export async function deletePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
+    // Step 1: Archive the unit first (DB trigger requires this before deletion)
+    await archivePhysicalUnit(individualId, actorId);
+
+    // Step 2: Now permanently delete the archived row
     const { error } = await supabase
         .from('all_products')
         .delete()

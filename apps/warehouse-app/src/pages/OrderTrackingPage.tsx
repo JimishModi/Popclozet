@@ -40,7 +40,7 @@ export function OrderTrackingPage() {
         if (isLoading || !mapContainerRef.current || mapRef.current) return;
 
         const map = L.map(mapContainerRef.current, {
-            center: [19.1305, 72.9135], // Default: warehouse area (Mumbai)
+            center: [19.1367, 72.9125], // Default: warehouse area (Mumbai)
             zoom: 13,
             zoomControl: false,         // Hide default +/- buttons (pinch-to-zoom on mobile)
             attributionControl: false,  // Clean UI

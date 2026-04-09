@@ -59,8 +59,8 @@ export const SERVICE_AREAS: ServiceArea[] = [
 
 // Warehouse location — single source of truth for all distance calculations
 export const WAREHOUSE = {
-  lat: 19.1305,
-  lng: 72.9135,
+  lat: 19.1367,
+  lng: 72.9125,
   address: "Hostel 2, IIT Bombay, Powai, Mumbai",
 } as const;
 

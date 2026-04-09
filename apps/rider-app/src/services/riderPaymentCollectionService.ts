@@ -85,6 +85,21 @@ export async function verifyRiderCollectionPayment(params: {
   return data;
 }
 
+/**
+ * Records a manual UPI/QR payment collected by the rider at the doorstep.
+ * Sets rider_collected_payment_at on the order so the admin dashboard can track it.
+ */
+export async function markManualPaymentCollected(orderId: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ rider_collected_payment_at: new Date().toISOString() })
+    .eq('id', orderId);
+
+  if (error) {
+    throw new Error(error.message || 'Failed to record payment collection');
+  }
+}
+
 export async function getOrderPaymentRecord(orderId: string): Promise<OrderPaymentRecord | null> {
   const { data, error } = await supabase
     .from('payments')

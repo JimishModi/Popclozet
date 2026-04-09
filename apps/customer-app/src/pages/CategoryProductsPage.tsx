@@ -38,10 +38,10 @@ const formatCurrency = (value: number) =>
 const getProductPrice = (product: Product) =>
     Number(
         product.rental_price_1d ??
-            product.rentalPrice ??
-            product.rental_price ??
-            product.price ??
-            0
+        product.rentalPrice ??
+        product.rental_price ??
+        product.price ??
+        0
     ) || 0;
 
 const isDefaultPriceRange = (range: { min: number; max: number }) =>
@@ -56,6 +56,10 @@ const CategoryProductsPage: React.FC = () => {
     // Category and title from search params
     const category = searchParams.get('category') || '';
     const brandParam = searchParams.get('brand') || '';
+
+    // Fallback gender from localStorage if path is missing it (e.g. /category?brand=X)
+    const effectiveGender = genderFromPath || localStorage.getItem('activeGender') || 'womens';
+
     const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -152,7 +156,7 @@ const CategoryProductsPage: React.FC = () => {
         const timer = setTimeout(() => {
             fetchProductsInBackground({
                 category: category,
-                gender: genderFromPath,
+                gender: effectiveGender,
                 nameQuery: nameQuery,
                 brands: Array.from(selectedBrands),
                 sizes: Array.from(selectedSizes),
@@ -160,8 +164,8 @@ const CategoryProductsPage: React.FC = () => {
         }, 400); // 400ms debounce
 
         return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [category, genderFromPath, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [category, effectiveGender, nameQuery, priceRange.min, priceRange.max, brandsKey, sizesKey]);
 
     // Fix: Ensure priceRange stays within the 2000 limit for UI consistency
     useEffect(() => {
@@ -215,12 +219,12 @@ const CategoryProductsPage: React.FC = () => {
                     const pGender = (p.gender as string || '').toLowerCase();
                     const targetGender = (gender || '').toLowerCase();
                     const targetDbGender = (dbGender || '').toLowerCase();
-                    
+
                     // Allow match if pGender matches app string ('mens'), db string ('men'), or is 'unisex'
-                    return !gender || 
-                           pGender === targetGender || 
-                           pGender === targetDbGender || 
-                           pGender === 'unisex';
+                    return !gender ||
+                        pGender === targetGender ||
+                        pGender === targetDbGender ||
+                        pGender === 'unisex';
                 });
 
                 // Blend them together
@@ -347,17 +351,17 @@ const CategoryProductsPage: React.FC = () => {
         // Case-insensitive category filter
         if (category) {
             const catLower = category.toLowerCase();
-            filtered = filtered.filter((p: any) => 
+            filtered = filtered.filter((p: any) =>
                 (p.category || '').toLowerCase() === catLower
             );
         }
 
         // Filter by gender — include unisex in both mens and womens
         // Normalize app gender ('womens'/'mens') to DB gender ('women'/'men') for comparison
-        if (genderFromPath && genderFromPath !== 'all') {
+        if (effectiveGender && effectiveGender !== 'all') {
             filtered = filtered.filter((p: any) => {
                 const pGender = (p.gender as string || '').toLowerCase();
-                const targetGender = genderFromPath.toLowerCase();
+                const targetGender = effectiveGender.toLowerCase();
                 const dbGender = targetGender === 'womens' ? 'women' : targetGender === 'mens' ? 'men' : targetGender;
                 return pGender === dbGender || pGender === targetGender || pGender === 'unisex';
             });
@@ -470,7 +474,7 @@ const CategoryProductsPage: React.FC = () => {
                             }}
                             className={cn(
                                 "flex-1 py-2 rounded-xl text-sm font-bold border transition-all text-center uppercase",
-                                genderFromPath === g
+                                effectiveGender === g
                                     ? "bg-[#FF4D6D]/10 border-[#FF4D6D] text-[#FF4D6D]"
                                     : "bg-[#1C1C1E] border-white/10 text-zinc-400"
                             )}
@@ -519,62 +523,62 @@ const CategoryProductsPage: React.FC = () => {
                                     const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
-                                    
-                                    return (
-                                    <motion.div
-                                        key={product.id}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: index * 0.05 }}
-                                        onClick={() => handleProductClick(product)}
-                                        className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
-                                    >
-                                        <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
-                                            {imgSrc ? (
-                                                <img
-                                                    src={thumbImage(imgSrc)}
-                                                    alt={product.name}
-                                                    className={cn(
-                                                        "w-full h-full object-cover transition-transform duration-300",
-                                                        isUnavailable
-                                                            ? "grayscale opacity-25"
-                                                            : "group-hover:scale-105"
-                                                    )}
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-                                                    <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
-                                                </div>
-                                            )}
 
-                                            {!isUnavailable && (
-                                                <button
-                                                    onClick={(e) => toggleWishlist(product.id, e)}
-                                                    className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
-                                                >
-                                                    <Heart
-                                                        className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
-                                                            ? "text-[#FF4D6D] fill-[#FF4D6D]"
-                                                            : "text-white"
-                                                            }`}
+                                    return (
+                                        <motion.div
+                                            key={product.id}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            onClick={() => handleProductClick(product)}
+                                            className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
+                                        >
+                                            <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
+                                                {imgSrc ? (
+                                                    <img
+                                                        src={thumbImage(imgSrc)}
+                                                        alt={product.name}
+                                                        className={cn(
+                                                            "w-full h-full object-cover transition-transform duration-300",
+                                                            isUnavailable
+                                                                ? "grayscale opacity-25"
+                                                                : "group-hover:scale-105"
+                                                        )}
+                                                        loading="lazy"
                                                     />
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="p-3">
-                                            <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
-                                            <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                            {isUnavailable && (
-                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-                                                    {isSoldOut ? "Sold Out" : "Currently Rented Out"}
-                                                </p>
-                                            )}
-                                            <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
-                                                ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
-                                            </span>
-                                        </div>
-                                    </motion.div>
+                                                ) : (
+                                                    <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                                                        <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
+                                                    </div>
+                                                )}
+
+                                                {!isUnavailable && (
+                                                    <button
+                                                        onClick={(e) => toggleWishlist(product.id, e)}
+                                                        className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                                                    >
+                                                        <Heart
+                                                            className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
+                                                                ? "text-[#FF4D6D] fill-[#FF4D6D]"
+                                                                : "text-white"
+                                                                }`}
+                                                        />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="p-3">
+                                                <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
+                                                <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
+                                                {isUnavailable && (
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                                                        {isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                    </p>
+                                                )}
+                                                <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                    ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
+                                                </span>
+                                            </div>
+                                        </motion.div>
                                     );
                                 })}
                             </div>

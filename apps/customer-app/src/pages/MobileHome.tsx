@@ -706,7 +706,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`left-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}
@@ -738,7 +738,7 @@ const MobileHome: React.FC = () => {
                                         <div
                                             key={`right-${idx}`}
                                             className="h-20 rounded-2xl bg-[#232323] flex items-center justify-center cursor-pointer hover:bg-[#2a2a2a] transition-colors flex-shrink-0"
-                                            onClick={() => navigate(`/category?brand=${encodeURIComponent(brand)}`)}
+                                            onClick={() => navigate(`/shop/${activeGender}?brand=${encodeURIComponent(brand)}`)}
                                         >
                                             <span className="text-xs md:text-sm font-semibold text-zinc-300">
                                                 {brand}

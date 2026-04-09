@@ -37,7 +37,7 @@ function haversineMetres(a: { lat: number; lng: number }, b: { lat: number; lng:
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WAREHOUSE_LOCATION: [number, number] = [72.9135, 19.1305]; // Hostel 2, IIT Bombay
+const WAREHOUSE_LOCATION: [number, number] = [72.9125, 19.1367]; // Hostel 2, IIT Bombay
 const WAREHOUSE_ADDRESS = 'Hostel 2, IIT Bombay, Powai, Mumbai';
 
 type PickupStep = 'navigating' | 'arrived' | 'picked_up';
@@ -610,7 +610,9 @@ export const WarehouseNavigationPage: React.FC = () => {
                                     <p className="text-emerald-500/60 text-xs mt-1">Waiting for warehouse validation</p>
                                 </div>
                             )}
-                            <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Return to Dashboard</button>
+                            {order?.status !== 'return_at_warehouse' && (
+                                <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Return to Dashboard</button>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
