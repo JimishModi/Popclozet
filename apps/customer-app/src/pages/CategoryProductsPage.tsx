@@ -7,10 +7,9 @@ import { ChevronLeft, SlidersHorizontal, Loader, Search, X, ShoppingBag, Heart }
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { supabase } from "@popclozet/api-client";
 import type { Product } from "@/services/productService";
-import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
-import { computeInventoryAvailability } from "@/lib/inventoryAvailability";
+import { cacheProductsBatchDB } from "@/lib/db";
+import { getProductsWithFakeMix } from "@/services/fakeProductMixService";
 
 import { useCart } from "@/context/CartContext";
 
@@ -193,58 +192,30 @@ const CategoryProductsPage: React.FC = () => {
         if (filters.gender === 'mens') dbGender = 'men';
         if (filters.gender === 'womens') dbGender = 'women';
 
-        let query = supabase
-            .from('products')
-            .select('*, inventory(available_stock, total_stock, all_products(status))')
-            .eq('is_available', true);
-
-        if (filters.category) {
-            query = query.eq('category', filters.category);
-        }
-
-        if (dbGender && dbGender !== 'all') {
-            query = query.in('gender', [dbGender, 'unisex']);
-        }
-
-        // Backend name search — filter at DB level
-        if (filters.nameQuery && filters.nameQuery.trim() !== '') {
-            query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
-        }
-        // Consistent ordering: newest first
-        query = query.order('created_at', { ascending: false });
-
         try {
-            const { data, error } = await query;
-
-            if (error) {
-                console.error('❌ Supabase error:', error.message);
-                setLoading(false);
+            if (!filters.category) {
+                setProducts([]);
                 return;
             }
 
-            if (data) {
-                const mapped = data.map((p: any) => {
-                    const availability = computeInventoryAvailability(p.inventory || []);
-                    return {
-                        ...p,
-                        price: parseFloat(p.rental_price ?? p.price ?? '0'),
-                        rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
-                        imageUrl: p.images?.[0] || '',
-                        // Map DB 'sizes_available' to app 'sizes'
-                        sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
-                        // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
-                        gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
-                        isSoldOut: availability.isSoldOut,
-                        isRentedOut: availability.isRentedOut
-                    };
-                });
+            const mixedProducts = await getProductsWithFakeMix(
+                filters.category,
+                filters.brands && filters.brands.length === 1 ? filters.brands[0] : undefined,
+                filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined
+            );
 
-                setProducts(mapped);
+            const filteredByName = filters.nameQuery && filters.nameQuery.trim() !== ''
+                ? mixedProducts.filter((product) =>
+                    product.name.toLowerCase().includes(filters.nameQuery!.trim().toLowerCase())
+                )
+                : mixedProducts;
 
-                // Update local cache for next time (non-blocking, real products only)
-                if (mapped.length > 0) {
-                    cacheProductsBatchDB(mapped);
-                }
+            setProducts(filteredByName);
+
+            // Cache only real products for offline use.
+            const realProducts = filteredByName.filter((product: any) => product._isFake !== true);
+            if (realProducts.length > 0) {
+                cacheProductsBatchDB(realProducts);
             }
         } catch (err) {
             console.error('CRITICAL: Supabase fetch failed:', err);
@@ -290,8 +261,22 @@ const CategoryProductsPage: React.FC = () => {
         });
     };
 
-    const handleProductClick = (productId: string) => {
-        navigate(`/product/${productId}`);
+    const handleProductClick = (product: Product) => {
+        const isFake = (product as any)._isFake === true;
+        const isSoldOut = (product as any).isSoldOut === true;
+
+        if (isFake) {
+            navigate(`/product/${product.id}`, {
+                state: {
+                    fakeProduct: product,
+                    isRented: !isSoldOut,
+                    isSold: isSoldOut,
+                },
+            });
+            return;
+        }
+
+        navigate(`/product/${product.id}`);
     };
 
     const setClampedTempPriceRange = useCallback((nextMin: number, nextMax: number) => {
@@ -338,7 +323,9 @@ const CategoryProductsPage: React.FC = () => {
         // Filter by gender — include unisex in both mens and womens
         if (genderFromPath && genderFromPath !== 'all') {
             filtered = filtered.filter((p: any) => {
-                return !p.gender || p.gender === genderFromPath || p.gender === 'unisex';
+                const pGender = (p.gender as string || '').toLowerCase();
+                const targetGender = genderFromPath.toLowerCase();
+                return pGender === targetGender || pGender === 'unisex';
             });
         }
 
@@ -492,9 +479,10 @@ const CategoryProductsPage: React.FC = () => {
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
+                                    const isFake = (product as any)._isFake === true;
                                     const isSoldOut = product.isSoldOut === true;
                                     const isRentedOut = product.isRentedOut === true;
-                                    const isUnavailable = isSoldOut || isRentedOut;
+                                    const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
                                     
@@ -504,7 +492,7 @@ const CategoryProductsPage: React.FC = () => {
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
-                                        onClick={() => handleProductClick(product.id)}
+                                        onClick={() => handleProductClick(product)}
                                         className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
                                     >
                                         <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
@@ -543,6 +531,11 @@ const CategoryProductsPage: React.FC = () => {
                                         <div className="p-3">
                                             <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
+                                            {isUnavailable && (
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                                                    {isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                </p>
+                                            )}
                                             <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
                                                 ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
                                             </span>

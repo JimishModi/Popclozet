@@ -14,6 +14,7 @@ import { useClosetCount } from "@/hooks/useClosetCount";
 import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
+import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
@@ -243,8 +244,36 @@ const MobileHome: React.FC = () => {
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
             const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
-            if (products.length > 0) {
-                setCatalogueProducts(products.slice(0, 4));
+
+            const topCategories = Array.from(
+                new Set(
+                    products
+                        .map((product) => product.category?.toLowerCase().trim())
+                        .filter((category): category is string => Boolean(category))
+                )
+            ).slice(0, 3);
+
+            const fakeBatches = await Promise.all(
+                topCategories.map((category) => fetchRotatedFakeProducts(category, undefined, 5))
+            );
+
+            const fakeProducts = fakeBatches
+                .flat()
+                .filter((product) => {
+                    const pGender = (product.gender as string || '').toLowerCase();
+                    const targetGender = activeGender.toLowerCase();
+                    return pGender === targetGender || pGender === 'unisex';
+                })
+                .filter((product, index, array) => array.findIndex((item) => item.id === product.id) === index)
+                .slice(0, 3);
+
+            const showcaseProducts = [
+                ...products.slice(0, Math.max(1, 4 - fakeProducts.length)),
+                ...fakeProducts,
+            ].slice(0, 4);
+
+            if (showcaseProducts.length > 0) {
+                setCatalogueProducts(showcaseProducts as Product[]);
                 catalogueRetryCount.current = 0;
             } else if (catalogueRetryCount.current < 2) {
                 // Products came back empty — might be a stale IDB on fresh install.

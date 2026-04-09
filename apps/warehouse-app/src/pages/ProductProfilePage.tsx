@@ -24,7 +24,7 @@ import {
     saveProductDiscount,
     toggleDiscount,
     updateProductProfile,
-    archivePhysicalUnit,
+    deletePhysicalUnit,
     type FullProductProfile,
     type InventorySubProfile,
     type ProductUpdate,
@@ -325,11 +325,16 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
     const [open, setOpen] = useState(false);
     const { showToast } = useToast();
     const { user } = useAuth();
-    const activeUnits = inv.units.filter(unit => unit.status !== 'sold' && unit.status !== 'instantly_bought');
+    const activeUnits = inv.units.filter(
+        unit => !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status)
+    );
 
     const statusColor = (s: string) => ({
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
         rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        archived:  'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
+        damaged:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
+        lost:      'text-rose-400 bg-rose-500/10 border-rose-500/20',
         sold:      'text-red-400 bg-red-500/10 border-red-500/20',
         instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
@@ -396,13 +401,13 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                             {unit.status !== 'sold' && unit.status !== 'instantly_bought' && (
+                                             {!['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status) && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm(`Remove unit ${unit.individual_id} from active stock?`)) {
+                                                        if (confirm(`Delete unit ${unit.individual_id} permanently from warehouse stock?`)) {
                                                             try {
-                                                                await archivePhysicalUnit(unit.individual_id, user?.id);
-                                                                showToast('Unit removed from active stock');
+                                                                await deletePhysicalUnit(unit.individual_id, user?.id);
+                                                                showToast('Unit deleted from all_products');
                                                                 window.location.reload();
                                                             } catch (err: any) {
                                                                 showToast(err.message || 'Failed to remove unit', 'error');
@@ -410,7 +415,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                                         }
                                                     }}
                                                     className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                                                    title="Remove from active stock"
+                                                    title="Delete physical unit"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>

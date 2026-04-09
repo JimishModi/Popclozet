@@ -224,6 +224,7 @@ export async function previewOrder(params: PreviewOrderParams): Promise<PreviewO
   const { data, error } = await supabase.rpc("preview_order", {
     p_items: params.items,
     p_coupon_code: params.couponCode || null,
+    p_distance_km: params.distanceKm ?? 0,
     p_address_id: params.addressId || null,
     p_lat: params.lat ?? null,
     p_lng: params.lng ?? null,

@@ -129,12 +129,12 @@ function shuffleInPlace<T>(arr: T[]): T[] {
  * isAvailable is always false — fake items are "rented out", never orderable.
  */
 function mapFakeRow(row: Record<string, unknown>): Product {
-  // Normalise gender: DB uses 'men'/'women', the app uses 'mens'/'womens'.
-  const rawGender = row.gender as string;
+  // Normalise gender: DB values (e.g., 'Women', 'men', 'Unisex') to app types ('womens', 'mens', 'unisex')
+  const rawGender = (row.gender as string || '').toLowerCase();
   const gender = (
-    rawGender === 'men'   ? 'mens'   :
-    rawGender === 'women' ? 'womens' :
-    rawGender
+    rawGender.includes('women') ? 'womens' :
+    rawGender.includes('men')   ? 'mens'   :
+    'unisex'
   ) as GenderCategory;
 
   // Prefer storage images array, fall back to image_url field
@@ -176,7 +176,7 @@ function mapFakeRow(row: Record<string, unknown>): Product {
  *   • Fake selection + rotation stamp happen in a single atomic DB call.
  *   • If the RPC fails, real products are returned without interruption.
  *
- * @param category  event_category to filter by (e.g. 'wedding', 'casual')
+ * @param category  product category to filter by (e.g. 'jackets', 'dresses')
  * @param brand     optional brand filter (exact match)
  * @param gender    optional gender filter
  */
@@ -226,7 +226,8 @@ export async function getProductsWithFakeMix(
     .from('products')
     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
     .eq('is_available', true)
-    .eq('event_category', category);
+    .eq('category', category)
+    .order('id');
 
   if (brand) {
     realQuery = realQuery.eq('brand', brand);
@@ -303,10 +304,24 @@ export async function getProductsWithFakeMix(
       _isFake: true,
     }));
 
+    if (gender) {
+      fakeProducts = fakeProducts.filter((product) => {
+        const pGender = (product.gender as string || '').toLowerCase();
+        const targetGender = gender.toLowerCase();
+        return pGender === targetGender || pGender === 'unisex';
+      });
+    }
+
     setCachedFakes(fakeRpcKey, fakeProducts);
   }
 
-  // ── 4. Merge + shuffle ────────────────────────────────────────────────────
-  // Fisher-Yates ensures fake items don't cluster at a predictable position.
-  return shuffleInPlace([...realProducts, ...fakeProducts]);
+  // ── 4. Merge + stable sort ───────────────────────────────────────────────
+  // Prioritize available (real) products over rented-out (fake) products.
+  // Then use a stable sort by ID within each group to ensure consistency.
+  return [...realProducts, ...fakeProducts].sort((a, b) => {
+    if (a.isAvailable !== b.isAvailable) {
+      return a.isAvailable ? -1 : 1;
+    }
+    return a.id.localeCompare(b.id);
+  });
 }
