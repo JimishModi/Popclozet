@@ -242,7 +242,14 @@ const MobileHome: React.FC = () => {
         setLoadingCatalogue(true);
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
-            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
+            // Strictly only available, non-rented, non-sold-out products for the home page showcase
+            const products = rawProducts.filter(p => 
+                !p.category?.toLowerCase().includes('accessor') && 
+                p.isAvailable !== false &&
+                !p.isRentedOut && 
+                !p.isSoldOut &&
+                !(p as any)._isFake
+            );
 
             const topCategories = Array.from(
                 new Set(

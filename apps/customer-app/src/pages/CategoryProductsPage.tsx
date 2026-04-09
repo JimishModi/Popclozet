@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import type { Product } from "@/services/productService";
 import { productService } from "@/services/productService";
 import { cacheProductsBatchDB } from "@/lib/db";
-import { getProductsWithFakeMix } from "@/services/fakeProductMixService";
+import { getProductsWithFakeMix, fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 
 import { useCart } from "@/context/CartContext";
 
@@ -197,11 +197,34 @@ const CategoryProductsPage: React.FC = () => {
             let mixedProducts: Product[];
 
             if (!filters.category) {
-                // No category — fetch all available products for this gender
+                // No category — fetch all products for this gender + mix in some fakes
                 const gender = filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined;
-                mixedProducts = gender
+                const realProducts = gender
                     ? await productService.getProductsByGender(gender as any)
                     : [];
+
+                // Fetch some rotated fakes for the general view (from a few top categories)
+                const topCategories = ['Jackets', 'Footwear']; // These were found in DB
+                const fakeBatches = await Promise.all(
+                    topCategories.map(cat => fetchRotatedFakeProducts(cat, undefined, 5))
+                );
+
+                const dbGender = gender === 'mens' ? 'men' : gender === 'womens' ? 'women' : undefined;
+
+                const fakeProducts = fakeBatches.flat().filter(p => {
+                    const pGender = (p.gender as string || '').toLowerCase();
+                    const targetGender = (gender || '').toLowerCase();
+                    const targetDbGender = (dbGender || '').toLowerCase();
+                    
+                    // Allow match if pGender matches app string ('mens'), db string ('men'), or is 'unisex'
+                    return !gender || 
+                           pGender === targetGender || 
+                           pGender === targetDbGender || 
+                           pGender === 'unisex';
+                });
+
+                // Blend them together
+                mixedProducts = [...realProducts, ...fakeProducts];
             } else {
                 mixedProducts = await getProductsWithFakeMix(
                     filters.category,
@@ -318,8 +341,8 @@ const CategoryProductsPage: React.FC = () => {
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
-        // Only show available products — exclude sold out, rented out, and fake/placeholder items
-        filtered = filtered.filter((p: any) => !p.isSoldOut && !p.isRentedOut && p._isFake !== true);
+        // Show all products in "See All" view - available, rented, sold out, and fake products correctly mixed.
+        // We no longer filter them out here because the user wants to see everything when they click "See All".
 
         // Case-insensitive category filter
         if (category) {
