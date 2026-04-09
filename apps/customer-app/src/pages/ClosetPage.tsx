@@ -30,6 +30,8 @@ interface RentalItem {
     returnTimeSlot?: string | null;
     hoursLeft?: number;
     minutesLeft?: number;
+    status: string; // Add raw status for label logic
+    productId?: string;
 }
 
 /* Clock/countdown icon */
@@ -73,9 +75,15 @@ const ClosetPage: React.FC = () => {
                 const timeInfo = rentalEndTime ? getRemainingRentalTime(order.rental_end_date) : { expired: false, days: 3, hours: 0, minutes: 0 };
 
                 const isDelivered = ['delivered', 'in_use'].includes(order.status);
-                const isInTransit = ['out_for_delivery', 'dispatched'].includes(order.status);
                 const isReturnInProgress = [
                     'return_requested', 'return_scheduled', 'return_dispatched',
+                ].includes(order.status);
+
+                // Now includes pre-dispatch statuses
+                const isInTransit = [
+                    'pending', 'confirmed', 'packed', 'ready_for_pickup',
+                    'rider_assigned', 'driver_arrived_warehouse', 'order_picked_up',
+                    'dispatched', 'out_for_delivery'
                 ].includes(order.status);
 
                 const type = (isDelivered || isInTransit || isReturnInProgress) ? 'current' : 'future';
@@ -95,13 +103,15 @@ const ClosetPage: React.FC = () => {
                     returnToday: isDelivered && (timeInfo.expired || (timeInfo.days === 0 && (timeInfo as any).hours < 24)),
                     image: Array.isArray(firstItem?.images) ? firstItem.images[0] : firstItem?.images,
                     type,
+                    status: order.status,
                     isInTransit,
                     isDelivered,
                     isReturnInProgress,
                     hasPreScheduledReturn: !!(order.return_pickup_date && isDelivered),
                     returnPickupDate: order.return_pickup_date,
                     returnTimeSlot: order.return_time_slot,
-                    itemCount: order.order_items?.length || 0
+                    itemCount: order.order_items?.length || 0,
+                    productId: firstItem?.id
                 };
             });
 
@@ -126,8 +136,9 @@ const ClosetPage: React.FC = () => {
             className="flex-shrink-0 w-[280px] snap-start flex flex-col"
         >
             <div
-                className="relative z-10 rounded-3xl border border-white/5 bg-zinc-900 overflow-hidden shadow-2xl"
+                className="relative z-10 rounded-3xl border border-white/5 bg-zinc-900 overflow-hidden shadow-2xl cursor-pointer transition-transform active:scale-[0.98]"
                 style={{ backdropFilter: 'blur(10px)' }}
+                onClick={() => item.productId && navigate(`/product/${item.productId}`)}
             >
                 <div className="relative aspect-[4/5]">
                     <img
@@ -136,14 +147,21 @@ const ClosetPage: React.FC = () => {
                         className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    
+
                     {/* Status Badge */}
                     <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 shadow-lg">
                         <CountdownIcon />
                         <span className="text-xs font-bold text-white uppercase tracking-wider" style={dmSans}>
-                            {item.isInTransit 
-                                ? 'Arriving' 
-                                : item.returnToday ? 'Return Today' : `${item.daysLeft}d left`}
+                            {item.isReturnInProgress
+                                ? 'Returning'
+                                : item.isDelivered
+                                    ? (item.returnToday ? 'Return Today' : `${item.daysLeft}d left`)
+                                    : (item.status === 'pending' || item.status === 'confirmed') ? 'Confirmed'
+                                    : item.status === 'packed' ? 'Packed'
+                                    : (item.status === 'ready_for_pickup' || item.status === 'rider_assigned' || item.status === 'driver_arrived_warehouse') ? 'Preparing'
+                                    : (item.status === 'order_picked_up' || item.status === 'dispatched') ? 'Arriving'
+                                    : item.status === 'out_for_delivery' ? 'Out for Delivery'
+                                    : 'Arriving'}
                         </span>
                     </div>
 
@@ -269,7 +287,7 @@ const ClosetPage: React.FC = () => {
                 {/* Browse More */}
                 {!loading && rentals.length > 0 && (
                     <div className="px-4 mt-8">
-                        <button 
+                        <button
                             onClick={() => navigate('/collections')}
                             className="w-full p-6 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-between group active:scale-95 transition-all"
                         >

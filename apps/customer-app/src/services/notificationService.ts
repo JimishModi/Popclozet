@@ -16,6 +16,7 @@ export type NotificationType =
   | "rental_reminder"
   | "order_confirmed"
   | "order_dispatched"
+  | "driver_arrived_location"
   | "rider_message"
   | "out_for_delivery"
   | "delivered"

@@ -14,7 +14,7 @@ export interface PhysicalUnit {
     last_washed?: string;
     times_rented: number;
     times_washed: number;
-    mrp_price?: number;
+    mrp?: number | null;
     actual_cost?: number;
     created_at: string;
     inventory?: {
@@ -29,6 +29,11 @@ export interface PhysicalUnit {
     };
 }
 
+const normalizePhysicalUnit = (unit: any): PhysicalUnit => ({
+    ...unit,
+    mrp: unit.mrp ?? null,
+});
+
 /**
  * Get all individual items, optionally filtered by inventory_id
  */
@@ -36,7 +41,17 @@ export async function getPhysicalUnits(inventoryId?: string): Promise<PhysicalUn
     let query = supabase
         .from('all_products')
         .select(`
-            *,
+            individual_id,
+            inventory_id,
+            available,
+            status,
+            last_rented,
+            last_washed,
+            times_rented,
+            times_washed,
+            mrp:mrp_price,
+            actual_cost,
+            created_at,
             inventory:inventory_id (
                 product_id, size,
                 products:product_id (
@@ -52,7 +67,7 @@ export async function getPhysicalUnits(inventoryId?: string): Promise<PhysicalUn
 
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []) as any[];
+    return (data || []).map(normalizePhysicalUnit);
 }
 
 /**
@@ -62,7 +77,17 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
     const { data, error } = await supabase
         .from('all_products')
         .select(`
-            *,
+            individual_id,
+            inventory_id,
+            available,
+            status,
+            last_rented,
+            last_washed,
+            times_rented,
+            times_washed,
+            mrp:mrp_price,
+            actual_cost,
+            created_at,
             inventory:inventory_id (
                 product_id, size,
                 products:product_id (
@@ -74,7 +99,7 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
         .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data as any;
+    return data ? normalizePhysicalUnit(data) : null;
 }
 
 /**
@@ -101,7 +126,7 @@ export async function updateUnitStatus(
 export async function createPhysicalUnit(
     inventoryId: string,
     individualId: string,
-    mrpPrice?: number,
+    mrp?: number,
     actualCost?: number
 ) {
     const { data, error } = await supabase
@@ -111,14 +136,14 @@ export async function createPhysicalUnit(
             inventory_id: inventoryId,
             status: 'available',
             available: true,
-            mrp_price: mrpPrice,
+            mrp_price: mrp,
             actual_cost: actualCost,
         })
         .select()
         .single();
 
     if (error) throw error;
-    return data;
+    return normalizePhysicalUnit(data);
 }
 
 /**

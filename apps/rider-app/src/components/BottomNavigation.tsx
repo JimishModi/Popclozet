@@ -1,11 +1,11 @@
 /**
  * Bottom Navigation Component
  * 
- * Main navigation bar for rider app with 4 tabs
+ * Main navigation bar for rider app with 5 tabs
  */
 
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Wallet, User } from 'lucide-react';
+import { Home, FileText, Search, Wallet, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -17,6 +17,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { path: '/', icon: <Home size={24} />, label: 'Home' },
+    { path: '/available-rides', icon: <Search size={24} />, label: 'Available' },
     { path: '/orders', icon: <FileText size={24} />, label: 'Orders' },
     { path: '/wallet', icon: <Wallet size={24} />, label: 'Wallet' },
     { path: '/profile', icon: <User size={24} />, label: 'Profile' },

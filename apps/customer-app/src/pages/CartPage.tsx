@@ -28,6 +28,7 @@ import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
+import { getPlanPrice } from "@/lib/pricing";
 const MAX_SERVICE_DISTANCE_KM = 12;
 
 /* ---------------------------------- */
@@ -99,74 +100,73 @@ const AddOnsCarousel = ({
             Add-Ons
           </h2>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2">
+        {addOnProducts.length > cardsPerPage && (
+          <div className="hidden lg:flex items-center gap-2">
             <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === 0 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: -pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronLeft className="w-4 h-4 text-white" />
             </button>
             <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page === totalPages - 1}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === totalPages - 1 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronRight className="w-4 h-4 text-white" />
             </button>
           </div>
         )}
       </div>
-      <div className="overflow-hidden w-full">
-        <motion.div
-          className="flex"
-          style={{ gap: CARD_GAP }}
-          animate={{ x: -page * pageOffset }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-        >
-          {addOnProducts.map((product: any) => {
-            const basePrice = product.rental_price_1d || product.rental_price || 0;
-            const displayPrice = basePrice * primaryRentalDays;
-            return (
-              <motion.div
-                key={product.id}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/product/${product.id}`)}
-                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
-                style={{ width: cardWidth }}
-              >
-                <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
-                  {product.images?.[0] && (
-                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                  )}
-                </div>
-                <div className="p-2.5">
-                  <p className="text-xs font-semibold text-white truncate">{product.name}</p>
-                  <p className="text-xs text-[#f2546d] font-black mt-0.5">
+      <div
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 -mx-5 px-5 lg:mx-0 lg:px-0"
+        style={{ gap: CARD_GAP }}
+        ref={containerRef}
+      >
+        {addOnProducts.map((product: any) => {
+          const basePrice = product.rental_price_1d || product.rental_price || 0;
+          const displayPrice = basePrice * primaryRentalDays;
+          return (
+            <motion.div
+              key={product.id}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(`/product/${product.id}`)}
+              className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0 snap-start"
+              style={{ width: cardWidth }}
+            >
+              <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
+                {product.images?.[0] && (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="p-2.5">
+                <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-[#f2546d] font-black">
                     ₹{displayPrice}
                     {primaryRentalDays > 1 && (
                       <span className="text-white/30 font-normal ml-1">({primaryRentalDays}d)</span>
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Better fallback: find the first size that actually has stock
-                    const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
-                    addToCart(product.id, bestSize, '1d');
-                  }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg"
-                >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                </button>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
+                  addToCart(product.id, bestSize, '1d');
+                  toast.success(`Added ${product.name} to bag`);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+              </button>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );
@@ -237,18 +237,18 @@ const CartPage = () => {
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
-          // mrp_price comes from the DB — this is the true retail price
-          const mrp_val = parseFloat(p.mrp_price ?? p.mrp ?? '0');
+          // Normalize the product retail price into the canonical mrp field
+          const mrpVal = parseFloat(p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
-            mrp: mrp_val,
+            mrp: mrpVal,
             rental_price_1d: parseFloat(p.rental_price_1d ?? '0'),
             rental_price_2d: parseFloat(p.rental_price_2d ?? '0'),
             rental_price_3d: parseFloat(p.rental_price_3d ?? p.rental_price ?? p.price ?? '0'),
             buy_price: parseFloat(p.buy_price ?? '0'),
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: mrp_val,
+            originalPrice: mrpVal,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -273,26 +273,33 @@ const CartPage = () => {
   useEffect(() => {
     const fetchAddOns = async () => {
       try {
-        const { data, error } = await supabase
+        const cartProductIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
+
+        let query = supabase
           .from('products')
           .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
           .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .eq('is_available', true)
-          .limit(20);
+          .eq('is_available', true);
+
+        if (cartProductIds.length > 0) {
+          query = query.not('id', 'in', `(${cartProductIds.join(',')})`);
+        }
+
+        const { data, error } = await query.limit(20);
 
         if (data && !error) {
-          // Only show add-ons that have at least one size with stock available
+          // Only show add-ons that have at least one size with stock available (not sold/rented)
           const inStock = data.filter((p: any) =>
             (p.inventory || []).some((inv: any) => (inv.available_stock || 0) > 0)
           );
-          setAddOnProducts(inStock.slice(0, 8));
+          setAddOnProducts(inStock.slice(0, 10));
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
       }
     };
     fetchAddOns();
-  }, []);
+  }, [JSON.stringify(cartEntries.map(([k]) => k.split('_')[0]))]);
 
   // Calculate cart metrics
   const totalQty = useMemo(() => {
@@ -318,36 +325,26 @@ const CartPage = () => {
 
 
 
-  const getPlanPrice = (product: any, plan: string) => {
-    if (!product) return 0;
-    switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
-    }
-  };
-
   // Calculate subtotal
   const subtotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
+      return sum + price * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   // Original total = sum of MRP (if available) or plan price for each item
   const originalTotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp_val = product?.mrp_price || product?.mrp || planPrice;
-      return total + Math.max(mrp_val, planPrice) * data.quantity;
-    }, 0);
+      const planPrice = getPlanPrice(product, data.plan);
+      const mrp = typeof product?.mrp === 'number' ? product.mrp : parseFloat(product?.mrp ?? product?.originalPrice ?? planPrice);
+      const safeMrp = isNaN(mrp) ? planPrice : mrp;
+      return sum + Math.max(safeMrp, planPrice) * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   const discount = Math.max(0, originalTotal - subtotal);
@@ -364,6 +361,7 @@ const CartPage = () => {
   const addressId = deliveryAddress?.id || null;
   const addressLat = deliveryAddress?.lat || null;
   const addressLng = deliveryAddress?.lng || null;
+  const previewDistanceKm = selectedHub?.distance_km ?? 0;
   const addressKey = addressId || (addressLat && addressLng ? `${addressLat},${addressLng}` : 'none');
 
   // Build preview items for server RPC — JSON key for stable dependency
@@ -393,6 +391,7 @@ const CartPage = () => {
     previewOrder({
       items,
       couponCode: appliedCouponKey,
+      distanceKm: previewDistanceKm,
       addressId,
       lat: addressLat,
       lng: addressLng,
@@ -417,7 +416,13 @@ const CartPage = () => {
           const failedId = match ? match[1] : null;
           
           if (failedId) {
-            toast.error("An item in your bag is no longer available. Please remove it to proceed.");
+            toast.error("An item in your bag is no longer available and has been removed.");
+            // Find all cart entries for this product and remove them
+            validCartEntries.forEach(([key, data]) => {
+              if (key.startsWith(failedId)) {
+                removeFromCart(failedId, data.size, data.plan);
+              }
+            });
           }
         } else if (result.code === 'PRODUCT_UNAVAILABLE') {
           toast.error(result.message || "An item in your bag is currently unavailable.");
@@ -450,7 +455,7 @@ const CartPage = () => {
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewItemsKey, addressKey, appliedCouponKey]);
+  }, [previewItemsKey, addressKey, appliedCouponKey, previewDistanceKm]);
 
   // Delivery fee is ONLY from server — no client-side default
   const deliveryFee = serverPricing?.delivery_fee ?? null;
@@ -488,6 +493,7 @@ const CartPage = () => {
       const result = await previewOrder({
         items: previewItems,
         couponCode: couponCode.trim(),
+        distanceKm: previewDistanceKm,
         addressId,
         lat: addressLat,
         lng: addressLng,
@@ -524,6 +530,19 @@ const CartPage = () => {
   const hasItems = validCartEntries.length > 0;
   const meetsMinimum = (grandTotal ?? subtotal) >= 350;
   const canCheckout = hasItems && meetsMinimum;
+  const hasRentalItems = useMemo(
+    () => validCartEntries.some(([, data]) => ['1d', '2d', '3d'].includes(data.plan)),
+    [validCartEntries]
+  );
+  const hasBuyItems = useMemo(
+    () => validCartEntries.some(([, data]) => data.plan === 'buy'),
+    [validCartEntries]
+  );
+  const cartSectionLabel = hasRentalItems && hasBuyItems
+    ? 'Shopping Bag Items'
+    : hasBuyItems
+      ? 'Instant Buy Items'
+      : 'Rentals';
 
   /* ---------------------------------- */
   /* Checkout handler                   */
@@ -668,9 +687,9 @@ const CartPage = () => {
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            {(product.mrp_price > 0 || product.mrp > 0) && (product.mrp_price !== itemPrice && product.mrp !== itemPrice) && (
+            {(product.mrp > 0) && product.mrp !== itemPrice && (
               <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                ₹ {(product.mrp_price || product.mrp) * quantity}
+                ₹ {product.mrp * quantity}
               </span>
             )}
             {isRental && (
@@ -726,7 +745,7 @@ const CartPage = () => {
           {/* Subtitle */}
           {validCartEntries.length > 0 && !loadingProducts && (
             <p className="mt-2 ml-8 text-base md:text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
+              {cartSectionLabel} ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
           )}
         </header>
@@ -887,7 +906,7 @@ const CartPage = () => {
 
       {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {hasItems && !loadingProducts && (
-        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
+        <div className="bg-[#232323] rounded-t-[20px] px-5 pt-6 bottom-sheet-safe space-y-4 lg:hidden">
           {/* Checkout CTA */}
           <button
             onClick={canCheckout ? handleCheckout : undefined}

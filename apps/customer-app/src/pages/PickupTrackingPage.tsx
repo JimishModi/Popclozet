@@ -480,7 +480,10 @@ export default function PickupTrackingPage() {
 
             {/* ── Instant Return Confirmation Modal ── */}
             {showInstantReturnConfirm && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center">
+                <div
+                    className="fixed inset-0 z-50 flex items-end justify-center px-3"
+                    style={{ paddingBottom: 'var(--mobile-bottom-nav-offset)' }}
+                >
                     <div
                         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                         onClick={() => setShowInstantReturnConfirm(false)}
@@ -489,20 +492,25 @@ export default function PickupTrackingPage() {
                         initial={{ y: 80, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 80, opacity: 0 }}
-                        className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-6 pb-10"
+                        className="relative w-full max-w-[430px] bg-zinc-900 border border-zinc-800 rounded-t-3xl px-4 pt-4 sm:px-6 sm:pt-6 overflow-y-auto"
+                        style={{
+                            maxHeight: 'calc(var(--mobile-overlay-max-height) - var(--mobile-bottom-nav-offset))',
+                            paddingBottom: 'var(--mobile-overlay-padding-bottom)',
+                        }}
                     >
+                        <div className="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-4" />
                         <div className="flex items-center gap-3 mb-3">
                             <div className="w-10 h-10 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/20 flex items-center justify-center">
                                 <Zap className="w-5 h-5 text-[#f2546d]" />
                             </div>
-                            <h3 className="text-base font-black text-white uppercase tracking-tight" style={dmSans}>
+                            <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-tight" style={dmSans}>
                                 Confirm Instant Return
                             </h3>
                         </div>
-                        <p className="text-sm text-zinc-400 font-medium mb-6" style={dmSans}>
+                        <p className="text-sm text-zinc-400 font-medium leading-relaxed mb-5 sm:mb-6" style={dmSans}>
                             Are you sure you want to return your items instantly? A rider will be assigned to pick them up shortly.
                         </p>
-                        <div className="flex gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row">
                             <button
                                 onClick={() => setShowInstantReturnConfirm(false)}
                                 className="flex-1 py-3 rounded-2xl bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm font-bold tracking-wide active:scale-95 transition-all"

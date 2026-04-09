@@ -9,7 +9,7 @@ const supabase = createClient(supabaseUrl!, supabaseKey!);
 async function checkFakeProducts() {
   const { data, error } = await supabase
     .from('fake_products')
-    .select('id, name, rental_price_1d, rental_price_2d, rental_price_3d, buy_price, mrp_price, actual_cost')
+    .select('id, name, rental_price_1d, rental_price_2d, rental_price_3d, buy_price, mrp, actual_cost')
     .order('created_at', { ascending: true });
 
   if (error) {

@@ -30,7 +30,7 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder, previewOrder } from "@/services/ordersService";
+import { cancelOrder, placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
 import {
@@ -38,10 +38,19 @@ import {
   clearCheckoutAddressContext,
   getCheckoutAddressContext,
   hasManualAddressDetails,
+  isManualAddressComplete,
   normalizeManualAddressDetails,
   saveCheckoutAddressContext,
   type ManualAddressDetails,
 } from "@/lib/addressAccuracy";
+import {
+  clearCheckoutDraft,
+  readCheckoutDraft,
+  saveCheckoutDraft,
+  type CheckoutReturnSchedule,
+} from "@/lib/checkoutDraft";
+import { getPlanPrice } from "@/lib/pricing";
+import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -108,6 +117,7 @@ export default function CheckoutPage() {
   const [searchParams] = useSearchParams();
   const buyoutOrderId = searchParams.get("buyoutOrderId");
   const skipDelivery = searchParams.get("skipDelivery") === 'true';
+  const [checkoutDraft] = useState(() => readCheckoutDraft());
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
@@ -115,13 +125,13 @@ export default function CheckoutPage() {
 
   // Coupon code passed from CartPage via location state or search params
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
-    () => location.state?.couponCode || searchParams.get("coupon") || null
+    () => location.state?.couponCode || searchParams.get("coupon") || checkoutDraft?.appliedCouponCode || null
   );
 
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [agreedToSizing, setAgreedToSizing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(() => checkoutDraft?.agreedToTerms ?? false);
+  const [agreedToSizing, setAgreedToSizing] = useState(() => checkoutDraft?.agreedToSizing ?? false);
   const [userIp, setUserIp] = useState<string>("");
 
   // FIX 2: Declare missing showTermsModal state
@@ -147,9 +157,9 @@ export default function CheckoutPage() {
   const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
 
   // RECIPIENT INFORMATION (Editable overrides for ordering for others)
-  const [recipientName, setRecipientName] = useState<string>("");
-  const [recipientPhone, setRecipientPhone] = useState<string>("");
-  const [recipientEmail, setRecipientEmail] = useState<string>("");
+  const [recipientName, setRecipientName] = useState<string>(() => checkoutDraft?.recipientName ?? "");
+  const [recipientPhone, setRecipientPhone] = useState<string>(() => checkoutDraft?.recipientPhone ?? "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(() => checkoutDraft?.recipientEmail ?? "");
   const [showRecipientEditor, setShowRecipientEditor] = useState(false);
 
   // Sync recipient state with profile/user initially
@@ -285,15 +295,52 @@ export default function CheckoutPage() {
   }, [cartEntries, cartProducts]);
 
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
-  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
+  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>(
+    () => checkoutDraft?.selectedOrderType ?? 'rental'
+  );
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
   // Read return schedule from state (set by CheckoutReturnSchedulePage)
-  const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
+  const returnSchedule =
+    (location.state?.returnSchedule as CheckoutReturnSchedule | undefined) ??
+    checkoutDraft?.returnSchedule ??
+    undefined;
+
+  const isAddressComplete = useMemo(() => isNoDeliveryFlow || isManualAddressComplete(manualAddressDetails), [isNoDeliveryFlow, manualAddressDetails]);
+
   const manualAddressSummary = buildManualAddressSummary(manualAddressDetails);
   const showManualAddress = hasManualAddressDetails(manualAddressDetails);
+
+  useEffect(() => {
+    saveCheckoutDraft({
+      appliedCouponCode,
+      agreedToTerms,
+      agreedToSizing,
+      recipientName,
+      recipientPhone,
+      recipientEmail,
+      selectedOrderType,
+      returnSchedule: returnSchedule ?? null,
+    });
+  }, [
+    appliedCouponCode,
+    agreedToTerms,
+    agreedToSizing,
+    recipientName,
+    recipientPhone,
+    recipientEmail,
+    selectedOrderType,
+    returnSchedule,
+  ]);
+
+  useEffect(() => {
+    if (paymentMethod !== "upi") return;
+
+    preloadRazorpayCheckout().catch((err) => {
+      console.warn("[Checkout] Razorpay preload failed:", err);
+    });
+  }, [paymentMethod]);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
@@ -537,7 +584,7 @@ export default function CheckoutPage() {
       let productMap: Record<string, any> = {};
       if (data && !error) {
         data.forEach((p: any) => {
-          const mrp = parseFloat(p.mrp_price ?? p.mrp ?? '0');
+          const mrp = parseFloat(p.mrp ?? '0');
           productMap[p.id] = {
             ...p,
             mrp,
@@ -574,17 +621,6 @@ export default function CheckoutPage() {
 
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
-
-  const getPlanPrice = (product: any, plan: string) => {
-    if (!product) return 0;
-    switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
-    }
-  };
 
   // Load Buyout Order if specified
   useEffect(() => {
@@ -671,12 +707,22 @@ export default function CheckoutPage() {
   // Fetch server-side pricing whenever cart items or address change
   useEffect(() => {
     const items = JSON.parse(previewItemsKey);
-    if (items.length === 0 || buyoutOrderData) return;
+    if (items.length === 0 || buyoutOrderData) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
+    if (invalidCatalogItem) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
       items,
       couponCode: appliedCouponCode,
+      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0),
       addressId: isNoDeliveryFlow ? null : (deliveryAddress?.id || null),
       lat: isNoDeliveryFlow ? null : (deliveryAddress?.lat || null),
       lng: isNoDeliveryFlow ? null : (deliveryAddress?.lng || null),
@@ -697,47 +743,59 @@ export default function CheckoutPage() {
         console.warn("[Checkout] preview_order returned:", result.code, result.message);
       }
     }).catch((err) => {
-      if (!cancelled) console.warn("[Checkout] preview_order failed:", err);
+      if (!cancelled) {
+        console.warn("[Checkout] preview_order failed:", err);
+      }
     }).finally(() => {
       if (!cancelled) setPricingLoading(false);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData]);
+  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData, actualDistance, selectedHub?.distance_km, profile?.delivery_distance_km, invalidCatalogItem]);
 
   // ── Display values: prefer server pricing, fall back to client estimates ──
-  const subtotal = serverPricing?.subtotal ?? (() => {
-    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
-  })();
+  const subtotal = serverPricing?.subtotal != null
+    ? Math.round(serverPricing.subtotal)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const price = getPlanPrice(product, data.plan);
+        return sum + price * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const originalTotal = serverPricing?.original_total ?? (() => {
-    if (buyoutOrderData) return buyoutOrderData.total_amount;
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp = product?.mrp || planPrice;
-      return total + Math.max(mrp, planPrice) * data.quantity;
-    }, 0);
-  })();
+  const originalTotal = serverPricing?.original_total != null
+    ? Math.round(serverPricing.original_total)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const planPrice = getPlanPrice(product, data.plan);
+        const mrp = typeof product?.mrp === 'number' ? product.mrp : planPrice;
+        return sum + Math.max(mrp, planPrice) * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
-  const couponDiscount = serverPricing?.coupon_discount ?? 0;
+  const discount = serverPricing?.discount != null
+    ? Math.round(serverPricing.discount)
+    : Math.max(0, originalTotal - subtotal);
+  const couponDiscount = serverPricing?.coupon_discount != null
+    ? Math.round(serverPricing.coupon_discount)
+    : 0;
 
   // Delivery fee is computed server-side by preview_order RPC — no client-side default.
-  const deliveryFeeBase = serverPricing?.delivery_fee ?? null;
+  const deliveryFeeBase = serverPricing?.delivery_fee != null
+    ? Math.round(serverPricing.delivery_fee)
+    : null;
   const distanceSurcharge = 0;
 
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0;
-  const total = serverPricing?.total ?? null;
+  const total = serverPricing?.total != null ? Math.round(serverPricing.total) : null;
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -799,6 +857,21 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (!isAddressComplete) {
+      toast.error("Please add address details (flat no, landmark, etc) to continue");
+      navigate("/checkout/address-details", {
+        state: {
+          selectedAddress: deliveryAddress,
+          manualAddressDetails,
+          nextRoute: "/checkout",
+          forwardState: {
+            returnSchedule,
+          },
+        },
+      });
+      return;
+    }
+
     // Only gate on email if they actually have a real email set
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
@@ -819,6 +892,11 @@ export default function CheckoutPage() {
 
     if (!paymentMethod) {
       setShowPaymentMethodSelector(true);
+      return;
+    }
+
+    if (invalidCatalogItem) {
+      toast.error("One or more items are unavailable right now. Please remove them and try again.");
       return;
     }
 
@@ -863,6 +941,7 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
+          clearCheckoutDraft();
           navigate(`/order-confirmed/${targetId}`, { replace: true });
         } else {
           setIsPlacingOrder(false);
@@ -870,6 +949,7 @@ export default function CheckoutPage() {
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
+            preferredMethod: 'upi',
             userName: profile?.full_name || user?.user_metadata?.full_name,
             userEmail: profile?.email,
             userPhone: profile?.phone || user?.phone,
@@ -921,8 +1001,8 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const actualDistance = selectedHub?.distance_km ?? 0;
-      const isDelayed = actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
+      const routeDistanceKm = actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0;
+      const isDelayed = routeDistanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
       const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
       const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
@@ -957,6 +1037,43 @@ export default function CheckoutPage() {
         };
       });
 
+      // ── STOCK RESERVATION ──────────────────────────────────
+      // Resolve cart items to inventory variant_ids, then reserve stock
+      // atomically BEFORE order creation. If reservation fails, stop.
+      console.log('[Checkout] Resolving variant IDs for stock reservation...');
+      let reservedItems: { variant_id: string; quantity: number }[] = [];
+      try {
+        const variantItems = await resolveVariantIds(
+          orderItems.map(i => ({ product_id: i.product_id, size: i.size, quantity: i.quantity }))
+        );
+
+        // Reserve stock with a 15-second timeout
+        const reservationPromise = reserveCheckoutStock(variantItems);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Stock reservation timed out. Please try again.')), 15000)
+        );
+        const reserveResult = await Promise.race([reservationPromise, timeoutPromise]);
+
+        if (!reserveResult.success) {
+          toast.error("Some items are out of stock. Please update your cart and try again.");
+          setError("Out of stock — one or more items could not be reserved.");
+          return;
+        }
+
+        reservedItems = variantItems;
+        console.log('[Checkout] Stock reserved successfully', reservedItems);
+      } catch (stockErr: any) {
+        console.error('[Checkout] Stock reservation failed:', stockErr);
+        const msg = stockErr.message?.includes('timed out')
+          ? stockErr.message
+          : stockErr.message?.includes('Insufficient stock')
+            ? "Some items are out of stock. Please update your cart and try again."
+            : "Could not check stock availability. Please try again.";
+        toast.error(msg);
+        setError(msg);
+        return;
+      }
+
       // Generate idempotency key (once per click — survives retries within the same attempt)
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
@@ -965,24 +1082,46 @@ export default function CheckoutPage() {
       // ATOMIC order placement — order + items in a single DB transaction.
       // Server fetches prices from DB, computes delivery fee & coupon discount.
       // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
-      const orderResult = await placeOrder({
-        idempotencyKey: idempotencyKeyRef.current,
-        addressId: addressId,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        paymentMethod: paymentMethod,
-        couponCode: appliedCouponCode || null,
-        routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
-        deliveryEta: deliveryEtaStr,
-        returnPickupDate: returnPickupDate,
-        returnTimeSlot: returnTimeSlot,
-        items: orderItems,
-        recipientName: recipientName,
-        recipientPhone: recipientPhone,
-        recipientEmail: recipientEmail,
-      });
+      let orderResult;
+      try {
+        orderResult = await placeOrder({
+          idempotencyKey: idempotencyKeyRef.current,
+          addressId: addressId,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          paymentMethod: paymentMethod,
+          couponCode: appliedCouponCode || null,
+          routeDistanceKm,
+          deliveryEta: deliveryEtaStr,
+          returnPickupDate: returnPickupDate,
+          returnTimeSlot: returnTimeSlot,
+          items: orderItems,
+          recipientName: recipientName,
+          recipientPhone: recipientPhone,
+          recipientEmail: recipientEmail,
+        });
+      } catch (orderErr: any) {
+        // Order creation failed AFTER stock was reserved — release stock
+        console.error('[Checkout] Order creation failed, releasing reserved stock:', orderErr);
+        await releaseCheckoutStock(reservedItems).catch(() => {});
+        throw orderErr; // Re-throw to hit the outer catch
+      }
 
       const createdOrderId = orderResult.order_id;
+
+      // Persist reservation records so backend can release on cancel/timeout
+      if (createdOrderId && reservedItems.length > 0) {
+        try {
+          await persistOrderReservations(createdOrderId, reservedItems);
+        } catch (e) {
+          console.error('[Checkout] Failed to persist reservation records, releasing stock and cancelling order:', e);
+          await releaseCheckoutStock(reservedItems).catch(() => {});
+          await cancelOrder(createdOrderId).catch((cancelErr) => {
+            console.warn('[Checkout] Failed to cancel order after reservation persistence failure:', cancelErr);
+          });
+          throw new Error('Could not safely reserve stock for this order. Please try again.');
+        }
+      }
 
       // Reset idempotency key after successful creation
       idempotencyKeyRef.current = null;
@@ -1032,6 +1171,7 @@ export default function CheckoutPage() {
           const parts = key.split('_');
           removeFromCart(parts[0], data.size, data.plan);
         }
+        clearCheckoutDraft();
       }
 
       // Navigate based on payment method
@@ -1250,9 +1390,9 @@ export default function CheckoutPage() {
                         }
                         className="w-full rounded-2xl border border-dashed border-[#f2546d]/30 bg-[#f2546d]/5 px-4 py-3 text-left"
                       >
-                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add More Accuracy</p>
+                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add Address Details <span className="text-[#f2546d] ml-1">*</span></p>
                         <p className="text-xs text-zinc-400 mt-1" style={dmSans}>
-                          Flat number, landmark aur contact detail add kar do.
+                          Flat number, landmark aur contact detail add kar do. (Required)
                         </p>
                       </button>
                     )}
@@ -1388,7 +1528,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-white" style={dmSans}>Pay Online</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">UPI, Card, Netbanking & more</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">UPI apps and QR</p>
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -1397,7 +1537,7 @@ export default function CheckoutPage() {
                     <Banknote className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>Cash on Delivery</p>
+                    <p className="text-sm font-bold text-white" style={dmSans}>Pay on Delivery</p>
                     <p className="text-xs text-zinc-500 mt-0.5">Pay when you receive</p>
                   </div>
                 </>
@@ -1464,7 +1604,9 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
               <div className="text-right">
-                {pricingLoading || deliveryFeeBase === null ? (
+                {invalidCatalogItem ? (
+                  <span className="text-sm font-bold text-amber-500">Item Unavailable</span>
+                ) : pricingLoading || deliveryFeeBase === null ? (
                   <span className="text-zinc-500 animate-pulse">...</span>
                 ) : deliveryFeeBase === -1 ? (
                   <span className="text-sm font-bold text-red-500">Not Serviceable</span>
@@ -1479,15 +1621,24 @@ export default function CheckoutPage() {
             {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
-              <span>{pricingLoading || total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</span>
+              <span>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : pricingLoading || total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </span>
             </div>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <div className="fixed bottom-[var(--nav-h)] md:bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
-        <div className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
+        <div
+          className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]"
+          style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div onClick={() => setShowTermsModal(true)} className="flex items-center gap-2 cursor-pointer">
               <div className={cn("w-4 h-4 rounded border border-[#5f606a] flex items-center justify-center transition-colors", (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent")}>
@@ -1499,15 +1650,21 @@ export default function CheckoutPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-black text-white" style={dmSans}>{total === null ? <span className="animate-pulse">...</span> : <>₹ {total}</>}</p>
+              <p className="text-2xl font-black text-white" style={dmSans}>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </p>
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null || !!invalidCatalogItem || !isAddressComplete}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError || !!invalidCatalogItem || !isAddressComplete) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
@@ -1531,7 +1688,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showAddressSelector} onOpenChange={setShowAddressSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex justify-between items-center mb-6">
@@ -1583,7 +1740,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showPaymentMethodSelector} onOpenChange={setShowPaymentMethodSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Choose Payment Method</Drawer.Title>
@@ -1604,7 +1761,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
+                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI apps and QR through Razorpay</p>
                     </div>
                     <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
                       {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
@@ -1612,7 +1769,7 @@ export default function CheckoutPage() {
                   </div>
                   {paymentMethod === 'upi' && (
                     <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
-                      ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
+                      UPI opens securely through Razorpay. Use your UPI app or QR.
                     </p>
                   )}
                 </button>
@@ -1631,7 +1788,7 @@ export default function CheckoutPage() {
                         <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
                       </div>
                       <div className="flex-1">
-                        <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
+                        <p className="text-white font-bold text-base" style={dmSans}>Pay on Delivery</p>
                         <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
                       </div>
                       <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
@@ -1662,7 +1819,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showRecipientEditor} onOpenChange={setShowRecipientEditor}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Delivery Contact</Drawer.Title>
@@ -1875,7 +2032,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -1962,7 +2119,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">
@@ -2070,7 +2227,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -2157,7 +2314,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">

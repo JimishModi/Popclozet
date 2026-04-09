@@ -13,8 +13,16 @@ import {
   stopDeliveryTracking,
 } from '@/services/trackingService';
 import { verifyDeliveryOtp } from '@/services/deliveryOtpService';
+import { notifyCustomerDriverArrived } from '@/services/riderOrderService';
+import { openRazorpayCheckout, preloadRazorpayCheckout, type RazorpayFailedResponse, type RazorpayPaymentResponse } from '@/lib/razorpay';
 import {
-  MapPin, Navigation, CheckCircle, X, KeyRound, Loader2, Package, ScanLine,
+  createRiderCollectionOrder,
+  getOrderPaymentRecord,
+  verifyRiderCollectionPayment,
+  type OrderPaymentRecord,
+} from '@/services/riderPaymentCollectionService';
+import {
+  MapPin, Navigation, CheckCircle, X, KeyRound, Loader2, Package, ScanLine, IndianRupee, Smartphone,
 } from 'lucide-react';
 import { QRScannerOverlay } from '@/components/QRScannerOverlay';
 
@@ -26,6 +34,7 @@ interface DeliveryOrder {
   id: string;
   status: string;
   user_id: string;
+  total_amount?: number | null;
   otp_delivery?: string;
   otp_return?: string;
   payment_method?: string | null;
@@ -90,6 +99,8 @@ export const DeliveryNavigationPage: React.FC = () => {
 
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ full_name: string | null; phone: string | null } | null>(null);
+  const [paymentRecord, setPaymentRecord] = useState<OrderPaymentRecord | null>(null);
+  const [paymentCollecting, setPaymentCollecting] = useState(false);
 
   // OTP modal state
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -97,6 +108,18 @@ export const DeliveryNavigationPage: React.FC = () => {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [deliveryCompleting, setDeliveryCompleting] = useState(false);
+
+  // POD payment gate state
+  const [showPaymentStep, setShowPaymentStep] = useState(false);
+
+  const loadPaymentRecord = useCallback(async (orderId: string) => {
+    try {
+      const payment = await getOrderPaymentRecord(orderId);
+      setPaymentRecord(payment);
+    } catch (error) {
+      console.error('[DeliveryNavigation] Failed to load payment record:', error);
+    }
+  }, []);
 
   // ── Fetch order ──────────────────────────────────────────────────────────────
 
@@ -106,12 +129,13 @@ export const DeliveryNavigationPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,status,user_id,otp_delivery,otp_return,payment_method,manual_address_details,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
+          .select('id,status,user_id,total_amount,otp_delivery,otp_return,payment_method,manual_address_details,customer_profiles!orders_user_id_fkey1(full_name,phone),delivery_address_snapshot,addresses:delivery_address_id(full_address,latitude,longitude),order_items(id,product_id,size,rental_price,products(name,images))')
           .eq('id', id)
           .single();
         if (error || !data) throw error;
         const order = data as unknown as DeliveryOrder;
         setOrder(order);
+        await loadPaymentRecord(order.id);
         if (order.status === 'delivered') {
           navigate('/');
           return;
@@ -132,7 +156,7 @@ export const DeliveryNavigationPage: React.FC = () => {
       }
     };
     fetchOrder();
-  }, [id, navigate, showToast]);
+  }, [id, loadPaymentRecord, navigate, showToast]);
 
   // ── Customer info fallback ───────────────────────────────────────────────────
   // Runs once when order.user_id is available and the FK join returned nothing.
@@ -149,6 +173,14 @@ export const DeliveryNavigationPage: React.FC = () => {
         if (data) setCustomerInfo({ full_name: data.full_name ?? null, phone: data.phone ?? null });
       });
   }, [order?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (order?.payment_method !== 'cod' || paymentRecord?.status === 'completed') return;
+
+    preloadRazorpayCheckout().catch((error) => {
+      console.warn('[DeliveryNavigation] Razorpay preload failed:', error);
+    });
+  }, [order?.payment_method, paymentRecord?.status]);
 
   // ── Resolve destination ──────────────────────────────────────────────────────
 
@@ -236,13 +268,30 @@ export const DeliveryNavigationPage: React.FC = () => {
     runTracking();
   }, [id, user?.id, globalLocation]);
 
+  // ── Derived payment state (needed before callbacks) ──────────────────────────
+
+  const isPayOnDelivery = order?.payment_method === 'cod';
+  const isPaymentCompleted = paymentRecord?.status === 'completed' || (!isPayOnDelivery && !!order?.payment_method);
+  const shouldShowOnlineCollection = Boolean(isPayOnDelivery && !isPaymentCompleted && order?.total_amount);
+
   // ── OTP-gated delivery completion ────────────────────────────────────────────
 
-  const handleRequestDelivery = useCallback(() => {
+  const handleRequestDelivery = useCallback(async () => {
+    if (id && order?.user_id && !RETURN_STATUSES.includes(order.status)) {
+      await notifyCustomerDriverArrived(id, order.user_id).catch((error) => {
+        console.warn('[DeliveryNavigation] Failed to notify customer about rider arrival:', error);
+      });
+    }
+
+    // For POD orders where payment hasn't been collected yet, show payment step first
+    if (isPayOnDelivery && !isPaymentCompleted) {
+      setShowPaymentStep(true);
+      return;
+    }
     setOtpValue('');
     setOtpError('');
     setShowOtpModal(true);
-  }, []);
+  }, [id, isPayOnDelivery, isPaymentCompleted, order?.status, order?.user_id]);
 
   const handleVerifyAndDeliver = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -305,6 +354,134 @@ export const DeliveryNavigationPage: React.FC = () => {
       showToast(err.message || 'Failed to complete. Try again.', 'error');
     }
   }, [id, user?.id, order, otpValue, showToast, navigate]);
+
+  const displayCustomerName =
+    order?.manual_address_details?.contactName?.trim() ||
+    customerInfo?.full_name?.trim() ||
+    'Valued Customer';
+  const displayCustomerPhone =
+    order?.manual_address_details?.phoneNumber?.trim() ||
+    customerInfo?.phone?.trim() ||
+    null;
+  const accountCustomerName =
+    customerInfo?.full_name &&
+    order?.manual_address_details?.contactName &&
+    customerInfo.full_name.trim() !== order.manual_address_details.contactName.trim()
+      ? customerInfo.full_name.trim()
+      : null;
+  const handleCollectOnlinePayment = useCallback(async () => {
+    if (!id || !order?.total_amount || paymentCollecting) return;
+
+    setPaymentCollecting(true);
+
+    try {
+      const rzpOrder = await createRiderCollectionOrder(id);
+      let outcome: 'none' | 'success' | 'failed' | 'cancelled' = 'none';
+
+      await new Promise<void>((resolve, reject) => {
+        void (async () => {
+          try {
+            const instance = await openRazorpayCheckout({
+              key: rzpOrder.key_id,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency,
+              name: 'Popclozet',
+              description: `Collect payment for order ${id.slice(0, 8).toUpperCase()}`,
+              image: '/icons/icon-192x192.png',
+              order_id: rzpOrder.id,
+              prefill: {
+                name: displayCustomerName,
+                contact: displayCustomerPhone || '',
+              },
+              notes: {
+                supabase_order_id: id,
+                payment_context: 'rider_collection',
+              },
+              theme: {
+                color: '#10b981',
+                hide_topbar: false,
+              },
+              modal: {
+                confirm_close: true,
+                escape: false,
+                backdropclose: false,
+                ondismiss: () => {
+                  if (outcome !== 'none') return;
+                  outcome = 'cancelled';
+                  reject(new Error('PAYMENT_CANCELLED'));
+                },
+              },
+              handler: async (response: RazorpayPaymentResponse) => {
+                outcome = 'success';
+                try {
+                  await verifyRiderCollectionPayment({
+                    internalOrderId: id,
+                    razorpayOrderId: response.razorpay_order_id,
+                    razorpayPaymentId: response.razorpay_payment_id,
+                    razorpaySignature: response.razorpay_signature,
+                  });
+
+                  await loadPaymentRecord(id);
+                  showToast('Payment collected successfully', 'success');
+
+                  // If triggered from POD payment gate, advance to OTP step
+                  if (showPaymentStep) {
+                    setShowPaymentStep(false);
+                    setOtpValue('');
+                    setOtpError('');
+                    setShowOtpModal(true);
+                  }
+
+                  resolve();
+                } catch (error) {
+                  outcome = 'failed';
+                  reject(error instanceof Error ? error : new Error(String(error)));
+                }
+              },
+            });
+
+            instance.on('payment.failed', (failedResponse: RazorpayFailedResponse) => {
+              if (outcome !== 'none') return;
+              const message =
+                failedResponse.error.description ||
+                failedResponse.error.reason ||
+                'Payment failed. Customer can retry.';
+              showToast(message, 'error');
+            });
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
+        })();
+      });
+    } catch (error: any) {
+      if (error?.message === 'PAYMENT_CANCELLED') {
+        showToast('Payment collection cancelled', 'error');
+      } else if (String(error?.message || '').toLowerCase().includes('already completed')) {
+        await loadPaymentRecord(id);
+        showToast('This order is already paid', 'success');
+        // Already paid — advance to OTP if in payment gate flow
+        if (showPaymentStep) {
+          setShowPaymentStep(false);
+          setOtpValue('');
+          setOtpError('');
+          setShowOtpModal(true);
+        }
+      } else {
+        showToast(error?.message || 'Failed to collect payment', 'error');
+      }
+    } finally {
+      setPaymentCollecting(false);
+    }
+  }, [
+    displayCustomerName,
+    displayCustomerPhone,
+    id,
+    loadPaymentRecord,
+    order?.total_amount,
+    paymentCollecting,
+    showPaymentStep,
+    showToast,
+  ]);
 
   // ── Render helpers ───────────────────────────────────────────────────────────
 
@@ -405,27 +582,73 @@ export const DeliveryNavigationPage: React.FC = () => {
            {/* Customer name */}
            <div>
               <h2 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-2">Customer</h2>
-              <p className="text-xl font-bold text-white">{customerInfo?.full_name || 'Valued Customer'}</p>
-              {customerInfo?.phone && (
-                <p className="text-sm text-zinc-500 mt-1">{customerInfo.phone}</p>
+              <p className="text-xl font-bold text-white">{displayCustomerName}</p>
+              {displayCustomerPhone && (
+                <p className="text-sm text-zinc-500 mt-1">{displayCustomerPhone}</p>
+              )}
+              {accountCustomerName && (
+                <p className="text-xs text-zinc-600 mt-2">Account name: {accountCustomerName}</p>
               )}
            </div>
 
            {/* Payment Mode */}
            {order?.payment_method && (
-             <span className={`inline-block px-3 py-1.5 text-xs font-bold uppercase rounded-xl ${
-               order.payment_method === 'cod'
-                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
-             }`}>
-               {order.payment_method === 'cod' ? '💵 Cash on Delivery' : '✅ Paid Online'}
-             </span>
+             <div className="space-y-4">
+               <span className={`inline-block px-3 py-1.5 text-xs font-bold uppercase rounded-xl ${
+                 order.payment_method === 'cod'
+                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                   : 'bg-green-500/20 text-green-400 border border-green-500/30'
+               }`}>
+                 {order.payment_method === 'cod' ? 'Pay on Delivery' : 'Paid Online'}
+               </span>
+
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+                   <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-2">Order Amount</div>
+                   <div className="flex items-center gap-1 text-white text-xl font-black">
+                     <IndianRupee size={18} className="text-emerald-400" />
+                     <span>{Number(order.total_amount || 0).toFixed(0)}</span>
+                   </div>
+                 </div>
+                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+                   <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-2">Payment Status</div>
+                   <p className={`text-sm font-bold ${isPaymentCompleted ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                     {isPaymentCompleted ? 'Collected' : isPayOnDelivery ? 'Pending Collection' : 'Paid Online'}
+                   </p>
+                   {paymentRecord?.provider && (
+                     <p className="text-[11px] text-zinc-500 mt-1 uppercase">{paymentRecord.provider}</p>
+                   )}
+                 </div>
+               </div>
+
+               {shouldShowOnlineCollection && (
+                 <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5 space-y-4">
+                   <div className="space-y-1">
+                     <h3 className="text-sm font-bold text-white">Collect online on delivery</h3>
+                     <p className="text-xs text-zinc-400 leading-relaxed">
+                       Opens Popclozet&apos;s secure UPI/QR checkout for the exact order amount so the customer can pay online at the doorstep.
+                     </p>
+                   </div>
+                   <button
+                     onClick={handleCollectOnlinePayment}
+                     disabled={paymentCollecting}
+                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-xl shadow-emerald-500/20"
+                   >
+                     {paymentCollecting ? (
+                       <><Loader2 size={18} className="animate-spin" /> Opening payment...</>
+                     ) : (
+                       <><Smartphone size={18} /> Collect Online via QR</>
+                     )}
+                   </button>
+                 </div>
+               )}
+             </div>
            )}
 
            {/* Call button — always visible, greyed out only if no phone */}
-           {customerInfo?.phone ? (
+           {displayCustomerPhone ? (
              <a
-               href={`tel:${customerInfo.phone}`}
+               href={`tel:${displayCustomerPhone}`}
                className="w-full py-4 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center gap-3 text-emerald-400 font-bold text-sm transition-all active:scale-95 hover:bg-emerald-600/30"
              >
                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -475,7 +698,7 @@ export const DeliveryNavigationPage: React.FC = () => {
                    <p><span className="text-zinc-600">Pincode: </span>{order.manual_address_details.pincode}</p>
                  )}
                  {order.manual_address_details.contactName && (
-                   <p><span className="text-zinc-600">Contact: </span>{order.manual_address_details.contactName}</p>
+                   <p><span className="text-zinc-600">Recipient: </span>{order.manual_address_details.contactName}</p>
                  )}
                  {order.manual_address_details.phoneNumber && (
                    <p><span className="text-zinc-600">Phone: </span>{order.manual_address_details.phoneNumber}</p>
@@ -531,6 +754,8 @@ export const DeliveryNavigationPage: React.FC = () => {
           >
             {deliveryCompleting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : isPayOnDelivery && !isPaymentCompleted ? (
+              <><IndianRupee size={18} /> Collect &amp; Complete</>
             ) : (
               <><CheckCircle size={18} /> Complete</>
             )}
@@ -599,6 +824,59 @@ export const DeliveryNavigationPage: React.FC = () => {
                     <><Loader2 size={18} className="animate-spin" /> Verifying...</>
                   ) : (
                     'Confirm OTP'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* POD Payment Collection Modal */}
+      <AnimatePresence>
+        {showPaymentStep && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-white/5 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-white/5">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <IndianRupee size={18} className="text-emerald-400" /> Collect Payment
+                </h3>
+                <button
+                  onClick={() => { if (!paymentCollecting) setShowPaymentStep(false); }}
+                  disabled={paymentCollecting}
+                  className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-8 space-y-6 text-center">
+                <div className="space-y-2">
+                  <p className="text-sm text-zinc-500">Collect payment before completing delivery</p>
+                  <div className="flex items-center justify-center gap-1 text-white">
+                    <IndianRupee size={28} className="text-emerald-400" />
+                    <span className="text-4xl font-black">{Number(order?.total_amount || 0).toFixed(0)}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Opens Popclozet's secure UPI/QR checkout for the customer to pay online at the doorstep.
+                </p>
+
+                <button
+                  onClick={handleCollectOnlinePayment}
+                  disabled={paymentCollecting}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-xl shadow-emerald-500/20"
+                >
+                  {paymentCollecting ? (
+                    <><Loader2 size={18} className="animate-spin" /> Opening payment...</>
+                  ) : (
+                    <><Smartphone size={18} /> Collect Online via QR</>
                   )}
                 </button>
               </div>

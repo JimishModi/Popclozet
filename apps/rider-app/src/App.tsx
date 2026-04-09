@@ -6,7 +6,7 @@
  * Role mismatch results in a blocking screen, not a redirect.
  */
 
-import { Routes, Route, Navigate, useLocation as useRouterLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation as useRouterLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { ScanLine } from 'lucide-react';
 import { QRScannerOverlay } from './components/QRScannerOverlay';
@@ -35,7 +35,14 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { SupportPage } from './pages/SupportPage';
 import { SlotsPage } from './pages/SlotsPage';
 import { EarningsPage } from './pages/EarningsPage';
+import { AvailableRidesPage } from './pages/AvailableRidesPage';
 import { InstallPrompt } from './components/InstallPrompt';
+import {
+    ensurePushSubscription,
+    getPermissionState,
+    isPushSupported,
+    subscribeToPush,
+} from './services/pushNotificationService';
 
 function App() {
     const { loading, user } = useAuth();
@@ -126,6 +133,7 @@ function App() {
 
     return (
         <>
+        <PushNotificationManager enabled={isRider === true} />
         <InstallPrompt />
         {!pagesWithOwnQR && (
             <button
@@ -140,6 +148,7 @@ function App() {
         <Routes>
             {/* Home / Dashboard */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/available-rides" element={<AvailableRidesPage />} />
 
             {/* Legacy Dashboard (for backwards compatibility) */}
             <Route path="/dashboard-legacy" element={<RiderDashboardPage />} />
@@ -174,3 +183,47 @@ function App() {
 }
 
 export default App;
+
+function PushNotificationManager({ enabled }: { enabled: boolean }) {
+    const navigate = useNavigate();
+    const location = useRouterLocation();
+    const { user } = useAuth();
+
+    useEffect(() => {
+        if (!enabled || !("serviceWorker" in navigator)) return;
+
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'NOTIFICATION_CLICK') {
+                navigate(event.data.url || '/');
+            }
+        };
+
+        navigator.serviceWorker.addEventListener('message', handleMessage);
+        return () => {
+            navigator.serviceWorker.removeEventListener('message', handleMessage);
+        };
+    }, [enabled, navigate]);
+
+    useEffect(() => {
+        if (!enabled || !user || !isPushSupported()) return;
+        if (getPermissionState() !== 'granted') return;
+
+        void ensurePushSubscription();
+    }, [enabled, user?.id]);
+
+    useEffect(() => {
+        if (!enabled || !user || !isPushSupported()) return;
+        if (location.pathname !== '/') return;
+        if (getPermissionState() !== 'default') return;
+        if (sessionStorage.getItem('rider_push_prompt_seen')) return;
+
+        const timer = window.setTimeout(() => {
+            sessionStorage.setItem('rider_push_prompt_seen', 'true');
+            void subscribeToPush();
+        }, 3000);
+
+        return () => window.clearTimeout(timer);
+    }, [enabled, location.pathname, user?.id]);
+
+    return null;
+}

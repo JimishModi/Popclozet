@@ -10,21 +10,23 @@ import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
+import { useClosetCount } from "@/hooks/useClosetCount";
 import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
+import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
 
 const FEATURED_SLIDES = [
-    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80", gender: "womens" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=800&q=80", gender: "womens" },
+    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400&q=60&fm=webp", gender: "womens" },
+    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&q=60&fm=webp", gender: "womens" },
+    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=400&q=60&fm=webp", gender: "womens" },
 
-    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=800&q=80", gender: "mens" },
-    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80", gender: "mens" },
-    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=800&q=80", gender: "mens" },
+    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=400&q=60&fm=webp", gender: "mens" },
+    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=400&q=60&fm=webp", gender: "mens" },
+    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&q=60&fm=webp", gender: "mens" },
 
 ];
 
@@ -71,7 +73,7 @@ const MobileHome: React.FC = () => {
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
-    const wishlistCount = wishlistItems.length;
+    const { closetCount } = useClosetCount();
     const { unreadCount } = useNotifications({ limit: 5, autoSubscribe: true });
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
@@ -241,9 +243,37 @@ const MobileHome: React.FC = () => {
         setLoadingCatalogue(true);
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
-            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor'));
-            if (products.length > 0) {
-                setCatalogueProducts(products.slice(0, 4));
+            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
+
+            const topCategories = Array.from(
+                new Set(
+                    products
+                        .map((product) => product.category?.toLowerCase().trim())
+                        .filter((category): category is string => Boolean(category))
+                )
+            ).slice(0, 3);
+
+            const fakeBatches = await Promise.all(
+                topCategories.map((category) => fetchRotatedFakeProducts(category, undefined, 5))
+            );
+
+            const fakeProducts = fakeBatches
+                .flat()
+                .filter((product) => {
+                    const pGender = (product.gender as string || '').toLowerCase();
+                    const targetGender = activeGender.toLowerCase();
+                    return pGender === targetGender || pGender === 'unisex';
+                })
+                .filter((product, index, array) => array.findIndex((item) => item.id === product.id) === index)
+                .slice(0, 3);
+
+            const showcaseProducts = [
+                ...products.slice(0, Math.max(1, 4 - fakeProducts.length)),
+                ...fakeProducts,
+            ].slice(0, 4);
+
+            if (showcaseProducts.length > 0) {
+                setCatalogueProducts(showcaseProducts as Product[]);
                 catalogueRetryCount.current = 0;
             } else if (catalogueRetryCount.current < 2) {
                 // Products came back empty — might be a stale IDB on fresh install.
@@ -252,7 +282,7 @@ const MobileHome: React.FC = () => {
                 console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
                 await productService.syncProducts();
                 const syncedRaw = await productService.getProductsByGender(activeGender);
-                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor'));
+                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
                 setCatalogueProducts(synced.slice(0, 4));
             }
         } catch (error) {
@@ -359,9 +389,9 @@ const MobileHome: React.FC = () => {
                                 className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
                                 <ClosetIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white/80" />
-                                {wishlistCount > 0 && (
+                                {closetCount > 0 && (
                                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
-                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                        {closetCount > 9 ? '9+' : closetCount}
                                     </span>
                                 )}
                             </button>
@@ -421,7 +451,7 @@ const MobileHome: React.FC = () => {
                     <motion.div 
                         className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px] touch-pan-y"
                         onPanEnd={(e, info) => {
-                            const threshold = 50;
+                            const threshold = 30;
                             if (info.offset.x > threshold) {
                                 // Swipe Right -> Previous Slide
                                 setActiveSlide(prev => (prev - 1 + filteredSlides.length) % filteredSlides.length);
@@ -442,6 +472,8 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + filteredSlides.length - 1) % filteredSlides.length].image}
                                     alt="Previous"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                     loading="eager"
                                     decoding="async"
@@ -456,38 +488,17 @@ const MobileHome: React.FC = () => {
                                     animate={{ opacity: 1, scale: 1, x: 0 }}
                                     exit={{ opacity: 0, scale: 1.05, x: -20 }}
                                     transition={{ duration: 0.4, ease: "easeOut" }}
-                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer bg-zinc-900"
-                                    onClick={() => {
-                                        const slide = filteredSlides[activeSlide];
-                                        const categoryMap: Record<string, string> = {
-                                            'New Arrivals': 'Casual',
-                                            'Trending Now': 'Party',
-                                            'Party Collection': 'Party',
-                                            "Men's Streetwear": 'Casual',
-                                            'Formal Classics': 'Formal'
-                                        };
-                                        const cat = categoryMap[slide.title] || 'Casual';
-                                        navigate(`/category?title=${encodeURIComponent(slide.title)}&category=${cat}`);
-                                    }}
+                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-zinc-900 border border-white/5"
                                 >
                                     <img
                                         src={filteredSlides[activeSlide].image}
                                         alt={filteredSlides[activeSlide].title}
+                                        decoding="async"
                                         className="w-full h-full object-cover"
                                         loading="eager"
                                         fetchPriority="high"
                                         decoding="async"
                                     />
-                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                                    <div className="absolute bottom-3 left-3 right-3 md:bottom-6 md:left-6 md:right-6 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-center">
-                                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[8px] md:text-[10px] font-bold uppercase tracking-wider mb-1 md:mb-2">
-                                            Trending
-                                        </span>
-                                        <h3 className="text-base md:text-xl font-bold text-white tracking-tight">
-                                            {filteredSlides[activeSlide].title}
-                                        </h3>
-                                    </div>
                                 </motion.div>
                             </AnimatePresence>
 
@@ -499,6 +510,8 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + 1) % filteredSlides.length].image}
                                     alt="Next"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                     loading="eager"
                                     decoding="async"
@@ -567,6 +580,8 @@ const MobileHome: React.FC = () => {
                                         <motion.img
                                             src={imageUrl}
                                             alt={collection.title}
+                                            loading="lazy"
+                                            decoding="async"
                                             className="absolute inset-0 w-full h-full object-cover"
                                             whileHover={{ scale: 1.05 }}
                                             transition={{ duration: 0.4 }}
@@ -776,7 +791,7 @@ const MobileHome: React.FC = () => {
                             const isSoldOut = (item as any).isSoldOut === true;
                             const isUnavailable = isFake || isRentedOut || isSoldOut;
                             
-                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented";
+                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented Out";
                             
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
@@ -814,6 +829,8 @@ const MobileHome: React.FC = () => {
                                             <img
                                                 src={imgSrc}
                                                 alt={item.name}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className={cn(
                                                     "w-full h-full object-cover transition-transform duration-500",
                                                     isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"

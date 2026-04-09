@@ -70,6 +70,7 @@ interface InventoryRow {
     available_stock: number;
     went_for_wash: number;
     total_stock: number;
+    all_products?: { status?: string | null }[];
 }
 
 const MobileProductDetailPage: React.FC = () => {
@@ -173,7 +174,7 @@ const MobileProductDetailPage: React.FC = () => {
                         .single(),
                     supabase
                         .from('inventory')
-                        .select('size, available_stock, went_for_wash, total_stock')
+                        .select('size, available_stock, went_for_wash, total_stock, all_products(status)')
                         .eq('product_id', productId)
                         .order('size'),
                     supabase
@@ -216,8 +217,7 @@ const MobileProductDetailPage: React.FC = () => {
                         gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender),
                         category: dbProduct.category || '',
                         eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as any,
-                        mrp: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : (dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined),
-                        mrp_price: dbProduct.mrp_price ? parseFloat(dbProduct.mrp_price) : undefined,
+                        mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
                         occasions: dbProduct.occasion || []
                     });
                 }
@@ -276,7 +276,7 @@ const MobileProductDetailPage: React.FC = () => {
     // 2. Otherwise: Current Rental vs MRP (Market Value)
     const baseRental = product?.price || 699;
     const currentRental = product?.discounted_price || baseRental;
-    const mrp = product?.mrp_price || product?.mrp || (baseRental * 5); // Take value from DB if available
+    const mrp = product?.mrp || (baseRental * 5);
 
     const getPlanPrice = (plan: PricingPlan) => {
         if (!product) return 0;
@@ -1029,7 +1029,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl">
+                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl pb-safe">
                         <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto no-scrollbar">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-800 mb-8" />
                             <h2 className="text-2xl font-black text-white mb-2 text-center tracking-tighter">Write a Review</h2>
@@ -1104,7 +1104,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isSizeGuideOpen} onOpenChange={setIsSizeGuideOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh]">
+                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh] pb-safe">
                         <div className="p-4 bg-[#191919] rounded-t-[20px] flex-1 overflow-y-auto">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-700 mb-6" />
                             <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
@@ -1152,7 +1152,7 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden pb-safe">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented || isProductRentedOut ? (
                         /* Rented-out state — cannot order */

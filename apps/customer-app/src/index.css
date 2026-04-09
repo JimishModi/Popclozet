@@ -137,6 +137,20 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  @supports (min-height: 100dvh) {
+    html,
+    body,
+    #root {
+      min-height: 100dvh;
+    }
+  }
+
   * {
     @apply border-border;
   }
@@ -791,6 +805,57 @@
   body {
     overflow-x: clip;
     width: 100%;
+  }
+
+  /* ============================
+     iOS SAFE AREA (NOTCH + HOME INDICATOR)
+     Ensures content never hides behind the iPhone notch,
+     Dynamic Island, or home indicator bar on any iPhone model.
+     ============================ */
+
+  /* Make safe area insets available as CSS custom properties */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --mobile-bottom-nav-height: 80px;
+    --mobile-bottom-nav-offset: calc(var(--mobile-bottom-nav-height) + var(--safe-bottom));
+    --mobile-floating-banner-offset: calc(var(--mobile-bottom-nav-offset) + 8px);
+    --mobile-overlay-edge-gap: 12px;
+    --mobile-overlay-max-height: calc(100dvh - var(--safe-top) - var(--mobile-overlay-edge-gap));
+    --mobile-overlay-padding-bottom: max(16px, calc(16px + var(--safe-bottom)));
+  }
+
+  /* Utility classes for explicit safe area padding */
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+  .pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+
+  /* Replace static 100vh with dynamic viewport height on mobile browsers like iPhone Safari. */
+  @supports (min-height: 100dvh) {
+    .min-h-screen {
+      min-height: 100dvh !important;
+    }
+
+    .h-screen {
+      height: 100dvh !important;
+    }
+
+    .max-h-screen {
+      max-height: 100dvh !important;
+    }
+  }
+
+  /* ============================
+     iOS GLOBAL BOTTOM SHEET FIX
+     All bottom sheets (modal drawers anchored at bottom) must
+     not be hidden behind the iPhone home indicator.
+     We can't use @apply here so we use a CSS custom property.
+     ============================ */
+  .bottom-sheet-safe {
+    padding-bottom: max(24px, calc(12px + env(safe-area-inset-bottom, 0px)));
   }
 
   /*

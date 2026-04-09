@@ -67,7 +67,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
                             </div>
 
                             {/* Content area – compact, no min-height */}
-                            <div className="px-5 pb-5">
+                            <div className="px-5 bottom-sheet-safe">
                                 {/* Size tab */}
                                 {activeTab === 'size' && (
                                     <div className="grid grid-cols-5 gap-2">

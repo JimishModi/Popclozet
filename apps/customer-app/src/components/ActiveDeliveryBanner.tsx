@@ -107,7 +107,7 @@ export function ActiveDeliveryBanner() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="fixed bottom-[60px] left-0 right-0 z-50 px-0 pb-1 md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:mt-3 md:pb-0 md:px-4"
+            className="fixed bottom-[calc(var(--mobile-floating-banner-offset))] left-0 right-0 z-50 px-0 pb-1 md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:mt-3 md:pb-0 md:px-4"
         >
             <motion.button
                 whileTap={{ scale: 0.97 }}

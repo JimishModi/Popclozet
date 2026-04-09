@@ -24,6 +24,7 @@ const NOTIFICATION_ICONS: Record<string, React.ReactNode> = {
     order_picked_up: <Package className="w-4 h-4" />,
     order_dispatched: <Truck className="w-4 h-4" />,
     out_for_delivery: <Truck className="w-4 h-4" />,
+    driver_arrived_location: <MapPin className="w-4 h-4" />,
     rider_message: <MessageCircle className="w-4 h-4" />,
     delivered: <Check className="w-4 h-4" />,
     pickup_scheduled: <Package className="w-4 h-4" />,

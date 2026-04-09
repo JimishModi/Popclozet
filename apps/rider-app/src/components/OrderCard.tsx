@@ -124,7 +124,7 @@ export function OrderCard({
                                 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
                                 : 'bg-green-500/20 text-green-400 border-green-500/30'
                         )}>
-                            {paymentMethod === 'cod' ? 'COD' : 'PAID'}
+                            {paymentMethod === 'cod' ? 'POD' : 'PAID'}
                         </span>
                     )}
                 </div>

@@ -53,6 +53,22 @@ export function hasManualAddressDetails(
   );
 }
 
+export function isManualAddressComplete(
+  details?: Partial<ManualAddressDetails> | null
+): boolean {
+  if (!details) return false;
+
+  return Boolean(
+    trimValue(details.contactName) &&
+      trimValue(details.phoneNumber) &&
+      trimValue(details.houseNumber) &&
+      trimValue(details.streetAddress) &&
+      trimValue(details.landmark) &&
+      trimValue(details.city) &&
+      trimValue(details.pincode)
+  );
+}
+
 export function buildManualAddressSummary(
   details?: Partial<ManualAddressDetails> | null
 ): string {

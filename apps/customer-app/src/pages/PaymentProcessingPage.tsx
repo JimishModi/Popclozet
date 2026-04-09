@@ -7,6 +7,8 @@ import { useAuth } from "@/context/SupabaseAuthContext";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useCart } from "@/context/CartContext";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
+import { clearCheckoutDraft } from "@/lib/checkoutDraft";
+import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@popclozet/api-client";
 import { debugAuthState } from "@/services/supabaseFunctionInvoke";
 
@@ -49,6 +51,12 @@ export default function PaymentProcessingPage() {
             window.removeEventListener("pageshow", log);
             document.removeEventListener("visibilitychange", log);
         };
+    }, []);
+
+    useEffect(() => {
+        preloadRazorpayCheckout().catch((err) => {
+            console.warn("[PaymentProcessing] Razorpay preload failed:", err);
+        });
     }, []);
 
     // Safety timeout: if nothing settles within 5 minutes, something is stuck.
@@ -107,6 +115,7 @@ export default function PaymentProcessingPage() {
                 initiatePayment({
                     internalOrderId: orderId,
                     amountInRupees: amount,
+                    preferredMethod: isUpi ? 'upi' : undefined,
                     userName: profile?.full_name || user?.user_metadata?.full_name || "",
                     userEmail: profile?.email || user?.email || "",
                     userPhone: profile?.phone || user?.phone || "",
@@ -141,7 +150,8 @@ export default function PaymentProcessingPage() {
                             const parts = key.split('_');
                             removeFromCart(parts[0], data.size, data.plan);
                         }
-                        navigate('/home', { replace: true });
+                        clearCheckoutDraft();
+                        navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
                     onFailure: (error) => {
                         if (paymentSettled.current) return;
@@ -151,7 +161,11 @@ export default function PaymentProcessingPage() {
 
                         // User cancelled → go back to checkout so they can retry
                         if (error.message === 'PAYMENT_CANCELLED') {
-                            navigate('/checkout', { replace: true });
+                            if (window.history.length > 1) {
+                                navigate(-1);
+                            } else {
+                                navigate('/checkout', { replace: true });
+                            }
                         } else if (error.message?.includes('verification failed') || error.message?.includes('signature mismatch')) {
                             // Money may have been charged but verification failed
                             navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
@@ -168,7 +182,7 @@ export default function PaymentProcessingPage() {
         };
 
         startPayment();
-    }, [type, orderId, amountStr, initiatePayment, profile, user, session, navigate, planId, cartItems, removeFromCart]);
+    }, [type, orderId, amountStr, initiatePayment, profile, user, session, navigate, planId, cartItems, removeFromCart, isUpi, pickupSlotIso, pickupAddressId]);
 
 
     return (

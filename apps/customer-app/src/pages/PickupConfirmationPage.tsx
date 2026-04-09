@@ -187,7 +187,10 @@ export default function PickupConfirmationPage() {
             </main>
 
             {/* Fixed Bottom Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-zinc-800 p-4">
+            <div
+                className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-zinc-800 p-4"
+                style={{ paddingBottom: 'max(16px, calc(16px + env(safe-area-inset-bottom, 0px)))' }}
+            >
                 <div className="flex items-center justify-between mb-3">
                     <span className="text-zinc-400 text-sm">
                         {selectedCount} of {items.length} items selected

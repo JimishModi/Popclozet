@@ -20,7 +20,7 @@ export function MandatoryReviewGate() {
   const { toast } = useToast();
   const [pendingItems, setPendingItems] = useState<PendingReviewItem[]>([]);
   const [fetching, setFetching] = useState(true);
-  
+
   // State to hold reviews: mapping order_item_id -> rating & text
   const [reviews, setReviews] = useState<Record<string, { rating: number; text: string }>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -69,13 +69,13 @@ export function MandatoryReviewGate() {
             order_id: row.orders.id,
             name: row.products?.name || "Product",
             // handle images carefully, often an array
-            image: Array.isArray(row.products?.images) && row.products.images.length > 0 
-                    ? row.products.images[0] 
+            image: Array.isArray(row.products?.images) && row.products.images.length > 0
+                    ? row.products.images[0]
                     : "",
           }));
-          
+
           setPendingItems(items);
-          
+
           // Initialize tracking state
           const initialReviews: Record<string, { rating: number; text: string }> = {};
           items.forEach(item => {
@@ -172,7 +172,7 @@ export function MandatoryReviewGate() {
 
   return (
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         key="review-gate"
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -237,15 +237,18 @@ export function MandatoryReviewGate() {
             ))}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/90 to-transparent">
+          <div
+            className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/90 to-transparent"
+            style={{ paddingBottom: 'max(16px, calc(16px + env(safe-area-inset-bottom, 0px)))' }}
+          >
             <div className="max-w-md mx-auto">
               {pendingItems.length > 1 && (
                 <div className="text-center text-xs text-neutral-400 mb-3 font-medium">
                   {completedCount} of {pendingItems.length} reviews completed
                 </div>
               )}
-              <Button 
-                onClick={handleSubmit} 
+              <Button
+                onClick={handleSubmit}
                 disabled={submitting || missingRatingsCheck(pendingItems, reviews) || !reviewerName.trim()}
                 className="w-full h-14 rounded-2xl bg-[#f2546d] hover:bg-[#e0435c] text-white font-bold text-lg shadow-glow"
               >

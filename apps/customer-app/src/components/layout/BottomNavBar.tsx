@@ -1,11 +1,10 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
-import { useWishlist } from '@/context/WishlistContext';
-import { useAuth } from '@/context/SupabaseAuthContext';
 import { Home, LayoutGrid, User } from 'lucide-react';
 import { ClosetIcon } from '@/components/icons/ClosetIcon';
+import { useClosetCount } from '@/hooks/useClosetCount';
 
 interface NavItem {
     path: string;
@@ -27,10 +26,7 @@ interface BottomNavBarProps {
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
     const location = useLocation();
     const { totalItems: cartCount } = useCart();
-    const { wishlistItems } = useWishlist();
-    const { user } = useAuth();
-    const navigate = useNavigate();
-    const wishlistCount = wishlistItems.length;
+    const { closetCount } = useClosetCount();
 
     const isActive = (path: string) => {
         if (path === '/home') {
@@ -50,16 +46,22 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
             "lg:sticky lg:top-0 lg:left-auto lg:bottom-auto lg:h-screen lg:w-64 lg:px-6 lg:py-8 lg:block lg:flex-shrink-0 lg:z-10",
             className
         )}>
-            <div className={cn(
-                "pointer-events-auto relative flex items-center shadow-[0_-10px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)_inset]",
-                "backdrop-blur-3xl border border-white/10",
-                // Mobile interior container — pb-safe pushes icons above Apple home indicator
-                "justify-around bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80 rounded-none py-2 px-2 pb-safe",
-                // Tablet interior container
-                "md:justify-around md:bg-zinc-950/80 md:rounded-2xl md:py-2 md:px-6 md:shadow-lg md:w-fit md:mx-auto md:gap-8",
-                // Desktop interior container
-                "lg:flex-col lg:items-start lg:justify-start lg:bg-transparent lg:shadow-none lg:border-none lg:h-full lg:gap-6 lg:pt-8"
-            )}>
+            <div
+                className={cn(
+                    "pointer-events-auto relative flex items-center shadow-[0_-10px_40px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)_inset]",
+                    "backdrop-blur-3xl border border-white/10",
+                    // Mobile interior container
+                    "justify-around bg-gradient-to-t from-black/95 via-zinc-900/90 to-zinc-900/80 rounded-none pt-2 px-2",
+                    // Tablet interior container
+                    "md:justify-around md:bg-zinc-950/80 md:rounded-2xl md:py-2 md:px-6 md:shadow-lg md:w-fit md:mx-auto md:gap-8",
+                    // Desktop interior container
+                    "lg:flex-col lg:items-start lg:justify-start lg:bg-transparent lg:shadow-none lg:border-none lg:h-full lg:gap-6 lg:pt-8"
+                )}
+                style={{
+                    // iOS safe area: push content above the home indicator bar
+                    paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+                }}
+            >
                 {/* Horizontal top highlight, only visible on mobile/tablet */}
                 <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent lg:hidden" />
 
@@ -110,10 +112,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ className }) => {
                                         {cartCount > 9 ? '9+' : cartCount}
                                     </span>
                                 )}
-                                {/* Closet/Wishlist badge */}
-                                {item.path === '/closet' && wishlistCount > 0 && (
+                                {/* Closet badge */}
+                                {item.path === '/closet' && closetCount > 0 && (
                                     <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#ff4d6d] rounded-full px-1 shadow-lg shadow-[#ff4d6d]/30">
-                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                        {closetCount > 9 ? '9+' : closetCount}
                                     </span>
                                 )}
                             </div>

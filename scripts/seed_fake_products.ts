@@ -74,7 +74,7 @@ async function seedFakeProducts() {
             rental_price_2d: scrub(row.rental_price_2d),
             rental_price_3d: scrub(row.rental_price_3d),
             buy_price: scrub(row.buy_price),
-            mrp_price: scrub(row.mrp_price),
+            mrp: scrub(row.mrp_price),
             actual_cost: scrub(row.actual_cost),
             fabric_details: fabricDetails,
             is_active: row.is_active?.toLowerCase() === 'true',

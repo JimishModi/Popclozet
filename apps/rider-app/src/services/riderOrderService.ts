@@ -45,9 +45,11 @@ export interface RiderOrderRequest {
     id: string;
     order_id: string;
     rider_id: string;
-    status: 'pending' | 'declined';
+    status: 'pending' | 'dismissed' | 'declined';
     created_at: string;
 }
+
+export type RiderNotificationStatus = RiderOrderRequest['status'];
 
 export interface ClaimResult {
     success: boolean;
@@ -88,8 +90,18 @@ export async function claimOrder(
     });
 
     if (error) {
-        console.error('[riderOrderService] claimOrder:', error);
-        return { success: false, message: error.message };
+        console.error('[riderOrderService] claimOrder failed', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            orderId,
+            riderId,
+        });
+        const debugMessage = [error.message, error.details, error.hint]
+            .filter(Boolean)
+            .join(' | ');
+        return { success: false, message: debugMessage || 'Failed to claim order' };
     }
 
     const result = data as { success: boolean; message?: string };
@@ -131,13 +143,53 @@ export async function releaseOrder(
  * Sets notification status to 'declined' so the DB keeps a record,
  * but the card is removed from the UI immediately before this call.
  */
-export async function declineOrderNotification(notificationId: string): Promise<void> {
+async function updateOrderNotificationStatus(
+    notificationId: string,
+    status: RiderNotificationStatus,
+): Promise<boolean> {
     const { error } = await supabase
         .from('rider_notifications')
-        .update({ status: 'declined' })
+        .update({ status })
         .eq('id', notificationId);
 
-    if (error) console.error('[riderOrderService] declineNotification:', error);
+    if (error) {
+        console.error('[riderOrderService] updateOrderNotificationStatus:', error);
+        return false;
+    }
+
+    return true;
+}
+
+export async function dismissOrderNotification(notificationId: string): Promise<boolean> {
+    return updateOrderNotificationStatus(notificationId, 'dismissed');
+}
+
+export async function declineOrderNotification(notificationId: string): Promise<boolean> {
+    return updateOrderNotificationStatus(notificationId, 'declined');
+}
+
+export async function upsertRiderNotificationStatus(
+    orderId: string,
+    riderId: string,
+    status: RiderNotificationStatus,
+): Promise<boolean> {
+    const { error } = await supabase
+        .from('rider_notifications')
+        .upsert(
+            {
+                order_id: orderId,
+                rider_id: riderId,
+                status,
+            },
+            { onConflict: 'order_id,rider_id' },
+        );
+
+    if (error) {
+        console.error('[riderOrderService] upsertRiderNotificationStatus:', error);
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -440,6 +492,49 @@ export async function sendMessageToCustomer(
         is_read: false,
     });
     if (error) { console.error('[riderOrderService] sendMessageToCustomer:', error); return false; }
+    return true;
+}
+
+export async function notifyCustomerDriverArrived(
+    orderId: string,
+    customerId: string,
+    riderName?: string,
+): Promise<boolean> {
+    const { data: existing, error: existingError } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', customerId)
+        .eq('order_id', orderId)
+        .eq('type', 'driver_arrived_location')
+        .limit(1)
+        .maybeSingle();
+
+    if (existingError) {
+        console.warn('[riderOrderService] notifyCustomerDriverArrived lookup failed:', existingError);
+    }
+
+    if (existing?.id) {
+        return true;
+    }
+
+    const riderLabel = riderName?.trim() || 'Your rider';
+    const { error } = await supabase.from('notifications').insert({
+        user_id: customerId,
+        type: 'driver_arrived_location',
+        title: '📍 Driver Arrived',
+        message: `${riderLabel} has arrived at your location. Please keep your delivery code ready.`,
+        order_id: orderId,
+        is_read: false,
+        metadata: {
+            rider_name: riderName || null,
+        },
+    });
+
+    if (error) {
+        console.error('[riderOrderService] notifyCustomerDriverArrived:', error);
+        return false;
+    }
+
     return true;
 }
 

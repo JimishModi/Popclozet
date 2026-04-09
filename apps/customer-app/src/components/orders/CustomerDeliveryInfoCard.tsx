@@ -9,7 +9,7 @@ interface CustomerDeliveryInfoCardProps {
 }
 
 export function CustomerDeliveryInfoCard({
-  title = "Customer Information",
+  title = "Your Delivery Information",
   customerName,
   customerPhone,
   fetchedAddress,

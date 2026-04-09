@@ -21,6 +21,7 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { UpdatePrompt } from "./components/pwa/UpdatePrompt";
 import { recoverPendingVerifications, recoverPendingCancellations } from "./services/razorpayService";
 import { toast } from "sonner";
 import { useAuth } from "./context/SupabaseAuthContext";
@@ -30,6 +31,7 @@ import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { MandatoryReviewGate } from "@/components/MandatoryReviewGate";
 import { clearReloadGuard, hasReloadGuard, safeGetSessionStorageItem, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
+import { useStandalonePullToRefresh } from "@/hooks/useStandalonePullToRefresh";
 
 
 // Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
@@ -181,6 +183,8 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
 
+  useStandalonePullToRefresh();
+
   useEffect(() => {
     if (!showWelcome && typeof window !== "undefined") {
       safeSetSessionStorageItem("welcomeSeen", "true");
@@ -243,6 +247,7 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
+                  <UpdatePrompt />
                   <PushNotificationManager />
 
                   {/* LOCATION */}
@@ -390,25 +395,20 @@ function PushNotificationManager() {
   }, [user, push.isInitializing, push.isSupported, push.permission, push.isSubscribed, push.isLoading]);
 
   // 3. Proactive prompt for new users (if permission is 'default')
-  // We show a small toast-style prompt after they land on home or orders
+  // Trigger the native prompt once they land on home/orders so setup
+  // happens inline instead of sending them to Settings manually.
   useEffect(() => {
-    const isMainPage = location.pathname === '/home' || location.pathname === '/orders';
+    const isPushPromptPage = location.pathname === '/home' || location.pathname === '/orders';
     const hasBeenPrompted = safeGetSessionStorageItem('push_prompt_seen');
 
-    if (user && !push.isInitializing && push.isSupported && push.permission === 'default' && isMainPage && !hasBeenPrompted && !push.isLoading) {
+    if (user && !push.isInitializing && push.isSupported && push.permission === 'default' && isPushPromptPage && !hasBeenPrompted && !push.isLoading) {
       // Delay slightly to not overwhelm on page load
       const timer = setTimeout(() => {
         console.log("[Push] Showing proactive notification prompt...");
-        // For now, we'll use a small console log but in a real app this would be a custom UI banner or toast
-        // We'll mark as prompted to avoid spamming
+        // Mark as prompted so we do not spam the system permission dialog.
         safeSetSessionStorageItem('push_prompt_seen', 'true');
-        
-        // We could call push.subscribe() here if we want to be very aggressive, 
-        // but it's better to show a UI first. However, to fulfill "on by default",
-        // we will at least try to trigger the native prompt if they are on a high-intent page.
-        if (location.pathname === '/orders') {
-          void push.subscribe();
-        }
+
+        void push.subscribe();
       }, 3000);
       return () => clearTimeout(timer);
     }

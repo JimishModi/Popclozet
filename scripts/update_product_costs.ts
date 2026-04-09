@@ -71,16 +71,16 @@ async function updateProductCosts() {
                     return parsed;
                 };
 
-                const mrp_price = scrubValue(mrpRaw);
+                const mrp = scrubValue(mrpRaw);
                 const actual_cost = scrubValue(costRaw);
                 const buy_price = scrubValue(buyPriceRaw);
 
-                if (mrp_price !== null || actual_cost !== null || buy_price !== null) {
+                if (mrp !== null || actual_cost !== null || buy_price !== null) {
                     try {
                         const { error } = await supabase
                             .from('products')
                             .update({
-                                ...(mrp_price !== null && { mrp_price }),
+                                ...(mrp !== null && { mrp }),
                                 ...(actual_cost !== null && { actual_cost }),
                                 ...(buy_price !== null && { buy_price })
                             })
@@ -90,7 +90,7 @@ async function updateProductCosts() {
                             console.error(`Failed to update ${productName}:`, error.message);
                             errorsCount++;
                         } else {
-                            console.log(`✅ Updated ${productName}: MRP=${mrp_price}, Cost=${actual_cost}, BuyPrice=${buy_price}`);
+                            console.log(`✅ Updated ${productName}: MRP=${mrp}, Cost=${actual_cost}, BuyPrice=${buy_price}`);
                             updatedCount++;
                         }
                     } catch (err: any) {

@@ -70,6 +70,23 @@ export interface SavedAddressRecord {
   is_default?: boolean | null;
 }
 
+const ACTIVE_CLOSET_STATUSES = [
+  "pending",
+  "confirmed",
+  "packed",
+  "ready_for_pickup",
+  "rider_assigned",
+  "driver_arrived_warehouse",
+  "order_picked_up",
+  "dispatched",
+  "out_for_delivery",
+  "delivered",
+  "in_use",
+  "return_requested",
+  "return_scheduled",
+  "return_dispatched",
+] as const;
+
 /**
  * Get all orders for current user
  */
@@ -179,6 +196,7 @@ export interface PlaceOrderResult {
 export interface PreviewOrderParams {
   items: { product_id: string; size?: string; plan: string; quantity: number }[];
   couponCode?: string | null;
+  distanceKm?: number | null;
   addressId?: string | null;
   lat?: number | null;
   lng?: number | null;
@@ -206,6 +224,7 @@ export async function previewOrder(params: PreviewOrderParams): Promise<PreviewO
   const { data, error } = await supabase.rpc("preview_order", {
     p_items: params.items,
     p_coupon_code: params.couponCode || null,
+    p_distance_km: params.distanceKm ?? 0,
     p_address_id: params.addressId || null,
     p_lat: params.lat ?? null,
     p_lng: params.lng ?? null,
@@ -217,6 +236,106 @@ export async function previewOrder(params: PreviewOrderParams): Promise<PreviewO
   }
 
   return data as PreviewOrderResult;
+}
+
+/**
+ * Resolve cart items to inventory variant_ids.
+ * Maps product_id + size to the inventory row id (variant_id).
+ */
+export async function resolveVariantIds(
+  items: { product_id: string; size: string; quantity: number }[]
+): Promise<{ variant_id: string; quantity: number }[]> {
+  if (items.length === 0) return [];
+
+  // Fetch all matching inventory rows in one query
+  const productIds = [...new Set(items.map(i => i.product_id))];
+  const { data: inventoryRows, error } = await supabase
+    .from('inventory')
+    .select('id, product_id, size')
+    .in('product_id', productIds);
+
+  if (error) throw new Error(`Failed to resolve variants: ${error.message}`);
+  if (!inventoryRows || inventoryRows.length === 0) {
+    throw new Error('No inventory found for cart items');
+  }
+
+  // Build lookup map: "product_id:size" -> inventory.id
+  const lookup = new Map<string, string>();
+  for (const row of inventoryRows) {
+    lookup.set(`${row.product_id}:${row.size}`, row.id);
+  }
+
+  const resolved: { variant_id: string; quantity: number }[] = [];
+  for (const item of items) {
+    const key = `${item.product_id}:${item.size}`;
+    const variantId = lookup.get(key);
+    if (!variantId) {
+      throw new Error(`No inventory variant found for product ${item.product_id} size ${item.size}`);
+    }
+    resolved.push({ variant_id: variantId, quantity: item.quantity });
+  }
+
+  return resolved;
+}
+
+/**
+ * Reserve stock for all items in the cart atomically.
+ * Must be called BEFORE order creation. Returns the reserved items on success.
+ */
+export async function reserveCheckoutStock(
+  items: { variant_id: string; quantity: number }[]
+): Promise<{ success: boolean; reserved_items?: { variant_id: string; quantity: number }[]; message?: string }> {
+  const { data, error } = await supabase.rpc('reserve_checkout_stock', {
+    p_items: items,
+  });
+
+  if (error) {
+    console.error('reserveCheckoutStock RPC error:', error);
+    throw new Error(error.message || 'Failed to reserve stock');
+  }
+
+  return data as { success: boolean; reserved_items?: { variant_id: string; quantity: number }[]; message?: string };
+}
+
+/**
+ * Release previously reserved stock (e.g. on order creation failure).
+ * This is a client-side fallback; the backend release_order_stock RPC
+ * is the primary release mechanism for confirmed orders.
+ */
+export async function releaseCheckoutStock(
+  items: { variant_id: string; quantity: number }[]
+): Promise<void> {
+  const { error } = await supabase.rpc('release_checkout_stock', {
+    p_items: items,
+  });
+
+  if (error) {
+    console.error('releaseCheckoutStock RPC error (non-fatal):', error);
+  }
+}
+
+/**
+ * Persist stock reservation records for an order.
+ * Called after order creation succeeds, so the backend knows what to release.
+ */
+export async function persistOrderReservations(
+  orderId: string,
+  items: { variant_id: string; quantity: number }[]
+): Promise<void> {
+  const { data, error } = await supabase.rpc('persist_order_stock_reservations', {
+    p_order_id: orderId,
+    p_items: items,
+  });
+
+  if (error) {
+    console.error('persistOrderReservations RPC error:', error);
+    throw new Error(error.message || 'Failed to persist stock reservations');
+  }
+
+  const result = data as { success: boolean; code?: string; message?: string } | null;
+  if (result && !result.success) {
+    throw new Error(result.message || `Failed to persist stock reservations: ${result.code ?? 'UNKNOWN'}`);
+  }
 }
 
 /**
@@ -396,18 +515,16 @@ export async function getMyActiveRentals() {
         item:products (
           id,
           name,
+          brand,
           images,
-          rental_price
+          rental_price,
+          mrp,
+          buy_price
         )
       )
     `)
     .eq("user_id", user.id)
-    .in("status", [
-      "pending", "confirmed", "packed", "ready_for_pickup", "rider_assigned",
-      "driver_arrived_warehouse", "order_picked_up",
-      "dispatched", "out_for_delivery", "delivered", "in_use",
-      "return_requested", "return_scheduled", "return_dispatched"
-    ])
+    .in("status", [...ACTIVE_CLOSET_STATUSES])
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -416,6 +533,32 @@ export async function getMyActiveRentals() {
   }
 
   return data ?? [];
+}
+
+export async function getMyActiveClosetItemCount(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      id,
+      order_items (
+        id
+      )
+    `)
+    .eq("user_id", user.id)
+    .in("status", [...ACTIVE_CLOSET_STATUSES]);
+
+  if (error) {
+    console.error("getMyActiveClosetItemCount error:", error);
+    throw error;
+  }
+
+  return (data ?? []).reduce((total, order) => {
+    const itemCount = Array.isArray(order.order_items) ? order.order_items.length : 0;
+    return total + itemCount;
+  }, 0);
 }
 
 /**

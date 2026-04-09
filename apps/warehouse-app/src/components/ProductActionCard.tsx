@@ -39,6 +39,8 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
         ? 'bg-emerald-500 text-black'
         : item.status === 'rented'
         ? 'bg-blue-500 text-white'
+        : item.status === 'archived'
+        ? 'bg-zinc-600 text-white'
         : item.status === 'instantly_bought'
         ? 'bg-purple-500 text-white'
         : 'bg-red-500 text-white';
@@ -76,7 +78,8 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                     <p className="text-[10px] text-zinc-600 font-mono mt-2">ID: {item.individual_id}</p>
                 </div>
 
-                {item.status !== 'available' && item.status !== 'sold' && item.status !== 'instantly_bought' && (
+                {item.status !== 'available'
+                    && !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(item.status) && (
                     <button
                         onClick={handleMarkAvailable}
                         disabled={processing}

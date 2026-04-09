@@ -8,7 +8,7 @@
 //
 // SECURITY:
 // - Verifies webhook signature using HMAC-SHA256 with RAZORPAY_WEBHOOK_SECRET
-// - Uses service-role client (no user JWT — Razorpay doesn't send one)
+// - Uses service-role client (no user JWT - Razorpay doesn't send one)
 // - Calls the same idempotent verify_payment_and_update RPC used by client verification
 // - Always returns 200 to prevent Razorpay from retrying indefinitely
 //
@@ -26,13 +26,13 @@ function makeLogger(fn: string) {
   return {
     rid,
     info: (msg: string, extra?: Record<string, unknown>) =>
-      console.log(meta({ level: "info", msg, ...extra })),
+      console.log(meta({ level: 'info', msg, ...extra })),
     warn: (msg: string, extra?: Record<string, unknown>) =>
-      console.warn(meta({ level: "warn", msg, ...extra })),
+      console.warn(meta({ level: 'warn', msg, ...extra })),
     error: (msg: string, extra?: Record<string, unknown>) =>
-      console.error(meta({ level: "error", msg, ...extra })),
+      console.error(meta({ level: 'error', msg, ...extra })),
     done: (status: number) =>
-      console.log(meta({ level: "info", msg: "complete", status, ms: Math.round(performance.now() - t0) })),
+      console.log(meta({ level: 'info', msg: 'complete', status, ms: Math.round(performance.now() - t0) })),
   };
 }
 
@@ -67,15 +67,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // ── Read raw body for signature verification ──────────────
+    // Read raw body for signature verification
     const rawBody = await req.text();
 
-    // ── Verify webhook signature ─────────────────────────────
+    // Verify webhook signature
     const webhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
     if (!webhookSecret) {
       log.error('RAZORPAY_WEBHOOK_SECRET not set');
-      // Return 200 anyway — we don't want Razorpay to keep retrying
-      // a misconfiguration. Fix the secret and redeploy.
       return new Response(JSON.stringify({ error: 'Webhook not configured' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +89,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // HMAC-SHA256 of the raw request body with the webhook secret
     const encoder = new TextEncoder();
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
@@ -107,7 +104,7 @@ Deno.serve(async (req: Request) => {
       .join('');
 
     if (!timingSafeEqual(expectedSignature, receivedSignature)) {
-      log.error('Webhook signature mismatch — rejecting');
+      log.error('Webhook signature mismatch - rejecting');
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -116,12 +113,13 @@ Deno.serve(async (req: Request) => {
 
     log.info('Webhook signature verified');
 
-    // ── Parse the event payload ──────────────────────────────
     const event = JSON.parse(rawBody);
     const eventType = event.event;
 
-    // We only care about payment.captured and payment.authorized
-    if (eventType !== 'payment.captured' && eventType !== 'payment.authorized') {
+    const isSuccessEvent = eventType === 'payment.captured' || eventType === 'payment.authorized';
+    const isFailureEvent = eventType === 'payment.failed';
+
+    if (!isSuccessEvent && !isFailureEvent) {
       log.info('Ignoring event type', { eventType });
       log.done(200);
       return new Response(JSON.stringify({ status: 'ignored', event: eventType }), {
@@ -161,7 +159,6 @@ Deno.serve(async (req: Request) => {
       razorpayPaymentId,
     });
 
-    // ── Look up our internal order by razorpay_order_id ──────
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -180,7 +177,6 @@ Deno.serve(async (req: Request) => {
         razorpayOrderId,
         error: orderErr?.message,
       });
-      // Return 200 — this could be an order from a different system or test
       log.done(200);
       return new Response(JSON.stringify({ error: 'Order not found' }), {
         status: 200,
@@ -188,9 +184,52 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Already processed? Great — the client beat us to it.
+    // Razorpay may emit payment.failed for an earlier attempt and then
+    // payment.captured for a later retry on the same order. Do not mutate the
+    // order or release stock here; explicit cancel/cleanup handles abandonment.
+    if (isFailureEvent) {
+      if (['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
+        log.info('Ignoring retryable payment.failed event for still-open order', {
+          orderId: order.id,
+          status: order.status,
+          razorpayPaymentId,
+        });
+        log.done(200);
+        return new Response(JSON.stringify({
+          status: 'ignored_retryable_failure',
+          order_id: order.id,
+          payment_id: razorpayPaymentId,
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
+        log.info('Payment failure event for already-confirmed order - ignoring', {
+          orderId: order.id,
+          status: order.status,
+        });
+        log.done(200);
+        return new Response(JSON.stringify({ status: 'ignored_stale_failure', order_id: order.id }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      log.info('Payment failure for order in non-actionable state', {
+        orderId: order.id,
+        status: order.status,
+      });
+      log.done(200);
+      return new Response(JSON.stringify({ status: 'no_action', order_id: order.id }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     if (['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
-      log.info('Order already confirmed — webhook is a no-op', {
+      log.info('Order already confirmed - webhook is a no-op', {
         orderId: order.id,
         status: order.status,
       });
@@ -201,9 +240,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Order was cancelled before webhook arrived — log for manual review
     if (order.status === 'cancelled') {
-      log.warn('Order was cancelled but payment was captured — needs manual refund', {
+      log.warn('Order was cancelled but payment was captured - needs manual refund', {
         orderId: order.id,
         razorpayPaymentId,
       });
@@ -219,7 +257,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── Call the same idempotent RPC that client verification uses ──
+    if (order.status === 'payment_failed') {
+      log.info('Payment succeeded after prior failure - confirming order', {
+        orderId: order.id,
+      });
+    }
+
     const { data: result, error: rpcErr } = await adminClient.rpc('verify_payment_and_update', {
       p_order_id: order.id,
       p_razorpay_order_id: razorpayOrderId,
@@ -232,8 +275,6 @@ Deno.serve(async (req: Request) => {
         orderId: order.id,
         error: rpcErr.message,
       });
-      // Return 200 anyway — Razorpay will retry, and the RPC is idempotent.
-      // If this is a transient DB error, the next retry will succeed.
       log.done(200);
       return new Response(JSON.stringify({ error: 'Order update failed', details: rpcErr.message }), {
         status: 200,
@@ -265,11 +306,9 @@ Deno.serve(async (req: Request) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-
   } catch (err: any) {
     log.error('Unexpected error', { error: String(err) });
     log.done(200);
-    // Always return 200 to prevent infinite retries on unexpected errors
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

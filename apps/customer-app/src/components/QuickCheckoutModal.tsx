@@ -15,7 +15,7 @@ export const QuickCheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClo
                         onClick={onClose}
                     />
                     <motion.div
-                        className="fixed bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:w-[400px] bg-background border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl z-[70] p-6"
+                        className="fixed bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:w-[400px] bg-background border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl z-[70] p-6 pb-safe"
                         initial={{ y: "100%", opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: "100%", opacity: 0 }}

@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { openRazorpayCheckout, type RazorpayPaymentResponse, type RazorpayFailedResponse } from '@/lib/razorpay';
 import { createRazorpayOrder, verifyRazorpayPayment } from '@/services/razorpayService';
-import { supabase, transitionOrderState } from '@popclozet/api-client';
+import { cancelOrder } from '@/services/ordersService';
 
 const popclozet_LOGO = '/icons/icon-192x192.png';
 
@@ -25,6 +25,7 @@ type PaymentOutcome = 'none' | 'success' | 'failed' | 'cancelled';
 interface UseRazorpayCheckoutOptions {
   internalOrderId: string;    // Supabase order ID (already created before calling this)
   amountInRupees: number;
+  preferredMethod?: 'upi';
   userName?: string;
   userEmail?: string;
   userPhone?: string;
@@ -46,6 +47,7 @@ export function useRazorpayCheckout() {
     const {
       internalOrderId,
       amountInRupees,
+      preferredMethod,
       userName,
       userEmail,
       userPhone,
@@ -67,10 +69,7 @@ export function useRazorpayCheckout() {
     /** Safely mark the order as cancelled/failed in DB */
     const markOrderFailed = async (reason: string) => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await transitionOrderState(internalOrderId, 'cancelled' as any, 'customer', user.id);
-        }
+        await cancelOrder(internalOrderId);
       } catch (cancelErr) {
         console.warn(`[useRazorpayCheckout] Failed to cancel order (${reason}):`, cancelErr);
       }
@@ -102,6 +101,28 @@ export function useRazorpayCheckout() {
         },
         notes: {
           supabase_order_id: internalOrderId,
+        },
+        ...(preferredMethod === 'upi'
+          ? {
+              config: {
+                display: {
+                  blocks: {
+                    upi: {
+                      name: 'Pay via UPI',
+                      instruments: [{ method: 'upi' }],
+                    },
+                  },
+                  sequence: ['block.upi'],
+                  preferences: {
+                    show_default_blocks: false,
+                  },
+                },
+              },
+            }
+          : {}),
+        retry: {
+          enabled: true,
+          max_count: 3,
         },
         theme: {
           color: '#f2546d',  // Popclozet brand pink

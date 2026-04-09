@@ -6,16 +6,45 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { ChevronLeft, SlidersHorizontal, Loader, Search, X, ShoppingBag, Heart } from "lucide-react";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
-import { supabase } from "@popclozet/api-client";
+import { Slider } from "@/components/ui/slider";
 import type { Product } from "@/services/productService";
-import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
-import { getProductsByCategoryDB, cacheProductsBatchDB } from "@/lib/db";
-
-
+import { cacheProductsBatchDB } from "@/lib/db";
+import { getProductsWithFakeMix } from "@/services/fakeProductMixService";
 
 import { useCart } from "@/context/CartContext";
 
 type FilterTab = "size" | "price" | "brand";
+
+const DEFAULT_PRICE_RANGE = { min: 0, max: 2000 };
+const MAX_PRICE_LIMIT = DEFAULT_PRICE_RANGE.max;
+const PRICE_STEP = 100;
+
+const PRICE_PRESETS = [
+    { label: "All", min: 0, max: 2000 },
+    { label: "Under 500", min: 0, max: 500 },
+    { label: "500 - 1000", min: 500, max: 1000 },
+    { label: "1000 - 1500", min: 1000, max: 1500 },
+    { label: "1500+", min: 1500, max: 2000 },
+] as const;
+
+const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+    }).format(value);
+
+const getProductPrice = (product: Product) =>
+    Number(
+        product.rental_price_1d ??
+            product.rentalPrice ??
+            product.rental_price ??
+            product.price ??
+            0
+    ) || 0;
+
+const isDefaultPriceRange = (range: { min: number; max: number }) =>
+    range.min === DEFAULT_PRICE_RANGE.min && range.max === DEFAULT_PRICE_RANGE.max;
 
 const CategoryProductsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -75,18 +104,21 @@ const CategoryProductsPage: React.FC = () => {
 
     // Filter states (applied)
     const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
-    const [priceRange, setPriceRange] = useState({ min: 0, max: 2000 });
+    const [priceRange, setPriceRange] = useState(DEFAULT_PRICE_RANGE);
     const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
 
     // Staging states (for modal)
     const [tempSelectedSizes, setTempSelectedSizes] = useState<Set<string>>(new Set());
-    const [tempPriceRange, setTempPriceRange] = useState({ min: 0, max: 2000 });
+    const [tempPriceRange, setTempPriceRange] = useState(DEFAULT_PRICE_RANGE);
     const [tempSelectedBrands, setTempSelectedBrands] = useState<Set<string>>(new Set());
 
 
     const [nameQuery, setNameQuery] = useState(""); // text search by name
 
-    const maxAvailablePrice = 2000;
+    const appliedFilterCount =
+        selectedSizes.size + selectedBrands.size + (isDefaultPriceRange(priceRange) ? 0 : 1);
+    const stagedFilterCount =
+        tempSelectedSizes.size + tempSelectedBrands.size + (isDefaultPriceRange(tempPriceRange) ? 0 : 1);
 
     // Load products on mount or when category/gender/brand changes
     useEffect(() => {
@@ -132,9 +164,9 @@ const CategoryProductsPage: React.FC = () => {
 
     // Fix: Ensure priceRange stays within the 2000 limit for UI consistency
     useEffect(() => {
-        if (priceRange.max > 2000) {
-            setPriceRange(prev => ({ ...prev, max: 2000 }));
-            setTempPriceRange(prev => ({ ...prev, max: 2000 }));
+        if (priceRange.max > MAX_PRICE_LIMIT) {
+            setPriceRange(prev => ({ ...prev, max: MAX_PRICE_LIMIT }));
+            setTempPriceRange(prev => ({ ...prev, max: MAX_PRICE_LIMIT }));
         }
     }, [priceRange.max]);
 
@@ -160,81 +192,30 @@ const CategoryProductsPage: React.FC = () => {
         if (filters.gender === 'mens') dbGender = 'men';
         if (filters.gender === 'womens') dbGender = 'women';
 
-        let query = supabase
-            .from('products')
-            .select('*, inventory(available_stock, total_stock)')
-            .eq('is_available', true);
-
-        if (filters.category) {
-            query = query.eq('category', filters.category);
-        }
-
-        if (dbGender && dbGender !== 'all') {
-            query = query.in('gender', [dbGender, 'unisex']);
-        }
-
-        // Backend name search — filter at DB level
-        if (filters.nameQuery && filters.nameQuery.trim() !== '') {
-            query = query.ilike('name', `%${filters.nameQuery.trim()}%`);
-        }
-        // Consistent ordering: newest first
-        query = query.order('created_at', { ascending: false });
-
         try {
-            const { data, error } = await query;
-
-            if (error) {
-                console.error('❌ Supabase error:', error.message);
-                setLoading(false);
+            if (!filters.category) {
+                setProducts([]);
                 return;
             }
 
-            if (data) {
-                const mapped = data.map((p: any) => ({
-                    ...p,
-                    price: parseFloat(p.rental_price ?? p.price ?? '0'),
-                    rentalPrice: parseFloat(p.rental_price ?? p.price ?? '0'),
-                    imageUrl: p.images?.[0] || '',
-                    // Map DB 'sizes_available' to app 'sizes'
-                    sizes: p.sizes_available ? (Array.isArray(p.sizes_available) ? p.sizes_available : (typeof p.sizes_available === 'object' ? Object.values(p.sizes_available) : [])) : [],
-                    // Normalize DB gender ('men'/'women') back to app gender ('mens'/'womens')
-                    gender: p.gender === 'men' ? 'mens' : (p.gender === 'women' ? 'womens' : p.gender),
-                    isSoldOut: (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) === 0,
-                    isRentedOut: (p.inventory || []).length > 0 && 
-                                 (p.inventory || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
-                                 (p.inventory || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0
-                }));
+            const mixedProducts = await getProductsWithFakeMix(
+                filters.category,
+                filters.brands && filters.brands.length === 1 ? filters.brands[0] : undefined,
+                filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined
+            );
 
-                // Show real products immediately, then mix in fakes
-                setProducts(mapped);
+            const filteredByName = filters.nameQuery && filters.nameQuery.trim() !== ''
+                ? mixedProducts.filter((product) =>
+                    product.name.toLowerCase().includes(filters.nameQuery!.trim().toLowerCase())
+                )
+                : mixedProducts;
 
-                // Update local cache for next time (non-blocking, real products only)
-                if (mapped.length > 0) {
-                    cacheProductsBatchDB(mapped);
-                }
+            setProducts(filteredByName);
 
-                // Non-blocking: fetch fake "currently rented" products and mix in
-                if (filters.category) {
-                    const fakeCount = Math.max(3, Math.floor(mapped.length * 0.5));
-                    fetchRotatedFakeProducts(filters.category, undefined, fakeCount).then(fakes => {
-                        if (fakes.length > 0) {
-                            setProducts(prev => {
-                                // Avoid duplicates if called multiple times
-                                const existingIds = new Set(prev.map(p => p.id));
-                                const newFakes = fakes.filter(f => !existingIds.has(f.id));
-                                if (newFakes.length === 0) return prev;
-                                // Distribute fakes evenly throughout the list (deterministic positions)
-                                const merged = [...prev];
-                                const step = Math.max(2, Math.floor(merged.length / (newFakes.length + 1)));
-                                for (let i = 0; i < newFakes.length; i++) {
-                                    const pos = Math.min((i + 1) * step, merged.length);
-                                    merged.splice(pos, 0, newFakes[i]);
-                                }
-                                return merged;
-                            });
-                        }
-                    }).catch(() => { /* silent degradation */ });
-                }
+            // Cache only real products for offline use.
+            const realProducts = filteredByName.filter((product: any) => product._isFake !== true);
+            if (realProducts.length > 0) {
+                cacheProductsBatchDB(realProducts);
             }
         } catch (err) {
             console.error('CRITICAL: Supabase fetch failed:', err);
@@ -280,9 +261,29 @@ const CategoryProductsPage: React.FC = () => {
         });
     };
 
-    const handleProductClick = (productId: string) => {
-        navigate(`/product/${productId}`);
+    const handleProductClick = (product: Product) => {
+        const isFake = (product as any)._isFake === true;
+        const isSoldOut = (product as any).isSoldOut === true;
+
+        if (isFake) {
+            navigate(`/product/${product.id}`, {
+                state: {
+                    fakeProduct: product,
+                    isRented: !isSoldOut,
+                    isSold: isSoldOut,
+                },
+            });
+            return;
+        }
+
+        navigate(`/product/${product.id}`);
     };
+
+    const setClampedTempPriceRange = useCallback((nextMin: number, nextMax: number) => {
+        const min = Math.max(DEFAULT_PRICE_RANGE.min, Math.min(nextMin, MAX_PRICE_LIMIT));
+        const max = Math.max(min, Math.min(nextMax, MAX_PRICE_LIMIT));
+        setTempPriceRange({ min, max });
+    }, []);
 
     const handleApplyFilters = () => {
         setSelectedSizes(new Set(tempSelectedSizes));
@@ -301,17 +302,17 @@ const CategoryProductsPage: React.FC = () => {
     function resetFilters() {
         setSelectedSizes(new Set());
         setSelectedBrands(new Set());
-        setPriceRange({ min: 0, max: 2000 });
+        setPriceRange(DEFAULT_PRICE_RANGE);
         setTempSelectedSizes(new Set());
         setTempSelectedBrands(new Set());
-        setTempPriceRange({ min: 0, max: 2000 });
+        setTempPriceRange(DEFAULT_PRICE_RANGE);
         setNameQuery("");
     }
 
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
-        // Case-insensitive category filter — fake products have "Jackets", URL has "jackets"
+        // Case-insensitive category filter
         if (category) {
             const catLower = category.toLowerCase();
             filtered = filtered.filter((p: any) => 
@@ -320,11 +321,11 @@ const CategoryProductsPage: React.FC = () => {
         }
 
         // Filter by gender — include unisex in both mens and womens
-        // Skip for fake products (they show for all genders)
         if (genderFromPath && genderFromPath !== 'all') {
             filtered = filtered.filter((p: any) => {
-                if ((p as any)._isFake) return true; // fakes always visible
-                return !p.gender || p.gender === genderFromPath || p.gender === 'unisex';
+                const pGender = (p.gender as string || '').toLowerCase();
+                const targetGender = genderFromPath.toLowerCase();
+                return pGender === targetGender || pGender === 'unisex';
             });
         }
 
@@ -334,10 +335,9 @@ const CategoryProductsPage: React.FC = () => {
             filtered = filtered.filter((p: any) => p.name.toLowerCase().includes(q));
         }
 
-        // Filter by price — skip for fake products (they don't have standardised pricing)
+        // Filter by price
         filtered = filtered.filter((p: any) => {
-            if ((p as any)._isFake) return true;
-            const price = p.price || p.rental_price || 0;
+            const price = getProductPrice(p);
             return price >= priceRange.min && price <= priceRange.max;
         });
 
@@ -346,10 +346,9 @@ const CategoryProductsPage: React.FC = () => {
             filtered = filtered.filter((p: any) => selectedBrands.has(p.brand));
         }
 
-        // Filter by sizes — skip for fake products (they have no sizes)
+        // Filter by sizes
         if (selectedSizes.size > 0) {
             filtered = filtered.filter((p: any) => {
-                if ((p as any)._isFake) return false; // fake = no sizes = excluded when size filter active
                 if (!p.sizes || p.sizes.length === 0) return false;
                 return p.sizes.some((sz: string) => selectedSizes.has(sz));
             });
@@ -396,7 +395,7 @@ const CategoryProductsPage: React.FC = () => {
                             className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                         >
                             <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
-                            {(selectedSizes.size > 0 || selectedBrands.size > 0 || priceRange.min !== 0 || priceRange.max !== maxAvailablePrice) && (
+                            {appliedFilterCount > 0 && (
                                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF4D6D]" />
                             )}
                         </button>
@@ -480,15 +479,11 @@ const CategoryProductsPage: React.FC = () => {
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
-                                    // _isFake = product from fake_products table (simulated "rented" items)
-                                    // isRentedOut = REAL product with zero available stock
-                                    // isSoldOut = REAL product with zero total stock
                                     const isFake = (product as any)._isFake === true;
-                                    const isRentedOut = (product as any).isRentedOut === true;
-                                    const isSoldOut = (product as any).isSoldOut === true;
-                                    const isUnavailable = isFake || isRentedOut || isSoldOut;
+                                    const isSoldOut = product.isSoldOut === true;
+                                    const isRentedOut = product.isRentedOut === true;
+                                    const isUnavailable = isFake || isSoldOut || isRentedOut;
 
-                                    const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented";
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
                                     
                                     return (
@@ -497,10 +492,7 @@ const CategoryProductsPage: React.FC = () => {
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
-                                        onClick={() => isUnavailable
-                                            ? navigate(`/product/${product.id}`, { state: { fakeProduct: product, isRented: !isSoldOut, isSold: isSoldOut } })
-                                            : handleProductClick(product.id)
-                                        }
+                                        onClick={() => handleProductClick(product)}
                                         className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer group"
                                     >
                                         <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
@@ -522,17 +514,6 @@ const CategoryProductsPage: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Status badge — unified for fake, rented out, and sold out */}
-                                            {isUnavailable && (
-                                                <div className="absolute top-2 left-2 z-10">
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                        <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
-                                                        {statusLabel}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Wishlist — visible only for available products */}
                                             {!isUnavailable && (
                                                 <button
                                                     onClick={(e) => toggleWishlist(product.id, e)}
@@ -550,6 +531,11 @@ const CategoryProductsPage: React.FC = () => {
                                         <div className="p-3">
                                             <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
                                             <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
+                                            {isUnavailable && (
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                                                    {isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                </p>
+                                            )}
                                             <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
                                                 ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
                                             </span>
@@ -576,7 +562,7 @@ const CategoryProductsPage: React.FC = () => {
                             className="fixed inset-0 bg-black/60 z-50"
                         />
 
-                        {/* Filter Sheet – slides from top, matches Figma */}
+                        {/* Filter Sheet – slides from top */}
                         <motion.div
                             initial={{ y: "-100%" }}
                             animate={{ y: 0 }}
@@ -585,7 +571,7 @@ const CategoryProductsPage: React.FC = () => {
                             className="fixed top-0 left-0 right-0 z-50 max-w-[430px] mx-auto pt-[56px]"
                         >
                             <div className="bg-[#2A2A2E] rounded-b-3xl px-5 py-5 shadow-2xl">
-                                {/* Tab pills – 3 equal width */}
+                                {/* Tab pills */}
                                 <div className="flex items-center gap-3 mb-5">
                                     {(["size", "price", "brand"] as FilterTab[])
                                         .filter((tab) => {
@@ -613,7 +599,6 @@ const CategoryProductsPage: React.FC = () => {
                                 {activeFilterTab === "size" && availableSizes.length > 0 && (
                                     <div className="grid grid-cols-4 gap-2.5">
                                         {availableSizes.filter(s => s && s.trim() !== "").map((size) => {
-                                            const isSelected = selectedSizes.has(size);
                                             return (
                                                 <button
                                                     key={size}
@@ -635,108 +620,65 @@ const CategoryProductsPage: React.FC = () => {
                                 {/* === Price Tab === */}
                                 {activeFilterTab === "price" && (
                                     <div className="space-y-5">
-                                        {/* Min / Max inputs */}
-                                        <div className="flex gap-3">
-                                            <input
-                                                type="text"
-                                                value={`Min : ₹ ${tempPriceRange.min}`}
-                                                readOnly
-                                                className="flex-1 px-4 py-2.5 rounded-xl bg-transparent border border-zinc-600 text-white text-sm font-medium text-center"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={`Max : ₹ ${tempPriceRange.max}`}
-                                                readOnly
-                                                className="flex-1 px-4 py-2.5 rounded-xl bg-transparent border border-zinc-600 text-white text-sm font-medium text-center"
-                                            />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="rounded-2xl border border-white/10 bg-[#1C1C1E] px-4 py-3">
+                                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                                    Min
+                                                </p>
+                                                <p className="mt-1 text-base font-bold text-white">
+                                                    {formatCurrency(tempPriceRange.min)}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-2xl border border-white/10 bg-[#1C1C1E] px-4 py-3">
+                                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                                    Max
+                                                </p>
+                                                <p className="mt-1 text-base font-bold text-white">
+                                                    {formatCurrency(tempPriceRange.max)}
+                                                </p>
+                                            </div>
                                         </div>
 
-                                        {/* Range slider track */}
-                                        <div className="relative pt-3 pb-1 px-1 overflow-hidden">
-                                            {/* Track background with dots */}
-                                            <div className="relative h-[2px] bg-zinc-600 rounded-full">
-                                                {/* Active track */}
-                                                <div
-                                                    className="absolute h-full bg-[#FF4D6D] rounded-full"
-                                                    style={{
-                                                        left: `${(tempPriceRange.min / 2000) * 100}%`,
-                                                        width: `${((tempPriceRange.max - tempPriceRange.min) / 2000) * 100}%`
-                                                    }}
-                                                />
-                                                {/* Dot markers along track */}
-                                                {[0, 25, 50, 75, 100].map((pct) => (
-                                                    <div
-                                                        key={pct}
-                                                        className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-zinc-500"
-                                                        style={{ left: `calc(${pct}% - 3px)` }}
-                                                    />
-                                                ))}
-                                                {/* Min handle */}
-                                                <div
-                                                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md z-10"
-                                                    style={{
-                                                        left: `calc(${(tempPriceRange.min / 2000) * 100}% - 10px)`,
-                                                        pointerEvents: 'none' // visuals only
-                                                    }}
-                                                />
-                                                {/* Max handle */}
-                                                <div
-                                                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-400 rounded-full border-[3px] border-[#FF4D6D] shadow-md z-10"
-                                                    style={{
-                                                        left: `calc(${(tempPriceRange.max / 2000) * 100}% - 10px)`,
-                                                        pointerEvents: 'none' // visuals only
-                                                    }}
-                                                />
+                                        <div className="rounded-2xl border border-white/10 bg-[#1C1C1E] px-4 py-5">
+                                            <Slider
+                                                value={[tempPriceRange.min, tempPriceRange.max]}
+                                                min={DEFAULT_PRICE_RANGE.min}
+                                                max={MAX_PRICE_LIMIT}
+                                                step={PRICE_STEP}
+                                                minStepsBetweenThumbs={1}
+                                                onValueChange={(values) => {
+                                                    if (values.length !== 2) return;
+                                                    setClampedTempPriceRange(values[0], values[1]);
+                                                }}
+                                                className="my-1"
+                                            />
+                                            <div className="mt-3 flex items-center justify-between text-[11px] font-medium text-zinc-500">
+                                                <span>{formatCurrency(DEFAULT_PRICE_RANGE.min)}</span>
+                                                <span>{formatCurrency(MAX_PRICE_LIMIT)}</span>
                                             </div>
-                                            {/* Invisible range inputs */}
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="2000"
-                                                step="500"
-                                                value={tempPriceRange.min}
-                                                onChange={(e) => {
-                                                    const val = Number(e.target.value);
-                                                    setTempPriceRange(prev => ({
-                                                        ...prev,
-                                                        min: Math.min(val, prev.max - 1)
-                                                    }));
-                                                }}
-                                                className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer z-30"
-                                                style={{ pointerEvents: tempPriceRange.min > 1000 ? 'auto' : 'none' }}
-                                            />
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="2000"
-                                                step="500"
-                                                value={tempPriceRange.max}
-                                                onChange={(e) => {
-                                                    const val = Number(e.target.value);
-                                                    setTempPriceRange(prev => ({
-                                                        ...prev,
-                                                        max: Math.max(val, prev.min + 1)
-                                                    }));
-                                                }}
-                                                className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer z-20"
-                                            />
-                                            {/* Supplementary input for Min when it's on the left to ensure it's always pickable */}
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="2000"
-                                                step="500"
-                                                value={tempPriceRange.min}
-                                                onChange={(e) => {
-                                                    const val = Number(e.target.value);
-                                                    setTempPriceRange(prev => ({
-                                                        ...prev,
-                                                        min: Math.min(val, prev.max - 1)
-                                                    }));
-                                                }}
-                                                className="absolute top-0 left-0 w-full h-8 opacity-0 cursor-pointer z-40"
-                                                style={{ width: '50%', pointerEvents: tempPriceRange.min <= 1000 ? 'auto' : 'none' }}
-                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {PRICE_PRESETS.map((preset) => {
+                                                const isActive =
+                                                    tempPriceRange.min === preset.min &&
+                                                    tempPriceRange.max === preset.max;
+
+                                                return (
+                                                    <button
+                                                        key={preset.label}
+                                                        onClick={() => setClampedTempPriceRange(preset.min, preset.max)}
+                                                        className={cn(
+                                                            "rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all",
+                                                            isActive
+                                                                ? "border-[#FF4D6D] bg-[#FF4D6D]/10 text-[#FF4D6D]"
+                                                                : "border-white/10 bg-[#1C1C1E] text-zinc-300 hover:border-white/20"
+                                                        )}
+                                                    >
+                                                        {preset.label}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -775,7 +717,7 @@ const CategoryProductsPage: React.FC = () => {
                                         className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#FF4D6D] text-white hover:bg-[#FF3355]"
                                         onClick={handleApplyFilters}
                                     >
-                                        Apply ({tempSelectedSizes.size + tempSelectedBrands.size})
+                                        Apply ({stagedFilterCount})
                                     </button>
                                 </div>
                             </div>

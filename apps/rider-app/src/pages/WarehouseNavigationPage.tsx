@@ -15,6 +15,7 @@ import {
     verifyWarehouseOtp,
     releaseOrder,
     updateRiderLocation,
+    subscribeToOrderUpdates,
     PREDEFINED_MESSAGES,
 } from '@/services/riderOrderService';
 import {
@@ -105,7 +106,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
-    
+
     const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
     const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
         if (!id) return null;
@@ -219,6 +220,18 @@ export const WarehouseNavigationPage: React.FC = () => {
     }, [id]);
 
     useEffect(() => {
+        if (!id) return;
+        const unsub = subscribeToOrderUpdates(id, (status) => {
+            setOrder(prev => prev ? { ...prev, status } : prev);
+            if (['returned', 'return_completed'].includes(status)) {
+                showToastRef.current('Return processed by warehouse!', 'success');
+                navigateRef.current('/');
+            }
+        });
+        return () => { void unsub(); };
+    }, [id]);
+
+    useEffect(() => {
         if (globalLocation) {
             const coords: [number, number] = [globalLocation.longitude, globalLocation.latitude];
             setRiderLocation(coords);
@@ -302,15 +315,22 @@ export const WarehouseNavigationPage: React.FC = () => {
         if (otpValue.length !== 6) { showToast('Please enter a 6-digit PIN', 'error'); return; }
 
         setOtpVerifying(true);
+        console.log(`[handleVerifyOtp] Verifying PIN for order ${id} with PIN ${otpValue} by rider ${user.id}`);
         try {
             const result = await verifyWarehouseOtp(id, otpValue, user.id);
-            if (!result.success) throw new Error(result.message);
+            console.log(`[handleVerifyOtp] Result:`, result);
+
+            if (!result || !result.success) {
+                const errMsg = result?.message || 'Failed to verify PIN (Unknown error)';
+                throw new Error(errMsg);
+            }
 
             showToast('Arrival verified! Now confirm the pickup.', 'success');
             setStep('arrived');
             setOrder(prev => prev ? { ...prev, status: 'driver_arrived_warehouse' } : prev);
             setShowOtpModal(false);
         } catch (err: any) {
+            console.error(`[handleVerifyOtp] Error:`, err);
             showToast(err.message || 'Failed to verify PIN', 'error');
         } finally {
             setOtpVerifying(false);
@@ -429,7 +449,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     return (
         <div className="fixed inset-0 bg-[#080808] flex flex-col font-sans">
             <div className="flex-1 overflow-y-auto px-6 pt-12 pb-48 space-y-8">
-                
+
                 {/* Header & Status */}
                 <div className="flex items-center justify-between">
                     <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex items-center gap-2">
@@ -579,7 +599,10 @@ export const WarehouseNavigationPage: React.FC = () => {
                                 <div className="rounded-[2rem] border border-blue-500/20 bg-blue-500/10 p-6 text-center backdrop-blur-xl">
                                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Verification Code</p>
                                     <div className="text-5xl font-mono font-black text-white tracking-[0.2em] mb-2">{returnOtp ?? order?.warehouse_otp}</div>
-                                    <p className="text-zinc-500 text-[10px] uppercase font-bold">Show this to Warehouse</p>
+                                    <div className="flex items-center justify-center gap-2 mt-4 text-zinc-400">
+                                        <Loader2 size={14} className="animate-spin text-blue-400" />
+                                        <p className="text-[10px] uppercase font-bold">Waiting for warehouse validation...</p>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-6 text-center">
@@ -587,7 +610,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                                     <p className="text-emerald-500/60 text-xs mt-1">Waiting for warehouse validation</p>
                                 </div>
                             )}
-                            <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Back to Home</button>
+                            <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Return to Dashboard</button>
                         </motion.div>
                     )}
                 </AnimatePresence>

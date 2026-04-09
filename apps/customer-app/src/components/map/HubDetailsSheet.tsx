@@ -65,7 +65,7 @@ export function HubDetailsSheet({
                         </button>
 
                         {/* Content */}
-                        <div className="px-6 pb-8 pt-2">
+                        <div className="px-6 bottom-sheet-safe pt-2">
                             {/* Hub info */}
                             <div className="mb-6">
                                 <div className="flex items-start justify-between mb-2">

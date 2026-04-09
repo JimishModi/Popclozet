@@ -27,6 +27,7 @@ const NOTIF_ICON_MAP: Record<string, { icon: any; color: string; bg: string }> =
     order_dispatched: { icon: Truck, color: "text-purple-400", bg: "bg-purple-500/20" },
     order_picked_up: { icon: Package, color: "text-emerald-400", bg: "bg-emerald-500/20" },
     out_for_delivery: { icon: MapPin, color: "text-blue-400", bg: "bg-blue-500/20" },
+    driver_arrived_location: { icon: MapPin, color: "text-pink-400", bg: "bg-pink-500/20" },
     rider_message: { icon: MessageCircle, color: "text-amber-400", bg: "bg-amber-500/20" },
     rider_arrived_warehouse: { icon: Truck, color: "text-blue-400", bg: "bg-blue-500/20" },
     delivered: { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/20" },
@@ -61,6 +62,7 @@ const NotificationsPage: React.FC = () => {
     };
 
     // In-app notification toggles – persisted to localStorage
+    /* FUTURE TODO: Implement backend preferences
     const [orderUpdates, setOrderUpdates] = useState(() => getStorageItem("notif_orders") !== "false");
     const [promoAlerts, setPromoAlerts] = useState(() => getStorageItem("notif_promos") === "true");
     const [wishlistAlerts, setWishlistAlerts] = useState(() => getStorageItem("notif_wishlist") !== "false");
@@ -69,6 +71,7 @@ const NotificationsPage: React.FC = () => {
         setter(val);
         try { localStorage.setItem(key, String(val)); } catch {}
     };
+    */
 
     const persistOrderActivityClearedAt = (value: string | null) => {
         if (!orderActivityStorageKey) return;
@@ -424,6 +427,7 @@ const NotificationsPage: React.FC = () => {
                         </div>
 
                         {/* ─── In-app preference toggles ─── */}
+                        {/* FUTURE TODO: Implement backend preferences
                         {[
                             { key: "notif_orders", label: "Order Updates", sub: "Delivery & pickup status", icon: Package, value: orderUpdates, setter: setOrderUpdates },
                             { key: "notif_promos", label: "Promotions & Offers", sub: "Deals and new arrivals", icon: Tag, value: promoAlerts, setter: setPromoAlerts },
@@ -446,6 +450,7 @@ const NotificationsPage: React.FC = () => {
                                 </div>
                             );
                         })}
+                        */}
                     </div>
                 </motion.div>
 
