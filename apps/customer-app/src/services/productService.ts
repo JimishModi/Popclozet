@@ -752,13 +752,16 @@ class ProductService {
     // Get distinct categories with a representative image each
     async getCategories(): Promise<{ id: string; title: string; image: string }[]> {
         try {
-<<<<<<< HEAD
-            // Primary source: category_configs table
+            // Primary source: category_configs table.
+            // Adding a new category to the app only requires inserting a row there.
             const { data: configs, error: configError } = await (supabase as any)
                 .from('category_configs')
-                .select('category, display_name, image_url');
+                .select('category, display_name, image_url')
+                .order('created_at', { ascending: true });
 
-            if (!configError && configs && configs.length > 0) {
+            if (configError) throw configError;
+
+            if (configs && configs.length > 0) {
                 // Determine which categories still need a fallback image
                 const categoriesNeedImage = configs.filter((c: any) => !c.image_url).map((c: any) => c.category);
                 
@@ -783,32 +786,11 @@ class ProductService {
                     image: c.image_url || fallbackImages.get(c.category) || '',
                 }));
             }
-
-            // Fallback: the old derivation for robustness
-=======
-            // Source of truth: category_configs table.
-            // Adding a new category to the app only requires inserting a row there —
-            // no code changes needed.
->>>>>>> 4466bf09127747a8da162e241ea72ec3a02ea3c9
-            const { data, error } = await (supabase as any)
-                .from('category_configs')
-                .select('category, display_name, image_url')
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-
-            return (data || []).map((row: any) => ({
-                id:    row.category as string,
-                title: (row.display_name as string) || row.category,
-                image: (row.image_url as string)    || '',
-            }));
+            
+            return [];
         } catch (error) {
             console.error('Error fetching categories:', (error as any)?.message ?? error);
-<<<<<<< HEAD
-            // Deep fallback from IndexedDB
-=======
             // Fallback: derive distinct categories from cached IndexedDB products
->>>>>>> 4466bf09127747a8da162e241ea72ec3a02ea3c9
             const db = await this.initDB();
             const products = await db.getAll('products');
             const seen = new Map<string, string>();
