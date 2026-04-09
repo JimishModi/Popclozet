@@ -41,7 +41,7 @@ export const ProfilePage: React.FC = () => {
                         <h2 className="text-xl font-bold text-gray-900 mb-1 truncate">
                             {user?.email?.split('@')[0] || 'Guest User'}
                         </h2>
-                        <p className="text-sm text-gray-500 truncate">{user?.email || 'guest@popclozet.com'}</p>
+                        <p className="text-sm text-gray-500 truncate">{user?.email || 'guest@popclozet.in'}</p>
                     </div>
                 </div>
             </div>
@@ -209,7 +209,7 @@ export const ProfilePage: React.FC = () => {
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-900">About popclozet</p>
+                                    <p className="text-sm font-medium text-gray-900">About Popclozet</p>
                                     <p className="text-xs text-gray-500">Learn more about us</p>
                                 </div>
                             </div>

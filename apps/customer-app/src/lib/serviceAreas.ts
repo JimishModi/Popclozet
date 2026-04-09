@@ -57,10 +57,16 @@ export const SERVICE_AREAS: ServiceArea[] = [
   },
 ];
 
-// Warehouse location (same as IIT Bombay center for demo)
-export const WAREHOUSE_LOCATION = {
+// Warehouse location — single source of truth for all distance calculations
+export const WAREHOUSE = {
   lat: 19.1305,
   lng: 72.9135,
   address: "Hostel 2, IIT Bombay, Powai, Mumbai",
-};
+} as const;
+
+// Delivery distance thresholds (road distance in km)
+export const DELIVERY_THRESHOLDS = {
+  INSTANT_MAX_KM: 7,       // Road distance ≤7km → "15min" delivery
+  SERVICE_MAX_KM: 12,      // Road distance >12km → not serviceable
+} as const;
 

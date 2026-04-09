@@ -14,13 +14,14 @@ export default defineConfig(function (_a) {
             __SW_VERSION__: JSON.stringify(Date.now().toString(36)),
         },
         server: {
-            host: "localhost",
+            host: true,
             port: 5500,
         },
         plugins: [
+            // basicSsl(),
             react(),
             VitePWA({
-                registerType: "autoUpdate",
+                registerType: "prompt",
                 includeAssets: [
                     "favicon.ico",
                     "robots.txt",
@@ -30,15 +31,15 @@ export default defineConfig(function (_a) {
                     "icons/icon-maskable-512x512.png",
                 ],
                 manifest: {
-                    name: "PopClozet - Rent the Trend",
-                    short_name: "PopClozet",
-                    description: "Rent designer fashion for every occasion. PopClozet delivers premium outfits in 60 minutes.",
+                    name: "Popclozet - Rent the Trend",
+                    short_name: "Popclozet",
+                    description: "Rent designer fashion for every occasion. Popclozet delivers premium outfits in 60 minutes.",
                     start_url: "/",
                     scope: "/",
                     display: "standalone",
                     orientation: "portrait-primary",
-                    background_color: "#F6F0E0",
-                    theme_color: "#F6F0E0",
+                    background_color: "#0a0a0a",
+                    theme_color: "#0a0a0a",
                     categories: ["shopping", "lifestyle", "fashion"],
                     icons: [
                         {

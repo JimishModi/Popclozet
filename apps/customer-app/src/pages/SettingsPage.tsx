@@ -6,23 +6,28 @@ import {
     ArrowLeft, User, Bell, Mail, Shield, LogOut, ChevronRight,
     MapPin, CreditCard, Clock, Ruler, Package, RefreshCw,
     HelpCircle, FileText, Trash2, Phone, Zap, AlertTriangle,
-    Check, X, ChevronLeft, Loader2, Smartphone
+    Check, X, ChevronLeft, Loader2, Smartphone, Download, Share
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { useAuth } from '@/hooks/useAuth';
 import { MobileShell } from '@/components/layout/MobileShell';
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
-const storeBool = (key: string, value: boolean) =>
-    localStorage.setItem(key, String(value));
-
-const loadBool = (key: string, def: boolean): boolean => {
-    const v = localStorage.getItem(key);
-    return v !== null ? v === 'true' : def;
+const storeBool = (key: string, value: boolean) => {
+    try { localStorage.setItem(key, String(value)); } catch {}
 };
 
-const loadStr = (key: string, def: string): string =>
-    localStorage.getItem(key) ?? def;
+const loadBool = (key: string, def: boolean): boolean => {
+    try {
+        const v = localStorage.getItem(key);
+        return v !== null ? v === 'true' : def;
+    } catch { return def; }
+};
+
+const loadStr = (key: string, def: string): string => {
+    try { return localStorage.getItem(key) ?? def; } catch { return def; }
+};
 
 /* ─── Sub-components ──────────────────────────────────────────────────────── */
 
@@ -145,6 +150,8 @@ const SelectRow: React.FC<SelectRowProps> = ({ value, options, onChange, icon: I
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
     const { user, profile, signOut } = useAuth();
+    const { isInstallableNatively, isIOS, isStandalone, triggerInstallPrompt } = usePWAInstall();
+    const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
     const displayName = (() => {
         const raw = profile?.full_name || user?.user_metadata?.full_name || profile?.email?.split('@')[0] || user?.email?.split('@')[0] || 'User';
@@ -172,16 +179,18 @@ const SettingsPage: React.FC = () => {
     };
 
     // ── Notification toggles ──────────────────────────────────────────────
+    /* FUTURE TODO: Implement backend preferences
     const [pushOrders, setPushOrders] = useState(() => loadBool('s_push_orders', true));
     const [pushDelivery, setPushDelivery] = useState(() => loadBool('s_push_delivery', true));
     const [pushReturn, setPushReturn] = useState(() => loadBool('s_push_return', true));
-    const [pushPromo, setPushPromo] = useState(() => loadBool('s_push_promo', false));
-    const [emailUpdates, setEmailUpdates] = useState(() => loadBool('s_email_updates', false));
+    const [pushPromo, setPushPromo] = useState(() => loadBool('s_push_promo', true));
+    const [emailUpdates, setEmailUpdates] = useState(() => loadBool('s_email_updates', true));
 
     const toggle = (setter: (v: boolean) => void, key: string) => (v: boolean) => {
         setter(v);
         storeBool(key, v);
     };
+    */
 
     const saveStr = (setter: (v: string) => void, key: string) => (v: string) => {
         setter(v);
@@ -264,16 +273,51 @@ const SettingsPage: React.FC = () => {
                                 ? <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin" />
                                 : <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${push.isSubscribed ? 'bg-[#f2546d]' : 'bg-zinc-700'}`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-300 ${push.isSubscribed ? 'translate-x-6' : 'translate-x-1'}`} /></div>}
                             onClick={handlePushToggle}
+                            last
                         />
+                        {/* FUTURE TODO: Implement backend preferences
                         <ToggleRow icon={Package} label="Order Status Updates" sub="Confirmed, preparing, out for delivery" value={pushOrders} onChange={toggle(setPushOrders, 's_push_orders')} />
                         <ToggleRow icon={Zap} label="Delivery Alerts" sub="Rider nearby, delivered" value={pushDelivery} onChange={toggle(setPushDelivery, 's_push_delivery')} />
                         <ToggleRow icon={RefreshCw} label="Return Reminders" sub="24h & same-day pickup alerts" value={pushReturn} onChange={toggle(setPushReturn, 's_push_return')} />
                         <ToggleRow icon={Bell} label="Offers & New Arrivals" sub="Deals, discounts, new styles" value={pushPromo} onChange={toggle(setPushPromo, 's_push_promo')} />
                         <ToggleRow icon={Mail} label="Email Updates" sub="Receipts & rental summaries" value={emailUpdates} onChange={toggle(setEmailUpdates, 's_email_updates')} last />
+                        */}
                     </Card>
                 </motion.div>
 
-                {/* ── 4. Support & Legal ── */}
+                {/* ── 4. App Management (PWA) ── */}
+                {!isStandalone && (isInstallableNatively || isIOS) && (
+                    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+                        <SectionLabel>App Experience</SectionLabel>
+                        <Card>
+                            {isInstallableNatively && (
+                                <Row
+                                    icon={Download}
+                                    label="Install App"
+                                    sub="Fast access from your home screen"
+                                    onClick={async () => {
+                                        const success = await triggerInstallPrompt();
+                                        if (success) {
+                                            // Optional: Show success state
+                                        }
+                                    }}
+                                    last={!isIOS} // If it's Android, it's the last one in this card
+                                />
+                            )}
+                            {isIOS && (
+                                <Row
+                                    icon={Share}
+                                    label="Add to Home Screen"
+                                    sub="Get the full app experience"
+                                    onClick={() => setShowIOSInstructions(true)}
+                                    last
+                                />
+                            )}
+                        </Card>
+                    </motion.div>
+                )}
+
+                {/* ── 5. Support & Legal ── */}
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                     <SectionLabel>Support & Legal</SectionLabel>
                     <Card>
@@ -324,7 +368,8 @@ const SettingsPage: React.FC = () => {
                         <motion.div
                             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-10"
+                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-5 pt-5"
+                            style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
                         >
                             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
                             <div className="flex flex-col items-center text-center mb-6">
@@ -348,6 +393,57 @@ const SettingsPage: React.FC = () => {
                                     className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm"
                                 >
                                     <Trash2 className="w-4 h-4" /> Delete
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showIOSInstructions && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            onClick={() => setShowIOSInstructions(false)}
+                            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+                        />
+                        <motion.div
+                            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-50 bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5"
+                            style={{ paddingBottom: 'max(48px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+                        >
+                            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 rounded-2xl bg-[#f2546d]/15 flex items-center justify-center mb-5">
+                                    <Smartphone className="w-8 h-8 text-[#f2546d]" />
+                                </div>
+                                <h2 className="text-white font-bold text-xl mb-3">Install Popclozet</h2>
+                                <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                                    Follow these steps to add Popclozet to your home screen for a better shopping experience.
+                                </p>
+
+                                <div className="w-full space-y-4 mb-8">
+                                    <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                                        <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold shrink-0">1</div>
+                                        <p className="text-zinc-300 text-sm">Tap the <span className="font-bold text-white">Share</span> button in Safari's bottom toolbar.</p>
+                                    </div>
+                                    <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                                        <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold shrink-0">2</div>
+                                        <p className="text-zinc-300 text-sm">Scroll down and tap <span className="font-bold text-white">"Add to Home Screen"</span>.</p>
+                                    </div>
+                                    <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                                        <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold shrink-0">3</div>
+                                        <p className="text-zinc-300 text-sm">Tap <span className="font-bold text-white">"Add"</span> in the top-right corner.</p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => setShowIOSInstructions(false)}
+                                    className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-base shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
+                                >
+                                    Got it
                                 </button>
                             </div>
                         </motion.div>

@@ -84,6 +84,7 @@ export function SizeChartModal({ isOpen, onClose, gender = "womens", selectedSiz
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 28, stiffness: 300 }}
                         className="fixed bottom-0 left-0 right-0 z-[101] bg-[#1a1a1a] rounded-t-3xl max-h-[85vh] flex flex-col max-w-md mx-auto w-full"
+                        style={{ maxHeight: 'var(--mobile-overlay-max-height)' }}
                     >
                         {/* Handle */}
                         <div className="flex justify-center py-3">
@@ -144,7 +145,7 @@ export function SizeChartModal({ isOpen, onClose, gender = "womens", selectedSiz
                         </div>
 
                         {/* Table */}
-                        <div className="flex-1 overflow-y-auto px-5 pb-6">
+                        <div className="flex-1 overflow-y-auto px-5 bottom-sheet-safe">
                             <div className="rounded-2xl border border-[#333] overflow-hidden">
                                 {/* Table header */}
                                 <div className="grid grid-cols-5 bg-[#232323]">

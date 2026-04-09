@@ -8,9 +8,9 @@
 // Allowed redirect domains (add your production domains)
 const ALLOWED_ORIGINS = [
     'localhost',
-    'popclozet.com',
-    'www.popclozet.com',
-    'rider.popclozet.com',
+    'popclozet.in',
+    'www.popclozet.in',
+    'rider.popclozet.in',
 ];
 
 /**

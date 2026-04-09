@@ -11,6 +11,7 @@ export type StoredLocation =
     lng: number;
     city?: string;
     locality?: string;
+    eLoc?: string;
     delivery_estimate?: "15min" | "delayed";
   };
 

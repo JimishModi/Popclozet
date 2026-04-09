@@ -167,7 +167,7 @@ export function MandatoryReviewGate() {
           <div className="text-center mt-12 mb-8">
             <h1 className="text-3xl font-heading font-bold mb-3">Rate Your Rentals</h1>
             <p className="text-neutral-400 text-sm">
-              Please review your recently rented items to continue using PopClozet.
+              Please review your recently rented items to continue using Popclozet.
             </p>
           </div>
 
@@ -211,7 +211,10 @@ export function MandatoryReviewGate() {
             ))}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/90 to-transparent">
+          <div 
+            className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/90 to-transparent"
+            style={{ paddingBottom: 'max(16px, calc(16px + env(safe-area-inset-bottom, 0px)))' }}
+          >
             <div className="max-w-md mx-auto">
               {pendingItems.length > 1 && (
                 <div className="text-center text-xs text-neutral-400 mb-3 font-medium">

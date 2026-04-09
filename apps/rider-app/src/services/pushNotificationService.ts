@@ -101,6 +101,69 @@ export async function subscribeToPush(): Promise<{
   }
 }
 
+export async function syncExistingPushSubscription(): Promise<{
+  success: boolean;
+  subscription?: PushSubscription;
+  synced?: boolean;
+  error?: string;
+}> {
+  if (!isPushSupported()) {
+    return { success: false, error: "Push notifications not supported" };
+  }
+
+  if (!VAPID_PUBLIC_KEY) {
+    return { success: false, error: "Push notifications not configured" };
+  }
+
+  if (getPermissionState() !== "granted") {
+    return { success: false, error: `Notification permission ${getPermissionState()}` };
+  }
+
+  const registration = await getServiceWorkerRegistration();
+  if (!registration) {
+    return { success: false, error: "Service worker not registered" };
+  }
+
+  try {
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+      });
+    }
+
+    await saveSubscriptionToServer(subscription);
+    return { success: true, subscription, synced: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to sync subscription",
+    };
+  }
+}
+
+export async function ensurePushSubscription(
+  options?: { promptIfDefault?: boolean },
+): Promise<{
+  success: boolean;
+  subscription?: PushSubscription;
+  synced?: boolean;
+  error?: string;
+}> {
+  const permission = getPermissionState();
+
+  if (permission === "granted") {
+    return syncExistingPushSubscription();
+  }
+
+  if (permission === "default" && options?.promptIfDefault) {
+    return subscribeToPush();
+  }
+
+  return { success: false, error: `Notification permission ${permission}` };
+}
+
 export async function unsubscribeFromPush(): Promise<boolean> {
   try {
     const subscription = await getExistingSubscription();

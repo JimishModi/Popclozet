@@ -161,8 +161,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true, payment_id: razorpay_payment_id, already_processed: true }, 200, req, log);
     }
 
-    // Only allow verification from valid pre-payment states
-    if (!['pending', 'pending_payment'].includes(order.status)) {
+    // Allow verification from payment_failed too. Razorpay can emit a failed
+    // attempt before the user retries successfully on the same order.
+    if (!['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
       log.error('Invalid order state for payment', { status: order.status });
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be verified` }, 409, req, log);
     }

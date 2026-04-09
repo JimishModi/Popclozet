@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
   HelpCircle, Shield, Sparkles, X,
-  Edit3, Check, Loader2, Phone, Mail, Package
+  Edit3, Check, Loader2, Phone, Mail, Package, Download, Share, Smartphone
 } from "lucide-react";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { cn } from "@/lib/utils";
 import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -22,7 +23,7 @@ const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, profile, loading, updateProfile } = useAuth();
+  const { user, profile, loading, updateProfile, refreshProfile } = useAuth();
   const { wishlistItems } = useWishlist();
 
 
@@ -73,6 +74,8 @@ const ProfilePage: React.FC = () => {
 
 
   const { orders, activeOrders, loading: ordersLoading } = useOrders();
+  const { isInstallableNatively, isIOS, isStandalone, triggerInstallPrompt } = usePWAInstall();
+  const [showIOSInstallGuide, setShowIOSInstallGuide] = useState(false);
 
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState('');
@@ -82,18 +85,26 @@ const ProfilePage: React.FC = () => {
   const [kycVerified, setKycVerified] = useState<boolean | null>(null);
   const [isKycLoading, setIsKycLoading] = useState(false);
   
+  // Safe localStorage helper
+  const getStorageItem = (key: string) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  };
+  const setStorageItem = (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch {}
+  };
+
   // KYC Banner dismissal states
-  const [showKycBanner, setShowKycBanner] = useState(() => localStorage.getItem('pop_kyc_dismissed') !== 'true');
-  const [showVerifiedBanner, setShowVerifiedBanner] = useState(() => localStorage.getItem('pop_verified_dismissed') !== 'true');
+  const [showKycBanner, setShowKycBanner] = useState(() => getStorageItem('pop_kyc_dismissed') !== 'true');
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(() => getStorageItem('pop_verified_dismissed') !== 'true');
 
   const dismissKyc = () => {
     setShowKycBanner(false);
-    localStorage.setItem('pop_kyc_dismissed', 'true');
+    setStorageItem('pop_kyc_dismissed', 'true');
   };
 
   const dismissVerified = () => {
     setShowVerifiedBanner(false);
-    localStorage.setItem('pop_verified_dismissed', 'true');
+    setStorageItem('pop_verified_dismissed', 'true');
   };
 
   const fetchKycStatus = React.useCallback(() => {
@@ -116,6 +127,8 @@ const ProfilePage: React.FC = () => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         fetchKycStatus();
+        // Sync auth state & email verification in case user verified elsewhere
+        refreshProfile().catch(() => {});
         // Retry once after 3s in case webhook is still processing
         retryTimer = setTimeout(fetchKycStatus, 3000);
       }
@@ -127,36 +140,36 @@ const ProfilePage: React.FC = () => {
     };
   }, [fetchKycStatus]);
 
-  // Handle KYC callback from Didit redirect
+  // Handle KYC callback from Didit redirect — just re-fetch DB status (webhook sets the actual value)
   useEffect(() => {
     const kycCallback = searchParams.get("kyc_callback");
-    const urlUserId = searchParams.get("user_id");
-    const effectiveUserId = user?.id || urlUserId;
 
-    if (kycCallback === "success" && effectiveUserId) {
-      // Set verified immediately
-      setKycVerified(true);
-
-      // Persist to DB
-      supabase.from("customer_profiles").update({ kyc_verified: true }).eq("user_id", effectiveUserId)
-        .then(({ error }) => {
-          if (error) {
-            console.error("[KYC] Failed to persist verification:", error);
-            toast.error("Verification failed to save. Please try again.");
-            setKycVerified(false);
-            return;
-          }
-          toast.success("Identity verified successfully!");
-        });
+    if (kycCallback) {
+      // Re-fetch KYC status from DB (webhook should have updated it)
+      fetchKycStatus();
+      
+      // Show appropriate toast based on result
+      if (kycCallback === "success") {
+        toast.success("Identity verified successfully! ✅");
+        // Also re-fetch after a short delay in case DB write is still propagating
+        setTimeout(fetchKycStatus, 2000);
+      } else if (kycCallback === "pending") {
+        toast.info("Verification submitted! Checking status...");
+        setTimeout(fetchKycStatus, 3000);
+      } else if (kycCallback === "rejected") {
+        toast.error("Verification was declined. Please try again.");
+      } else if (kycCallback === "error") {
+        toast.error("Something went wrong during verification. Please try again.");
+      }
 
       // Clean up URL
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete("kyc_callback");
       newParams.delete("user_id");
-      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      const newUrl = window.location.pathname + window.location.hash.split('?')[0] + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
-  }, [searchParams, user?.id]);
+  }, [searchParams, fetchKycStatus]);
 
   const inClosetCount = orders.filter(o =>
     ["delivered", "in_use"].includes(o.status)
@@ -226,13 +239,15 @@ const ProfilePage: React.FC = () => {
         setEditCoords({ lat: returnedAddr.lat || 0, lng: returnedAddr.lng || 0 });
         
         // Restore Name & Phone from session storage if available
-        const savedData = sessionStorage.getItem('profile_edit_draft');
-        if (savedData) {
-          const { name, phone, email } = JSON.parse(savedData);
-          setEditName(name);
-          setEditPhone(phone);
-          setEditEmail(email);
-        }
+        try {
+          const savedData = sessionStorage.getItem('profile_edit_draft');
+          if (savedData) {
+            const { name, phone, email } = JSON.parse(savedData);
+            setEditName(name);
+            setEditPhone(phone);
+            setEditEmail(email);
+          }
+        } catch {}
         return;
       }
 
@@ -263,11 +278,19 @@ const ProfilePage: React.FC = () => {
       // 1. Update Profile (Name & Phone)
       await updateProfile({ full_name: editName.trim(), phone: editPhone.trim() });
 
+      let emailMsg = "";
       // 2. Update Email if changed
       if (editEmail !== user?.email) {
-        const { error: emailError } = await supabase.auth.updateUser({ email: editEmail });
-        if (emailError) throw emailError;
-        toast.success("Confirmation email sent to " + editEmail);
+        if (isRealEmail(user?.email)) {
+          // Standard flow for existing real email
+          const { error: emailError } = await supabase.auth.updateUser({ email: editEmail });
+          if (emailError) throw emailError;
+        } else {
+          // Use the edge function logic for transitions from placeholders
+          // This safely links the new real email to the existing phone auth account
+          await sendVerificationEmail(editEmail);
+        }
+        emailMsg = " — check inbox to verify!";
       }
 
       // 3. Upsert Address
@@ -293,10 +316,14 @@ const ProfilePage: React.FC = () => {
             .insert([addressPayload]);
         }
         // Success - clear draft
-        sessionStorage.removeItem('profile_edit_draft');
+        try { sessionStorage.removeItem('profile_edit_draft'); } catch {}
       }
 
-      toast.success("Profile updated successfully!");
+      if (emailMsg) {
+        toast.success(`Profile saved${emailMsg}`, { duration: 6000 });
+      } else {
+        toast.success("Profile updated successfully!");
+      }
       setShowEditSheet(false);
     } catch (e: any) {
       const msg = e?.message || "";
@@ -429,21 +456,46 @@ const ProfilePage: React.FC = () => {
                   </div>
 
                   {verifySent ? (
-                    <p className="text-xs text-green-400 font-semibold text-center py-1">
-                      ✓ Verification link sent — check your inbox
-                    </p>
-                  ) : (
-                    <>
-                      {verifyError && <p className="text-xs text-red-400 mb-2">{verifyError}</p>}
+                    <div className="space-y-3">
+                      <p className="text-xs text-green-400 font-semibold text-center py-1">
+                        ✓ Verification link sent — check your inbox
+                      </p>
                       <button
-                        onClick={handleVerifyEmail}
-                        disabled={verifyLoading}
-                        className="w-full py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold shadow-lg shadow-orange-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                        onClick={async () => {
+                          setVerifyLoading(true);
+                          await refreshProfile();
+                          setVerifyLoading(false);
+                        }}
+                        className="w-full py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold transition-all active:scale-95"
                       >
-                        {verifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {verifyLoading ? 'Sending...' : 'Send Verification Email'}
+                        {verifyLoading ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "I'VE VERIFIED (REFRESH)"}
                       </button>
-                    </>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                       {verifyError && <p className="text-xs text-red-400 mb-1">{verifyError}</p>}
+                       <div className="flex gap-2">
+                          <button
+                            onClick={handleVerifyEmail}
+                            disabled={verifyLoading}
+                            className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold shadow-lg shadow-orange-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                          >
+                            {verifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                            {verifyLoading ? 'Sending...' : 'Verify Now'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setVerifyLoading(true);
+                              await refreshProfile();
+                              setVerifyLoading(false);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white transition-all active:scale-95"
+                            title="Check status"
+                          >
+                            <Loader2 className={cn("w-4 h-4", verifyLoading && "animate-spin")} />
+                          </button>
+                       </div>
+                    </div>
                   )}
                 </motion.div>
               )}
@@ -506,18 +558,24 @@ const ProfilePage: React.FC = () => {
                           onClick={async () => {
                             setIsKycLoading(true);
                             try {
-                              const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
-                                body: { callbackParams: { user_id: user.id, callback_path: "/profile" } }
+                              const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
+                                body: { 
+                                  callbackParams: { 
+                                    user_id: user.id, 
+                                    callback_path: "/profile",
+                                    app_origin: window.location.origin
+                                  } 
+                                }
                               });
                               if (error) throw error;
-                              if (data?.url) {
-                                window.location.href = data.url;
+                              if (data?.verification_url) {
+                                window.location.href = data.verification_url;
                               } else {
-                                window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                                toast.error("Could not start verification. Please try again.");
                               }
                             } catch (err: any) {
                               console.error('KYC Error:', err);
-                              window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                              toast.error("Could not start verification. Please try again.");
                             } finally {
                               setIsKycLoading(false);
                             }
@@ -532,7 +590,7 @@ const ProfilePage: React.FC = () => {
                           onClick={async () => {
                             setIsKycLoading(true);
                             try {
-                              // First check if webhook already updated DB
+                              // Check if webhook already updated DB
                               const { data } = await supabase
                                 .from("customer_profiles")
                                 .select("kyc_verified")
@@ -541,24 +599,9 @@ const ProfilePage: React.FC = () => {
                               if (data?.kyc_verified) {
                                 setKycVerified(true);
                                 toast.success("Verification confirmed!");
-                                return;
+                              } else {
+                                toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                               }
-                              
-                              // Webhook didn't fire — user verified on Didit but webhook chain broken.
-                              // Directly mark as verified since they confirmed completion.
-                              const { error: updateError } = await supabase
-                                .from("customer_profiles")
-                                .update({ kyc_verified: true })
-                                .eq("user_id", user.id);
-                              
-                              if (updateError) {
-                                console.error("KYC update error:", updateError);
-                                toast.error("Failed to update verification. Please try again.");
-                                return;
-                              }
-                              
-                              setKycVerified(true);
-                              toast.success("Identity verified successfully! ✓");
                             } catch (err) {
                               console.error("KYC refresh error:", err);
                               toast.error("Something went wrong. Please try again.");
@@ -652,6 +695,54 @@ const ProfilePage: React.FC = () => {
               ))}
             </div>
 
+            {/* ── Install App (PWA) ── */}
+            {!isStandalone && (isInstallableNatively || isIOS) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">App</h2>
+                <div className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden">
+                  {isInstallableNatively && (
+                    <button
+                      onClick={async () => {
+                        await triggerInstallPrompt();
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all",
+                        isIOS && "border-b border-white/5"
+                      )}
+                    >
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                        <Download className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block">Install App</span>
+                        <span className="text-[11px] text-zinc-500">Fast access from home screen</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  )}
+                  {isIOS && (
+                    <button
+                      onClick={() => setShowIOSInstallGuide(true)}
+                      className="w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all"
+                    >
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                        <Share className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block">Add to Home Screen</span>
+                        <span className="text-[11px] text-zinc-500">Get the full app experience</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {user && (
               <div className="mt-8">
                 <button
@@ -692,7 +783,8 @@ const ProfilePage: React.FC = () => {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[100] bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 pb-24"
+              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[100] bg-[#111111] rounded-t-3xl border-t border-white/10 px-5 pt-5 overflow-y-auto max-h-[90dvh]"
+              style={{ paddingBottom: 'max(96px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
             >
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
               <div className="flex items-center justify-between mb-6">
@@ -751,11 +843,13 @@ const ProfilePage: React.FC = () => {
                   <button
                     onClick={() => {
                       // Save current draft state to session storage
-                      sessionStorage.setItem('profile_edit_draft', JSON.stringify({
-                        name: editName,
-                        phone: editPhone,
-                        email: editEmail
-                      }));
+                      try {
+                        sessionStorage.setItem('profile_edit_draft', JSON.stringify({
+                          name: editName,
+                          phone: editPhone,
+                          email: editEmail
+                        }));
+                      } catch {}
                       navigate('/map-location?returnTo=/profile');
                     }}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#f2546d]/30 transition-all text-left group"
@@ -781,6 +875,58 @@ const ProfilePage: React.FC = () => {
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-sm shadow-[0_10px_30px_rgba(242,84,109,0.3)] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Check className="w-4 h-4" /> Save Changes</>}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* iOS Install Guide Modal */}
+      <AnimatePresence>
+        {showIOSInstallGuide && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowIOSInstallGuide(false)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200]"
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[200] bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5"
+              style={{ paddingBottom: 'max(48px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+            >
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-[#f2546d]/15 flex items-center justify-center mb-5">
+                  <Smartphone className="w-8 h-8 text-[#f2546d]" />
+                </div>
+                <h2 className="text-white font-bold text-xl mb-3">Install Popclozet</h2>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                  Follow these steps to add Popclozet to your home screen for a better shopping experience.
+                </p>
+
+                <div className="w-full space-y-4 mb-8">
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">1</div>
+                    <p className="text-zinc-300 text-sm">Tap the <span className="font-bold text-white">Share</span> button in Safari's bottom toolbar.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">2</div>
+                    <p className="text-zinc-300 text-sm">Scroll down and tap <span className="font-bold text-white">"Add to Home Screen"</span>.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">3</div>
+                    <p className="text-zinc-300 text-sm">Tap <span className="font-bold text-white">"Add"</span> in the top-right corner.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowIOSInstallGuide(false)}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-base shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
+                >
+                  Got it
                 </button>
               </div>
             </motion.div>

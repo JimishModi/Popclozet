@@ -34,9 +34,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(10,2) DEFAUL
 
 -- ============================================================
 -- 2. HELPER: Compute delivery fee from distance (server-side)
---    Mirrors the formula previously in deliveryService.ts:
---      <= 6 km  → ₹40
---      > 6 km   → ₹40 + ceil(distance - 6) * ₹10
+--    Mirrors the formula in deliveryService.ts:
+--      <= 6 km   → ₹40
+--      6 to 12km → ₹40 + ceil(distance - 6) * ₹20
+--      > 12km    → -1 (unserviceable)
 -- ============================================================
 CREATE OR REPLACE FUNCTION compute_delivery_fee(p_distance_km NUMERIC)
 RETURNS NUMERIC
@@ -49,7 +50,10 @@ BEGIN
   IF p_distance_km <= 6 THEN
     RETURN 40;
   END IF;
-  RETURN 40 + CEIL(p_distance_km - 6) * 10;
+  IF p_distance_km <= 12 THEN
+    RETURN 40 + CEIL(p_distance_km - 6) * 20;
+  END IF;
+  RETURN -1;
 END;
 $$;
 

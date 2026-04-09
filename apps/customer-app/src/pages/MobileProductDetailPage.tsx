@@ -15,6 +15,7 @@ import shareButtonIcon from "@/assets/icons/share-button.svg";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { toast } from "sonner";
 import type { PricingPlan } from "@/context/CartContext";
+import { computeInventoryAvailability } from "@/lib/inventoryAvailability";
 // import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -69,6 +70,7 @@ interface InventoryRow {
     available_stock: number;
     went_for_wash: number;
     total_stock: number;
+    all_products?: { status?: string | null }[];
 }
 
 const MobileProductDetailPage: React.FC = () => {
@@ -119,6 +121,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [inventory, setInventory] = useState<InventoryRow[]>([]);
     const [isProductRentedOut, setIsProductRentedOut] = useState(false);
+    const [isProductSoldOut, setIsProductSoldOut] = useState(false);
 
     // New states for discounts and reviews
     const [discount, setDiscount] = useState<{ type: string, value: number } | null>(null);
@@ -164,15 +167,14 @@ const MobileProductDetailPage: React.FC = () => {
                         .single(),
                     supabase
                         .from('inventory')
-                        .select('size, available_stock, went_for_wash, total_stock')
+                        .select('size, available_stock, went_for_wash, total_stock, all_products(status)')
                         .eq('product_id', productId)
-                        .gt('total_stock', 0)
                         .order('size'),
                     supabase
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
                         .from('product_reviews')
-                        .select('id, rating, review_text, created_at, user_id')
+                        .select('id, rating, review_text, created_at, user_id, profiles:customer_profiles(full_name)')
                         .eq('product_id', productId)
                         .not('review_text', 'is', null)
                         .order('created_at', { ascending: false })
@@ -208,6 +210,7 @@ const MobileProductDetailPage: React.FC = () => {
                         gender: dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender),
                         category: dbProduct.category || '',
                         eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as any,
+                        mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
                         occasions: dbProduct.occasion || []
                     });
                 }
@@ -215,8 +218,13 @@ const MobileProductDetailPage: React.FC = () => {
                 if (!inventoryRes.error && inventoryRes.data) {
                     const rows = inventoryRes.data as InventoryRow[];
                     setInventory(rows);
-                    const allRented = rows.length > 0 && rows.every(r => r.available_stock <= 0);
+                    const availability = computeInventoryAvailability(rows);
+                    const isSold = availability.isSoldOut;
+                    const allRented = availability.isRentedOut;
+                    
                     setIsProductRentedOut(allRented);
+                    setIsProductSoldOut(isSold);
+                    
                     const firstAvailable = rows.find(r => r.available_stock > 0);
                     if (firstAvailable) setSelectedSize(firstAvailable.size);
                 }
@@ -251,7 +259,7 @@ const MobileProductDetailPage: React.FC = () => {
     // 2. Otherwise: Current Rental vs MRP (Market Value)
     const baseRental = product?.price || 699;
     const currentRental = product?.discounted_price || baseRental;
-    const mrp = product?.mrp || (baseRental * 5); // Fallback to 5x if no mrp
+    const mrp = product?.mrp || (baseRental * 5);
 
     const getPlanPrice = (plan: PricingPlan) => {
         if (!product) return 0;
@@ -317,8 +325,7 @@ const MobileProductDetailPage: React.FC = () => {
                 const newReview = {
                     ...data,
                     profiles: {
-                        full_name: user?.user_metadata?.full_name ||
-                            "Verified Customer"
+                        full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
                     }
                 };
 
@@ -517,16 +524,18 @@ const MobileProductDetailPage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Rented Out Badge Overlay */}
-                    {(isRented || isProductRentedOut) && (
+                    {/* Rented Out / Sold Out Badge Overlay */}
+                    {(isRented || isProductRentedOut || isProductSoldOut) && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
                             <motion.div 
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/50 flex items-center gap-3 shadow-2xl"
                             >
-                                <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                                <span className="text-sm font-black uppercase tracking-widest text-white">Currently Rented Out</span>
+                                <span className={cn("h-2 w-2 rounded-full", isProductSoldOut ? "bg-zinc-400" : "bg-red-400 animate-pulse")} />
+                                <span className="text-sm font-black uppercase tracking-widest text-white">
+                                    {isProductSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                </span>
                             </motion.div>
                         </div>
                     )}
@@ -693,25 +702,26 @@ const MobileProductDetailPage: React.FC = () => {
                                 <div key={size} className="relative flex flex-col items-center gap-2">
                                     <button
                                         onClick={() =>
-                                            !isOutOfStock && setSelectedSize(size)
+                                            setSelectedSize(size)
                                         }
-                                        disabled={isOutOfStock}
-                                        title={isOutOfStock ? 'Out of stock' : `${row!.available_stock} available`}
+                                        title={isOutOfStock ? 'Out of stock' : `${row?.available_stock || 0} available`}
                                         className={cn(
-                                            "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center",
+                                            "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center relative",
                                             "text-base md:text-lg font-black tracking-tighter transition-all duration-300",
                                             isSelected
                                                 ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
                                                 : isOutOfStock
-                                                    ? "text-zinc-700 bg-[#1A1A1A] line-through cursor-not-allowed border border-white/5 opacity-50"
+                                                    ? "text-zinc-700 bg-[#1A1A1A] border border-white/5 opacity-50"
                                                     : "text-zinc-400 bg-[#1A1A1A] border border-white/5 hover:bg-white/5 hover:text-white"
                                         )}
                                     >
-                                        {size}
+                                        <span className={isOutOfStock ? "line-through" : ""}>
+                                            {size}
+                                        </span>
                                     </button>
 
                                     {isOutOfStock && (
-                                        <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap">
+                                        <span className="text-[10px] font-bold text-zinc-600 whitespace-nowrap -mt-1">
                                             Out
                                         </span>
                                     )}
@@ -720,9 +730,15 @@ const MobileProductDetailPage: React.FC = () => {
                         })}
                     </div>
 
-                    {/* Desktop Add to Cart */}
                     <div className="hidden lg:block mt-8 mb-4">
-                        {isProductRentedOut || isRented ? (
+                        {isProductSoldOut ? (
+                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
+                                 <span className="h-2 w-2 rounded-full bg-zinc-400" />
+                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
+                                     Sold Out
+                                 </span>
+                             </div>
+                        ) : isProductRentedOut || isRented ? (
                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
                                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
@@ -730,17 +746,29 @@ const MobileProductDetailPage: React.FC = () => {
                                 </span>
                             </div>
                         ) : (
-                            <button
-                                onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
-                                className={cn(
-                                    "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
-                                    isAdded ? "bg-zinc-800 border border-[#f2546d]/30 text-white" : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
-                                )}
-                            >
-                                <span className="text-lg font-bold tracking-tight" style={dmSans}>
-                                    {isAdded ? "Added to Cart →" : "Add to Cart"}
-                                </span>
-                            </button>
+                            (() => {
+                                const selectedSizeStock = inventory.find(r => r.size === selectedSize)?.available_stock || 0;
+                                const isSelectedSizeOut = selectedSizeStock <= 0;
+
+                                return (
+                                    <button
+                                        onClick={isAdded ? () => navigate("/cart") : handleAddToCart}
+                                        disabled={isSelectedSizeOut && !isAdded}
+                                        className={cn(
+                                            "w-full h-[56px] flex items-center justify-center rounded-2xl transition-all duration-300 active:scale-[0.98]",
+                                            isAdded 
+                                                ? "bg-zinc-800 border border-[#f2546d]/30 text-white" 
+                                                : isSelectedSizeOut 
+                                                    ? "bg-zinc-900 border border-white/5 text-zinc-600 cursor-not-allowed" 
+                                                    : "bg-[#f2546d] shadow-lg shadow-[#f2546d]/20 text-white"
+                                        )}
+                                    >
+                                        <span className="text-lg font-bold tracking-tight" style={dmSans}>
+                                            {isAdded ? "Added to Cart →" : isSelectedSizeOut ? "Out of Stock" : "Add to Cart"}
+                                        </span>
+                                    </button>
+                                );
+                            })()
                         )}
                     </div>
 
@@ -917,7 +945,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl">
+                    <Drawer.Content className="bg-[#0A0A0A] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto h-[65vh] border-t border-white/5 shadow-2xl pb-safe">
                         <div className="p-6 bg-[#0A0A0A] rounded-t-[32px] flex-1 overflow-y-auto no-scrollbar">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-800 mb-8" />
                             <h2 className="text-2xl font-black text-white mb-2 text-center tracking-tighter">Write a Review</h2>
@@ -983,7 +1011,7 @@ const MobileProductDetailPage: React.FC = () => {
             <Drawer.Root open={isSizeGuideOpen} onOpenChange={setIsSizeGuideOpen}>
                 <Drawer.Portal>
                     <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh]">
+                    <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[20px] mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto max-h-[70vh] pb-safe">
                         <div className="p-4 bg-[#191919] rounded-t-[20px] flex-1 overflow-y-auto">
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-700 mb-6" />
                             <h2 className="text-xl font-bold text-white mb-6 text-center">Size Guide (Inches)</h2>
@@ -1031,7 +1059,7 @@ const MobileProductDetailPage: React.FC = () => {
             </Drawer.Root>
 
             {/* ─── BOTTOM ACTION BAR ─── */}
-            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden">
+            <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden pb-safe">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
                     {isRented || isProductRentedOut ? (
                         /* Rented-out state — cannot order */

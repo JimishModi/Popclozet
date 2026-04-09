@@ -4,6 +4,7 @@ import { PlusCircle, CheckCircle, Camera, X, Loader, QrCode, Download, RefreshCw
 import { clsx } from 'clsx';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@popclozet/api-client';
+import { Link } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -125,6 +126,7 @@ export function ProductIntakePage() {
     const [rentalPrice3d, setRentalPrice3d] = useState('');
     const [buyPrice, setBuyPrice] = useState('');
     const [mrp, setMrp] = useState('');
+    const [actualCost, setActualCost] = useState('');
     const [description, setDescription] = useState('');
     const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [previews, setPreviews] = useState<{ id: string; url: string; uploading: boolean }[]>([]);
@@ -308,7 +310,8 @@ export function ProductIntakePage() {
                                 inventory_id: inv.id,
                                 status: 'available',
                                 available: true,
-                                mrp_price: parseFloat(mrp) || null
+                                mrp_price: parseFloat(mrp) || null,
+                                actual_cost: parseFloat(actualCost) || null
                             });
 
                         if (unitError) throw unitError;
@@ -452,6 +455,7 @@ export function ProductIntakePage() {
         setRentalPrice3d('');
         setBuyPrice('');
         setMrp('');
+        setActualCost('');
         setDescription('');
         setImageUrls([]);
         setPreviews([]);
@@ -673,22 +677,34 @@ export function ProductIntakePage() {
                     )}
 
                     <div>
-                        <label className="text-xs text-zinc-400 mb-1.5 block font-semibold uppercase tracking-wider">Product Category *</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Product Category *</label>
+                            <Link to="/categories" className="text-[10px] text-warehouse-400 hover:underline">Manage Photos</Link>
+                        </div>
                         <div className="flex flex-wrap gap-2">
-                            {dbCategories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setCategory(cat)}
-                                    className={clsx(
-                                        'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all',
-                                        category === cat
-                                            ? 'bg-warehouse-500/15 text-warehouse-300 border-warehouse-500/30'
-                                            : 'bg-surface-card text-zinc-500 border-surface-border'
-                                    )}
-                                >
-                                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                                </button>
-                            ))}
+                            {dbCategories.map(cat => {
+                                const cfg = (categoryConfigs as any)[cat];
+                                const hasImage = !!(cfg && typeof cfg === 'object' && (cfg as any).image_url);
+                                
+                                return (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setCategory(cat)}
+                                        className={clsx(
+                                            'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-2',
+                                            category === cat
+                                                ? 'bg-warehouse-500/15 text-warehouse-300 border-warehouse-500/30'
+                                                : 'bg-surface-card text-zinc-500 border-surface-border'
+                                        )}
+                                    >
+                                        {(category === cat && hasImage) && (
+                                            <img src={(categoryConfigs as any)[cat].image_url} className="w-4 h-4 rounded-full object-cover border border-warehouse-500/30" alt="" />
+                                        )}
+                                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -732,6 +748,10 @@ export function ProductIntakePage() {
                         <div>
                             <label className="text-xs text-zinc-400 mb-1 block">Market MRP (₹)</label>
                             <input type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="5000" className="input-field h-10 text-sm border-warehouse-500/20" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">Actual Cost (₹)</label>
+                            <input type="number" value={actualCost} onChange={(e) => setActualCost(e.target.value)} placeholder="3000" className="input-field h-10 text-sm border-warehouse-500/20" />
                         </div>
                     </div>
 

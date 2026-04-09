@@ -190,18 +190,22 @@ const CollectionsPage = () => {
       </div>
 
       {/* ── Category Cards ── */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-3">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeGender}
-            className="space-y-4"
+            className="space-y-3"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25 }}
           >
             {categories.map((cat, index) => {
-              const Icon = ICON_MAP[cat.id.toLowerCase()] ?? FallbackIcon;
+              const catId = cat.id.toLowerCase();
+              const imageUrl = cat.image;
+              const hasImage = Boolean(imageUrl);
+              const Icon = ICON_MAP[catId] ?? FallbackIcon;
+              
               return (
                 <motion.button
                   key={cat.id}
@@ -210,12 +214,32 @@ const CollectionsPage = () => {
                   transition={{ delay: index * 0.08 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(`/shop/${activeGender}?category=${cat.id}&title=${cat.title}`)}
-                  className="w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center py-10 gap-3"
+                  className={cn(
+                    "w-full rounded-2xl bg-[#1C1C1E] border border-white/5 flex flex-col items-center justify-center overflow-hidden relative",
+                    hasImage ? "h-64" : "py-10 gap-3"
+                  )}
                 >
-                  <Icon className="w-20 h-20 text-white/80" />
-                  <span className="text-lg font-bold text-white tracking-[0.2em]">
-                    {cat.title.toUpperCase()}
-                  </span>
+                  {hasImage ? (
+                    <>
+                      <img 
+                        src={imageUrl} 
+                        alt={cat.title} 
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <span className="text-xl font-black text-white tracking-[0.25em] relative z-10 drop-shadow-lg">
+                          {cat.title.toUpperCase()}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Icon className="w-20 h-20 text-white/80" />
+                      <span className="text-lg font-bold text-white tracking-[0.2em] relative z-10">
+                        {cat.title.toUpperCase()}
+                      </span>
+                    </>
+                  )}
                 </motion.button>
               );
             })}

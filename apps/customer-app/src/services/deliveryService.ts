@@ -16,6 +16,16 @@ export interface DeliveryOrder {
         full_address: string;
         lat: number;
         lng: number;
+        address_id?: string;
+    } | null;
+    manual_address_details?: {
+        contactName?: string;
+        phoneNumber?: string;
+        houseNumber?: string;
+        streetAddress?: string;
+        landmark?: string;
+        city?: string;
+        pincode?: string;
     } | null;
     order_type: 'delivery' | 'pickup' | 'return' | 'rental' | 'home_try_on';
     status: OrderStatus;
@@ -87,14 +97,16 @@ const PRICING_CONFIG = {
 
 /**
  * Calculates delivery fee dynamically based on the road distance.
+ * Thresholds: INSTANT_MAX_KM=7, SERVICE_MAX_KM=12
  * Rules:
- * - distance ≤ 6km  → flat fee of ₹40
- * - distance > 6km  → ₹40 + (distance - 6) × ₹10 per km
- * Partial kilometers are rounded up using Math.ceil()
+ * - distance ≤ 7km  → flat fee of ₹40
+ * - distance 7-12km → ₹40 + (distance - 7) × ₹20 per km (rounded up)
+ * - distance > 12km → not serviceable (-1)
  */
 export function calculateDeliveryFee(distanceKm: number): number {
-    if (distanceKm <= 6) return 40;
-    return 40 + Math.ceil(distanceKm - 6) * 10;
+    if (distanceKm <= 7) return 40;
+    if (distanceKm <= 12) return 40 + Math.ceil(distanceKm - 7) * 20;
+    return -1;
 }
 
 // Calculate delivery pricing based on distance
@@ -104,8 +116,9 @@ export function calculateDeliveryPricing(
     orderType: 'delivery' | 'pickup' | 'return' = 'delivery',
     hasFreeDelivery: boolean = false
 ): DeliveryPricing {
-    // Fixed delivery fee of 40 rupees for all
-    const fixedFee = hasFreeDelivery ? 0 : 40;
+    const calculatedFee = calculateDeliveryFee(distanceKm);
+    // If area not serviceable (-1), fallback to default 40 for now, though it should be blocked earlier.
+    const fixedFee = hasFreeDelivery ? 0 : calculatedFee;
 
     return {
         baseFee: fixedFee,

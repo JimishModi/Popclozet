@@ -21,9 +21,12 @@ export interface DeliveryInfo {
  * Get all delivery-related information from localStorage
  */
 export function getSelectedDeliveryInfo(): DeliveryInfo {
-    const location = localStorage.getItem('user_location');
-    const hub = localStorage.getItem('selected_hub');
-    const addresses = localStorage.getItem('popclozet_addresses');
+    let location = null, hub = null, addresses = null;
+    try {
+        location = localStorage.getItem('user_location');
+        hub = localStorage.getItem('selected_hub');
+        addresses = localStorage.getItem('popclozet_addresses');
+    } catch {}
 
     // Get the most recent address (first in array)
     let selectedAddress: ValidatedAddress | null = null;
@@ -88,7 +91,9 @@ export function getDeliverySummary(): {
  * Clear all delivery information
  */
 export function clearDeliveryInfo(): void {
-    localStorage.removeItem('user_location');
-    localStorage.removeItem('selected_hub');
-    localStorage.removeItem('popclozet_addresses');
+    try {
+        localStorage.removeItem('user_location');
+        localStorage.removeItem('selected_hub');
+        localStorage.removeItem('popclozet_addresses');
+    } catch {}
 }

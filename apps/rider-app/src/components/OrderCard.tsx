@@ -26,6 +26,7 @@ export interface OrderCardProps {
     status?: 'pending' | 'accepted' | 'picked_up' | 'delivering' | 'delivered';
     customerPhone?: string;
     customerName?: string;
+    paymentMethod?: string | null;
     items?: Array<{ name: string; qty: number; imageUrl?: string }>;
     onCall?: () => void;
     onMessage?: () => void;
@@ -61,6 +62,7 @@ export function OrderCard({
     status = 'pending',
     customerPhone,
     customerName,
+    paymentMethod,
     items = [],
     onCall,
     onMessage,
@@ -113,6 +115,16 @@ export function OrderCard({
                     {customerName && (
                         <span className="text-[10px] text-zinc-400 font-medium truncate max-w-[100px]">
                             👤 {customerName}
+                        </span>
+                    )}
+                    {paymentMethod && (
+                        <span className={clsx(
+                            'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
+                            paymentMethod === 'cod'
+                                ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                : 'bg-green-500/20 text-green-400 border-green-500/30'
+                        )}>
+                            {paymentMethod === 'cod' ? 'POD' : 'PAID'}
                         </span>
                     )}
                 </div>

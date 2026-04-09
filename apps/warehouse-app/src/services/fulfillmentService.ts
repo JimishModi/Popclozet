@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '@popclozet/api-client';
+import type { ManualAddressDetails } from './addressDetails';
 
 export interface OrderWithItems {
     id: string;
@@ -20,10 +21,18 @@ export interface OrderWithItems {
     delivery_eta: string | null;
     rider_id: string | null;
     rider_name?: string | null;
+    payment_method?: string | null;
     warehouse_otp?: string | null;
     warehouse_otp_expires_at?: string | null;
     warehouse_otp_used?: boolean;
     created_at: string;
+    delivery_address_snapshot?: {
+        full_address?: string | null;
+        lat?: number | null;
+        lng?: number | null;
+        address_id?: string | null;
+    } | null;
+    manual_address_details?: ManualAddressDetails | null;
     order_items?: Array<{
         id: string;
         product_id: string;
@@ -46,6 +55,16 @@ export interface OrderWithItems {
         full_name?: string | null;
         phone?: string | null;
     } | null;
+    customer_profile?: {
+        id?: string;
+        user_id?: string;
+        full_name?: string | null;
+        phone?: string | null;
+        email?: string | null;
+    } | null;
+    return_requests?: Array<{
+        reason: string | null;
+    }> | null;
 }
 
 /**
@@ -56,6 +75,38 @@ function normalizeOrders(rows: any[]): OrderWithItems[] {
         ...row,
         status: row.status || row.lifecycle_state || 'unknown',
         rider_name: row.riders?.name || row.riders?.full_name || null,
+    }));
+}
+
+async function enrichOrders(rows: any[]): Promise<OrderWithItems[]> {
+    const normalized = normalizeOrders(rows);
+    if (normalized.length === 0) return normalized;
+
+    const userIds = [...new Set(normalized.map((row) => row.user_id).filter(Boolean))];
+    const customerProfiles = new Map<string, NonNullable<OrderWithItems['customer_profile']>>();
+
+    if (userIds.length > 0) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, user_id, full_name, phone, email')
+            .in('user_id', userIds);
+
+        if (error) {
+            console.warn('Failed to load customer profiles for warehouse orders:', error.message);
+        } else {
+            for (const profile of data || []) {
+                const profileUserId = profile.user_id || profile.id;
+                if (profileUserId) {
+                    customerProfiles.set(profileUserId, profile);
+                }
+            }
+        }
+    }
+
+    return normalized.map((row) => ({
+        ...row,
+        customer_profile: customerProfiles.get(row.user_id) ?? null,
+        rider_name: row.rider_name || row.riders?.name || row.riders?.full_name || null,
     }));
 }
 
@@ -209,7 +260,8 @@ export async function getReturnRequests() {
                     id, label, full_address, latitude, longitude, is_default
                 ),
                 orders:order_id (
-                    id, user_id, total_amount, status, lifecycle_state, rider_id,
+                    id, user_id, total_amount, status, lifecycle_state, rider_id, created_at,
+                    payment_method, delivery_address_snapshot, manual_address_details,
                     return_pickup_date, return_time_slot,
                     addresses:delivery_address_id (full_address, latitude, longitude),
                     riders:rider_id (name, full_name, phone),
@@ -238,7 +290,38 @@ export async function getReturnRequests() {
             console.warn('getReturnRequests:', error.message);
             return [];
         }
-        return data || [];
+
+        const requests = data || [];
+        const userIds = [...new Set(requests.map((request: any) => request.orders?.user_id).filter(Boolean))];
+        const customerProfiles = new Map<string, { id?: string; user_id?: string; full_name?: string | null; phone?: string | null; email?: string | null }>();
+
+        if (userIds.length > 0) {
+            const { data: profiles, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, user_id, full_name, phone, email')
+                .in('user_id', userIds);
+
+            if (profilesError) {
+                console.warn('getReturnRequests customer profiles:', profilesError.message);
+            } else {
+                for (const profile of profiles || []) {
+                    const profileUserId = profile.user_id || profile.id;
+                    if (profileUserId) {
+                        customerProfiles.set(profileUserId, profile);
+                    }
+                }
+            }
+        }
+
+        return requests.map((request: any) => ({
+            ...request,
+            orders: request.orders
+                ? {
+                    ...request.orders,
+                    customer_profile: customerProfiles.get(request.orders.user_id) ?? null,
+                }
+                : request.orders,
+        }));
     } catch {
         return [];
     }
@@ -324,7 +407,8 @@ export async function getPackedOrders(): Promise<OrderWithItems[]> {
                     individual_id,
                     products (id, name, images)
                 ),
-                addresses:delivery_address_id (full_address, latitude, longitude)
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                riders:rider_id (name, full_name, phone)
             `)
             .or('status.eq.packed,lifecycle_state.eq.packed')
             .order('created_at', { ascending: false });
@@ -334,7 +418,7 @@ export async function getPackedOrders(): Promise<OrderWithItems[]> {
             return [];
         }
 
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch (err) {
         console.error('Failed to get packed orders:', err);
         return [];
@@ -358,7 +442,8 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
                     individual_id,
                     products (id, name, images)
                 ),
-                addresses:delivery_address_id (full_address, latitude, longitude)
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                riders:rider_id (name, full_name, phone)
             `)
             .in('status', [
                 'confirmed',
@@ -377,7 +462,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
             return [];
         }
 
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch (err) {
         console.error('Failed to get fulfillment orders:', err);
         return [];
@@ -406,7 +491,7 @@ export async function getActivePickups(): Promise<OrderWithItems[]> {
             return [];
         }
 
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch {
         return [];
     }
@@ -422,7 +507,8 @@ export async function getDispatchedOrders(): Promise<OrderWithItems[]> {
             .select(`
                 *,
                 order_items (*),
-                addresses:delivery_address_id (full_address, latitude, longitude)
+                addresses:delivery_address_id (full_address, latitude, longitude),
+                riders:rider_id (name, full_name, phone)
             `)
             .in('status', ['dispatched', 'out_for_delivery', 'pickup_scheduled', 'picked_up', 'order_picked_up'])
             .order('created_at', { ascending: false });
@@ -431,7 +517,7 @@ export async function getDispatchedOrders(): Promise<OrderWithItems[]> {
             console.warn('getDispatchedOrders:', error.message);
             return [];
         }
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch {
         return [];
     }
@@ -452,7 +538,7 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
             console.warn('getRecentOrders:', error.message);
             return [];
         }
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch {
         return [];
     }
@@ -463,6 +549,15 @@ export async function getRecentOrders(limit: number = 10): Promise<OrderWithItem
  */
 export async function getOrderHistory(options?: { status?: string, searchQuery?: string, limit?: number }): Promise<OrderWithItems[]> {
     try {
+        const returnStatuses = [
+            'return_requested',
+            'return_scheduled',
+            'return_assigned',
+            'return_dispatched',
+            'return_picked_up',
+            'return_at_warehouse',
+            'returned',
+        ];
         let query = supabase
             .from('orders')
             .select(`
@@ -476,15 +571,17 @@ export async function getOrderHistory(options?: { status?: string, searchQuery?:
                     products (id, name, images)
                 ),
                 addresses:delivery_address_id (full_address, latitude, longitude),
-                riders:rider_id (name, full_name, phone)
+                riders:rider_id (name, full_name, phone),
+                return_requests(reason)
             `);
 
         if (options?.status && options.status !== 'all') {
             if (options.status === 'returns') {
-                query = query.in('status', [
-                    'return_requested', 'return_scheduled', 'return_assigned', 
-                    'return_dispatched', 'return_picked_up', 'return_at_warehouse', 'returned'
-                ]);
+                query = query.or(
+                    returnStatuses
+                        .flatMap((status) => [`status.eq.${status}`, `lifecycle_state.eq.${status}`])
+                        .join(','),
+                );
             } else {
                 query = query.or(`status.eq.${options.status},lifecycle_state.eq.${options.status}`);
             }
@@ -504,7 +601,7 @@ export async function getOrderHistory(options?: { status?: string, searchQuery?:
             return [];
         }
 
-        return normalizeOrders(data || []);
+        return enrichOrders(data || []);
     } catch (err) {
         console.error('Failed to get order history:', err);
         return [];

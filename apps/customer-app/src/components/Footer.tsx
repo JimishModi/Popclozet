@@ -66,8 +66,8 @@ export default function Footer() {
           <div className="flex flex-col items-center gap-3 text-sm sm:text-base text-muted-foreground">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center px-2">
               <Mail className="w-4 h-4 flex-shrink-0" />
-              <a href="mailto:Businessoutreach@popclozet.com" className="hover:text-primary transition-colors break-all sm:break-normal">
-                Businessoutreach@popclozet.com
+              <a href="mailto:Businessoutreach@popclozet.in" className="hover:text-primary transition-colors break-all sm:break-normal">
+                Businessoutreach@popclozet.in
               </a>
             </div>
 

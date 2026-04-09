@@ -2,7 +2,7 @@
 // Full-screen interactive map for address selection and hub discovery
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Check, Navigation } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
@@ -20,15 +20,19 @@ import { fetchPlaceDetails } from '@/services/mapplsService';
 import { geocodeAddress } from '@/services/mapServices';
 import { geocodeWithMappls } from '@/services/mapplsGeocode';
 import { HubWithDistance } from '@/services/hubService';
+import { clearCheckoutAddressContext } from '@/lib/addressAccuracy';
+
+import { WAREHOUSE } from '@/lib/serviceAreas';
 
 type ViewMode = 'search' | 'hubs';
-const WAREHOUSE = { lat: 19.1306, lng: 72.9155 };
 
 export default function MapLocationPage() {
     const navigate = useNavigate();
+    const locationState = useLocation();
     const [searchParams] = useSearchParams();
     const { user } = useAuth();
     const returnTo = searchParams.get('returnTo') || '/home';
+    const forwardState = locationState.state?.forwardState || {};
 
     const [viewMode, setViewMode] = useState<ViewMode>('search');
     // Restore last confirmed address on mount so it survives reload
@@ -55,6 +59,7 @@ export default function MapLocationPage() {
         address,
         isLoading: locationLoading,
         accuracy: locationAccuracy,
+        error: locationError,
         requestLocation,
         setLocation,
         setLocationCoords,
@@ -109,10 +114,11 @@ export default function MapLocationPage() {
             if (isMatch || useGps || isLocating) {
                 console.log('[MapLocation] Address sync:', address.formattedAddress);
                 // Keep the exact user-clicked pin coordinates, just absorb the resolved address components
+                const shouldKeepExistingCoords = isLocating && !useGps;
                 setSelectedAddress({
                     ...address,
-                    lat: selectedAddress?.lat ?? address.lat,
-                    lng: selectedAddress?.lng ?? address.lng
+                    lat: shouldKeepExistingCoords ? (selectedAddress?.lat ?? address.lat) : address.lat,
+                    lng: shouldKeepExistingCoords ? (selectedAddress?.lng ?? address.lng) : address.lng
                 });
             }
         } else if (location && useGps) {
@@ -333,23 +339,26 @@ export default function MapLocationPage() {
             let deliveryFee = 40;
             let distanceKm = 0;
 
-            // 2. Calculate road distance via backend proxy (same as CheckoutPage)
+            // 2. Calculate road distance and delivery estimate via centralized function
             try {
-                const { getRoadDistance } = await import("@/services/mapServices");
-                const res = await getRoadDistance(WAREHOUSE, {
+                const { getDeliveryEstimate } = await import("@/services/mapServices");
+                const result = await getDeliveryEstimate({
                     lat: selectedAddress.lat,
                     lng: selectedAddress.lng,
                     eLoc: selectedAddress.eLoc
                 });
-                if (res.status === 'success') {
-                    distanceKm = res.distanceKm;
-                    deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
-                    const { calculateDeliveryFee } = await import("@/services/deliveryService");
-                    deliveryFee = calculateDeliveryFee(distanceKm);
-                    console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
-                } else {
-                    console.warn('Distance API returned error:', res.error);
+                distanceKm = result.distanceKm;
+                deliveryEstimate = result.estimate;
+                deliveryFee = result.fee;
+
+                if (deliveryFee === -1) {
+                    const { toast } = await import('sonner');
+                    toast.error("Sorry, this area is not under service yet.");
+                    setIsSaving(false);
+                    return;
                 }
+
+                console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
             } catch (err) {
                 console.warn('Distance calculation failed:', err);
             }
@@ -436,8 +445,14 @@ export default function MapLocationPage() {
                 }));
             }
 
-            // Navigate back
-            navigate(returnTo);
+            clearCheckoutAddressContext();
+            navigate('/checkout/address-details', {
+                state: {
+                    selectedAddress,
+                    nextRoute: returnTo,
+                    forwardState,
+                },
+            });
         }
     };
 
@@ -489,6 +504,9 @@ export default function MapLocationPage() {
                         <p className="text-[11px] text-zinc-500">Get your GPS location automatically</p>
                     </div>
                 </button>
+                {locationError && (
+                    <p className="mt-2 px-1 text-xs text-red-400">{locationError}</p>
+                )}
             </div>
 
             {/* Map */}
@@ -619,7 +637,10 @@ export default function MapLocationPage() {
             )}
 
             {/* Confirm button */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-black/80 backdrop-blur-sm border-t border-zinc-800">
+            <div
+                className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-black/80 backdrop-blur-sm border-t border-zinc-800"
+                style={{ paddingBottom: 'max(16px, calc(16px + env(safe-area-inset-bottom, 0px)))' }}
+            >
                 <div className="max-w-[430px] mx-auto w-full">
                     <button
                         onClick={handleConfirm}

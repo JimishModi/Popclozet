@@ -51,6 +51,32 @@ function json(
 
 const REST_KEY = Deno.env.get("MAPPLS_REST_KEY") ?? "";
 
+function parseJsonSafely(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractMatrixDistanceKm(data: any): number | null {
+  const rawDistance =
+    data?.results?.distances?.[0]?.[1] ??
+    data?.distances?.[0]?.[1] ??
+    data?.results?.[0]?.distances?.[0]?.[1];
+
+  const distanceInMeters =
+    typeof rawDistance === "number"
+      ? rawDistance
+      : Number.parseFloat(String(rawDistance ?? ""));
+
+  if (!Number.isFinite(distanceInMeters) || distanceInMeters < 0) {
+    return null;
+  }
+
+  return distanceInMeters / 1000;
+}
+
 // ─── action handlers ────────────────────────────────────────────────
 
 async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
@@ -67,7 +93,7 @@ async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(truncated)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true${locationBias}`;
     const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.vercel.app/" },
+      headers: { Referer: "https://popclozet.in/" },
     });
     const data = await res.json();
     const results =
@@ -81,7 +107,7 @@ async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(truncated)}&format=json&addressdetails=1&countrycodes=in&limit=10`;
     const nomRes = await fetch(nomUrl, {
-      headers: { "User-Agent": "PopClozet/1.0 (popclozet.com)" },
+      headers: { "User-Agent": "Popclozet/1.0 (popclozet.in)" },
     });
     const nomData = await nomRes.json();
     const results = nomData.map((p: any) => ({
@@ -112,7 +138,7 @@ async function handleDetail(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const url = `https://atlas.mappls.com/api/places/geocode?eLoc=${eloc}&access_token=${REST_KEY}`;
     const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.vercel.app/" },
+      headers: { Referer: "https://popclozet.in/" },
     });
     const result = await res.json();
     const data = Array.isArray(result)
@@ -153,7 +179,7 @@ async function handleReverse(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const url = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${REST_KEY}`;
     const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.vercel.app/" },
+      headers: { Referer: "https://popclozet.in/" },
     });
     const data = await res.json();
     const results = data.results || (Array.isArray(data) ? data : [data]);
@@ -166,7 +192,7 @@ async function handleReverse(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
     const nomRes = await fetch(nomUrl, {
-      headers: { "User-Agent": "PopClozet/1.0 (popclozet.com)" },
+      headers: { "User-Agent": "Popclozet/1.0 (popclozet.in)" },
     });
     const nomData = await nomRes.json();
     if (nomData?.display_name) {
@@ -217,7 +243,7 @@ async function handleGeocode(body: any, log: ReturnType<typeof makeLogger>) {
     try {
       const url = `https://atlas.mappls.com/api/places/geocode?address=${encodeURIComponent(fullAddress)}&access_token=${REST_KEY}`;
       const res = await fetch(url, {
-        headers: { Referer: "https://popclozet.vercel.app/" },
+        headers: { Referer: "https://popclozet.in/" },
       });
       const result = await res.json();
       const data = Array.isArray(result)
@@ -270,7 +296,7 @@ async function handleGeocode(body: any, log: ReturnType<typeof makeLogger>) {
       await new Promise((r) => setTimeout(r, 1000)); // respect Nominatim 1 req/s
       const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=in`;
       const nomRes = await fetch(nomUrl, {
-        headers: { "User-Agent": "PopClozet/1.0 (popclozet.com)" },
+        headers: { "User-Agent": "Popclozet/1.0 (popclozet.in)" },
       });
       const results = await nomRes.json();
       if (Array.isArray(results) && results.length > 0) {
@@ -307,19 +333,28 @@ async function handleDistance(body: any, log: ReturnType<typeof makeLogger>) {
   }
 
   try {
-    const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?region=ind&access_token=${REST_KEY}`;
+    const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?rtype=0&region=ind&access_token=${REST_KEY}`;
     const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.vercel.app/" },
+      headers: { Referer: "https://popclozet.in/" },
     });
-    const data = await res.json();
 
-    if (data?.results?.distances) {
-      return json({ distance: data.results.distances[0][1] / 1000 }, 200, log);
+    const raw = await res.text();
+    const data = parseJsonSafely(raw);
+
+    if (!res.ok) {
+      log.error("Distance matrix request failed", {
+        status: res.status,
+        body: raw.slice(0, 500),
+      });
+      return json({ error: "Failed to calculate distance" }, 500, log);
     }
-    if (data?.distances?.[0]) {
-      return json({ distance: data.distances[0][1] / 1000 }, 200, log);
+
+    const distanceKm = extractMatrixDistanceKm(data);
+    if (distanceKm !== null) {
+      return json({ distance: distanceKm }, 200, log);
     }
-    log.warn("Unexpected structure", { data: JSON.stringify(data) });
+
+    log.warn("Unexpected structure", { data: raw.slice(0, 500) });
     return json({ error: "Unexpected response structure" }, 500, log);
   } catch (e: any) {
     log.error("Failed to calculate distance", { error: e.message });
@@ -337,7 +372,7 @@ async function handleDirections(body: any, log: ReturnType<typeof makeLogger>) {
   try {
     const url = `https://route.mappls.com/route/direction/driving/${origin};${destination}?overview=full&geometries=geojson&access_token=${REST_KEY}`;
     const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.vercel.app/" },
+      headers: { Referer: "https://popclozet.in/" },
     });
     const data = await res.json();
     return json(data, 200, log);

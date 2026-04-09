@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ChevronLeft, MapPin, Plus, Check, Trash2 } from "lucide-react";
 import { getLocalAddresses, ValidatedAddress, deleteRecentAddress } from "@/services/addressService";
+import { clearCheckoutAddressContext } from "@/lib/addressAccuracy";
 import { cn } from "@/lib/utils";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -110,25 +111,27 @@ const AddressSelectionPage = () => {
       let deliveryEstimate: '15min' | 'delayed' = '15min';
       let deliveryFee = 40;
       let distanceKm = 0;
-      const WAREHOUSE = { lat: 19.1306, lng: 72.9155 };
 
-      // Calculate road distance via backend proxy (same as CheckoutPage)
+      // Calculate road distance and delivery estimate via centralized function
       try {
-        const { getRoadDistance } = await import("@/services/mapServices");
-        const res = await getRoadDistance(WAREHOUSE, {
+        const { getDeliveryEstimate } = await import("@/services/mapServices");
+        const result = await getDeliveryEstimate({
           lat: addr.lat,
           lng: addr.lng,
           eLoc: addr.eLoc
         });
-        if (res.status === 'success') {
-          distanceKm = res.distanceKm;
-          deliveryEstimate = distanceKm > 6 ? 'delayed' : '15min';
-          const { calculateDeliveryFee } = await import("@/services/deliveryService");
-          deliveryFee = calculateDeliveryFee(distanceKm);
-          console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
-        } else {
-          console.warn('Distance API returned error:', res.error);
+        distanceKm = result.distanceKm;
+        deliveryEstimate = result.estimate;
+        deliveryFee = result.fee;
+
+        if (deliveryFee === -1) {
+          const { toast } = await import('sonner');
+          toast.error("Sorry, this area is not under service yet.");
+          setIsSaving(false);
+          return;
         }
+
+        console.log(`🛣️ Distance: ${distanceKm.toFixed(2)}km -> ${deliveryEstimate}, Fee: ₹${deliveryFee}`);
       } catch (err) {
         console.warn('Distance calculation failed:', err);
       }
@@ -142,6 +145,13 @@ const AddressSelectionPage = () => {
         locality: addr.label || 'Home',
         delivery_estimate: deliveryEstimate
       });
+
+      // Update selected_hub so CartPage correctly reflects distance
+      localStorage.setItem('selected_hub', JSON.stringify({
+          name: 'Main Hub',
+          distance_km: distanceKm,
+          estimated_minutes: deliveryEstimate === 'delayed' ? 120 : 60
+      }));
 
       // 2. If user is logged in, mark as default in DB + update estimate in profile
       if (user) {
@@ -173,13 +183,14 @@ const AddressSelectionPage = () => {
       }
 
       setIsSaving(false);
-      
-      // 3. Redirect back to returnTo or return-schedule step
-      if (returnTo) {
-        navigate(returnTo);
-      } else {
-        navigate("/checkout/return-schedule", { state: { selectedAddress: addr } });
-      }
+
+      clearCheckoutAddressContext();
+      navigate("/checkout/address-details", {
+        state: {
+          selectedAddress: addr,
+          nextRoute: returnTo || "/checkout/return-schedule",
+        },
+      });
     }
   };
 

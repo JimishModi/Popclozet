@@ -26,6 +26,7 @@
 
 import { supabase } from '@popclozet/api-client';
 import type { GenderCategory, EventCategory, Product } from './productService';
+import { computeInventoryAvailability } from '@/lib/inventoryAvailability';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -128,12 +129,12 @@ function shuffleInPlace<T>(arr: T[]): T[] {
  * isAvailable is always false — fake items are "rented out", never orderable.
  */
 function mapFakeRow(row: Record<string, unknown>): Product {
-  // Normalise gender: DB uses 'men'/'women', the app uses 'mens'/'womens'.
-  const rawGender = row.gender as string;
+  // Normalise gender: DB values (e.g., 'Women', 'men', 'Unisex') to app types ('womens', 'mens', 'unisex')
+  const rawGender = (row.gender as string || '').toLowerCase();
   const gender = (
-    rawGender === 'men'   ? 'mens'   :
-    rawGender === 'women' ? 'womens' :
-    rawGender
+    rawGender.includes('women') ? 'womens' :
+    rawGender.includes('men')   ? 'mens'   :
+    'unisex'
   ) as GenderCategory;
 
   // Prefer storage images array, fall back to image_url field
@@ -175,7 +176,7 @@ function mapFakeRow(row: Record<string, unknown>): Product {
  *   • Fake selection + rotation stamp happen in a single atomic DB call.
  *   • If the RPC fails, real products are returned without interruption.
  *
- * @param category  event_category to filter by (e.g. 'wedding', 'casual')
+ * @param category  product category to filter by (e.g. 'jackets', 'dresses')
  * @param brand     optional brand filter (exact match)
  * @param gender    optional gender filter
  */
@@ -223,9 +224,10 @@ export async function getProductsWithFakeMix(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let realQuery = (supabase as any)
     .from('products')
-    .select('*, product_discounts(*)')
+    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
     .eq('is_available', true)
-    .eq('event_category', category);
+    .eq('category', category)
+    .order('id');
 
   if (brand) {
     realQuery = realQuery.eq('brand', brand);
@@ -242,6 +244,7 @@ export async function getProductsWithFakeMix(
   const realProducts: ProductWithMixMeta[] = (realData ?? []).map((row: Record<string, unknown>) => {
     const rawGender = row.gender as string;
     const discount = (row.product_discounts as Record<string, unknown>[])?.[0];
+    const availability = computeInventoryAvailability((row.inventory as any[]) || []);
 
     return {
       id:             row.id as string,
@@ -262,6 +265,8 @@ export async function getProductsWithFakeMix(
       isAvailable:    row.is_available as boolean,
       discount_type:  discount?.discount_type as 'percentage' | 'fixed_amount' | undefined,
       discount_value: discount?.discount_value as number | undefined,
+      isSoldOut: availability.isSoldOut,
+      isRentedOut: availability.isRentedOut,
       _isFake:        false,
     };
   });
@@ -299,10 +304,24 @@ export async function getProductsWithFakeMix(
       _isFake: true,
     }));
 
+    if (gender) {
+      fakeProducts = fakeProducts.filter((product) => {
+        const pGender = (product.gender as string || '').toLowerCase();
+        const targetGender = gender.toLowerCase();
+        return pGender === targetGender || pGender === 'unisex';
+      });
+    }
+
     setCachedFakes(fakeRpcKey, fakeProducts);
   }
 
-  // ── 4. Merge + shuffle ────────────────────────────────────────────────────
-  // Fisher-Yates ensures fake items don't cluster at a predictable position.
-  return shuffleInPlace([...realProducts, ...fakeProducts]);
+  // ── 4. Merge + stable sort ───────────────────────────────────────────────
+  // Prioritize available (real) products over rented-out (fake) products.
+  // Then use a stable sort by ID within each group to ensure consistency.
+  return [...realProducts, ...fakeProducts].sort((a, b) => {
+    if (a.isAvailable !== b.isAvailable) {
+      return a.isAvailable ? -1 : 1;
+    }
+    return a.id.localeCompare(b.id);
+  });
 }

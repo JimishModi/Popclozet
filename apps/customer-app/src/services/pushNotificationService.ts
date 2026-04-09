@@ -135,12 +135,20 @@ export async function subscribeToPush(): Promise<{
   success: boolean;
   subscription?: PushSubscription;
   error?: string;
+  createdNewSubscription?: boolean;
 }> {
   console.log("[Push] Starting subscription flow...");
+  console.log("[Push] User Agent:", navigator.userAgent);
+  console.log("[Push] Display mode:", window.matchMedia('(display-mode: standalone)').matches ? 'standalone (PWA)' : 'browser tab');
 
   // 1. Check support
   if (!isPushSupported()) {
-    return { success: false, error: "Push notifications not supported in this browser" };
+    const missing = [];
+    if (!("serviceWorker" in navigator)) missing.push("serviceWorker");
+    if (!("PushManager" in window)) missing.push("PushManager");
+    if (!("Notification" in window)) missing.push("Notification");
+    console.error("[Push] Not supported. Missing:", missing.join(", "));
+    return { success: false, error: `Push not supported (missing: ${missing.join(", ")})` };
   }
 
   // 2. Check VAPID key
@@ -164,14 +172,16 @@ export async function subscribeToPush(): Promise<{
   try {
     // 5. Check for existing subscription
     let subscription = await registration.pushManager.getSubscription();
+    let createdNewSubscription = false;
 
     if (!subscription) {
       // 6. Create new push subscription
       console.log("[Push] Creating new push subscription...");
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
+      createdNewSubscription = true;
       console.log("[Push] Push subscription created successfully");
     } else {
       console.log("[Push] Using existing push subscription");
@@ -180,7 +190,7 @@ export async function subscribeToPush(): Promise<{
     // 7. Save to Supabase
     await saveSubscriptionToServer(subscription);
 
-    return { success: true, subscription };
+    return { success: true, subscription, createdNewSubscription };
   } catch (err) {
     console.error("[Push] Subscription failed:", err);
     return {

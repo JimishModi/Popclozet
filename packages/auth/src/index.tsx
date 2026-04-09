@@ -27,6 +27,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  recoverFromStuckAuth: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,7 +49,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   // Track whether onAuthStateChange has already delivered a valid session
   const authListenerFiredRef = useRef(false);
+  const bootstrapPendingRef = useRef(true);
+  const bootstrapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const clearBootstrapTimeout = () => {
+    if (bootstrapTimeoutRef.current) {
+      clearTimeout(bootstrapTimeoutRef.current);
+      bootstrapTimeoutRef.current = null;
+    }
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutRef = setTimeout(() => {
+        reject(new Error(label));
+      }, ms);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutRef) {
+        clearTimeout(timeoutRef);
+      }
+    }
+  };
+
+  const clearSupabaseAuthStorage = () => {
+    if (typeof window === 'undefined') return;
+
+    const clearStorage = (storage: Storage) => {
+      const keysToRemove: string[] = [];
+
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (!key) continue;
+
+        if (
+          /^sb-.*-auth-token$/.test(key) ||
+          key.includes('supabase.auth.token') ||
+          key.includes('auth-token')
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+
+      keysToRemove.forEach((key) => storage.removeItem(key));
+    };
+
+    try {
+      clearStorage(window.localStorage);
+    } catch {
+      // Ignore storage access failures in restricted webviews/PWAs.
+    }
+
+    try {
+      clearStorage(window.sessionStorage);
+    } catch {
+      // Ignore storage access failures in restricted webviews/PWAs.
+    }
+  };
+
+  const recoverFromStuckAuth = () => {
+    console.warn('[Auth] Recovering from stuck loading state by clearing cached auth state');
+    clearBootstrapTimeout();
+    bootstrapPendingRef.current = false;
+    authListenerFiredRef.current = false;
+    clearSupabaseAuthStorage();
+
+    if (!mountedRef.current) return;
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+  };
 
   // Safety timeout — increased to 15s to accommodate slow networks
   // where token refresh might take longer after app close/reopen
@@ -69,11 +146,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Profile fetch ─────────────────────────────────────────────────────────
 
   const getRiderProfileFallback = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('riders')
-      .select('id, user_id, name, phone, email, avatar_url, joined_at, updated_at')
-      .or(`id.eq.${userId},user_id.eq.${userId}`)
-      .maybeSingle();
+    const { data, error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from('riders')
+          .select('id, user_id, name, phone, email, avatar_url, joined_at, updated_at')
+          .or(`id.eq.${userId},user_id.eq.${userId}`)
+          .maybeSingle()
+      ),
+      3000,
+      'Rider profile fallback timed out'
+    );
 
     if (error || !data) return null;
 
@@ -96,12 +179,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Use .limit(1) instead of .maybeSingle() because users may exist
       // in multiple profile tables (e.g., customer_profiles AND rider_profiles).
       // Order by role to prioritize rider/warehouse over customer.
-      const { data: rows, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .order('role', { ascending: false })  // descending: 'warehouse' > 'rider' > 'customer'
-        .limit(1);
+      const { data: rows, error } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .order('role', { ascending: false })
+            .limit(1)
+        ),
+        4000,
+        'Profile lookup timed out'
+      );
 
       let derivedRole: UserRole = 'warehouse';
 
@@ -161,65 +250,160 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       console.log('[Auth] Initializing bootstrap...');
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          4000,
+          'Auth session lookup timed out'
+        );
         
         console.log('[Auth] Bootstrap session status:', session ? 'Present' : 'Not found');
         if (error) console.error('[Auth] getSession error:', error);
         if (!active) return;
 
         if (session?.user) {
+          clearBootstrapTimeout();
+          bootstrapPendingRef.current = false;
+          authListenerFiredRef.current = true;
           // Session is valid — use it immediately
           setSession(session);
           setUser(session.user);
           fetchProfile(session.user.id, session.user.user_metadata);
           setLoading(false);
         } else {
-          // No session from getSession. This can happen when the stored
-          // token expired while the app was closed. Instead of immediately
-          // setting user=null (which routes to login), wait briefly for
-          // onAuthStateChange to fire TOKEN_REFRESHED with a valid session.
-          console.log('[Auth] No session from getSession — waiting for auth listener to attempt token refresh...');
-          setTimeout(() => {
-            if (!active || !mountedRef.current) return;
-            // If the auth listener hasn't delivered a valid session by now,
-            // the user is genuinely logged out.
-            if (!authListenerFiredRef.current) {
-              console.log('[Auth] Auth listener did not fire — user is logged out');
-              setSession(null);
-              setUser(null);
-              setProfile(null);
-              setLoading(false);
-            }
-          }, 3_000);
+          // No session from getSession. Check if there's even a stored token
+          // before waiting for onAuthStateChange to deliver a refreshed session.
+          const hasStoredToken = (() => {
+            try {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token'))) {
+                  return true;
+                }
+              }
+            } catch { /* ignore */ }
+            return false;
+          })();
+
+          if (!hasStoredToken) {
+            // No stored token at all — user is genuinely not logged in.
+            console.log('[Auth] No session and no stored token — user is logged out');
+            clearBootstrapTimeout();
+            bootstrapPendingRef.current = false;
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+          } else {
+            // Token exists but may be expired — wait briefly for refresh.
+            console.log('[Auth] No session from getSession — waiting for auth listener to attempt token refresh...');
+            clearBootstrapTimeout();
+            bootstrapPendingRef.current = true;
+            bootstrapTimeoutRef.current = setTimeout(() => {
+              if (!active || !mountedRef.current) return;
+              if (!authListenerFiredRef.current) {
+                bootstrapPendingRef.current = false;
+                console.log('[Auth] Auth listener did not fire within 4s — user is likely logged out');
+                setSession(null);
+                setUser(null);
+                setProfile(null);
+                setLoading(false);
+              }
+            }, 4_000);
+          }
         }
       } catch (err) {
         console.error('[Auth] Bootstrap crashed:', err);
-        if (active) setLoading(false);
+        clearBootstrapTimeout();
+        bootstrapPendingRef.current = false;
+        if (active) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
       }
     };
 
     initAuth();
 
+    // Re-validate session when the PWA returns from background.
+    // On mobile, the OS can suspend the app long enough for the access token
+    // to expire. Without this, riders stay on a stale "logged-in" screen until
+    // the next Supabase call fails, or get a blank loading screen on re-open.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible' || !active) return;
+      try {
+        const { data: { session: latest } } = await withTimeout(
+          supabase.auth.getSession(),
+          4000,
+          'Visibility session check timed out'
+        );
+        if (!active || !mountedRef.current) return;
+        if (latest?.user) {
+          setSession(latest);
+          setUser(latest.user);
+          setLoading(false);
+        }
+        // If latest is null and user is already null, nothing to do.
+        // If latest is null and user was set, onAuthStateChange will fire
+        // SIGNED_OUT and handle it through the normal path.
+      } catch (err) {
+        console.warn('[Auth] Visibility change session check failed:', err);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Auth State Change Event:', event);
       if (!active) return;
 
-      setSession(session);
-      setUser(session?.user ?? null);
-
       if (session?.user) {
+        clearBootstrapTimeout();
+        bootstrapPendingRef.current = false;
         authListenerFiredRef.current = true;
+        setSession(session);
+        setUser(session.user);
         fetchProfile(session.user.id, session.user.user_metadata);
-      } else if (event === 'SIGNED_OUT') {
-        // Only clear profile on explicit sign-out, not on transient token issues
-        setProfile(null);
+        setLoading(false);
+        return;
       }
 
+      if (event === 'SIGNED_OUT') {
+        if (bootstrapPendingRef.current) {
+          // SIGNED_OUT can fire while Supabase is mid-refresh on PWA wake-up
+          // (e.g. token expired while app was backgrounded). During bootstrap,
+          // defer to the timer — the token may still be successfully refreshed.
+          console.log('[Auth] SIGNED_OUT during bootstrap — deferring to bootstrap timer');
+          // fall through to the bootstrapPendingRef guard below
+        } else {
+          clearBootstrapTimeout();
+          bootstrapPendingRef.current = false;
+          authListenerFiredRef.current = false;
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (bootstrapPendingRef.current) {
+        console.log(`[Auth] ${event} delivered null session during bootstrap — still waiting for refresh`);
+        return;
+      }
+
+      console.log(`[Auth] ${event} delivered null session after bootstrap — clearing auth state`);
+      authListenerFiredRef.current = false;
+      setSession(null);
+      setUser(null);
+      setProfile(null);
       setLoading(false);
     });
 
     return () => {
       active = false;
+      clearBootstrapTimeout();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       subscription.unsubscribe();
     };
   }, []);
@@ -276,7 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut, updateProfile, refreshProfile: () => user ? fetchProfile(user.id) : Promise.resolve() }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut, updateProfile, refreshProfile: () => user ? fetchProfile(user.id) : Promise.resolve(), recoverFromStuckAuth }}>
       {children}
     </AuthContext.Provider>
   );

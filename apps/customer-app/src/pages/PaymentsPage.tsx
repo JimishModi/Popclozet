@@ -14,7 +14,9 @@ const PaymentsPage: React.FC = () => {
     const [savedUPI, setSavedUPI] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem("saved_upis") || "[]"); } catch { return []; }
     });
-    const [defaultUPI, setDefaultUPI] = useState(() => localStorage.getItem("default_upi") || "");
+    const [defaultUPI, setDefaultUPI] = useState(() => {
+        try { return localStorage.getItem("default_upi") || ""; } catch { return ""; }
+    });
     const [payments, setPayments] = useState<any[]>([]);
     const [loadingPayments, setLoadingPayments] = useState(true);
 
@@ -37,10 +39,10 @@ const PaymentsPage: React.FC = () => {
         if (!trimmed || !trimmed.includes("@")) return;
         const updated = [...new Set([...savedUPI, trimmed])];
         setSavedUPI(updated);
-        localStorage.setItem("saved_upis", JSON.stringify(updated));
+        try { localStorage.setItem("saved_upis", JSON.stringify(updated)); } catch {}
         if (!defaultUPI) {
             setDefaultUPI(trimmed);
-            localStorage.setItem("default_upi", trimmed);
+            try { localStorage.setItem("default_upi", trimmed); } catch {}
         }
         setUpiInput("");
         setShowAddUPI(false);
@@ -48,7 +50,7 @@ const PaymentsPage: React.FC = () => {
 
     const setDefault = (upi: string) => {
         setDefaultUPI(upi);
-        localStorage.setItem("default_upi", upi);
+        try { localStorage.setItem("default_upi", upi); } catch {}
     };
 
     return (

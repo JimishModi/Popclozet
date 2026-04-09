@@ -21,12 +21,17 @@ import { FlyToCartProvider } from "./context/FlyToCartContext";
 
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { recoverPendingVerifications } from "./services/razorpayService";
+import { UpdatePrompt } from "./components/pwa/UpdatePrompt";
+import { recoverPendingVerifications, recoverPendingCancellations } from "./services/razorpayService";
+import { toast } from "sonner";
+import { useAuth } from "./context/SupabaseAuthContext";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 
 import { LocationGate } from "@/components/location/LocationGate";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { MandatoryReviewGate } from "@/components/MandatoryReviewGate";
-import { clearReloadGuard, hasReloadGuard, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
+import { clearReloadGuard, hasReloadGuard, safeGetSessionStorageItem, safeSetSessionStorageItem, setReloadGuard } from "@/lib/reloadGuard";
+import { useStandalonePullToRefresh } from "@/hooks/useStandalonePullToRefresh";
 
 
 // Retry dynamic imports once with a page reload to handle stale chunk hashes after deploys
@@ -119,8 +124,8 @@ const CreateAccountPage = lazyWithRetry(() => import("./pages/CreateAccountPage"
 const AuthCallback = lazyWithRetry(() => import("./pages/AuthCallback"));
 const MapLocationPage = lazyWithRetry(() => import("./pages/MapLocationPage"));
 const DeliveryTrackingPage = lazyWithRetry(() => import("./pages/DeliveryTrackingPage"));
-const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage"));
 const AddressSelectionPage = lazyWithRetry(() => import("./pages/AddressSelectionPage"));
+const AddressAccuracyPage = lazyWithRetry(() => import("./pages/AddressAccuracyPage"));
 const ScheduleReturnPage = lazyWithRetry(() => import("./pages/ScheduleReturnPage"));
 const CheckoutReturnSchedulePage = lazyWithRetry(() => import("./pages/CheckoutReturnSchedulePage"));
 const WelcomePage = lazyWithRetry(() => import("./pages/WelcomePage"));
@@ -140,6 +145,7 @@ import ProductIntakePage from "./pages/ProductIntakePage";
 import AdminHygieneDashboard from "./pages/AdminHygieneDashboard";
 import ProductQRGalleryPage from "./pages/ProductQRGalleryPage";
 import MobileProductDetailPage from "./pages/MobileProductDetailPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import OfflinePage from "./pages/OfflinePage";
 import NotFound from "./pages/NotFound";
 import SearchResultsPage from "./pages/SearchResultsPage";
@@ -177,6 +183,8 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
 
+  useStandalonePullToRefresh();
+
   useEffect(() => {
     if (!showWelcome && typeof window !== "undefined") {
       safeSetSessionStorageItem("welcomeSeen", "true");
@@ -199,9 +207,32 @@ function App() {
     }
   }, []);
 
-  // Recover any payment verifications interrupted by tab close / network drop
+  // Recover any interrupted payment verifications or cancellations
   useEffect(() => {
-    recoverPendingVerifications();
+    const runRecovery = async () => {
+      const results = await recoverPendingVerifications();
+      for (const r of results) {
+        if (r.status === 'confirmed') {
+          toast.success(`Your payment for order has been confirmed!`);
+        } else if (r.status === 'pending') {
+          toast.info('We\'re still verifying a recent payment. This usually takes a few minutes.');
+        } else if (r.status === 'cancelled') {
+          toast.info('A recent order was cancelled. If money was deducted, it will be refunded within 5-7 business days.');
+        }
+      }
+      await recoverPendingCancellations();
+    };
+
+    runRecovery();
+
+    // Also run recovery when the app regains focus (user returns after being offline)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runRecovery();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
   return (
@@ -216,7 +247,8 @@ function App() {
                   <ScrollProgress />
                   <Toaster />
                   <Sonner />
-                  <PushNotificationListener />
+                  <UpdatePrompt />
+                  <PushNotificationManager />
 
                   {/* LOCATION */}
                   <LocationGate />
@@ -234,14 +266,13 @@ function App() {
                   {/* ROUTES CONTAINER with persistent background to prevent flashes */}
                   <AppErrorBoundary>
                   <GlobalLayout>
-                    <AnimatePresence mode="popLayout" initial={false}>
+                    <AnimatePresence mode="wait" initial={false}>
                       <motion.div
                         key={location.pathname}
-                        variants={pageVariants}
-                        initial="initial"
-                        animate="enter"
-                        exit="exit"
-                        transition={pageTransition}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
                         className="w-full min-h-screen"
                       >
                         <Routes location={location}>
@@ -258,6 +289,7 @@ function App() {
                         <Route path="/auth/signout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignOutPage /></Suspense></PageTransition>} />
                           <Route path="/cart" element={<PageTransition><CartPage /></PageTransition>} />
                           <Route path="/checkout/address" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressSelectionPage /></Suspense></PageTransition>} />
+                          <Route path="/checkout/address-details" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><AddressAccuracyPage /></Suspense></PageTransition>} />
                           <Route path="/checkout/return-schedule" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutReturnSchedulePage /></Suspense></PageTransition>} />
                           <Route path="/checkout" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}><CheckoutPage /></Suspense></PageTransition>} />
                           <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
@@ -329,10 +361,14 @@ function App() {
   );
 }
 
-// Internal component to listen for Push Notification clicks from the Service Worker
-function PushNotificationListener() {
+// Internal component to manage Push Notifications (subscription, clicks, prompts)
+function PushNotificationManager() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const push = usePushNotifications();
 
+  // 1. Listen for clicks from the Service Worker
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
@@ -350,19 +386,36 @@ function PushNotificationListener() {
     };
   }, [navigate]);
 
+  // 2. Auto-subscribe if permission is already granted but sync is missing
+  useEffect(() => {
+    // Only attempt auto-subscribe if initialization is complete
+    if (user && !push.isInitializing && push.isSupported && push.permission === 'granted' && !push.isSubscribed && !push.isLoading) {
+      push.autoSubscribe();
+    }
+  }, [user, push.isInitializing, push.isSupported, push.permission, push.isSubscribed, push.isLoading]);
+
+  // 3. Proactive prompt for new users (if permission is 'default')
+  // Trigger the native prompt once they land on home/orders so setup
+  // happens inline instead of sending them to Settings manually.
+  useEffect(() => {
+    const isPushPromptPage = location.pathname === '/home' || location.pathname === '/orders';
+    const hasBeenPrompted = safeGetSessionStorageItem('push_prompt_seen');
+
+    if (user && !push.isInitializing && push.isSupported && push.permission === 'default' && isPushPromptPage && !hasBeenPrompted && !push.isLoading) {
+      // Delay slightly to not overwhelm on page load
+      const timer = setTimeout(() => {
+        console.log("[Push] Showing proactive notification prompt...");
+        // Mark as prompted so we do not spam the system permission dialog.
+        safeSetSessionStorageItem('push_prompt_seen', 'true');
+
+        void push.subscribe();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, location.pathname, push.isInitializing, push.permission, push.isSupported, push.isLoading]);
+
   return null;
 }
-
-const pageVariants = {
-  initial: { opacity: 0 },
-  enter: { opacity: 1 },
-  exit: { opacity: 0 },
-};
-
-const pageTransition = {
-  duration: 0.2,
-  ease: [0.22, 1, 0.36, 1],
-};
 
 // Persistent layout to keep BottomNav and Shell stable during page transitions
 const GlobalLayout = ({ children }: { children: React.ReactNode }) => {

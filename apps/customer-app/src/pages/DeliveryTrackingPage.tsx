@@ -11,6 +11,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@popclozet/api-client';
 import { DeliveryOrder } from '@/services/deliveryService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
+import { WAREHOUSE, DELIVERY_THRESHOLDS } from '@/lib/serviceAreas';
+import { buildManualAddressSummary } from '@/lib/addressAccuracy';
+import { useAuth } from '@/hooks/useAuth';
+import { CustomerDeliveryInfoCard } from '@/components/orders/CustomerDeliveryInfoCard';
 
 export default function DeliveryTrackingPage() {
     const { orderId } = useParams<{ orderId: string }>();
@@ -20,17 +24,22 @@ export default function DeliveryTrackingPage() {
     const [items, setItems] = useState<any[]>([]);
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
+    const { profile, user } = useAuth();
 
-    // Warehouse location: Hostel 2, IIT Bombay
-    const WAREHOUSE_LOCATION = { lat: 19.1305, lng: 72.9135 };
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
         : null;
-    // Delayed if delivery address is outside 6km radius of warehouse
     const distance = userLocation
-        ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng)
+        ? calculateDistance(userLocation.lat, userLocation.lng, WAREHOUSE.lat, WAREHOUSE.lng)
         : null;
-    const isDelayed = distance !== null ? distance > 6 : false;
+    const isDelayed = distance !== null ? distance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM : false;
+    const fetchedAddress =
+        order?.delivery_address_snapshot?.full_address ||
+        (order as any)?.delivery_address?.full_address ||
+        null;
+    const manualAddressSummary = buildManualAddressSummary((order as any)?.manual_address_details);
+    const customerName = (order as any)?.manual_address_details?.contactName || profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Customer';
+    const customerPhone = (order as any)?.manual_address_details?.phoneNumber || profile?.phone || user?.phone || null;
 
     useEffect(() => {
         if (!orderId) return;
@@ -142,11 +151,6 @@ export default function DeliveryTrackingPage() {
                                     </span>
                                 </div>
                             )}
-                            <div className="bg-[#ff4d6d]/10 border border-[#ff4d6d]/20 px-3 py-1 rounded-full">
-                                <span className="text-[#ff4d6d] text-[10px] font-black uppercase tracking-widest">
-                                    {isDelayed ? "Delayed Delivery" : "Arriving in 60 mins"}
-                                </span>
-                            </div>
                         </div>
                     </div>
 
@@ -207,6 +211,17 @@ export default function DeliveryTrackingPage() {
                             Share this code with your rider when they arrive
                         </p>
                     </motion.div>
+                )}
+
+                {(fetchedAddress || manualAddressSummary) && (
+                    <div className="mb-6">
+                        <CustomerDeliveryInfoCard
+                            customerName={customerName}
+                            customerPhone={customerPhone}
+                            fetchedAddress={fetchedAddress}
+                            manualAddressSummary={manualAddressSummary}
+                        />
+                    </div>
                 )}
 
                 <DeliveryTracker

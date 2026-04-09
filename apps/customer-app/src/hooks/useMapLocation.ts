@@ -2,7 +2,7 @@
 // Hook for GPS detection with fallback
 
 import { useState, useEffect, useCallback } from 'react';
-import { reverseGeocode, ValidatedAddress } from '@/services/addressService';
+import { reverseGeocode, type ValidatedAddress } from '@/services/addressService';
 
 export interface MapLocationState {
     location: { lat: number; lng: number } | null;
@@ -23,31 +23,37 @@ export function useMapLocation() {
         permissionState: 'prompt',
     });
 
-    // Check permission state
     useEffect(() => {
         if (!navigator.geolocation) {
             setState((prev) => ({ ...prev, permissionState: 'unavailable' }));
             return;
         }
 
-        if (navigator.permissions) {
-            navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-                setState((prev) => ({
-                    ...prev,
-                    permissionState: result.state as 'prompt' | 'granted' | 'denied',
-                }));
+        if (!navigator.permissions) return;
 
-                result.addEventListener('change', () => {
-                    setState((prev) => ({
-                        ...prev,
-                        permissionState: result.state as 'prompt' | 'granted' | 'denied',
-                    }));
-                });
-            });
-        }
+        let isMounted = true;
+        let permissionStatus: PermissionStatus | null = null;
+
+        const syncPermission = () => {
+            if (!isMounted || !permissionStatus) return;
+            setState((prev) => ({
+                ...prev,
+                permissionState: permissionStatus!.state as 'prompt' | 'granted' | 'denied',
+            }));
+        };
+
+        navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+            permissionStatus = result;
+            syncPermission();
+            permissionStatus.addEventListener('change', syncPermission);
+        });
+
+        return () => {
+            isMounted = false;
+            permissionStatus?.removeEventListener('change', syncPermission);
+        };
     }, []);
 
-    // Request current location with Settling Strategy (watches until accuracy improves)
     const requestLocation = useCallback(async () => {
         if (!navigator.geolocation) {
             setState((prev) => ({
@@ -58,111 +64,189 @@ export function useMapLocation() {
             return;
         }
 
-        setState((prev) => ({ ...prev, isLoading: true, error: null, address: null, location: null }));
+        setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-        let bestLocation: { lat: number, lng: number, accuracy: number } | null = null;
+        let bestLocation: { lat: number; lng: number; accuracy: number } | null = null;
         let watchId: number | null = null;
-        let settlingTimeout: any = null;
+        let settlingTimeout: ReturnType<typeof setTimeout> | null = null;
+        let goodEnoughTimeout: ReturnType<typeof setTimeout> | null = null;
+        let finalized = false;
 
-        const finalize = (finalLoc: { lat: number, lng: number }) => {
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        const geoOptions: PositionOptions = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 5000,
+        };
+
+        const clearTimers = () => {
             if (settlingTimeout) clearTimeout(settlingTimeout);
-            
-            // final reverse geocode
+            if (goodEnoughTimeout) clearTimeout(goodEnoughTimeout);
+        };
+
+        const failRequest = (
+            message: string,
+            permissionState?: MapLocationState['permissionState']
+        ) => {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            clearTimers();
+
+            setState((prev) => ({
+                ...prev,
+                isLoading: false,
+                accuracy: null,
+                error: message,
+                permissionState: permissionState ?? prev.permissionState,
+            }));
+        };
+
+        const updateBestLocation = (latitude: number, longitude: number, accuracy: number) => {
+            console.log(`[useMapLocation] Fix received: Accuracy ${accuracy.toFixed(1)}m`);
+
+            setState((prev) => ({
+                ...prev,
+                location: { lat: latitude, lng: longitude },
+                accuracy,
+                permissionState: 'granted',
+            }));
+
+            if (!bestLocation || accuracy < bestLocation.accuracy) {
+                bestLocation = { lat: latitude, lng: longitude, accuracy };
+                return true;
+            }
+
+            return false;
+        };
+
+        const finalize = (finalLoc: { lat: number; lng: number }) => {
+            if (finalized) return;
+            finalized = true;
+
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            clearTimers();
+
             reverseGeocode(finalLoc.lat, finalLoc.lng)
-                .then(finalAddress => {
-                    setState(prev => ({
+                .then((finalAddress) => {
+                    setState((prev) => ({
                         ...prev,
                         location: finalLoc,
                         address: finalAddress,
                         isLoading: false,
-                        permissionState: 'granted'
+                        error: null,
+                        permissionState: 'granted',
                     }));
                 })
                 .catch(() => {
-                    setState(prev => ({
+                    setState((prev) => ({
                         ...prev,
                         location: finalLoc,
                         isLoading: false,
-                        permissionState: 'granted'
+                        error: null,
+                        permissionState: 'granted',
                     }));
                 });
-            
             // Also persist
-            localStorage.setItem(
-                'user_location',
-                JSON.stringify({ ...finalLoc, allowed: true })
-            );
+            try {
+                localStorage.setItem(
+                    'user_location',
+                    JSON.stringify({ ...finalLoc, allowed: true })
+                );
+            } catch (err) {
+                console.warn('[useMapLocation] Failed to save location to localStorage', err);
+            }
         };
 
-        // Timeout fallback: after 20s, take whatever we have
         settlingTimeout = setTimeout(() => {
-            console.log('[useMapLocation] Settling timeout reached — finalizing with best fix');
+            console.log('[useMapLocation] Settling timeout reached (10s) - finalizing with best fix');
             if (bestLocation) {
                 finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
             } else {
-                setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Location request timed out' }));
-                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                failRequest('Location request timed out. Move to an open area and try again.');
             }
-        }, 20000);
+        }, 10000);
 
-        // Start watching for the best fix
+        goodEnoughTimeout = setTimeout(() => {
+            if (bestLocation && bestLocation.accuracy < 200) {
+                console.log(
+                    `[useMapLocation] Good-enough fix after 4s (${bestLocation.accuracy.toFixed(0)}m) - finalizing`
+                );
+                finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
+            }
+        }, 4000);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const improved = updateBestLocation(
+                    pos.coords.latitude,
+                    pos.coords.longitude,
+                    pos.coords.accuracy
+                );
+
+                if (improved && pos.coords.accuracy < 80) {
+                    console.log('[useMapLocation] Initial fix good enough - finalizing early');
+                    finalize({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                }
+            },
+            (err) => {
+                console.warn('[useMapLocation] Initial getCurrentPosition failed:', err.message);
+
+                if (err.code === err.PERMISSION_DENIED) {
+                    failRequest(
+                        'Location permission was denied. Enable it in browser settings and try again.',
+                        'denied'
+                    );
+                }
+            },
+            geoOptions
+        );
+
         watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude, accuracy } = pos.coords;
-                console.log(`[useMapLocation] Fix received: Accuracy ${accuracy.toFixed(1)}m`);
+                const improved = updateBestLocation(latitude, longitude, accuracy);
 
-                const newLoc = { lat: latitude, lng: longitude, accuracy };
-
-                // Update state immediately so UI/marker moves even while settling
-                setState(prev => ({ 
-                    ...prev, 
-                    location: { lat: latitude, lng: longitude }, 
-                    accuracy,
-                    permissionState: 'granted' 
-                }));
-
-                // Keep track of best fix
-                if (!bestLocation || accuracy < bestLocation.accuracy) {
-                    bestLocation = newLoc;
-                    
-                    // Optional: Update address occasionally if it's early or accuracy is great
-                    if (accuracy < 15) {
-                        console.log('[useMapLocation] High accuracy fix found (<15m) — finalizing early');
-                        finalize({ lat: latitude, lng: longitude });
-                    }
+                if (improved && accuracy < 50) {
+                    console.log('[useMapLocation] Good accuracy fix (<50m) - finalizing early');
+                    finalize({ lat: latitude, lng: longitude });
                 }
             },
             (err) => {
                 console.warn('[useMapLocation] Watch failed during settling:', err.message);
+
+                if (err.code === err.PERMISSION_DENIED) {
+                    failRequest(
+                        'Location permission was denied. Enable it in browser settings and try again.',
+                        'denied'
+                    );
+                    return;
+                }
+
                 if (bestLocation) {
                     finalize({ lat: bestLocation.lat, lng: bestLocation.lng });
-                } else {
-                    setState(prev => ({ ...prev, isLoading: false, accuracy: null, error: 'Could not get location' }));
-                    if (settlingTimeout) clearTimeout(settlingTimeout);
+                    return;
                 }
+
+                failRequest(
+                    err.code === err.TIMEOUT
+                        ? 'Location request timed out. Move to an open area and try again.'
+                        : 'Could not get location'
+                );
             },
-            {
-                enableHighAccuracy: true,
-                timeout: 20000,
-                maximumAge: 0
-            }
+            geoOptions
         );
     }, []);
 
-    // Watch position for live updates
     const watchPosition = useCallback(() => {
-        if (!navigator.geolocation) return () => { };
+        if (!navigator.geolocation) return () => {};
 
         const watchId = navigator.geolocation.watchPosition(
-            async (position) => {
+            (position) => {
                 const { latitude, longitude } = position.coords;
                 const location = { lat: latitude, lng: longitude };
 
                 setState((prev) => ({ ...prev, location }));
             },
             () => {
-                // Silent fail for watch
+                // Silent fail for watch.
             },
             {
                 enableHighAccuracy: true,
@@ -174,7 +258,6 @@ export function useMapLocation() {
         return () => navigator.geolocation.clearWatch(watchId);
     }, []);
 
-    // Set location manually (from map click or search)
     const setLocation = useCallback(async (lat: number, lng: number) => {
         const location = { lat, lng };
         setState((prev) => ({ ...prev, location, address: null, isLoading: true }));
@@ -185,7 +268,7 @@ export function useMapLocation() {
                 address = {
                     lat,
                     lng,
-                    formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                    formattedAddress: `Location ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
                     city: '',
                     pincode: '',
                 };
@@ -195,7 +278,7 @@ export function useMapLocation() {
             const fallbackAddress = {
                 lat,
                 lng,
-                formattedAddress: `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                formattedAddress: `Location ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
                 city: '',
                 pincode: '',
             };
@@ -203,32 +286,32 @@ export function useMapLocation() {
         }
     }, []);
 
-    // Set location with pre-validated address (no reverse geocode needed)
     const setLocationWithAddress = useCallback((lat: number, lng: number, address: ValidatedAddress) => {
         const location = { lat, lng };
         setState((prev) => ({
             ...prev,
             location,
             address,
-            isLoading: false
+            isLoading: false,
         }));
 
         // Also save to localStorage for persistence
-        localStorage.setItem(
-            'user_location',
-            JSON.stringify({ lat, lng, allowed: true })
-        );
+        try {
+            localStorage.setItem(
+                'user_location',
+                JSON.stringify({ lat, lng, allowed: true })
+            );
+        } catch (err) {
+            console.warn('[useMapLocation] Failed to save location to localStorage', err);
+        }
     }, []);
 
-    // Set location coordinates only — no reverse geocode, no address change.
-    // Use this when updating coords for hub queries without polluting the GPS address.
     const setLocationCoords = useCallback((lat: number, lng: number) => {
         setState((prev) => ({ ...prev, location: { lat, lng }, address: null }));
     }, []);
 
-    // Clear location
     const clearLocation = useCallback(() => {
-        localStorage.removeItem('user_location');
+        try { localStorage.removeItem('user_location'); } catch {}
         setState({
             location: null,
             address: null,
@@ -239,27 +322,27 @@ export function useMapLocation() {
         });
     }, [state.permissionState]);
 
-    // Load saved location on mount or auto-request if granted
     useEffect(() => {
-        const saved = localStorage.getItem('user_location');
+        let saved = null;
+        try { saved = localStorage.getItem('user_location'); } catch {}
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
                 if (parsed.lat && parsed.lng) {
-                    // Set saved immediately
                     setLocation(parsed.lat, parsed.lng);
                 }
-            } catch { }
+            } catch {
+                // Ignore malformed local storage.
+            }
         }
 
-        // If we already have permission, auto-request for fresh update
-        if (navigator.permissions) {
-            navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-                if (result.state === 'granted') {
-                    requestLocation();
-                }
-            });
-        }
+        if (!navigator.permissions) return;
+
+        navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+            if (result.state === 'granted') {
+                requestLocation();
+            }
+        });
     }, [setLocation, requestLocation]);
 
     return {

@@ -17,7 +17,7 @@ const SOCIALS = [
   { Icon: MessageCircle, label: "LinkedIn", href: "#" },
   { Icon: LinkIcon, label: "Facebook", href: "#" },
   { Icon: Globe, label: "Website", href: "#" },
-  { Icon: Send, label: "Email", href: "mailto:founders@popclozet.com" },
+  { Icon: Send, label: "Email", href: "mailto:founders@popclozet.in" },
   { Icon: Feather, label: "Blog", href: "#" },
 ];
 
@@ -69,8 +69,8 @@ export default function Footer() {
           <div>
             <h4 className="text-sm font-semibold mb-4 text-foreground/90">Contact</h4>
             <div className="text-sm text-muted-foreground space-y-2">
-              <a href="mailto:founders@popclozet.com" className="block hover:text-primary">founders@popclozet.com</a>
-              <a href="mailto:investors@popclozet.com" className="block hover:text-primary">investors@popclozet.com</a>
+              <a href="mailto:founders@popclozet.in" className="block hover:text-primary">founders@popclozet.in</a>
+              <a href="mailto:investors@popclozet.in" className="block hover:text-primary">investors@popclozet.in</a>
               <p className="mt-3 text-xs">Support: Mon–Fri, 9am–6pm IST</p>
             </div>
           </div>

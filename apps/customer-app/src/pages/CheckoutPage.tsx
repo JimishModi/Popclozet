@@ -30,9 +30,27 @@ import { getLocalAddresses, ValidatedAddress as SavedAddress, searchLocations } 
 /*import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";*/
 import type { TimeSlot } from "@/services/deliveryService";
 import { createEntitledOrder, getSubscriptionBenefits, type SubscriptionBenefits } from "@/services/subscriptionService";
-import { placeOrder, previewOrder } from "@/services/ordersService";
+import { cancelOrder, placeOrder, previewOrder, resolveVariantIds, reserveCheckoutStock, releaseCheckoutStock, persistOrderReservations } from "@/services/ordersService";
 import { supabase } from "@popclozet/api-client";
 import { clearCartDB, clearUserCartDB } from "@/lib/db";
+import {
+  buildManualAddressSummary,
+  clearCheckoutAddressContext,
+  getCheckoutAddressContext,
+  hasManualAddressDetails,
+  isManualAddressComplete,
+  normalizeManualAddressDetails,
+  saveCheckoutAddressContext,
+  type ManualAddressDetails,
+} from "@/lib/addressAccuracy";
+import {
+  clearCheckoutDraft,
+  readCheckoutDraft,
+  saveCheckoutDraft,
+  type CheckoutReturnSchedule,
+} from "@/lib/checkoutDraft";
+import { getPlanPrice } from "@/lib/pricing";
+import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { cn } from "@/lib/utils";
 import { ALL_MOCK_PRODUCTS } from "../mocks/allProducts";
 
@@ -45,19 +63,15 @@ const isRealEmail = (email?: string | null): email is string => {
 
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { hasFreeDelivery, hasInsuranceIncluded } from "@/services/subscriptionService";
-import { callLocationFn } from "@/utils/env";
-import { haversineDistance } from "@/utils/haversine";
 import { invokeWithUserJwt } from "@/services/supabaseFunctionInvoke";
+
+import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
 
 /* ---------------------------------- */
 /* Constants                          */
 /* ---------------------------------- */
-const WAREHOUSE_LOCATION = {
-  name: "Hostel 2, IIT Bombay",
-  lat: 19.1305,
-  lng: 72.9135
-};
-const MAX_DELIVERY_DISTANCE_KM = 6;
+const WAREHOUSE_LOCATION = WAREHOUSE;
+const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.SERVICE_MAX_KM;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 
@@ -103,6 +117,7 @@ export default function CheckoutPage() {
   const [searchParams] = useSearchParams();
   const buyoutOrderId = searchParams.get("buyoutOrderId");
   const skipDelivery = searchParams.get("skipDelivery") === 'true';
+  const [checkoutDraft] = useState(() => readCheckoutDraft());
 
   const { cartItems, removeFromCart } = useCart();
   const { user, profile } = useAuth();
@@ -110,13 +125,13 @@ export default function CheckoutPage() {
 
   // Coupon code passed from CartPage via location state or search params
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
-    () => location.state?.couponCode || searchParams.get("coupon") || null
+    () => location.state?.couponCode || searchParams.get("coupon") || checkoutDraft?.appliedCouponCode || null
   );
 
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [agreedToSizing, setAgreedToSizing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(() => checkoutDraft?.agreedToTerms ?? false);
+  const [agreedToSizing, setAgreedToSizing] = useState(() => checkoutDraft?.agreedToSizing ?? false);
   const [userIp, setUserIp] = useState<string>("");
 
   // FIX 2: Declare missing showTermsModal state
@@ -124,7 +139,11 @@ export default function CheckoutPage() {
 
   // Payment method: 'upi' (online) or 'cod'
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod' | null>(() => {
-    return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+    try {
+      return localStorage.getItem("preferred_payment_method") as 'upi' | 'cod' | null;
+    } catch {
+      return null;
+    }
   });
   const [showPaymentMethodSelector, setShowPaymentMethodSelector] = useState(false);
   const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
@@ -132,10 +151,29 @@ export default function CheckoutPage() {
   const [buyoutOrderData, setBuyoutOrderData] = useState<any>(null);
   const [buyoutLoading, setBuyoutLoading] = useState(false);
 
-  // KYC States
-  const [kycVerified, setKycVerified] = useState<boolean>(false);
+  // KYC States — init from localStorage cache to prevent flash
+  const [kycVerified, setKycVerified] = useState<boolean>(() => readStoredKycVerified(user?.id));
   const [showKycGate, setShowKycGate] = useState<boolean>(false);
   const [isKycLoading, setIsKycLoading] = useState<boolean>(false);
+
+  // RECIPIENT INFORMATION (Editable overrides for ordering for others)
+  const [recipientName, setRecipientName] = useState<string>(() => checkoutDraft?.recipientName ?? "");
+  const [recipientPhone, setRecipientPhone] = useState<string>(() => checkoutDraft?.recipientPhone ?? "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(() => checkoutDraft?.recipientEmail ?? "");
+  const [showRecipientEditor, setShowRecipientEditor] = useState(false);
+
+  // Sync recipient state with profile/user initially
+  useEffect(() => {
+    if (!recipientName && (profile?.full_name || user?.user_metadata?.full_name)) {
+      setRecipientName(profile?.full_name || user?.user_metadata?.full_name || "");
+    }
+    if (!recipientPhone && (profile?.phone || user?.phone)) {
+      setRecipientPhone(profile?.phone || user?.phone || "");
+    }
+    if (!recipientEmail && (profile?.email || user?.email)) {
+      setRecipientEmail(profile?.email || user?.email || "");
+    }
+  }, [profile, user, recipientName, recipientPhone, recipientEmail]);
 
   // Fetch IP address for legal logging (with timeout — non-blocking)
   useEffect(() => {
@@ -149,67 +187,9 @@ export default function CheckoutPage() {
     return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
-  // Check URL params for KYC callback
-  useEffect(() => {
-    const kycCallback = searchParams.get("kyc_callback");
-    const callbackUserId = searchParams.get("user_id");
-    const targetUserId = user?.id || callbackUserId;
-
-    if (kycCallback === "success" && targetUserId) {
-      writeStoredKycVerified(targetUserId, true);
-      setKycVerified(true);
-      setShowKycGate(false);
-
-      if (user?.id) {
-        const fullName = profile?.full_name || user.user_metadata?.full_name || "User";
-        const phone = profile?.phone || user.phone || `pending-${user.id.slice(0, 12)}`;
-
-        supabase
-          .from("customer_profiles")
-          .upsert({
-            user_id: user.id,
-            full_name: fullName,
-            phone,
-            kyc_verified: true,
-          } as any, { onConflict: "user_id" })
-          .then(({ error }) => {
-            if (error) {
-              console.error("[KYC] Failed to persist verification:", error);
-              toast.success("Identity verified. Proceeding with stored confirmation.");
-              return;
-            }
-            toast.success("Identity verified successfully!");
-          });
-      } else {
-        supabase
-          .from("customer_profiles")
-          .update({ kyc_verified: true })
-          .eq("user_id", targetUserId)
-          .then(({ error }) => {
-            if (error) {
-              console.error("[KYC] Failed to persist verification:", error);
-              toast.error("Verification failed to save. Please try again.");
-              setKycVerified(false);
-              return;
-            }
-            toast.success("Identity verified successfully!");
-          });
-      }
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete("kyc_callback");
-      newParams.delete("user_id");
-      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
-      window.history.replaceState({}, '', newUrl);
-    }
-  }, [searchParams, user?.id, profile?.full_name, profile?.phone, user?.phone, user?.user_metadata]);
-
-  // Fetch KYC status from DB
+  // Fetch KYC status from DB (DB is the source of truth)
   const fetchKycStatus = useCallback(() => {
     if (!user?.id) return;
-    if (readStoredKycVerified(user.id)) {
-      setKycVerified(true);
-    }
 
     supabase
       .from("customer_profiles")
@@ -222,13 +202,27 @@ export default function CheckoutPage() {
           return;
         }
 
-        const isVerified = Boolean(data?.kyc_verified) || readStoredKycVerified(user.id);
-        if (isVerified) {
-          writeStoredKycVerified(user.id, true);
-          setKycVerified(true);
-        }
+        const isVerified = Boolean(data?.kyc_verified);
+        writeStoredKycVerified(user.id, isVerified);
+        setKycVerified(isVerified);
       });
   }, [user?.id]);
+
+  // Check URL params for KYC callback — just re-fetch DB status (webhook sets the actual value)
+  useEffect(() => {
+    const kycCallback = searchParams.get("kyc_callback");
+
+    if (kycCallback === "success") {
+      fetchKycStatus();
+      toast.success("Verification submitted! Checking status...");
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("kyc_callback");
+      newParams.delete("user_id");
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, fetchKycStatus]);
 
   // Fetch initial KYC status
   useEffect(() => {
@@ -268,6 +262,7 @@ export default function CheckoutPage() {
   }, [isNoDeliveryFlow, paymentMethod]);
 
   const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress | null>(null);
+  const [manualAddressDetails, setManualAddressDetails] = useState<ManualAddressDetails | null>(null);
   const [selectedHub, setSelectedHub] = useState<any>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -280,6 +275,8 @@ export default function CheckoutPage() {
   // After reGeocodeAndFetch succeeds, deliveryAddress updates (triggering the effect again),
   // but the address TEXT stays the same, so we skip re-geocoding on the second run.
   const lastGeocodedAddressRef = useRef<string | null>(null);
+  // Track the last destination string we fetched distance for, to skip redundant API calls on tab switch
+  const lastDistanceFetchRef = useRef<string | null>(null);
   const [showDistanceWarningPopup, setShowDistanceWarningPopup] = useState(false);
   const [hasFreeDeliveryBenefit, setHasFreeDeliveryBenefit] = useState(false);
   const [hasInsuranceBenefit, setHasInsuranceBenefit] = useState(false);
@@ -298,26 +295,77 @@ export default function CheckoutPage() {
   }, [cartEntries, cartProducts]);
 
   const [subBenefits, setSubBenefits] = useState<SubscriptionBenefits | null>(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
-  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>('rental');
+  const [selectedOrderType, setSelectedOrderType] = useState<'rental' | 'home_try_on'>(
+    () => checkoutDraft?.selectedOrderType ?? 'rental'
+  );
   const [selectedScheduledSlot, setSelectedScheduledSlot] = useState<TimeSlot | null>(null);
 
   // Read return schedule from state (set by CheckoutReturnSchedulePage)
-  const returnSchedule = location.state?.returnSchedule as { pickupSlotIso: string } | undefined;
+  const returnSchedule =
+    (location.state?.returnSchedule as CheckoutReturnSchedule | undefined) ??
+    checkoutDraft?.returnSchedule ??
+    undefined;
+
+  const isAddressComplete = useMemo(() => isNoDeliveryFlow || isManualAddressComplete(manualAddressDetails), [isNoDeliveryFlow, manualAddressDetails]);
+
+  const manualAddressSummary = buildManualAddressSummary(manualAddressDetails);
+  const showManualAddress = hasManualAddressDetails(manualAddressDetails);
+
+  useEffect(() => {
+    saveCheckoutDraft({
+      appliedCouponCode,
+      agreedToTerms,
+      agreedToSizing,
+      recipientName,
+      recipientPhone,
+      recipientEmail,
+      selectedOrderType,
+      returnSchedule: returnSchedule ?? null,
+    });
+  }, [
+    appliedCouponCode,
+    agreedToTerms,
+    agreedToSizing,
+    recipientName,
+    recipientPhone,
+    recipientEmail,
+    selectedOrderType,
+    returnSchedule,
+  ]);
+
+  useEffect(() => {
+    if (paymentMethod !== "upi") return;
+
+    preloadRazorpayCheckout().catch((err) => {
+      console.warn("[Checkout] Razorpay preload failed:", err);
+    });
+  }, [paymentMethod]);
 
   // Load subscription benefit and handle passed address
   useEffect(() => {
     const passedAddress = location.state?.selectedAddress;
+    const passedManualAddress = normalizeManualAddressDetails(location.state?.manualAddressDetails);
+    const storedAddressContext = getCheckoutAddressContext();
+    const addresses = getLocalAddresses();
+
+    setAddressList(addresses);
+
     if (passedAddress) {
       setDeliveryAddress(passedAddress);
+      setManualAddressDetails(passedManualAddress);
+      saveCheckoutAddressContext({
+        selectedAddress: passedAddress,
+        manualAddressDetails: passedManualAddress,
+      });
+    } else if (storedAddressContext?.selectedAddress) {
+      setDeliveryAddress(storedAddressContext.selectedAddress);
+      setManualAddressDetails(storedAddressContext.manualAddressDetails);
     } else {
-      const addresses = getLocalAddresses();
-      // FIX 4: Populate addressList so the drawer isn't empty
-      setAddressList(addresses);
       if (addresses.length > 0) {
         setDeliveryAddress(addresses[0]);
       }
+      setManualAddressDetails(null);
     }
 
     const hub = getSavedHub();
@@ -341,7 +389,7 @@ export default function CheckoutPage() {
     setSubBenefits(null);
     setHasFreeDeliveryBenefit(false);
     setHasInsuranceBenefit(false);
-  }, []);
+  }, [location.state]);
 
   useEffect(() => {
     if (!subBenefits?.hasFreeHomeTryOn && selectedOrderType === 'home_try_on') {
@@ -353,48 +401,70 @@ export default function CheckoutPage() {
     }
   }, [selectedOrderType, selectedScheduledSlot, subBenefits]);
 
+  useEffect(() => {
+    if (!deliveryAddress) return;
+
+    saveCheckoutAddressContext({
+      selectedAddress: deliveryAddress,
+      manualAddressDetails,
+    });
+  }, [deliveryAddress, manualAddressDetails]);
+
 
   // Distance Check Effect (Supabase Edge Function + Haversine fallback)
   useEffect(() => {
-    const fetchDistance = async (destination: string) => {
+    const fetchDistance = async (destination: { lat?: number; lng?: number; eLoc?: string | null }) => {
+      const normalizedLat =
+        typeof destination.lat === "number" && Number.isFinite(destination.lat)
+          ? destination.lat
+          : 0;
+      const normalizedLng =
+        typeof destination.lng === "number" && Number.isFinite(destination.lng)
+          ? destination.lng
+          : 0;
+      const destinationKey = destination.eLoc ?? `${normalizedLat},${normalizedLng}`;
+
+      // Skip if we already fetched distance for this exact destination.
+      if (lastDistanceFetchRef.current === destinationKey && actualDistance !== null) {
+        console.log(
+          `[Checkout] Distance already cached for ${destinationKey} (${actualDistance}km) — skipping`
+        );
+        return;
+      }
+      lastDistanceFetchRef.current = destinationKey;
+
       setDistanceLoading(true);
       setDistanceError(null);
 
       try {
-        const origin = `${WAREHOUSE_LOCATION.lng},${WAREHOUSE_LOCATION.lat}`;
-        console.log(`[Checkout] Calling distance edge function: ${origin} to ${destination}`);
+        console.log("[Checkout] Resolving distance via shared map service:", {
+          origin: WAREHOUSE_LOCATION,
+          destination: {
+            lat: normalizedLat,
+            lng: normalizedLng,
+            eLoc: destination.eLoc ?? null,
+          },
+        });
 
-        // Abort after 10s to prevent hanging on slow connections
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
+        const { getRoadDistance } = await import("@/services/mapServices");
+        const result = await getRoadDistance(WAREHOUSE_LOCATION, {
+          lat: normalizedLat,
+          lng: normalizedLng,
+          ...(destination.eLoc ? { eLoc: destination.eLoc } : {}),
+        });
 
-        const data = await callLocationFn(
-          { action: "distance", origin, destination },
-          controller.signal
-        );
-        clearTimeout(timeout);
+        if (result.status !== "success" || !Number.isFinite(result.distanceKm)) {
+          throw new Error(result.error || "Distance service temporarily unavailable");
+        }
 
-        const distance = data.distance;
-        console.log("[DistanceCheck] API verified distance:", distance);
+        const distance = result.distanceKm;
+        console.log("[DistanceCheck] Verified distance:", distance);
         setActualDistance(distance);
+        if (distance > MAX_DELIVERY_DISTANCE_KM) {
+          setDistanceError(`This area is out of our current service range (${MAX_DELIVERY_DISTANCE_KM}km).`);
+        }
       } catch (error) {
-        console.warn("[Checkout] Edge function distance failed, trying Haversine fallback:", error);
-
-        // Haversine fallback: parse destination coords if available
-        try {
-          const parts = destination.split(",");
-          if (parts.length === 2) {
-            const dLng = parseFloat(parts[0]);
-            const dLat = parseFloat(parts[1]);
-            if (!isNaN(dLat) && !isNaN(dLng)) {
-              const km = haversineDistance(WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng, dLat, dLng);
-              console.log(`[DistanceCheck] Haversine fallback: ${km.toFixed(2)}km`);
-              setActualDistance(km);
-              return;
-            }
-          }
-        } catch { /* ignore parse errors */ }
-
+        console.warn("[Checkout] Distance resolution failed:", error);
         setDistanceError("Distance service temporarily unavailable");
         setActualDistance(null);
       } finally {
@@ -412,7 +482,11 @@ export default function CheckoutPage() {
         const res = await geocodeAddress(addressText);
 
         if (res.status === 'success' && (res.eLoc || (res.lat && res.lng))) {
-          const dest = res.eLoc ? res.eLoc : `${res.lng},${res.lat}`;
+          const dest = {
+            lat: res.lat,
+            lng: res.lng,
+            eLoc: res.eLoc ?? null,
+          };
           console.log(`[Checkout] Re-geocoded ✓  dest="${dest}" (lat=${res.lat} lng=${res.lng} eLoc=${res.eLoc ?? 'none'})`);
 
           // Update deliveryAddress with fresh coords so the order record is correct
@@ -458,7 +532,11 @@ export default function CheckoutPage() {
         // Preferred path: use the eLoc directly (most accurate with MapMyIndia)
         console.log("[Checkout] Using eLoc for distance:", deliveryAddress.eLoc);
         lastGeocodedAddressRef.current = deliveryAddress.formattedAddress; // mark as handled
-        fetchDistance(deliveryAddress.eLoc);
+        fetchDistance({
+          lat,
+          lng,
+          eLoc: deliveryAddress.eLoc,
+        });
       } else if (deliveryAddress.formattedAddress) {
         const addrText = deliveryAddress.formattedAddress;
 
@@ -467,7 +545,7 @@ export default function CheckoutPage() {
         if (lastGeocodedAddressRef.current === addrText) {
           console.log("[Checkout] Already geocoded this address — using existing coords to avoid loop.");
           if (hasCoords) {
-            fetchDistance(`${lng},${lat}`);
+            fetchDistance({ lat, lng });
           } else {
             setDistanceError("Could not verify delivery address. Please re-select your address.");
             setActualDistance(null);
@@ -544,17 +622,6 @@ export default function CheckoutPage() {
     fetchCartProducts();
   }, [JSON.stringify(cartEntries.map(([key]) => key.split('_')[0]))]);
 
-  const getPlanPrice = (product: any, plan: string) => {
-    if (!product) return 0;
-    switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
-    }
-  };
-
   // Load Buyout Order if specified
   useEffect(() => {
     if (!buyoutOrderId) return;
@@ -619,25 +686,46 @@ export default function CheckoutPage() {
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
 
-  // Build preview items from cart (no prices — just IDs/plans/quantities)
+  // Build preview items from cart (no prices — just IDs/sizes/plans/quantities)
   const previewItems = useMemo(() => {
     if (buyoutOrderData) return [];
-    return validCartEntries.map(([key, data]) => ({
-      product_id: key.split('_')[0],
-      plan: data.plan || '3d',
-      quantity: data.quantity || 1,
-    }));
+    return validCartEntries.map(([key, data]) => {
+      const parts = key.split('_');
+      return {
+        product_id: parts[0],
+        size: parts[1] || 'One Size',
+        plan: data.plan || '3d',
+        quantity: data.quantity || 1,
+      };
+    });
   }, [validCartEntries, buyoutOrderData]);
 
-  // Fetch server-side pricing whenever cart items, distance, or coupon change
+  // Stable keys to prevent unnecessary re-fetches
+  const previewItemsKey = JSON.stringify(previewItems);
+  const checkoutAddressKey = deliveryAddress?.id || (deliveryAddress?.lat && deliveryAddress?.lng ? `${deliveryAddress.lat},${deliveryAddress.lng}` : 'none');
+
+  // Fetch server-side pricing whenever cart items or address change
   useEffect(() => {
-    if (previewItems.length === 0 || buyoutOrderData) return;
+    const items = JSON.parse(previewItemsKey);
+    if (items.length === 0 || buyoutOrderData) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
+    if (invalidCatalogItem) {
+      setServerPricing(null);
+      setPricingLoading(false);
+      return;
+    }
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
-      items: previewItems,
+      items,
       couponCode: appliedCouponCode,
-      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance || 0),
+      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0),
+      addressId: isNoDeliveryFlow ? null : (deliveryAddress?.id || null),
+      lat: isNoDeliveryFlow ? null : (deliveryAddress?.lat || null),
+      lng: isNoDeliveryFlow ? null : (deliveryAddress?.lng || null),
     }).then((result) => {
       if (cancelled) return;
       if (result.success) {
@@ -651,52 +739,63 @@ export default function CheckoutPage() {
             ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
             : (result.total ?? 0),
         });
+      } else {
+        console.warn("[Checkout] preview_order returned:", result.code, result.message);
       }
     }).catch((err) => {
-      if (!cancelled) console.warn("[Checkout] preview_order failed, using client estimates:", err);
+      if (!cancelled) {
+        console.warn("[Checkout] preview_order failed:", err);
+      }
     }).finally(() => {
       if (!cancelled) setPricingLoading(false);
     });
     return () => { cancelled = true; };
-  }, [previewItems, appliedCouponCode, actualDistance, isNoDeliveryFlow, buyoutOrderData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData, actualDistance, selectedHub?.distance_km, profile?.delivery_distance_km, invalidCatalogItem]);
 
   // ── Display values: prefer server pricing, fall back to client estimates ──
-  const subtotal = serverPricing?.subtotal ?? (() => {
-    if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
-  })();
+  const subtotal = serverPricing?.subtotal != null
+    ? Math.round(serverPricing.subtotal)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount * 0.7);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const price = getPlanPrice(product, data.plan);
+        return sum + price * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const originalTotal = serverPricing?.original_total ?? (() => {
-    if (buyoutOrderData) return buyoutOrderData.total_amount;
-    return validCartEntries.reduce((total, [key, data]) => {
-      const productId = key.split('_')[0];
-      const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp = product?.mrp || planPrice;
-      return total + Math.max(mrp, planPrice) * data.quantity;
-    }, 0);
-  })();
+  const originalTotal = serverPricing?.original_total != null
+    ? Math.round(serverPricing.original_total)
+    : (() => {
+      if (buyoutOrderData) return Math.round(buyoutOrderData.total_amount);
+      return Math.round(validCartEntries.reduce((sum, [key, data]) => {
+        const productId = key.split('_')[0];
+        const product = cartProducts[productId];
+        const planPrice = getPlanPrice(product, data.plan);
+        const mrp = typeof product?.mrp === 'number' ? product.mrp : planPrice;
+        return sum + Math.max(mrp, planPrice) * (data.quantity || 1);
+      }, 0));
+    })();
 
-  const discount = serverPricing?.discount ?? Math.max(0, originalTotal - subtotal);
-  const couponDiscount = serverPricing?.coupon_discount ?? 0;
+  const discount = serverPricing?.discount != null
+    ? Math.round(serverPricing.discount)
+    : Math.max(0, originalTotal - subtotal);
+  const couponDiscount = serverPricing?.coupon_discount != null
+    ? Math.round(serverPricing.coupon_discount)
+    : 0;
 
-  const deliveryFeeBase = serverPricing?.delivery_fee ?? (() => {
-    if (actualDistance !== null && actualDistance > 0) {
-      return actualDistance <= 6 ? 40 : 40 + Math.ceil(actualDistance - 6) * 10;
-    }
-    return profile?.delivery_fee ?? 40;
-  })();
+  // Delivery fee is computed server-side by preview_order RPC — no client-side default.
+  const deliveryFeeBase = serverPricing?.delivery_fee != null
+    ? Math.round(serverPricing.delivery_fee)
+    : null;
   const distanceSurcharge = 0;
 
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
   const insuranceFee = 0;
-  const total = serverPricing?.total ?? (subtotal - couponDiscount + deliveryFee + insuranceFee);
+  const total = serverPricing?.total != null ? Math.round(serverPricing.total) : null;
 
   /* ---------------------------------- */
   /* Payment Processing                  */
@@ -711,6 +810,40 @@ export default function CheckoutPage() {
   // Synchronous lock to prevent double-submit (React state is async and can't block rapid clicks)
   const placingOrderLockRef = useRef(false);
 
+  const syncOrderAddressDetails = useCallback(
+    async (orderId: string, userId: string, addressId: string) => {
+      if (!deliveryAddress) return;
+
+      const normalizedManualAddress = normalizeManualAddressDetails(manualAddressDetails);
+      const deliveryAddressSnapshot = {
+        address_id: addressId,
+        full_address: deliveryAddress.formattedAddress,
+        lat: deliveryAddress.lat,
+        lng: deliveryAddress.lng,
+      };
+
+      const { error: addressDetailsError } = await supabase.rpc(
+        "sync_order_address_details",
+        {
+          p_order_id: orderId,
+          p_delivery_address_snapshot: deliveryAddressSnapshot,
+          p_manual_address_details: normalizedManualAddress,
+        }
+      );
+
+      if (addressDetailsError) {
+        console.warn(
+          "[Checkout] Could not sync address details to order:",
+          addressDetailsError.message
+        );
+        return;
+      }
+
+      clearCheckoutAddressContext();
+    },
+    [deliveryAddress, manualAddressDetails]
+  );
+
   const handlePlaceOrder = async () => {
     // Network check — fail fast on offline
     if (!isOnline) {
@@ -724,10 +857,30 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (!isAddressComplete) {
+      toast.error("Please add address details (flat no, landmark, etc) to continue");
+      navigate("/checkout/address-details", {
+        state: {
+          selectedAddress: deliveryAddress,
+          manualAddressDetails,
+          nextRoute: "/checkout",
+          forwardState: {
+            returnSchedule,
+          },
+        },
+      });
+      return;
+    }
+
     // Only gate on email if they actually have a real email set
     const realEmail = isRealEmail(profile?.email) ? profile!.email : null;
     if (realEmail && !profile?.email_verified) {
       setShowEmailGate(true);
+      return;
+    }
+
+    if (distanceError) {
+      toast.error(distanceError);
       return;
     }
 
@@ -742,10 +895,15 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (invalidCatalogItem) {
+      toast.error("One or more items are unavailable right now. Please remove them and try again.");
+      return;
+    }
+
     // Return schedule is mandatory for rental orders
     if (hasRentals && !returnSchedule?.pickupSlotIso) {
       toast.error("Please select a return pickup slot before placing your order.");
-      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } });
+      navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } });
       return;
     }
 
@@ -783,13 +941,15 @@ export default function CheckoutPage() {
             const parts = key.split('_');
             removeFromCart(parts[0], data.size, data.plan);
           }
-          navigate(`/order-confirmed/${targetId}`);
+          clearCheckoutDraft();
+          navigate(`/order-confirmed/${targetId}`, { replace: true });
         } else {
           setIsPlacingOrder(false);
           placingOrderLockRef.current = false;
           initiatePayment({
             internalOrderId: targetId,
             amountInRupees: total,
+            preferredMethod: 'upi',
             userName: profile?.full_name || user?.user_metadata?.full_name,
             userEmail: profile?.email,
             userPhone: profile?.phone || user?.phone,
@@ -841,8 +1001,8 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const actualDistance = selectedHub?.distance_km ?? 0;
-      const isDelayed = actualDistance > 6;
+      const routeDistanceKm = actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0;
+      const isDelayed = routeDistanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
       const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
       const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
@@ -877,6 +1037,43 @@ export default function CheckoutPage() {
         };
       });
 
+      // ── STOCK RESERVATION ──────────────────────────────────
+      // Resolve cart items to inventory variant_ids, then reserve stock
+      // atomically BEFORE order creation. If reservation fails, stop.
+      console.log('[Checkout] Resolving variant IDs for stock reservation...');
+      let reservedItems: { variant_id: string; quantity: number }[] = [];
+      try {
+        const variantItems = await resolveVariantIds(
+          orderItems.map(i => ({ product_id: i.product_id, size: i.size, quantity: i.quantity }))
+        );
+
+        // Reserve stock with a 15-second timeout
+        const reservationPromise = reserveCheckoutStock(variantItems);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Stock reservation timed out. Please try again.')), 15000)
+        );
+        const reserveResult = await Promise.race([reservationPromise, timeoutPromise]);
+
+        if (!reserveResult.success) {
+          toast.error("Some items are out of stock. Please update your cart and try again.");
+          setError("Out of stock — one or more items could not be reserved.");
+          return;
+        }
+
+        reservedItems = variantItems;
+        console.log('[Checkout] Stock reserved successfully', reservedItems);
+      } catch (stockErr: any) {
+        console.error('[Checkout] Stock reservation failed:', stockErr);
+        const msg = stockErr.message?.includes('timed out')
+          ? stockErr.message
+          : stockErr.message?.includes('Insufficient stock')
+            ? "Some items are out of stock. Please update your cart and try again."
+            : "Could not check stock availability. Please try again.";
+        toast.error(msg);
+        setError(msg);
+        return;
+      }
+
       // Generate idempotency key (once per click — survives retries within the same attempt)
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = `${userId}_${Date.now()}_${crypto.randomUUID()}`;
@@ -885,27 +1082,56 @@ export default function CheckoutPage() {
       // ATOMIC order placement — order + items in a single DB transaction.
       // Server fetches prices from DB, computes delivery fee & coupon discount.
       // Client sends ONLY: product IDs, sizes, plans, quantities, coupon code, distance.
-      const orderResult = await placeOrder({
-        idempotencyKey: idempotencyKeyRef.current,
-        addressId: addressId,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        paymentMethod: paymentMethod,
-        couponCode: appliedCouponCode || null,
-        routeDistanceKm: actualDistance || profile?.delivery_distance_km || 0,
-        deliveryEta: deliveryEtaStr,
-        returnPickupDate: returnPickupDate,
-        returnTimeSlot: returnTimeSlot,
-        items: orderItems,
-      });
+      let orderResult;
+      try {
+        orderResult = await placeOrder({
+          idempotencyKey: idempotencyKeyRef.current,
+          addressId: addressId,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          paymentMethod: paymentMethod,
+          couponCode: appliedCouponCode || null,
+          routeDistanceKm,
+          deliveryEta: deliveryEtaStr,
+          returnPickupDate: returnPickupDate,
+          returnTimeSlot: returnTimeSlot,
+          items: orderItems,
+          recipientName: recipientName,
+          recipientPhone: recipientPhone,
+          recipientEmail: recipientEmail,
+        });
+      } catch (orderErr: any) {
+        // Order creation failed AFTER stock was reserved — release stock
+        console.error('[Checkout] Order creation failed, releasing reserved stock:', orderErr);
+        await releaseCheckoutStock(reservedItems).catch(() => {});
+        throw orderErr; // Re-throw to hit the outer catch
+      }
 
       const createdOrderId = orderResult.order_id;
+
+      // Persist reservation records so backend can release on cancel/timeout
+      if (createdOrderId && reservedItems.length > 0) {
+        try {
+          await persistOrderReservations(createdOrderId, reservedItems);
+        } catch (e) {
+          console.error('[Checkout] Failed to persist reservation records, releasing stock and cancelling order:', e);
+          await releaseCheckoutStock(reservedItems).catch(() => {});
+          await cancelOrder(createdOrderId).catch((cancelErr) => {
+            console.warn('[Checkout] Failed to cancel order after reservation persistence failure:', cancelErr);
+          });
+          throw new Error('Could not safely reserve stock for this order. Please try again.');
+        }
+      }
 
       // Reset idempotency key after successful creation
       idempotencyKeyRef.current = null;
 
       if (orderResult.idempotent) {
         console.warn("[Checkout] Duplicate order prevented — returning existing order:", createdOrderId);
+      }
+
+      if (createdOrderId) {
+        await syncOrderAddressDetails(createdOrderId, userId, addressId);
       }
 
       // Create pre-scheduled return request — COD only (already confirmed).
@@ -945,13 +1171,14 @@ export default function CheckoutPage() {
           const parts = key.split('_');
           removeFromCart(parts[0], data.size, data.plan);
         }
+        clearCheckoutDraft();
       }
 
       // Navigate based on payment method
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
       if (paymentMethod === 'cod') {
-        navigate(`/order-confirmed/${createdOrderId}`);
+        navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
       } else {
         // Pass return schedule data so PaymentProcessingPage can create the
         // return_request AFTER payment succeeds (avoids false notifications).
@@ -1008,12 +1235,20 @@ export default function CheckoutPage() {
 
         {/* User Info */}
         <section className="px-5 mt-4">
-          <h2 className="text-lg font-black text-white" style={dmSans}>My Information</h2>
-          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.full_name || user?.user_metadata?.full_name || "Guest"}</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-white" style={dmSans}>My Information</h2>
+            <button
+              onClick={() => setShowRecipientEditor(true)}
+              className="text-xs font-bold text-[#f2546d] uppercase"
+            >
+              Edit
+            </button>
+          </div>
+          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{recipientName || "Guest"}</p>
 
           <h3 className="text-lg font-black text-white mt-9" style={dmSans}>Contact Details</h3>
-          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{profile?.phone || user?.phone || "No phone"}</p>
-          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{profile?.email || user?.email}</p>
+          <p className="text-sm text-[#b4b4b4] mt-2" style={dmSans}>{recipientPhone || "No phone"}</p>
+          <p className="text-sm text-[#b4b4b4] mt-1" style={dmSans}>{recipientEmail}</p>
 
           {/* KYC Verification Banner — shown upfront when not verified */}
           {!kycVerified && (
@@ -1031,18 +1266,18 @@ export default function CheckoutPage() {
                 onClick={async () => {
                   try {
                     setIsKycLoading(true);
-                    const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
+                    const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
                       body: { callbackParams: { user_id: user?.id } }
                     });
                     if (error) throw error;
-                    if (data?.url) {
-                      window.location.href = data.url;
+                    if (data?.verification_url) {
+                      window.location.href = data.verification_url;
                     } else {
-                      window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                      toast.error("Could not start verification. Please try again.");
                     }
                   } catch (err: any) {
                     console.error('KYC Error:', err);
-                    toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
+                    toast.error("Could not start verification. Please try again.");
                   } finally {
                     setIsKycLoading(false);
                   }
@@ -1066,19 +1301,9 @@ export default function CheckoutPage() {
                     if (data?.kyc_verified) {
                       setKycVerified(true);
                       toast.success("Verification confirmed!");
-                      return;
+                    } else {
+                      toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                     }
-                    // Webhook didn't fire — directly mark as verified
-                    const { error: updateError } = await supabase
-                      .from("customer_profiles")
-                      .update({ kyc_verified: true })
-                      .eq("user_id", user?.id);
-                    if (updateError) {
-                      toast.error("Failed to update verification. Please try again.");
-                      return;
-                    }
-                    setKycVerified(true);
-                    toast.success("Identity verified successfully! ✓");
                   } catch (err) {
                     toast.error("Something went wrong. Please try again.");
                   } finally {
@@ -1104,11 +1329,78 @@ export default function CheckoutPage() {
               </div>
               {deliveryAddress ? (
                 <div className="mt-4 p-4 rounded-2xl bg-[#232323] border border-white/5 relative overflow-hidden">
-                  <p className="text-sm text-[#b4b4b4] leading-relaxed relative z-10" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                  <div className="relative z-10 space-y-4">
+                    <div>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                        Address Fetched
+                      </p>
+                      <p className="text-sm text-[#b4b4b4] leading-relaxed" style={dmSans}>{deliveryAddress.formattedAddress}</p>
+                    </div>
+
+                    {showManualAddress && (
+                      <div className="pt-4 border-t border-white/5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                              Manual Address
+                            </p>
+                            <p className="text-sm text-white leading-relaxed" style={dmSans}>
+                              {manualAddressSummary}
+                            </p>
+                            {(manualAddressDetails?.contactName || manualAddressDetails?.phoneNumber) && (
+                              <p className="text-xs text-zinc-400 mt-2" style={dmSans}>
+                                {[manualAddressDetails?.contactName, manualAddressDetails?.phoneNumber].filter(Boolean).join(" • ")}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() =>
+                              navigate("/checkout/address-details", {
+                                state: {
+                                  selectedAddress: deliveryAddress,
+                                  manualAddressDetails,
+                                  nextRoute: "/checkout",
+                                  forwardState: {
+                                    returnSchedule,
+                                  },
+                                },
+                              })
+                            }
+                            className="text-[10px] font-bold uppercase text-[#f2546d] shrink-0"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!showManualAddress && (
+                      <button
+                        onClick={() =>
+                          navigate("/checkout/address-details", {
+                            state: {
+                              selectedAddress: deliveryAddress,
+                              manualAddressDetails,
+                              nextRoute: "/checkout",
+                              forwardState: {
+                                returnSchedule,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full rounded-2xl border border-dashed border-[#f2546d]/30 bg-[#f2546d]/5 px-4 py-3 text-left"
+                      >
+                        <p className="text-xs font-bold uppercase text-[#f2546d]">Add Address Details <span className="text-[#f2546d] ml-1">*</span></p>
+                        <p className="text-xs text-zinc-400 mt-1" style={dmSans}>
+                          Flat number, landmark aur contact detail add kar do. (Required)
+                        </p>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="mt-3 flex items-center gap-2 relative z-10">
                     {/* Delayed Delivery Badge */}
-                    {actualDistance !== null && actualDistance > 6 && !distanceLoading && !isResolvingAddress && (
+                    {actualDistance !== null && actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM && !distanceLoading && !isResolvingAddress && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
                         <Clock className="w-3 h-3" />
                         <span className="text-[10px] font-bold uppercase tracking-wider">Delayed Delivery</span>
@@ -1132,7 +1424,14 @@ export default function CheckoutPage() {
                   <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
                 </div>
               ) : (
-                <button onClick={() => navigate("/map?returnTo=/checkout")} className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm">
+                <button
+                  onClick={() =>
+                    navigate("/map?returnTo=/checkout", {
+                      state: { forwardState: { returnSchedule } },
+                    })
+                  }
+                  className="w-full mt-4 p-4 rounded-2xl bg-[#232323] border border-dashed border-white/10 text-zinc-500 text-sm"
+                >
                   + Select Address
                 </button>
               )}
@@ -1154,7 +1453,7 @@ export default function CheckoutPage() {
                 <h3 className="text-lg font-black text-white" style={dmSans}>Scheduled Return</h3>
                 {returnSchedule?.pickupSlotIso && (
                   <button
-                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                    onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } })}
                     className="text-xs font-bold text-[#f2546d] uppercase"
                   >
                     Change
@@ -1183,6 +1482,14 @@ export default function CheckoutPage() {
                         <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2" style={dmSans}>
                           {deliveryAddress.formattedAddress}
                         </p>
+                        {showManualAddress && (
+                          <>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-3 mb-1">Manual Address</p>
+                            <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3" style={dmSans}>
+                              {manualAddressSummary}
+                            </p>
+                          </>
+                        )}
                       </div>
                     )}
                     <div className="absolute top-0 right-0 w-24 h-24 bg-[#f2546d]/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
@@ -1190,7 +1497,7 @@ export default function CheckoutPage() {
                 );
               })() : (
                 <button
-                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress } })}
+                  onClick={() => navigate("/checkout/return-schedule", { state: { selectedAddress: deliveryAddress, manualAddressDetails } })}
                   className="w-full p-5 rounded-2xl bg-[#f2546d]/5 border border-dashed border-[#f2546d]/30 flex items-center justify-between group active:scale-[0.98] transition-all"
                 >
                   <div className="flex items-center gap-4">
@@ -1221,7 +1528,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-white" style={dmSans}>Pay Online</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">UPI, Card, Netbanking & more</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">UPI apps and QR</p>
                   </div>
                 </>
               ) : paymentMethod === 'cod' ? (
@@ -1230,7 +1537,7 @@ export default function CheckoutPage() {
                     <Banknote className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-white" style={dmSans}>Cash on Delivery</p>
+                    <p className="text-sm font-bold text-white" style={dmSans}>Pay on Delivery</p>
                     <p className="text-xs text-zinc-500 mt-0.5">Pay when you receive</p>
                   </div>
                 </>
@@ -1297,14 +1604,30 @@ export default function CheckoutPage() {
                 ) : null}
               </div>
               <div className="text-right">
-                <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
-                {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
+                {invalidCatalogItem ? (
+                  <span className="text-sm font-bold text-amber-500">Item Unavailable</span>
+                ) : pricingLoading || deliveryFeeBase === null ? (
+                  <span className="text-zinc-500 animate-pulse">...</span>
+                ) : deliveryFeeBase === -1 ? (
+                  <span className="text-sm font-bold text-red-500">Not Serviceable</span>
+                ) : (
+                  <>
+                    <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
+                    {isDeliveryFeeWaived && <span className="ml-2">₹ 0</span>}
+                  </>
+                )}
               </div>
             </div>
             {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>
-              <span>₹ {total}</span>
+              <span>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : pricingLoading || total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </span>
             </div>
           </div>
         </section>
@@ -1312,7 +1635,10 @@ export default function CheckoutPage() {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
-        <div className="bg-[#232323] rounded-t-[32px] px-5 py-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
+        <div
+          className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]"
+          style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div onClick={() => setShowTermsModal(true)} className="flex items-center gap-2 cursor-pointer">
               <div className={cn("w-4 h-4 rounded border border-[#5f606a] flex items-center justify-center transition-colors", (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent")}>
@@ -1324,15 +1650,21 @@ export default function CheckoutPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-black text-white" style={dmSans}>₹ {total}</p>
+              <p className="text-2xl font-black text-white" style={dmSans}>
+                {invalidCatalogItem
+                  ? <span className="text-base text-amber-500">Unavailable</span>
+                  : total === null
+                    ? <span className="animate-pulse">...</span>
+                    : <>₹ {total}</>}
+              </p>
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Final Amount</p>
             </div>
             <button
               onClick={subscriptionError ? undefined : handlePlaceOrder}
-              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError}
+              disabled={isPlacingOrder || (validCartEntries.length === 0 && !buyoutOrderId) || !!subscriptionError || total === null || !!invalidCatalogItem || !isAddressComplete}
               className={cn(
                 "h-14 px-12 rounded-2xl font-black text-lg transition-all active:scale-[0.98]",
-                (isPlacingOrder || !!subscriptionError) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
+                (isPlacingOrder || !!subscriptionError || !!invalidCatalogItem || !isAddressComplete) ? "bg-zinc-800 text-zinc-600" : "bg-[#f2546d] text-white shadow-xl shadow-[#f2546d]/20"
               )}
             >
               {subscriptionError
@@ -1356,17 +1688,42 @@ export default function CheckoutPage() {
       <Drawer.Root open={showAddressSelector} onOpenChange={setShowAddressSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex justify-between items-center mb-6">
                 <Drawer.Title className="text-xl font-black text-white" style={dmSans}>Select Address</Drawer.Title>
                 <Drawer.Description className="sr-only">Choose a delivery address</Drawer.Description>
-                <button onClick={() => navigate("/map?returnTo=/checkout")} className="text-sm font-bold text-[#f2546d]">+ Add New</button>
+                <button
+                  onClick={() =>
+                    navigate("/map?returnTo=/checkout", {
+                      state: { forwardState: { returnSchedule } },
+                    })
+                  }
+                  className="text-sm font-bold text-[#f2546d]"
+                >
+                  + Add New
+                </button>
               </div>
               <div className="space-y-4">
                 {addressList.map((addr) => (
-                  <button key={addr.formattedAddress} onClick={() => { setDeliveryAddress(addr); setShowAddressSelector(false); }} className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.formattedAddress === addr.formattedAddress ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}>
+                  <button
+                    key={addr.formattedAddress}
+                    onClick={() => {
+                      setShowAddressSelector(false);
+                      navigate("/checkout/address-details", {
+                        state: {
+                          selectedAddress: addr,
+                          manualAddressDetails,
+                          nextRoute: "/checkout",
+                          forwardState: {
+                            returnSchedule,
+                          },
+                        },
+                      });
+                    }}
+                    className={cn("w-full p-4 rounded-2xl text-left border", deliveryAddress?.formattedAddress === addr.formattedAddress ? "bg-[#f2546d]/10 border-[#f2546d]" : "bg-[#141414] border-white/5")}
+                  >
                     <div className="flex items-start gap-4">
                       <MapPin className={cn("w-5 h-5 mt-0.5", deliveryAddress?.formattedAddress === addr.formattedAddress ? "text-[#f2546d]" : "text-zinc-600")} />
                       <p className="text-sm text-white font-bold leading-relaxed">{addr.formattedAddress}</p>
@@ -1383,7 +1740,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showPaymentMethodSelector} onOpenChange={setShowPaymentMethodSelector}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
             <div className="p-6 overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Choose Payment Method</Drawer.Title>
@@ -1404,7 +1761,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-bold text-base" style={dmSans}>Pay Online</p>
-                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI · Card · Netbanking · Wallets · EMI</p>
+                      <p className="text-zinc-500 text-xs mt-0.5 font-medium">UPI apps and QR through Razorpay</p>
                     </div>
                     <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'upi' ? "border-[#f2546d] bg-[#f2546d]" : "border-zinc-700")}>
                       {paymentMethod === 'upi' && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
@@ -1412,7 +1769,7 @@ export default function CheckoutPage() {
                   </div>
                   {paymentMethod === 'upi' && (
                     <p className="text-[11px] text-[#f2546d]/80 font-medium mt-3 ml-16">
-                      ✓ Razorpay powers PhonePe, GPay, Paytm & all major banks
+                      UPI opens securely through Razorpay. Use your UPI app or QR.
                     </p>
                   )}
                 </button>
@@ -1431,7 +1788,7 @@ export default function CheckoutPage() {
                         <Banknote className={cn("w-6 h-6", paymentMethod === 'cod' ? "text-emerald-500" : "text-zinc-500")} />
                       </div>
                       <div className="flex-1">
-                        <p className="text-white font-bold text-base" style={dmSans}>Cash on Delivery</p>
+                        <p className="text-white font-bold text-base" style={dmSans}>Pay on Delivery</p>
                         <p className="text-zinc-500 text-xs mt-0.5 font-medium">Pay when you receive your order</p>
                       </div>
                       <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", paymentMethod === 'cod' ? "border-emerald-500 bg-emerald-500" : "border-zinc-700")}>
@@ -1452,6 +1809,66 @@ export default function CheckoutPage() {
                 style={dmSans}
               >
                 CONFIRM
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      {/* Recipient Info Editor Drawer */}
+      <Drawer.Root open={showRecipientEditor} onOpenChange={setShowRecipientEditor}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto pb-safe">
+            <div className="p-6 overflow-y-auto">
+              <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
+              <Drawer.Title className="text-xl font-black text-white mb-2" style={dmSans}>Delivery Contact</Drawer.Title>
+              <p className="text-zinc-500 text-sm mb-6 font-medium">Who should the delivery rider contact?</p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Recipient Name</label>
+                  <input
+                    type="text"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Full Name"
+                    style={dmSans}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Mobile Number"
+                    style={dmSans}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    className="w-full mt-2 bg-[#141414] border border-white/5 rounded-2xl p-4 text-white focus:border-[#f2546d]/50 outline-none transition-all"
+                    placeholder="Email"
+                    style={dmSans}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowRecipientEditor(false)}
+                className="w-full mt-10 py-4 rounded-2xl bg-[#f2546d] text-white font-black text-lg shadow-xl shadow-[#f2546d]/20 active:scale-[0.98] transition-all"
+                style={dmSans}
+              >
+                SAVE DETAILS
               </button>
             </div>
           </Drawer.Content>
@@ -1487,18 +1904,24 @@ export default function CheckoutPage() {
                   onClick={async () => {
                     try {
                       setIsKycLoading(true);
-                      const { data, error } = await invokeWithUserJwt<{ url?: string }>('create-kyc-session', {
-                        body: { callbackParams: { user_id: user?.id } }
+                      const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
+                        body: { 
+                          callbackParams: { 
+                            user_id: user?.id,
+                            callback_path: "/checkout",
+                            app_origin: window.location.origin
+                          } 
+                        }
                       });
                       if (error) throw error;
-                      if (data?.url) {
-                        window.location.href = data.url;
+                      if (data?.verification_url) {
+                        window.location.href = data.verification_url;
                       } else {
-                        window.location.href = "https://verify.didit.me/u/_uYNP1MiRKmW7yMjXCbHQQ";
+                        toast.error("Could not start verification. Please try again.");
                       }
                     } catch (err: any) {
                       console.error('KYC Error:', err);
-                      toast.error("Failed to start verification: " + (err?.message || "Unknown error"));
+                      toast.error("Could not start verification. Please try again.");
                     } finally {
                       setIsKycLoading(false);
                     }
@@ -1522,19 +1945,9 @@ export default function CheckoutPage() {
                         setKycVerified(true);
                         setShowKycGate(false);
                         toast.success("Verification confirmed!");
-                        return;
+                      } else {
+                        toast.error("Verification not complete yet. Please complete verification on Didit first, then try again.");
                       }
-                      const { error: updateError } = await supabase
-                        .from("customer_profiles")
-                        .update({ kyc_verified: true })
-                        .eq("user_id", user?.id);
-                      if (updateError) {
-                        toast.error("Failed to update verification. Please try again.");
-                        return;
-                      }
-                      setKycVerified(true);
-                      setShowKycGate(false);
-                      toast.success("Identity verified successfully! ✓");
                     } catch (err) {
                       toast.error("Something went wrong. Please try again.");
                     } finally {
@@ -1619,7 +2032,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -1706,7 +2119,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">
@@ -1736,7 +2149,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
+                  <span className="text-white font-black text-xl">{deliveryFeeBase === null ? <span className="animate-pulse">...</span> : <>₹ {deliveryFeeBase + distanceSurcharge}</>}</span>
                 </div>
               </div>
 
@@ -1814,7 +2227,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showTermsModal} onOpenChange={setShowTermsModal}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[40px] fixed bottom-0 left-0 right-0 z-50 max-h-[92vh] max-w-[430px] mx-auto border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-safe">
             <div className="p-8 overflow-y-auto no-scrollbar">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-10" />
               <div className="mb-10 text-center">
@@ -1901,7 +2314,7 @@ export default function CheckoutPage() {
       <Drawer.Root open={showDistanceWarningPopup} onOpenChange={setShowDistanceWarningPopup}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl">
+          <Drawer.Content className="bg-[#191919] flex flex-col rounded-t-[32px] fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] max-w-[430px] mx-auto border-t border-white/10 shadow-2xl pb-safe">
             <div className="p-8">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-zinc-800 mb-8" />
               <div className="flex flex-col items-center text-center mb-8">
@@ -1931,7 +2344,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                   <span className="text-white font-black text-base uppercase tracking-wider">Total Delivery</span>
-                  <span className="text-white font-black text-xl">₹ {deliveryFeeBase + distanceSurcharge}</span>
+                  <span className="text-white font-black text-xl">{deliveryFeeBase === null ? <span className="animate-pulse">...</span> : <>₹ {deliveryFeeBase + distanceSurcharge}</>}</span>
                 </div>
               </div>
 

@@ -194,7 +194,7 @@ export default function OrdersPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-2 mb-1">
                                                 <span className="text-white font-bold text-sm">
-                                                    #{order.id.slice(-6).toUpperCase()}
+                                                    #{order.id.slice(0, 8).toUpperCase()}
                                                 </span>
                                                 <div
                                                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${statusConfig.bgColor} ${statusConfig.color}`}
@@ -226,11 +226,21 @@ export default function OrdersPage() {
 
                                     {/* Address for active orders */}
                                     {activeTab === "active" && order.address && (
-                                        <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                                            <MapPin className="w-4 h-4 text-zinc-600" />
-                                            <span className="text-zinc-500 text-xs truncate">
-                                                {order.address.fullAddress}
-                                            </span>
+                                        <div className="pt-2 border-t border-white/5 space-y-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <MapPin className="w-4 h-4 text-zinc-600" />
+                                                <span className="text-zinc-500 text-xs truncate">
+                                                    {order.address.fullAddress}
+                                                </span>
+                                            </div>
+                                            {order.manualAddressSummary && (
+                                                <div className="flex items-center gap-2">
+                                                    <MapPin className="w-4 h-4 text-[#f2546d]" />
+                                                    <span className="text-zinc-400 text-xs truncate">
+                                                        {order.manualAddressSummary}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

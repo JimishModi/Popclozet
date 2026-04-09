@@ -14,6 +14,8 @@ import { useToast } from '../contexts/ToastContext';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 import { KeyRound } from 'lucide-react';
 import { OrderTimelineOverlay } from '../components/OrderTimelineOverlay';
+import { buildManualAddressSummary } from '../services/addressDetails';
+import { OrderCustomerInfoPanel } from '../components/OrderCustomerInfoPanel';
 
 type StatusFilter = 'pending' | 'confirmed' | 'packed' | 'ready_for_pickup' | 'dispatched';
 
@@ -35,6 +37,7 @@ export function OrderFulfillmentPage() {
     const [processing, setProcessing] = useState<string | null>(null);
     const [generatingOtp, setGeneratingOtp] = useState<string | null>(null);
     const [viewingActivity, setViewingActivity] = useState<string | null>(null);
+    const [viewingCustomerInfo, setViewingCustomerInfo] = useState<string | null>(null);
 
     const loadOrders = useCallback(async () => {
         try {
@@ -148,6 +151,12 @@ export function OrderFulfillmentPage() {
                     ) : (
                         orders.map(order => {
                             const isProcessing = processing === order.id;
+                            const fetchedAddress =
+                                order.delivery_address_snapshot?.full_address ||
+                                order.addresses?.full_address ||
+                                '';
+                            const manualAddressSummary = buildManualAddressSummary(order.manual_address_details);
+                            const isViewingCustomerInfo = viewingCustomerInfo === order.id;
                             return (
                                 <motion.div
                                     key={order.id}
@@ -160,7 +169,19 @@ export function OrderFulfillmentPage() {
                                     <div className="flex items-start justify-between mb-2">
                                         <div>
                                             <p className="text-sm font-bold text-white mb-0.5">Order #{order.id.slice(0, 8).toUpperCase()}</p>
-                                            <p className="text-xs text-zinc-400 font-medium">₹{order.total_amount}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-zinc-400 font-medium">₹{order.total_amount}</p>
+                                                {order.payment_method && (
+                                                    <span className={clsx(
+                                                        'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
+                                                        order.payment_method === 'cod'
+                                                            ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                                                            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                    )}>
+                                                        {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={clsx(
@@ -208,10 +229,31 @@ export function OrderFulfillmentPage() {
                                         </div>
                                     </div>
 
-                                    {order.addresses?.full_address && (
-                                        <div className="flex items-start gap-1.5 mb-3">
-                                            <MapPin size={12} className="text-zinc-500 mt-0.5 shrink-0" />
-                                            <p className="text-[10px] text-zinc-400 line-clamp-1">{order.addresses.full_address}</p>
+                                    {(fetchedAddress || manualAddressSummary) && (
+                                        <div className="mb-3 space-y-2">
+                                            {fetchedAddress && (
+                                                <div className="flex items-start gap-1.5">
+                                                    <MapPin size={12} className="text-zinc-500 mt-0.5 shrink-0" />
+                                                    <div>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Address Fetched</p>
+                                                        <p className="text-[10px] text-zinc-400 line-clamp-2">{fetchedAddress}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {manualAddressSummary && (
+                                                <div className="flex items-start gap-1.5">
+                                                    <MapPin size={12} className="text-[#f2546d] mt-0.5 shrink-0" />
+                                                    <div>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Manual Address</p>
+                                                        <p className="text-[10px] text-zinc-300 line-clamp-3">{manualAddressSummary}</p>
+                                                        {(order.manual_address_details?.contactName || order.manual_address_details?.phoneNumber) && (
+                                                            <p className="text-[10px] text-zinc-500 mt-1">
+                                                                {[order.manual_address_details?.contactName, order.manual_address_details?.phoneNumber].filter(Boolean).join(' • ')}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -272,11 +314,30 @@ export function OrderFulfillmentPage() {
                                         </div>
                                     )}
 
+                                    {isViewingCustomerInfo ? (
+                                        <OrderCustomerInfoPanel
+                                            customerName={order.customer_profile?.full_name}
+                                            customerPhone={order.customer_profile?.phone}
+                                            customerEmail={order.customer_profile?.email}
+                                            fetchedAddress={fetchedAddress}
+                                            manualAddressDetails={order.manual_address_details}
+                                            riderName={order.rider_name || order.riders?.name || order.riders?.full_name}
+                                            riderPhone={order.riders?.phone}
+                                        />
+                                    ) : null}
+
                                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-border">
                                         <div className="flex items-center gap-3">
                                             <p className="text-[10px] text-zinc-500">
                                                 {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                             </p>
+                                            <button
+                                                onClick={() => setViewingCustomerInfo((current) => current === order.id ? null : order.id)}
+                                                className="flex items-center gap-1 text-[10px] text-zinc-300 hover:text-white transition-colors font-semibold"
+                                            >
+                                                <User size={10} />
+                                                {isViewingCustomerInfo ? 'Hide Customer Info' : 'Customer Info'}
+                                            </button>
                                             <button 
                                                 onClick={() => setViewingActivity(order.id)} 
                                                 className="flex items-center gap-1 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-semibold"

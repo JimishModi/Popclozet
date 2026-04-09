@@ -27,6 +27,8 @@ import {
 import { clsx } from 'clsx';
 import { getOrderHistory, type OrderWithItems } from '../services/fulfillmentService';
 import { OrderTimelineOverlay } from '../components/OrderTimelineOverlay';
+import { buildManualAddressSummary } from '../services/addressDetails';
+import { OrderCustomerInfoPanel } from '../components/OrderCustomerInfoPanel';
 
 import { RotateCcw } from 'lucide-react';
 
@@ -50,6 +52,7 @@ export function OrderHistoryPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [viewingActivity, setViewingActivity] = useState<string | null>(null);
+    const [viewingCustomerInfo, setViewingCustomerInfo] = useState<string | null>(null);
 
     const fetchOrders = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true);
@@ -209,7 +212,16 @@ export function OrderHistoryPage() {
                         </motion.div>
                     ) : (
                         <div className="space-y-3.5">
-                            {orders.map((order, idx) => (
+                            {orders.map((order, idx) => {
+                                const returnRequest = order.return_requests?.[0];
+                                const fetchedAddress =
+                                    order.delivery_address_snapshot?.full_address ||
+                                    order.addresses?.full_address ||
+                                    '';
+                                const manualAddressSummary = buildManualAddressSummary(order.manual_address_details);
+                                const isViewingCustomerInfo = viewingCustomerInfo === order.id;
+
+                                return (
                                 <motion.div
                                     key={order.id}
                                     initial={{ opacity: 0, y: 15 }}
@@ -236,11 +248,23 @@ export function OrderHistoryPage() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className={clsx(
-                                            "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
-                                            getStatusStyle(order.status)
-                                        )}>
-                                            {getStatusDisplay(order.status)}
+                                        <div className="flex flex-col items-end gap-1.5">
+                                            <div className={clsx(
+                                                "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
+                                                getStatusStyle(order.status)
+                                            )}>
+                                                {getStatusDisplay(order.status)}
+                                            </div>
+                                            {returnRequest && (
+                                                <div className={clsx(
+                                                    "px-2 py-0.5 rounded text-[9px] font-black border uppercase tracking-tight flex items-center gap-1",
+                                                    returnRequest.reason === 'immediate'
+                                                        ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                                        : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                                )}>
+                                                    {returnRequest.reason === 'immediate' ? 'INSTANT' : 'SCHEDULED'}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -261,7 +285,19 @@ export function OrderHistoryPage() {
                                             </div>
                                             <div>
                                                 <p className="text-[10px] text-zinc-500 font-medium">TOTAL</p>
-                                                <p className="text-xs font-bold text-white">₹{order.total_amount}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-bold text-white">₹{order.total_amount}</p>
+                                                    {order.payment_method && (
+                                                        <span className={clsx(
+                                                            'text-[8px] font-bold uppercase px-1 py-0.5 rounded border',
+                                                            order.payment_method === 'cod'
+                                                                ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                                                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                        )}>
+                                                            {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -302,10 +338,22 @@ export function OrderHistoryPage() {
 
                                     {/* Details */}
                                     <div className="space-y-2">
-                                        {order.addresses?.full_address && (
+                                        {fetchedAddress && (
                                             <div className="flex items-start gap-2 text-zinc-400">
                                                 <MapPin size={12} className="mt-0.5 shrink-0" />
-                                                <p className="text-[11px] line-clamp-1">{order.addresses.full_address}</p>
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Address Fetched</p>
+                                                    <p className="text-[11px] line-clamp-2">{fetchedAddress}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {manualAddressSummary && (
+                                            <div className="flex items-start gap-2 text-zinc-300">
+                                                <MapPin size={12} className="mt-0.5 shrink-0 text-[#f2546d]" />
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">Manual Address</p>
+                                                    <p className="text-[11px] line-clamp-3">{manualAddressSummary}</p>
+                                                </div>
                                             </div>
                                         )}
                                         {order.rider_name && (
@@ -316,23 +364,48 @@ export function OrderHistoryPage() {
                                         )}
                                     </div>
 
+                                    {isViewingCustomerInfo ? (
+                                        <OrderCustomerInfoPanel
+                                            customerName={order.customer_profile?.full_name}
+                                            customerPhone={order.customer_profile?.phone}
+                                            customerEmail={order.customer_profile?.email}
+                                            fetchedAddress={fetchedAddress}
+                                            manualAddressDetails={order.manual_address_details}
+                                            riderName={order.rider_name || order.riders?.name || order.riders?.full_name}
+                                            riderPhone={order.riders?.phone}
+                                        />
+                                    ) : null}
+
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setViewingActivity(order.id);
-                                            }} 
-                                            className="flex items-center gap-1.5 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-bold uppercase tracking-wider"
-                                        >
-                                            <Activity size={12} />
-                                            View Updates
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewingCustomerInfo((current) => current === order.id ? null : order.id);
+                                                }}
+                                                className="flex items-center gap-1.5 text-[10px] text-zinc-300 hover:text-white transition-colors font-bold uppercase tracking-wider"
+                                            >
+                                                <User size={12} />
+                                                {isViewingCustomerInfo ? 'Hide Customer Info' : 'Customer Info'}
+                                            </button>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewingActivity(order.id);
+                                                }} 
+                                                className="flex items-center gap-1.5 text-[10px] text-warehouse-400 hover:text-warehouse-300 transition-colors font-bold uppercase tracking-wider"
+                                            >
+                                                <Activity size={12} />
+                                                View Updates
+                                            </button>
+                                        </div>
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                             <ChevronRight size={18} className="text-zinc-600" />
                                         </div>
                                     </div>
                                 </motion.div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </AnimatePresence>

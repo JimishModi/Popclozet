@@ -10,21 +10,23 @@ import { locationStorage } from "@/lib/locationStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePersistentGender } from "@/hooks/usePersistentGender";
+import { useClosetCount } from "@/hooks/useClosetCount";
 import type { GenderType } from "@/components/ui/GenderSelector";
 import { GenderSelector } from "@/components/ui/GenderSelector";
 import { productService, Product } from "@/services/productService";
+import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
 
 const FEATURED_SLIDES = [
-    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&q=80", gender: "womens" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80", gender: "womens" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=800&q=80", gender: "womens" },
+    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400&q=60&fm=webp", gender: "womens" },
+    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&q=60&fm=webp", gender: "womens" },
+    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=400&q=60&fm=webp", gender: "womens" },
 
-    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=800&q=80", gender: "mens" },
-    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80", gender: "mens" },
-    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=800&q=80", gender: "mens" },
+    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=400&q=60&fm=webp", gender: "mens" },
+    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=400&q=60&fm=webp", gender: "mens" },
+    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&q=60&fm=webp", gender: "mens" },
 
 ];
 
@@ -32,16 +34,16 @@ const FEATURED_SLIDES = [
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
     {
-        id: 0, title: "Post Cleaning", icon: <img src="/icons/icon-4.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
+        id: 0, title: "Pre Cleaning", icon: <img src="/icons/process-1.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
     },
     {
-        id: 1, title: "Sanitization", icon: <img src="/icons/icon-3.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        id: 1, title: "Sanitization", icon: <img src="/icons/process-2.png" className="w-full h-full object-cover" alt="Sanitization" />,
     },
     {
-        id: 2, title: "Pre Cleaning", icon: <img src="/icons/icon-2.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
+        id: 2, title: "Post Cleaning", icon: <img src="/icons/process-3.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
     },
     {
-        id: 3, title: "Quality Check", icon: <img src="/icons/icon-1.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        id: 3, title: "Quality Check", icon: <img src="/icons/process-4.png" className="w-full h-full object-cover" alt="Quality Check" />,
     },
 ];
 
@@ -66,12 +68,12 @@ const MobileHome: React.FC = () => {
         lng: userCoords?.lng,
         enabled: !!userCoords
     });
-    // Show delayed delivery only when delivery address is outside 6km radius of warehouse OR the delivery estimate is explicitly 'delayed'
-    const isDelayed = (selectedHub ? selectedHub.distance_km > 6 : false) || deliveryEstimate === 'delayed';
+    // Show delayed delivery only when delivery address is outside threshold radius of warehouse OR the delivery estimate is explicitly 'delayed'
+    const isDelayed = (selectedHub ? selectedHub.distance_km > 7 : false) || deliveryEstimate === 'delayed';
     const { user } = useAuth();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { totalItems: cartCount } = useCart();
-    const wishlistCount = wishlistItems.length;
+    const { closetCount } = useClosetCount();
     const { unreadCount } = useNotifications({ limit: 5, autoSubscribe: true });
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
@@ -131,10 +133,10 @@ const MobileHome: React.FC = () => {
     useEffect(() => {
         let cancelled = false;
 
-        // Timeout: if detection takes >8s, show fallback text
+        // Timeout: if detection takes >5s, show fallback text
         const timeout = setTimeout(() => {
             if (!cancelled) setUserLocation(prev => prev === "Detecting..." ? "Select Location" : prev);
-        }, 8000);
+        }, 5000);
 
         const detectLocation = async () => {
             try {
@@ -174,18 +176,14 @@ const MobileHome: React.FC = () => {
 
                     // Recalculate Road Distance for New Detection
                     try {
-                        const { getRoadDistance } = await import("@/services/mapServices");
-                        const WAREHOUSE_COORDS = { lat: 19.1306, lng: 72.9155 }; // Hostel 5, IIT Bombay
-                        const distRes = await getRoadDistance(WAREHOUSE_COORDS, {
+                        const { getDeliveryEstimate } = await import("@/services/mapServices");
+                        const deliveryResult = await getDeliveryEstimate({
                             lat: result.lat,
                             lng: result.lng
                         });
 
-                        let estimate: '15min' | 'delayed' = '15min';
-                        if (distRes.status === 'success') {
-                            estimate = distRes.distanceKm > 6 ? 'delayed' : '15min';
-                            console.log(`🌐 Auto-detected Road Distance: ${distRes.distanceKm.toFixed(2)}km -> ${estimate}`);
-                        }
+                        const estimate = deliveryResult.estimate;
+                        console.log(`🌐 Auto-detected Road Distance: ${deliveryResult.distanceKm.toFixed(2)}km -> ${estimate}`);
 
                         if (!cancelled) setDeliveryEstimate(estimate);
 
@@ -245,9 +243,35 @@ const MobileHome: React.FC = () => {
         setLoadingCatalogue(true);
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
-            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor'));
-            if (products.length > 0) {
-                setCatalogueProducts(products.slice(0, 4));
+            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
+
+            const topCategories = Array.from(
+                new Set(
+                    products
+                        .map((product) => product.category?.toLowerCase().trim())
+                        .filter((category): category is string => Boolean(category))
+                )
+            ).slice(0, 3);
+
+            const fakeBatches = await Promise.all(
+                topCategories.map((category) => fetchRotatedFakeProducts(category, undefined, 5))
+            );
+
+            const fakeProducts = fakeBatches
+                .flat()
+                .filter((product) => {
+                    const pGender = (product.gender as string || '').toLowerCase();
+                    const targetGender = activeGender.toLowerCase();
+                    return pGender === targetGender || pGender === 'unisex';
+                })
+                .filter((product) => !product.isRentedOut && !product.isSoldOut)
+                .filter((product, index, array) => array.findIndex((item) => item.id === product.id) === index)
+                .slice(0, 3);
+
+            const showcaseProducts = products.slice(0, 4);
+
+            if (showcaseProducts.length > 0) {
+                setCatalogueProducts(showcaseProducts as Product[]);
                 catalogueRetryCount.current = 0;
             } else if (catalogueRetryCount.current < 2) {
                 // Products came back empty — might be a stale IDB on fresh install.
@@ -256,7 +280,7 @@ const MobileHome: React.FC = () => {
                 console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
                 await productService.syncProducts();
                 const syncedRaw = await productService.getProductsByGender(activeGender);
-                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor'));
+                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
                 setCatalogueProducts(synced.slice(0, 4));
             }
         } catch (error) {
@@ -360,9 +384,9 @@ const MobileHome: React.FC = () => {
                                 className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-[#303135] rounded-full transition-colors hover:bg-[#404045]"
                             >
                                 <ClosetIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white/80" />
-                                {wishlistCount > 0 && (
+                                {closetCount > 0 && (
                                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
-                                        {wishlistCount > 9 ? '9+' : wishlistCount}
+                                        {closetCount > 9 ? '9+' : closetCount}
                                     </span>
                                 )}
                             </button>
@@ -422,7 +446,7 @@ const MobileHome: React.FC = () => {
                     <motion.div 
                         className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px] touch-pan-y"
                         onPanEnd={(e, info) => {
-                            const threshold = 50;
+                            const threshold = 30;
                             if (info.offset.x > threshold) {
                                 // Swipe Right -> Previous Slide
                                 setActiveSlide(prev => (prev - 1 + filteredSlides.length) % filteredSlides.length);
@@ -443,6 +467,8 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + filteredSlides.length - 1) % filteredSlides.length].image}
                                     alt="Previous"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                 />
                             </motion.div>
@@ -455,35 +481,14 @@ const MobileHome: React.FC = () => {
                                     animate={{ opacity: 1, scale: 1, x: 0 }}
                                     exit={{ opacity: 0, scale: 1.05, x: -20 }}
                                     transition={{ duration: 0.4, ease: "easeOut" }}
-                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer bg-zinc-900"
-                                    onClick={() => {
-                                        const slide = filteredSlides[activeSlide];
-                                        const categoryMap: Record<string, string> = {
-                                            'New Arrivals': 'Casual',
-                                            'Trending Now': 'Party',
-                                            'Party Collection': 'Party',
-                                            "Men's Streetwear": 'Casual',
-                                            'Formal Classics': 'Formal'
-                                        };
-                                        const cat = categoryMap[slide.title] || 'Casual';
-                                        navigate(`/category?title=${encodeURIComponent(slide.title)}&category=${cat}`);
-                                    }}
+                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-zinc-900 border border-white/5"
                                 >
                                     <img
                                         src={filteredSlides[activeSlide].image}
                                         alt={filteredSlides[activeSlide].title}
+                                        decoding="async"
                                         className="w-full h-full object-cover"
                                     />
-                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                                    <div className="absolute bottom-3 left-3 right-3 md:bottom-6 md:left-6 md:right-6 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-center">
-                                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#f2546d] text-white text-[8px] md:text-[10px] font-bold uppercase tracking-wider mb-1 md:mb-2">
-                                            Trending
-                                        </span>
-                                        <h3 className="text-base md:text-xl font-bold text-white tracking-tight">
-                                            {filteredSlides[activeSlide].title}
-                                        </h3>
-                                    </div>
                                 </motion.div>
                             </AnimatePresence>
 
@@ -495,6 +500,8 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + 1) % filteredSlides.length].image}
                                     alt="Next"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                 />
                             </motion.div>
@@ -529,8 +536,8 @@ const MobileHome: React.FC = () => {
 
 
                 {/* ─── COLLECTIONS: 2 Cards with Gradient Overlay ─── */}
-                <section className="px-4 mt-5 md:px-5 md:mt-8">
-                    <div className="flex items-center justify-between mb-4 md:mb-6">
+                <section className="px-4 mt-4 md:px-5 md:mt-6">
+                    <div className="flex items-center justify-between mb-3 md:mb-4">
                         <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
                             Collections
                         </h2>
@@ -544,43 +551,49 @@ const MobileHome: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 md:gap-[18px]">
-                        {collections.slice(0, 5).map((collection, index) => (
-                            <motion.div
-                                key={collection.id}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
-                                className="relative h-[160px] md:h-[250px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
-                            >
-                                {collection.image ? (
-                                    <motion.img
-                                        src={collection.image}
-                                        alt={collection.title}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                        whileHover={{ scale: 1.05 }}
-                                        transition={{ duration: 0.4 }}
+                        {collections.slice(0, 5).map((collection, index) => {
+                            const imageUrl = collection.image;
+
+                            return (
+                                <motion.div
+                                    key={collection.id}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
+                                    className="relative h-[140px] md:h-[210px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
+                                >
+                                    {imageUrl ? (
+                                        <motion.img
+                                            src={imageUrl}
+                                            alt={collection.title}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            whileHover={{ scale: 1.05 }}
+                                            transition={{ duration: 0.4 }}
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
+                                            <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                        </div>
+                                    )}
+                                    {/* Gradient overlay at bottom — reduced height to not cover the text */}
+                                    <div
+                                        className="absolute bottom-0 left-0 right-0 h-[60px] rounded-b-[24px]"
+                                        style={{
+                                            background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.7) 100%)",
+                                        }}
                                     />
-                                ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
-                                        <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                    <div className="absolute bottom-4 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                                        <span className="text-sm md:text-base font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
+                                            {collection.title}
+                                        </span>
                                     </div>
-                                )}
-                                {/* Gradient overlay at bottom */}
-                                <div
-                                    className="absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[24px]"
-                                    style={{
-                                        background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.8) 50%, #111111 100%)",
-                                    }}
-                                />
-                                <div className="absolute bottom-5 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    <span className="text-base md:text-lg font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
-                                        {collection.title}
-                                    </span>
-                                </div>
-                            </motion.div>
-                        ))}
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 </section>
 
@@ -760,6 +773,12 @@ const MobileHome: React.FC = () => {
                             ))
                         ) : catalogueProducts.map((item, index) => {
                             const isFake = (item as any)._isFake === true;
+                            const isRentedOut = (item as any).isRentedOut === true;
+                            const isSoldOut = (item as any).isSoldOut === true;
+                            const isUnavailable = isFake || isRentedOut || isSoldOut;
+                            
+                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented Out";
+                            
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
                                 <motion.div
@@ -769,14 +788,14 @@ const MobileHome: React.FC = () => {
                                     viewport={{ once: true, margin: "-50px" }}
                                     transition={{ delay: index * 0.05 }}
                                     whileTap={{ scale: 0.97 }}
-                                    onClick={() => isFake
-                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: true } })
+                                    onClick={() => isUnavailable
+                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: !isSoldOut, isSold: isSoldOut } })
                                         : navigate(`/product/${item.id}`)
                                     }
                                     className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                                 >
-                                    {/* Wishlist — hidden for fake items */}
-                                    {!isFake && (
+                                    {/* Wishlist — hidden for fake/unavailable items */}
+                                    {!isUnavailable && (
                                         <button
                                             className="absolute top-4 right-4 z-10"
                                             onClick={(e) => toggleWishlist(item.id, e)}
@@ -796,9 +815,11 @@ const MobileHome: React.FC = () => {
                                             <img
                                                 src={imgSrc}
                                                 alt={item.name}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className={cn(
                                                     "w-full h-full object-cover transition-transform duration-500",
-                                                    isFake ? "grayscale opacity-20" : "group-hover:scale-105"
+                                                    isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
                                                 )}
                                             />
                                         ) : (
@@ -807,12 +828,12 @@ const MobileHome: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Currently Rented badge */}
-                                        {isFake && (
+                                        {/* Status badge */}
+                                        {isUnavailable && (
                                             <div className="absolute top-2 left-2 z-10">
                                                 <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                                                    Currently Rented
+                                                    <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                                                    {statusLabel}
                                                 </span>
                                             </div>
                                         )}
@@ -823,35 +844,21 @@ const MobileHome: React.FC = () => {
 
                                     {/* Product Details */}
                                     <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isFake ? "text-zinc-500" : "text-white")}>
+                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isUnavailable ? "text-zinc-500" : "text-white")}>
                                             {item.name}
                                         </h3>
 
                                         <div className="mt-auto">
-                                            {isFake ? (
-                                                <span className="text-xs text-zinc-600 font-medium">Unavailable</span>
-                                            ) : (
-                                                <>
-                                                    {item.price > (item.rentalPrice || item.price) && (
-                                                        <div className="relative inline-block mb-1">
-                                                            <span className="text-[11px] text-[#5f606a] font-semibold">
-                                                                ₹{item.price}
-                                                            </span>
-                                                            <div className="absolute top-1/2 left-0 right-0 h-px bg-[#5f606a]" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-white">
-                                                            ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
-                                                        </span>
-                                                        {item.price > (item.rentalPrice || item.price) && (
-                                                            <span className="text-[10px] font-bold text-[#f2546d]">
-                                                                Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn("text-sm font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                    ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
+                                                </span>
+                                                {!isUnavailable && item.price > (item.rentalPrice || item.price) && (
+                                                    <span className="text-[10px] font-bold text-[#f2546d]">
+                                                        Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </motion.div>

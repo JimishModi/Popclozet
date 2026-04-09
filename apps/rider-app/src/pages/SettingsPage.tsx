@@ -11,7 +11,9 @@ import { ArrowLeft, Bell, Volume2, Vibrate, Globe, Moon, Zap, MapPin, ChevronRig
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
+import { useToast } from '../contexts/ToastContext';
 import { getRiderSettings, updateRiderSettings, type RiderSettings } from '../services/riderProfileService';
+import { getPermissionState, isPushSupported, subscribeToPush, syncExistingPushSubscription, unsubscribeFromPush } from '../services/pushNotificationService';
 
 interface ToggleSetting {
     key: keyof RiderSettings;
@@ -63,6 +65,7 @@ const languages = [
 export function SettingsPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [settings, setSettings] = useState<RiderSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -82,7 +85,39 @@ export function SettingsPage() {
         const newValue = !settings[key];
         setSettings({ ...settings, [key]: newValue });
 
-        await updateRiderSettings(user.id, { [key]: newValue });
+        const result = await updateRiderSettings(user.id, { [key]: newValue });
+        if (!result.success) {
+            setSettings(settings);
+            showToast(result.error ?? 'Could not update settings.', 'error');
+            return;
+        }
+
+        if (key !== 'notificationsEnabled') return;
+        if (!isPushSupported()) return;
+
+        if (!newValue) {
+            await unsubscribeFromPush();
+            return;
+        }
+
+        const permission = getPermissionState();
+        if (permission === 'granted') {
+            await syncExistingPushSubscription();
+            showToast('Push notifications are enabled.', 'success');
+            return;
+        }
+
+        if (permission === 'default') {
+            const pushResult = await subscribeToPush();
+            if (!pushResult.success) {
+                showToast(pushResult.error ?? 'Could not enable push notifications.', 'error');
+                return;
+            }
+            showToast('Push notifications are enabled.', 'success');
+            return;
+        }
+
+        showToast('Notifications are blocked in browser settings for this app.', 'info');
     };
 
     const handleLanguageChange = async (langCode: string) => {

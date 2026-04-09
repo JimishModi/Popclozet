@@ -26,6 +26,25 @@ export interface RazorpayOptions {
     escape?: boolean;
     backdropclose?: boolean;
   };
+  config?: {
+    display?: {
+      blocks?: Record<string, {
+        name: string;
+        instruments: Array<{
+          method: string;
+          [key: string]: unknown;
+        }>;
+      }>;
+      sequence?: string[];
+      preferences?: {
+        show_default_blocks?: boolean;
+      };
+    };
+  };
+  retry?: {
+    enabled?: boolean;
+    max_count?: number;
+  };
 }
 
 export interface RazorpayPaymentResponse {
@@ -66,39 +85,83 @@ declare global {
  * Returns the instance so callers can attach event listeners (e.g. payment.failed).
  */
 export async function openRazorpayCheckout(options: RazorpayOptions): Promise<RazorpayInstance> {
-  if (typeof window.Razorpay === 'undefined') {
-    console.log('[Razorpay] SDK not found, loading...');
-    await loadRazorpayScript();
-  }
+  await preloadRazorpayCheckout();
 
   const rzp = new window.Razorpay(options);
   rzp.open();
   return rzp;
 }
 
+let razorpayScriptPromise: Promise<void> | null = null;
+
+export async function preloadRazorpayCheckout(): Promise<void> {
+  if (typeof window !== "undefined" && typeof window.Razorpay !== "undefined") {
+    return;
+  }
+
+  console.log("[Razorpay] SDK not found, loading...");
+  await loadRazorpayScript();
+}
+
 /**
  * Dynamically loads the Razorpay checkout.js script with a timeout
  */
 function loadRazorpayScript(timeoutMs = 15000): Promise<void> {
-  return new Promise((resolve, reject) => {
+  if (razorpayScriptPromise) {
+    return razorpayScriptPromise;
+  }
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    if (typeof window !== "undefined" && typeof window.Razorpay !== "undefined") {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+    );
+
+    const cleanup = () => {
+      if (typeof window !== "undefined" && typeof window.Razorpay !== "undefined") {
+        razorpayScriptPromise = Promise.resolve();
+      } else {
+        razorpayScriptPromise = null;
+      }
+    };
+
     const timer = setTimeout(() => {
       console.error('[Razorpay] SDK load timed out');
+      cleanup();
       reject(new Error('Payment gateway is taking too long to load. Please check your internet connection and try again.'));
     }, timeoutMs);
+
+    const handleLoad = () => {
+      clearTimeout(timer);
+      console.log('[Razorpay] SDK loaded successfully');
+      cleanup();
+      resolve();
+    };
+
+    const handleError = () => {
+      clearTimeout(timer);
+      console.error('[Razorpay] Failed to load SDK');
+      cleanup();
+      reject(new Error('Payment gateway failed to load. Please check your internet connection and try again.'));
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad, { once: true });
+      existingScript.addEventListener('error', handleError, { once: true });
+      return;
+    }
 
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => {
-      clearTimeout(timer);
-      console.log('[Razorpay] SDK loaded successfully');
-      resolve();
-    };
-    script.onerror = () => {
-      clearTimeout(timer);
-      console.error('[Razorpay] Failed to load SDK');
-      reject(new Error('Payment gateway failed to load. Please check your internet connection and try again.'));
-    };
+    script.onload = handleLoad;
+    script.onerror = handleError;
     document.body.appendChild(script);
   });
+
+  return razorpayScriptPromise;
 }

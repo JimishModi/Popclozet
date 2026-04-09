@@ -8,6 +8,10 @@ import { MobileShell } from '@/components/layout/MobileShell';
 import { getReturnTimeSlots, type TimeSlot } from '@/services/deliveryService';
 import { useCart } from '@/context/CartContext';
 import type { ValidatedAddress } from '@/services/addressService';
+import {
+    buildManualAddressSummary,
+    type ManualAddressDetails,
+} from '@/lib/addressAccuracy';
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -18,6 +22,7 @@ const CheckoutReturnSchedulePage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const selectedAddress = location.state?.selectedAddress as ValidatedAddress | undefined;
+    const manualAddressDetails = location.state?.manualAddressDetails as ManualAddressDetails | undefined;
 
     const { cartItems } = useCart();
     const [selectedSlotIso, setSelectedSlotIso] = useState<string>('');
@@ -62,6 +67,7 @@ const CheckoutReturnSchedulePage: React.FC = () => {
         navigate('/checkout', {
             state: {
                 selectedAddress,
+                manualAddressDetails,
                 returnSchedule: { pickupSlotIso: selectedSlotIso },
             },
         });
@@ -117,6 +123,16 @@ const CheckoutReturnSchedulePage: React.FC = () => {
                     <p className="text-sm text-zinc-300 leading-relaxed">
                         {selectedAddress.formattedAddress}
                     </p>
+                    {buildManualAddressSummary(manualAddressDetails) && (
+                        <div className="mt-4 pt-4 border-t border-white/10">
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                                Manual Address
+                            </p>
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                                {buildManualAddressSummary(manualAddressDetails)}
+                            </p>
+                        </div>
+                    )}
                     <div className="flex items-center gap-2 mt-3">
                         <Package className="w-3.5 h-3.5 text-zinc-500" />
                         <p className="text-xs text-zinc-500">

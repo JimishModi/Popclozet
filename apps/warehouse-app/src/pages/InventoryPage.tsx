@@ -11,6 +11,7 @@ export function InventoryPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
 
     const loadProducts = useCallback(async () => {
         try {
@@ -26,12 +27,18 @@ export function InventoryPage() {
     useEffect(() => { loadProducts(); }, [loadProducts]);
     useRealtimeInventory({ onChange: loadProducts });
 
+    const categories = Array.from(
+        new Set(products.map(p => p.category).filter(Boolean))
+    ).sort() as string[];
+
     const filtered = products.filter(p => {
         const name = p.name?.toLowerCase() || '';
         const brand = p.brand?.toLowerCase() || '';
         const category = p.category?.toLowerCase() || '';
         const q = search.toLowerCase();
-        return name.includes(q) || brand.includes(q) || category.includes(q);
+        const matchesSearch = name.includes(q) || brand.includes(q) || category.includes(q);
+        const matchesCategory = !selectedCategory || p.category === selectedCategory;
+        return matchesSearch && matchesCategory;
     });
 
     if (loading) {
@@ -69,12 +76,43 @@ export function InventoryPage() {
                 />
             </div>
 
+            {/* Category Filter Pills */}
+            {categories.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    <button
+                        onClick={() => setSelectedCategory('')}
+                        className={clsx(
+                            "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors",
+                            !selectedCategory
+                                ? "bg-warehouse-500 border-warehouse-500 text-white"
+                                : "bg-surface-card border-surface-border text-zinc-400 hover:border-zinc-500"
+                        )}
+                    >
+                        All
+                    </button>
+                    {categories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(selectedCategory === cat ? '' : cat)}
+                            className={clsx(
+                                "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors capitalize",
+                                selectedCategory === cat
+                                    ? "bg-warehouse-500 border-warehouse-500 text-white"
+                                    : "bg-surface-card border-surface-border text-zinc-400 hover:border-zinc-500"
+                            )}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Card List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filtered.length === 0 ? (
                     <div className="text-center py-12">
                         <Package size={32} className="mx-auto text-zinc-600 mb-2" />
-                        <p className="text-zinc-500 text-sm">{search ? 'No matches' : 'No products found'}</p>
+                        <p className="text-zinc-500 text-sm">{search || selectedCategory ? 'No matches' : 'No products found'}</p>
                     </div>
                 ) : (
                     filtered.map((product) => {

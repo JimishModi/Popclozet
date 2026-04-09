@@ -24,7 +24,7 @@ import {
     saveProductDiscount,
     toggleDiscount,
     updateProductProfile,
-    archivePhysicalUnit,
+    deletePhysicalUnit,
     type FullProductProfile,
     type InventorySubProfile,
     type ProductUpdate,
@@ -33,6 +33,13 @@ import { supabase } from '@popclozet/api-client';
 
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const GENDERS = ['men', 'women', 'unisex'];
+
+const parseOptionalNumber = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+};
 
 /* -----------------------------------------------------------
    Add Stock Modal (for existing size OR new size)
@@ -318,10 +325,16 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
     const [open, setOpen] = useState(false);
     const { showToast } = useToast();
     const { user } = useAuth();
+    const activeUnits = inv.units.filter(
+        unit => !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status)
+    );
 
     const statusColor = (s: string) => ({
         available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
         rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        archived:  'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
+        damaged:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
+        lost:      'text-rose-400 bg-rose-500/10 border-rose-500/20',
         sold:      'text-red-400 bg-red-500/10 border-red-500/20',
         instantly_bought: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
     }[s] || 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20');
@@ -356,7 +369,7 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                 </span>
                             )}
                         </div>
-                        <p className="text-[10px] text-zinc-600 mt-0.5">{inv.units.length} physical units</p>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">{activeUnits.length} active physical units</p>
                     </div>
                 </div>
                 {open ? <ChevronDown size={16} className="text-zinc-500" /> : <ChevronRight size={16} className="text-zinc-500" />}
@@ -372,10 +385,10 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                         className="overflow-hidden"
                     >
                         <div className="px-3.5 pb-3.5 space-y-2 border-t border-surface-border pt-3">
-                            {inv.units.length === 0 ? (
-                                <p className="text-xs text-zinc-600 text-center py-3">No physical units recorded yet.</p>
+                            {activeUnits.length === 0 ? (
+                                <p className="text-xs text-zinc-600 text-center py-3">No active physical units recorded right now.</p>
                             ) : (
-                                inv.units.map(unit => (
+                                activeUnits.map(unit => (
                                     <div key={unit.individual_id} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-surface-hover group">
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-mono text-zinc-300 truncate">{unit.individual_id}</p>
@@ -384,25 +397,25 @@ function SizeCard({ product, inv }: { product: FullProductProfile; inv: Inventor
                                                     {unit.status === 'instantly_bought' ? 'Instant Buy' : unit.status}
                                                 </span>
                                                 <span className="text-[9px] text-zinc-600">×{unit.times_rented} rented</span>
-                                                {unit.mrp_price && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp_price.toLocaleString()}</span>}
+                                                {unit.mrp && <span className="text-[9px] text-zinc-600">MRP ₹{unit.mrp.toLocaleString()}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                             {unit.status !== 'sold' && unit.status !== 'instantly_bought' && (
+                                             {!['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status) && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm(`Mark unit ${unit.individual_id} as SOLD? This removes it from active stock.`)) {
+                                                        if (confirm(`Delete unit ${unit.individual_id} permanently from warehouse stock?`)) {
                                                             try {
-                                                                await archivePhysicalUnit(unit.individual_id, user?.id);
-                                                                showToast('Unit marked as sold');
+                                                                await deletePhysicalUnit(unit.individual_id, user?.id);
+                                                                showToast('Unit deleted from all_products');
                                                                 window.location.reload();
                                                             } catch (err: any) {
-                                                                showToast(err.message || 'Failed to mark as sold', 'error');
+                                                                showToast(err.message || 'Failed to remove unit', 'error');
                                                             }
                                                         }
                                                     }}
                                                     className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                                                    title="Archive Unit"
+                                                    title="Delete physical unit"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -445,6 +458,7 @@ export function ProductProfilePage() {
 
     const [product, setProduct] = useState<FullProductProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [dbCategories, setDbCategories] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [replacingIndex, setReplacingIndex] = useState<number | undefined>(undefined);
@@ -463,11 +477,17 @@ export function ProductProfilePage() {
 
     const load = useCallback(async () => {
         if (!productId) return;
+        setLoadError(null);
         try {
             const data = await getFullProductProfile(productId);
             setProduct(data);
+            if (!data) {
+                setLoadError('Product could not be found.');
+            }
         } catch (err) {
             console.error(err);
+            setProduct(null);
+            setLoadError('Failed to load product details.');
         } finally {
             setLoading(false);
         }
@@ -479,10 +499,10 @@ export function ProductProfilePage() {
             name: product.name,
             brand: product.brand || '',
             description: product.description || '',
-            mrp: product.mrp || 0,
+            mrp: product.mrp ?? null,
             category: product.category || '',
             gender: product.gender || '',
-            rental_price: product.rental_price ?? 0,
+            rental_price: product.rental_price ?? 299,
             rental_price_1d: product.rental_price_1d ?? 0,
             rental_price_2d: product.rental_price_2d ?? 0,
             rental_price_3d: product.rental_price_3d ?? 0,
@@ -497,7 +517,10 @@ export function ProductProfilePage() {
         if (!editForm || !product) return;
         setLoading(true);
         try {
-            await updateProductProfile(product.id, editForm);
+            await updateProductProfile(product.id, {
+                ...editForm,
+                mrp: editForm.mrp == null ? null : Number(editForm.mrp),
+            });
             showToast('Changes saved successfully');
             setIsEditing(false);
             load();
@@ -639,7 +662,7 @@ export function ProductProfilePage() {
         return (
             <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
                 <Package size={40} className="text-zinc-600 mb-3" />
-                <p className="text-white font-bold">Product Not Found</p>
+                <p className="text-white font-bold">{loadError ?? 'Product Not Found'}</p>
                 <button onClick={() => navigate(-1)} className="mt-4 text-xs text-warehouse-400 underline">Go Back</button>
             </div>
         );
@@ -965,8 +988,8 @@ export function ProductProfilePage() {
                                     <span className="text-warehouse-400 text-xs">₹</span>
                                     <input
                                         type="number"
-                                        value={editForm?.mrp ?? 0}
-                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, mrp: parseFloat(e.target.value) || 0 }) : null)}
+                                        value={editForm?.mrp ?? ''}
+                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, mrp: parseOptionalNumber(e.target.value) }) : null)}
                                         className="w-full bg-transparent text-sm font-bold text-white focus:outline-none"
                                     />
                                 </div>

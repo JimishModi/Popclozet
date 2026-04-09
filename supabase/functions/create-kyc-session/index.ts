@@ -56,49 +56,69 @@ Deno.serve(async (req: Request) => {
     const { callbackParams } = body
 
     const userId = callbackParams?.user_id
+    const appOrigin = callbackParams?.app_origin
+    const callbackPath = callbackParams?.callback_path
     if (!userId || typeof userId !== 'string') {
       log.error('Missing or invalid user_id in callbackParams', { body })
       log.done(400);
       return jsonResponse({ error: 'Missing or invalid user_id in callbackParams' }, 400)
     }
 
-    const callbackPath = callbackParams?.callback_path || '/checkout'
-
-    const origin =
-      req.headers.get('origin') ||
-      Deno.env.get('PUBLIC_APP_ORIGIN') ||
-      'https://popclozet.vercel.app' // Fallback to production origin
-      
-    // Didit API strictly rejects callback URLs containing '#' fragments.
-    const callbackUrl = `${origin}${callbackPath}?kyc_callback=success&user_id=${encodeURIComponent(userId)}`
+    // callback = browser redirect URL after verification
+    // We point this to our didit-webhook function so it can update the DB before sending the user back to the app
+    const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/didit-webhook`
 
     log.info(`Creating Didit session for user ${userId} with callback: ${callbackUrl}`)
 
+    // Create verification session using x-api-key auth
     const response = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DIDIT_API_KEY}`,
+        'x-api-key': DIDIT_API_KEY!,
       },
       body: JSON.stringify({
-        client_id: DIDIT_CLIENT_ID,
         workflow_id: DIDIT_WORKFLOW_ID,
         callback: callbackUrl,
         vendor_data: userId,
       }),
     })
 
-    const data = await response.json()
+    let data: any
+    const responseText = await response.text()
+    try { data = JSON.parse(responseText) } catch { data = { raw: responseText } }
 
     if (!response.ok) {
-      log.error('Didit API error', { data })
-      log.done(response.status || 400);
-      return jsonResponse({ error: data }, response.status || 400)
+      log.error('Didit API error', { status: response.status, data })
+      log.done(500);
+      return jsonResponse({ error: 'Didit session creation failed', didit_status: response.status, details: data }, 500)
     }
 
-    log.info('Didit session created successfully', { session_id: data.session_id })
+    // Didit returns session URL — map to verification_url for frontend
+    const verificationUrl = data.url || data.verification_url || data.session_url
+    const diditSessionId = data.session_id || data.id
+
+    // Store session → user mapping in our DB so webhook can look it up locally
+    if (diditSessionId) {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      const { error: insertErr } = await supabase
+        .from('kyc_sessions')
+        .insert({ didit_session_id: diditSessionId, user_id: userId, app_origin: appOrigin, callback_path: callbackPath })
+      
+      if (insertErr) {
+        log.warn('Failed to store kyc_session mapping (non-fatal)', { error: insertErr })
+      } else {
+        log.info(`Stored kyc_session mapping: ${diditSessionId} → ${userId}`)
+      }
+    }
+
+    log.info('Didit session created successfully', { session_id: diditSessionId, hasUrl: !!verificationUrl })
     log.done(200);
-    return jsonResponse(data, 200)
+    return jsonResponse({ ...data, verification_url: verificationUrl }, 200)
   } catch (error: any) {
     log.error('Unexpected error', { error })
     log.done(500);

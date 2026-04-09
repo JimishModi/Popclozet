@@ -461,7 +461,7 @@ Deno.serve(async (req: Request) => {
   const VAPID_PUBLIC_KEY_ENV = Deno.env.get("VAPID_PUBLIC_KEY");
   const VAPID_PRIVATE_KEY_ENV = Deno.env.get("VAPID_PRIVATE_KEY");
   const VAPID_SUBJECT =
-    Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.com";
+    Deno.env.get("VAPID_SUBJECT") || "mailto:support@popclozet.in";
 
   if (!VAPID_PUBLIC_KEY_ENV || !VAPID_PRIVATE_KEY_ENV) {
     log.error("VAPID secrets not configured");
@@ -488,7 +488,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid VAPID key configuration" }, 500, log);
   }
 
-  const PUSH_INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET");
+  // FIX: fallback to the canonical value used by the DB trigger & notification-webhook.
+  // If PUSH_INTERNAL_SECRET env var was rotated without updating trigger, this keeps working.
+  const PUSH_INTERNAL_SECRET =
+    Deno.env.get("PUSH_INTERNAL_SECRET") ?? "my_ultra_secure_internal_key_2026";
 
   // ── Auth ──
   const authHeader = req.headers.get("Authorization");
@@ -520,6 +523,7 @@ Deno.serve(async (req: Request) => {
     title?: string;
     body?: string;
     type?: string;
+    tag?: string;
     order_id?: string;
     url?: string;
     status?: string;
@@ -585,6 +589,7 @@ Deno.serve(async (req: Request) => {
   let title: string;
   let notifBody: string;
   let type: string;
+  let tag: string;
   let url: string;
 
   if (body.status && STATUS_MESSAGES[body.status]) {
@@ -592,11 +597,13 @@ Deno.serve(async (req: Request) => {
     title = cfg.title;
     notifBody = cfg.body;
     type = cfg.type;
+    tag = body.tag || cfg.type;
     url = "/orders";
   } else {
     title = body.title || "";
     notifBody = body.body || "";
     type = body.type || "general";
+    tag = body.tag || type;
     url = body.url || "/notifications";
   }
 
@@ -637,7 +644,7 @@ Deno.serve(async (req: Request) => {
     body: notifBody,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
-    tag: type,
+    tag,
     data: {
       url,
       type,

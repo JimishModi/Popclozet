@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { supabase } from '@popclozet/api-client';
 import { useAuth } from '@/context/SupabaseAuthContext';
+import { cancelOrder } from '@/services/ordersService';
 
 interface InstantBuyDrawerProps {
     isOpen: boolean;
@@ -121,7 +122,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                         toast.success('Instant buy completed');
                         onSuccess();
                         onClose();
-                        navigate(`/order-confirmed/${newOrder.id}`, { replace: true });
+                        navigate('/home', { replace: true });
                     } catch (e) {
                         console.error('[Instant Buy] Finalization failed:', e);
                         toast.error('Payment succeeded, but finalizing the instant buy failed. Contact support with your payment reference.');
@@ -131,10 +132,9 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                 },
                 onFailure: async (err) => {
                     console.error('[Instant Buy] Razorpay failed:', err);
-                    await supabase
-                        .from('orders')
-                        .update({ status: 'cancelled', lifecycle_state: 'cancelled' })
-                        .eq('id', newOrder.id);
+                    await cancelOrder(newOrder.id).catch((cancelErr) => {
+                        console.warn('[Instant Buy] Failed to cancel abandoned buyout order:', cancelErr);
+                    });
                     toast.error('Instant buy payment was not completed');
                 }
             });
@@ -148,7 +148,10 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[9999] flex flex-col justify-end items-center">
+                <div
+                    className="fixed inset-0 z-[9999] flex flex-col justify-end items-center"
+                    style={{ paddingBottom: 'var(--mobile-bottom-nav-offset)' }}
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -164,14 +167,15 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-                        className="relative bg-zinc-950 border-t border-zinc-800 rounded-t-3xl p-5 flex flex-col max-h-[85vh] w-full max-w-[430px]"
+                        className="relative bg-zinc-950 border-t border-zinc-800 rounded-t-3xl px-4 pt-4 flex flex-col min-h-0 w-full max-w-[430px] sm:px-5 sm:pt-5"
+                        style={{ maxHeight: 'calc(var(--mobile-overlay-max-height) - var(--mobile-bottom-nav-offset))' }}
                     >
-                        <div className="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-5" />
+                        <div className="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-4 sm:mb-5" />
 
-                        <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start justify-between gap-3 mb-4">
                             <div>
-                                <h2 className="text-xl font-black text-white" style={dmSans}>Instant Buy</h2>
-                                <p className="text-sm text-zinc-400 mt-1">Keep the items you love right now</p>
+                                <h2 className="text-lg sm:text-xl font-black text-white" style={dmSans}>Instant Buy</h2>
+                                <p className="text-xs sm:text-sm text-zinc-400 mt-1">Keep the items you love right now</p>
                             </div>
                             <button
                                 onClick={onClose}
@@ -182,7 +186,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto min-h-[300px] pb-6 space-y-3">
+                        <div className="flex-1 min-h-0 overflow-y-auto pb-4 space-y-3">
                             {items.map((item) => {
                                 const isSelected = selectedIds.has(item.id);
                                 const buyPrice = parseFloat(item.products?.buy_price) || 0;
@@ -191,14 +195,14 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                                     <div
                                         key={item.id}
                                         onClick={() => buyPrice > 0 && toggleItem(item.id)}
-                                        className={`flex gap-4 items-center p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                        className={`flex gap-3 items-center p-2.5 sm:gap-4 sm:p-3 rounded-2xl border transition-all cursor-pointer select-none ${
                                             buyPrice === 0 ? 'opacity-50 grayscale pointer-events-none border-zinc-800 bg-zinc-900/50' : 
                                             isSelected
                                                 ? 'bg-[#f2546d]/10 border-[#f2546d]/30 shadow-[0_4px_20px_rgba(242,84,109,0.1)]'
                                                 : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
                                         }`}
                                     >
-                                        <div className="w-16 h-16 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
                                             {item.products?.images?.[0] ? (
                                                 <img src={item.products.images[0]} alt={item.products?.name || 'Item'} className="w-full h-full object-cover" />
                                             ) : (
@@ -209,10 +213,10 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                                         </div>
 
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-white truncate" style={dmSans}>
+                                            <p className="text-[13px] sm:text-sm font-bold text-white leading-tight line-clamp-2" style={dmSans}>
                                                 {item.products?.name || 'Item'}
                                             </p>
-                                            <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                                                 <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">
                                                     Size {item.size}
                                                 </span>
@@ -240,7 +244,10 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                             })}
                         </div>
 
-                        <div className="pt-4 border-t border-zinc-800 bg-zinc-950">
+                        <div
+                            className="shrink-0 pt-4 border-t border-zinc-800 bg-zinc-950"
+                            style={{ paddingBottom: 'var(--mobile-overlay-padding-bottom)' }}
+                        >
                             <div className="flex justify-between items-center mb-4 px-1">
                                 <span className="text-sm font-bold text-zinc-400">Total Buyout</span>
                                 <span className="text-2xl font-black text-white flex items-center">
@@ -252,7 +259,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                             <button
                                 onClick={handlePayAndKeep}
                                 disabled={selectedIds.size === 0 || totalAmount <= 0 || isProcessing || verifying}
-                                className="w-full py-4 rounded-xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:scale-100 bg-[#f2546d] text-white hover:bg-pink-500"
+                                className="w-full py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-[15px] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:scale-100 bg-[#f2546d] text-white hover:bg-pink-500"
                             >
                                 {isProcessing || verifying ? (
                                     <>
@@ -265,7 +272,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                                     </>
                                 )}
                             </button>
-                            <p className="text-[10px] text-center text-zinc-500 font-bold uppercase tracking-widest mt-4">
+                            <p className="text-[10px] text-center text-zinc-500 font-bold uppercase tracking-widest mt-3">
                                 The rider manifest will instantly update. No further action required.
                             </p>
                         </div>

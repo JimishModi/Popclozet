@@ -24,7 +24,7 @@ const COL = {
   rental_price_1d: 'rental_price_1d (x)',
   rental_price_2d: 'rental_price_2d(x+50)',
   rental_price_3d: 'rental_price_3d(x+100)',
-  mrp_price:      'mrp_price (price we will list )',
+  mrp:            'mrp_price (price we will list )',
   actual_cost:    'actual_cost(at what price we bought it)',
   buy_price:      'Direct Buy Price (price at which we will sell considering the profit)',
 };
@@ -65,7 +65,7 @@ async function updateFakeProductPrices() {
         const rental_price_1d = scrub(row[COL.rental_price_1d]);
         const rental_price_2d = scrub(row[COL.rental_price_2d]);
         const rental_price_3d = scrub(row[COL.rental_price_3d]);
-        const mrp_price       = scrub(row[COL.mrp_price]);
+        const mrp             = scrub(row[COL.mrp]);
         const actual_cost     = scrub(row[COL.actual_cost]);
         const buy_price       = scrub(row[COL.buy_price]);
 
@@ -75,7 +75,7 @@ async function updateFakeProductPrices() {
         if (rental_price_1d !== null) payload.rental_price_1d = rental_price_1d;
         if (rental_price_2d !== null) payload.rental_price_2d = rental_price_2d;
         if (rental_price_3d !== null) payload.rental_price_3d = rental_price_3d;
-        if (mrp_price !== null)       payload.mrp_price = mrp_price;
+        if (mrp !== null)             payload.mrp = mrp;
         if (actual_cost !== null)     payload.actual_cost = actual_cost;
         if (buy_price !== null)       payload.buy_price = buy_price;
 
@@ -95,7 +95,7 @@ async function updateFakeProductPrices() {
             console.error(`❌ "${name}": ${error.message}`);
             errors++;
           } else {
-            console.log(`✅ "${name}" → rental=${rental_price}, 1d=${rental_price_1d}, 2d=${rental_price_2d}, 3d=${rental_price_3d}, mrp=${mrp_price}, cost=${actual_cost}, buy=${buy_price}`);
+            console.log(`✅ "${name}" → rental=${rental_price}, 1d=${rental_price_1d}, 2d=${rental_price_2d}, 3d=${rental_price_3d}, mrp=${mrp}, cost=${actual_cost}, buy=${buy_price}`);
             updated++;
           }
         } catch (e: any) {

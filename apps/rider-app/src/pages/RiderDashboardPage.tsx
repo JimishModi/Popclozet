@@ -31,6 +31,11 @@ interface RiderOrder {
         longitude: number;
     };
     user_id: string;
+    payment_method: string | null;
+    customer_profiles?: {
+        full_name: string | null;
+        phone: string | null;
+    };
 }
 
 export const RiderDashboardPage: React.FC = () => {
@@ -53,8 +58,9 @@ export const RiderDashboardPage: React.FC = () => {
             const { data, error } = await supabase
                 .from('orders')
                 .select(`
-                    id, status, total_amount, created_at, user_id,
-                    delivery_address:addresses(full_address, latitude, longitude)
+                    id, status, total_amount, created_at, user_id, payment_method,
+                    delivery_address:addresses(full_address, latitude, longitude),
+                    customer_profiles!orders_user_id_fkey1(full_name, phone)
                 `)
                 .eq('rider_id', user.id)
                 .in('status', ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'])
@@ -62,11 +68,14 @@ export const RiderDashboardPage: React.FC = () => {
 
             if (error) throw error;
 
-            const orders = (data || []).map(o => ({
+            const orders: RiderOrder[] = (data || []).map(o => ({
                 ...o,
                 delivery_address: Array.isArray(o.delivery_address)
                     ? o.delivery_address[0]
-                    : o.delivery_address
+                    : o.delivery_address,
+                customer_profiles: Array.isArray(o.customer_profiles)
+                    ? o.customer_profiles[0]
+                    : o.customer_profiles
             }));
 
             setAssignedOrders(orders);
@@ -166,9 +175,23 @@ export const RiderDashboardPage: React.FC = () => {
                             <span className="text-2xl">🚴</span>
                             <h2 className="text-lg font-bold text-white">Active Delivery</h2>
                         </div>
-                        <p className="text-sm text-zinc-300 mb-3">
+                        <p className="text-sm text-zinc-300 mb-1">
                             {activeDelivery.delivery_address?.full_address || 'Address not available'}
                         </p>
+                        {activeDelivery.customer_profiles?.phone && (
+                            <p className="text-sm text-zinc-400 mb-1">
+                                📞 {activeDelivery.customer_profiles.full_name ? `${activeDelivery.customer_profiles.full_name} — ` : ''}{activeDelivery.customer_profiles.phone}
+                            </p>
+                        )}
+                        {activeDelivery.payment_method && (
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase rounded mb-3 ${
+                                activeDelivery.payment_method === 'cod'
+                                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                    : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            }`}>
+                                {activeDelivery.payment_method === 'cod' ? 'Pay on Delivery' : 'Paid Online'}
+                            </span>
+                        )}
                         <div className="flex gap-3">
                             <Button
                                 onClick={() => navigate(`/delivery/${activeDelivery.id}`)}
@@ -216,9 +239,23 @@ export const RiderDashboardPage: React.FC = () => {
                                             {order.status.replace(/_/g, ' ')}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-white mb-2 line-clamp-2">
+                                    <p className="text-sm text-white mb-1 line-clamp-2">
                                         📍 {order.delivery_address?.full_address || 'Address not available'}
                                     </p>
+                                    {order.customer_profiles?.phone && (
+                                        <p className="text-sm text-zinc-400 mb-1">
+                                            📞 {order.customer_profiles.full_name ? `${order.customer_profiles.full_name} — ` : ''}{order.customer_profiles.phone}
+                                        </p>
+                                    )}
+                                    {order.payment_method && (
+                                        <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase rounded mb-2 ${
+                                            order.payment_method === 'cod'
+                                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                        }`}>
+                                            {order.payment_method === 'cod' ? 'Pay on Delivery' : 'Paid Online'}
+                                        </span>
+                                    )}
                                     <div className="flex items-center justify-between">
                                         <span className="text-lg font-bold text-[#ff4d6d]">
                                             {formatCurrency(order.total_amount)}

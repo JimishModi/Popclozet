@@ -11,8 +11,16 @@ import {
     Tag,
     Palette,
     Shirt,
-    DollarSign
+    DollarSign,
+    ClipboardList,
+    Info,
+    Plus,
+    Warehouse,
+    RefreshCcw,
+    Image as ImageIcon
 } from 'lucide-react';
+import { CategoryDisplayManager } from "./CategoryDisplayManager";
+import { productService } from "@/services/productService";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -401,6 +409,8 @@ export function ProductIntakeForm() {
                             )}
                         </Button>
                     </div>
+
+                    <CategoryDisplayManager />
                 </form>
             </CardContent>
         </Card>

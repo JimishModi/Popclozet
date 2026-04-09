@@ -22,13 +22,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { CheckoutBlockedModal } from "@/components/CheckoutBlockedModal";
 import { CitySelectorModal } from "@/components/CitySelectorModal";
 import { getLocalAddresses, SavedAddress } from "@/services/addressService";
-import { calculateDeliveryPricing, calculateETA } from "@/services/deliveryService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { previewOrder } from "@/services/ordersService";
 import type { PricingPlan } from "@/context/CartContext";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
+import { getPlanPrice } from "@/lib/pricing";
+const MAX_SERVICE_DISTANCE_KM = 12;
 
 /* ---------------------------------- */
 /* Helpers                            */
@@ -99,72 +100,73 @@ const AddOnsCarousel = ({
             Add-Ons
           </h2>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2">
+        {addOnProducts.length > cardsPerPage && (
+          <div className="hidden lg:flex items-center gap-2">
             <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === 0 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: -pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronLeft className="w-4 h-4 text-white" />
             </button>
             <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page === totalPages - 1}
-              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity"
-              style={{ opacity: page === totalPages - 1 ? 0.3 : 1 }}
+              onClick={() => {
+                if (containerRef.current) containerRef.current.scrollBy({ left: pageOffset, behavior: 'smooth' });
+              }}
+              className="w-8 h-8 rounded-full bg-[#232323] border border-white/10 flex items-center justify-center transition-opacity hover:bg-[#2d2d2d]"
             >
               <ChevronRight className="w-4 h-4 text-white" />
             </button>
           </div>
         )}
       </div>
-      <div className="overflow-hidden w-full">
-        <motion.div
-          className="flex"
-          style={{ gap: CARD_GAP }}
-          animate={{ x: -page * pageOffset }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-        >
-          {addOnProducts.map((product: any) => {
-            const basePrice = product.rental_price_1d || product.rental_price || 0;
-            const displayPrice = basePrice * primaryRentalDays;
-            return (
-              <motion.div
-                key={product.id}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/product/${product.id}`)}
-                className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0"
-                style={{ width: cardWidth }}
-              >
-                <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
-                  {product.images?.[0] && (
-                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                  )}
-                </div>
-                <div className="p-2.5">
-                  <p className="text-xs font-semibold text-white truncate">{product.name}</p>
-                  <p className="text-xs text-[#f2546d] font-black mt-0.5">
+      <div
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 -mx-5 px-5 lg:mx-0 lg:px-0"
+        style={{ gap: CARD_GAP }}
+        ref={containerRef}
+      >
+        {addOnProducts.map((product: any) => {
+          const basePrice = product.rental_price_1d || product.rental_price || 0;
+          const displayPrice = basePrice * primaryRentalDays;
+          return (
+            <motion.div
+              key={product.id}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(`/product/${product.id}`)}
+              className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0 snap-start"
+              style={{ width: cardWidth }}
+            >
+              <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
+                {product.images?.[0] && (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="p-2.5">
+                <p className="text-xs font-semibold text-white truncate">{product.name}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-[#f2546d] font-black">
                     ₹{displayPrice}
                     {primaryRentalDays > 1 && (
                       <span className="text-white/30 font-normal ml-1">({primaryRentalDays}d)</span>
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToCart(product.id, 'One Size', '1d');
-                  }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg"
-                >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                </button>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
+                  addToCart(product.id, bestSize, '1d');
+                  toast.success(`Added ${product.name} to bag`);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+              </button>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );
@@ -235,18 +237,18 @@ const CartPage = () => {
       if (productsRes.data && !productsRes.error) {
         const productMap: Record<string, any> = {};
         productsRes.data.forEach((p: any) => {
-          // mrp_price comes from the DB — this is the true retail price
-          const mrp_val = parseFloat(p.mrp_price ?? p.mrp ?? '0');
+          // Normalize the product retail price into the canonical mrp field
+          const mrpVal = parseFloat(p.mrp ?? '0');
 
           productMap[p.id] = {
             ...p,
-            mrp: mrp_val,
+            mrp: mrpVal,
             rental_price_1d: parseFloat(p.rental_price_1d ?? '0'),
             rental_price_2d: parseFloat(p.rental_price_2d ?? '0'),
             rental_price_3d: parseFloat(p.rental_price_3d ?? p.rental_price ?? p.price ?? '0'),
             buy_price: parseFloat(p.buy_price ?? '0'),
             price: parseFloat(p.rental_price ?? p.price ?? '0'),
-            originalPrice: mrp_val,
+            originalPrice: mrpVal,
             imageUrl: p.images?.[0] || '',
             isLiveProduct: true,
           };
@@ -271,21 +273,33 @@ const CartPage = () => {
   useEffect(() => {
     const fetchAddOns = async () => {
       try {
-        const { data, error } = await supabase
+        const cartProductIds = Array.from(new Set(cartEntries.map(([id]) => id.split('_')[0])));
+
+        let query = supabase
           .from('products')
           .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
           .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .limit(8);
+          .eq('is_available', true);
+
+        if (cartProductIds.length > 0) {
+          query = query.not('id', 'in', `(${cartProductIds.join(',')})`);
+        }
+
+        const { data, error } = await query.limit(20);
 
         if (data && !error) {
-          setAddOnProducts(data);
+          // Only show add-ons that have at least one size with stock available (not sold/rented)
+          const inStock = data.filter((p: any) =>
+            (p.inventory || []).some((inv: any) => (inv.available_stock || 0) > 0)
+          );
+          setAddOnProducts(inStock.slice(0, 10));
         }
       } catch (err) {
         console.error("Add-ons fetch failed:", err);
       }
     };
     fetchAddOns();
-  }, []);
+  }, [JSON.stringify(cartEntries.map(([k]) => k.split('_')[0]))]);
 
   // Calculate cart metrics
   const totalQty = useMemo(() => {
@@ -307,70 +321,157 @@ const CartPage = () => {
     if (hub) {
       setSelectedHub(hub);
     }
-
   }, []);
 
 
 
-  const getPlanPrice = (product: any, plan: string) => {
-    if (!product) return 0;
-    switch (plan) {
-      case '1d': return product.rental_price_1d;
-      case '2d': return product.rental_price_2d;
-      case '3d': return product.rental_price_3d || product.price;
-      case 'buy': return product.buy_price;
-      default: return product.price;
-    }
-  };
-
   // Calculate subtotal
   const subtotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
       const price = getPlanPrice(product, data.plan);
-      return total + (price || 0) * data.quantity;
-    }, 0);
+      return sum + price * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   // Original total = sum of MRP (if available) or plan price for each item
   const originalTotal = useMemo(() => {
-    return validCartEntries.reduce((total, [key, data]) => {
+    return Math.round(validCartEntries.reduce((sum, [key, data]) => {
       const productId = key.split('_')[0];
       const product = cartProducts[productId];
-      const planPrice = getPlanPrice(product, data.plan) || 0;
-      const mrp_val = product?.mrp_price || product?.mrp || planPrice;
-      return total + Math.max(mrp_val, planPrice) * data.quantity;
-    }, 0);
+      const planPrice = getPlanPrice(product, data.plan);
+      const mrp = typeof product?.mrp === 'number' ? product.mrp : parseFloat(product?.mrp ?? product?.originalPrice ?? planPrice);
+      const safeMrp = isNaN(mrp) ? planPrice : mrp;
+      return sum + Math.max(safeMrp, planPrice) * (data.quantity || 1);
+    }, 0));
   }, [validCartEntries, cartProducts]);
 
   const discount = Math.max(0, originalTotal - subtotal);
 
-  // Calculate delivery pricing
-  const deliveryInfo = useMemo(() => {
-    if (!selectedHub) {
-      return { pricing: null, eta: null };
-    }
-    // const isFree = subBenefits?.freeDelivery || false;
-    const isFree = false;
-    const pricing = calculateDeliveryPricing(selectedHub.distance_km, subtotal, 'delivery', isFree);
-    const eta = calculateETA(selectedHub.distance_km, selectedHub.estimated_minutes);
-    return { pricing, eta };
-  }, [selectedHub, subtotal]);
+  // ── Server-side pricing (source of truth) ──
+  // preview_order RPC computes delivery fee from distance server-side.
+  const [serverPricing, setServerPricing] = useState<{
+    original_total: number; subtotal: number; discount: number;
+    coupon_discount: number; delivery_fee: number; total: number;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
 
-  // const deliveryFee = deliveryInfo.pricing?.totalFee ?? (subBenefits?.freeDelivery ? 0 : 40);
-  const deliveryFee = deliveryInfo.pricing?.totalFee ?? 40;
+  // Address for server-side distance + delivery fee calculation (stable refs)
+  const addressId = deliveryAddress?.id || null;
+  const addressLat = deliveryAddress?.lat || null;
+  const addressLng = deliveryAddress?.lng || null;
+  const previewDistanceKm = selectedHub?.distance_km ?? 0;
+  const addressKey = addressId || (addressLat && addressLng ? `${addressLat},${addressLng}` : 'none');
+
+  // Build preview items for server RPC — JSON key for stable dependency
+  const previewItems = useMemo(() => {
+    return validCartEntries.map(([key, data]) => {
+      const parts = key.split('_');
+      return {
+        product_id: parts[0],
+        size: parts[1] || 'One Size',
+        plan: data.plan || '3d',
+        quantity: data.quantity || 1,
+      };
+    });
+  }, [validCartEntries]);
+  const previewItemsKey = JSON.stringify(previewItems);
+  const appliedCouponKey = appliedCoupon?.id ?? null;
+
+  // Fetch server-side pricing whenever cart items or address change
+  useEffect(() => {
+    const items = JSON.parse(previewItemsKey);
+    if (items.length === 0) {
+      setServerPricing(null);
+      return;
+    }
+    let cancelled = false;
+    setPricingLoading(true);
+    previewOrder({
+      items,
+      couponCode: appliedCouponKey,
+      distanceKm: previewDistanceKm,
+      addressId,
+      lat: addressLat,
+      lng: addressLng,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setServerPricing({
+          original_total: result.original_total ?? 0,
+          subtotal: result.subtotal ?? 0,
+          discount: result.discount ?? 0,
+          coupon_discount: result.coupon_discount ?? 0,
+          delivery_fee: result.delivery_fee ?? 40,
+          total: result.total ?? 0,
+        });
+      } else {
+        console.warn("[Cart] preview_order returned:", result.code, result.message);
+        
+        // Handle specific errors
+        if (result.code === 'PRODUCT_NOT_FOUND' && result.message) {
+          // Extract product ID from message if possible "Product <id> not found"
+          const match = result.message.match(/Product ([a-f0-9-]+) not found/i);
+          const failedId = match ? match[1] : null;
+          
+          if (failedId) {
+            toast.error("An item in your bag is no longer available and has been removed.");
+            // Find all cart entries for this product and remove them
+            validCartEntries.forEach(([key, data]) => {
+              if (key.startsWith(failedId)) {
+                removeFromCart(failedId, data.size, data.plan);
+              }
+            });
+          }
+        } else if (result.code === 'PRODUCT_UNAVAILABLE') {
+          toast.error(result.message || "An item in your bag is currently unavailable.");
+        }
+
+        // Still show pricing with client-side subtotal so UI doesn't stay stuck on "..."
+        setServerPricing({
+          original_total: originalTotal,
+          subtotal,
+          discount: Math.max(0, originalTotal - subtotal),
+          coupon_discount: 0,
+          delivery_fee: 40,
+          total: subtotal + 40,
+        });
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        console.warn("[Cart] preview_order failed:", err);
+        setServerPricing({
+          original_total: originalTotal,
+          subtotal,
+          discount: Math.max(0, originalTotal - subtotal),
+          coupon_discount: 0,
+          delivery_fee: 40,
+          total: subtotal + 40,
+        });
+      }
+    }).finally(() => {
+      if (!cancelled) setPricingLoading(false);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItemsKey, addressKey, appliedCouponKey, previewDistanceKm]);
+
+  // Delivery fee is ONLY from server — no client-side default
+  const deliveryFee = serverPricing?.delivery_fee ?? null;
 
   // Final math with coupons
   const couponDiscount = useMemo(() => {
+    if (serverPricing?.coupon_discount) return serverPricing.coupon_discount;
     if (!appliedCoupon) return 0;
     if (appliedCoupon.type === 'percent') {
       return Math.round(subtotal * (appliedCoupon.discount / 100));
     }
     return appliedCoupon.discount;
-  }, [appliedCoupon, subtotal]);
+  }, [appliedCoupon, subtotal, serverPricing]);
 
-  const grandTotal = subtotal - couponDiscount + deliveryFee;
+  const grandTotal = serverPricing?.total ?? null;
+
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
@@ -379,16 +480,23 @@ const CartPage = () => {
     }
     try {
       // Validate coupon via server-side preview_order RPC (never trust client-only checks)
-      const previewItems = validCartEntries.map(([key, data]) => ({
-        product_id: key.split('_')[0],
-        plan: data.plan || '3d',
-        quantity: data.quantity || 1,
-      }));
+      const previewItems = validCartEntries.map(([key, data]) => {
+        const parts = key.split('_');
+        return {
+          product_id: parts[0],
+          size: parts[1] || 'One Size',
+          plan: data.plan || '3d',
+          quantity: data.quantity || 1,
+        };
+      });
 
       const result = await previewOrder({
         items: previewItems,
         couponCode: couponCode.trim(),
-        distanceKm: 0,
+        distanceKm: previewDistanceKm,
+        addressId,
+        lat: addressLat,
+        lng: addressLng,
       });
 
       if (!result.success) {
@@ -404,6 +512,15 @@ const CartPage = () => {
       const serverDiscount = result.coupon_discount ?? 0;
       const type = result.coupon?.discount_type === 'percentage' ? 'percent' : 'fixed';
       setAppliedCoupon({ id: couponCode.trim().toUpperCase(), discount: serverDiscount, type });
+      // Update server pricing with coupon-applied totals
+      setServerPricing({
+        original_total: result.original_total ?? 0,
+        subtotal: result.subtotal ?? 0,
+        discount: result.discount ?? 0,
+        coupon_discount: result.coupon_discount ?? 0,
+        delivery_fee: result.delivery_fee ?? 40,
+        total: result.total ?? 0,
+      });
       toast.success(`Coupon applied! -₹${serverDiscount} off`);
     } catch {
       toast.error("Failed to validate coupon. Try again.");
@@ -411,8 +528,21 @@ const CartPage = () => {
   };
 
   const hasItems = validCartEntries.length > 0;
-  const meetsMinimum = grandTotal >= 350;
+  const meetsMinimum = (grandTotal ?? subtotal) >= 350;
   const canCheckout = hasItems && meetsMinimum;
+  const hasRentalItems = useMemo(
+    () => validCartEntries.some(([, data]) => ['1d', '2d', '3d'].includes(data.plan)),
+    [validCartEntries]
+  );
+  const hasBuyItems = useMemo(
+    () => validCartEntries.some(([, data]) => data.plan === 'buy'),
+    [validCartEntries]
+  );
+  const cartSectionLabel = hasRentalItems && hasBuyItems
+    ? 'Shopping Bag Items'
+    : hasBuyItems
+      ? 'Instant Buy Items'
+      : 'Rentals';
 
   /* ---------------------------------- */
   /* Checkout handler                   */
@@ -557,9 +687,9 @@ const CartPage = () => {
             <span className="text-base font-black text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               ₹ {itemPrice * quantity}
             </span>
-            {(product.mrp_price > 0 || product.mrp > 0) && (product.mrp_price !== itemPrice && product.mrp !== itemPrice) && (
+            {(product.mrp > 0) && product.mrp !== itemPrice && (
               <span className="text-sm font-medium text-zinc-600 line-through" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                ₹ {(product.mrp_price || product.mrp) * quantity}
+                ₹ {product.mrp * quantity}
               </span>
             )}
             {isRental && (
@@ -615,7 +745,7 @@ const CartPage = () => {
           {/* Subtitle */}
           {validCartEntries.length > 0 && !loadingProducts && (
             <p className="mt-2 ml-8 text-base md:text-lg font-black text-white tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Rentals ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
+              {cartSectionLabel} ({totalItems} {totalItems === 1 ? 'Item' : 'Items'})
             </p>
           )}
         </header>
@@ -738,22 +868,19 @@ const CartPage = () => {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      Delivery fee
-                    </span>
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      ₹ {deliveryFee}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="w-full h-px bg-white/5 mt-6" />
 
                 <div className="flex items-center justify-between mt-6">
                   <span className="text-xl font-black text-white">Total</span>
-                  <span className="text-xl font-black text-white">₹ {grandTotal}</span>
+                  <span className="text-xl font-black text-white">
+                    ₹ {subtotal - couponDiscount}
+                  </span>
                 </div>
+                <p className="text-xs text-zinc-500 mt-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Delivery fee will be calculated at checkout
+                </p>
               </section>
 
               {/* Desktop Checkout Footer inside Right Column */}
@@ -779,15 +906,15 @@ const CartPage = () => {
 
       {/* ─── CHECKOUT FOOTER (Mobile only) ─── */}
       {hasItems && !loadingProducts && (
-        <div className="bg-[#232323] rounded-t-[20px] px-5 py-6 space-y-4 lg:hidden">
+        <div className="bg-[#232323] rounded-t-[20px] px-5 pt-6 bottom-sheet-safe space-y-4 lg:hidden">
           {/* Checkout CTA */}
           <button
             onClick={canCheckout ? handleCheckout : undefined}
             disabled={!canCheckout}
             className={cn(
               "w-full h-14 flex items-center justify-center rounded-full font-black text-lg transition-all",
-              canCheckout 
-                ? "bg-[#E95466] text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98]" 
+              canCheckout
+                ? "bg-[#E95466] text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98]"
                 : "bg-white/10 text-white/40 cursor-not-allowed"
             )}
           >
@@ -820,10 +947,10 @@ const CartPage = () => {
                           setSizeDrawerOpen(false);
                         }}
                         className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${isSelected
-                            ? "bg-[#E95466] border-[#E95466] text-white"
-                            : isAvailable
-                              ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
-                              : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
+                          ? "bg-[#E95466] border-[#E95466] text-white"
+                          : isAvailable
+                            ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
+                            : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
                           }`}
                       >
                         <span className="font-bold text-lg">{inv.size}</span>

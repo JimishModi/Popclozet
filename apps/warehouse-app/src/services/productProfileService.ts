@@ -23,7 +23,7 @@ export interface PhysicalUnitInProfile {
     last_washed: string | null;
     times_rented: number;
     times_washed: number;
-    mrp_price: number | null;
+    mrp: number | null;
     actual_cost: number | null;
     created_at: string;
 }
@@ -75,6 +75,19 @@ export interface ProductUpdate {
     is_available?: boolean;
 }
 
+const NON_PHYSICAL_UNIT_STATUSES = new Set([
+    'sold',
+    'lost',
+    'damaged',
+    'archived',
+    'instantly_bought',
+]);
+
+const normalizePhysicalUnit = (unit: any): PhysicalUnitInProfile => ({
+    ...unit,
+    mrp: unit.mrp ?? unit.mrp_price ?? null,
+});
+
 /**
  * Fetch the full product profile: product info + inventory breakdown + discounts
  */
@@ -84,16 +97,27 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         .from('products')
         .select('*')
         .eq('id', productId)
-        .single();
+        .maybeSingle();
 
     if (prodErr || !product) return null;
 
     // Fetch inventory rows
-    const { data: inventoryRows, error: invErr } = await supabase
+    let { data: inventoryRows, error: invErr } = await supabase
         .from('inventory')
         .select('*')
         .eq('product_id', productId)
         .order('size');
+
+    if (invErr || !inventoryRows || inventoryRows.length === 0) {
+        const fallbackInventory = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('item_id', productId)
+            .order('size');
+
+        inventoryRows = fallbackInventory.data || [];
+        invErr = fallbackInventory.error;
+    }
 
     if (invErr) throw invErr;
 
@@ -109,7 +133,7 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
             .order('created_at', { ascending: false });
 
         if (unitsErr) throw unitsErr;
-        allUnits = (units || []) as PhysicalUnitInProfile[];
+        allUnits = (units || []).map(normalizePhysicalUnit);
     }
 
     // Fetch discounts
@@ -123,13 +147,21 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 
     const inventory: InventorySubProfile[] = (inventoryRows || []).map((row: any) => {
         const unitsForSize = allUnits.filter(u => u.inventory_id === row.id);
+        const derivedAvailable = unitsForSize.filter(u => u.status === 'available').length;
+        const derivedWash = unitsForSize.filter(u => u.status === 'washing' || u.status === 'returned').length;
+        const derivedTotal = unitsForSize.filter(
+            u => !NON_PHYSICAL_UNIT_STATUSES.has(u.status ?? 'available')
+        ).length;
+
         return {
             id: row.id,
             size: row.size,
-            available_stock: unitsForSize.filter(u => u.status === 'available').length,
-            went_for_wash: 0,
+            // Inventory rows include reservation-aware counts even before a unit
+            // gets assigned during warehouse packing.
+            available_stock: row.available_stock ?? derivedAvailable,
+            went_for_wash: row.went_for_wash ?? derivedWash,
             instantly_bought: unitsForSize.filter(u => u.status === 'instantly_bought').length,
-            total_stock: unitsForSize.filter(u => u.status !== 'sold' && u.status !== 'instantly_bought').length,
+            total_stock: row.total_stock ?? derivedTotal,
             units: unitsForSize as any,
         };
     });
@@ -206,7 +238,7 @@ export async function getAllProductProfiles(): Promise<{
             available: current.available + (item.status === 'available' ? 1 : 0),
             wash: 0,
             instantly_bought: current.instantly_bought + (item.status === 'instantly_bought' ? 1 : 0),
-            total: current.total + (item.status !== 'sold' && item.status !== 'instantly_bought' ? 1 : 0),
+            total: current.total + (!NON_PHYSICAL_UNIT_STATUSES.has(item.status ?? 'available') ? 1 : 0),
         });
     });
 
@@ -231,7 +263,7 @@ export async function addStockToInventory(
     productId: string,
     size: string,
     qty: number,
-    mrpPrice?: number,
+    mrp?: number,
     actualCost?: number,
     actorId: string = 'system'
 ): Promise<string[]> {
@@ -246,7 +278,7 @@ export async function addStockToInventory(
                 inventory_id: inventoryId,
                 status: 'available',
                 available: true,
-                mrp_price: mrpPrice ?? null,
+                mrp_price: mrp ?? null,
                 actual_cost: actualCost ?? null,
             });
 
@@ -260,7 +292,7 @@ export async function addStockToInventory(
         action: 'add_stock',
         entity_type: 'inventory',
         entity_id: inventoryId,
-        details: { size, qty, mrp_price: mrpPrice, actual_cost: actualCost },
+        details: { size, qty, mrp, actual_cost: actualCost },
     });
 
     return createdIds;
@@ -273,7 +305,7 @@ export async function addNewSizeToProduct(
     productId: string,
     size: string,
     qty: number,
-    mrpPrice?: number,
+    mrp?: number,
     actualCost?: number,
     actorId: string = 'system'
 ): Promise<{ inventoryId: string; unitIds: string[] }> {
@@ -289,7 +321,7 @@ export async function addNewSizeToProduct(
 
     if (invErr) throw invErr;
 
-    const unitIds = await addStockToInventory(inv.id, productId, size, qty, mrpPrice, actualCost, actorId);
+    const unitIds = await addStockToInventory(inv.id, productId, size, qty, mrp, actualCost, actorId);
 
     return { inventoryId: inv.id, unitIds };
 }
@@ -345,7 +377,7 @@ export async function updateProductProfile(productId: string, update: ProductUpd
  */
 export async function setUnitStatus(
     individualId: string,
-    newStatus: 'available' | 'rented' | 'sold' | 'washing',
+    newStatus: 'available' | 'ready' | 'returned' | 'rented' | 'sold' | 'washing' | 'archived' | 'lost' | 'damaged',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase
@@ -369,10 +401,31 @@ export async function setUnitStatus(
 }
 
 /**
- * Mark a physical unit as sold (permanently remove from active stock)
+ * Archive a physical unit that should no longer count as active stock.
  */
 export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
-    return setUnitStatus(individualId, 'sold', actorId);
+    return setUnitStatus(individualId, 'archived', actorId);
+}
+
+/**
+ * Permanently delete a physical unit row from all_products.
+ * Inventory counts are kept in sync by the database delete trigger.
+ */
+export async function deletePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
+    const { error } = await supabase
+        .from('all_products')
+        .delete()
+        .eq('individual_id', individualId);
+
+    if (error) throw error;
+
+    await supabase.from('warehouse_activity_log').insert({
+        actor_id: actorId === 'system' ? null : actorId,
+        action: 'delete_unit',
+        entity_type: 'individual_unit',
+        entity_id: null,
+        details: { individual_id: individualId },
+    });
 }
 
 /**

@@ -16,7 +16,7 @@ export interface PhysicalUnit {
     last_washed?: string;
     times_rented: number;
     times_washed: number;
-    mrp_price?: number;
+    mrp?: number | null;
     actual_cost?: number;
     created_at: string;
     inventory?: {
@@ -31,6 +31,11 @@ export interface PhysicalUnit {
     };
 }
 
+const normalizePhysicalUnit = (unit: any): PhysicalUnit => ({
+    ...unit,
+    mrp: unit.mrp ?? null,
+});
+
 /**
  * Look up an individual item by its QR code / serial ID.
  */
@@ -38,7 +43,17 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
     const { data, error } = await supabase
         .from('all_products')
         .select(`
-            *,
+            individual_id,
+            inventory_id,
+            available,
+            status,
+            last_rented,
+            last_washed,
+            times_rented,
+            times_washed,
+            mrp:mrp_price,
+            actual_cost,
+            created_at,
             inventory:inventory_id (
                 product_id, size,
                 products:product_id (
@@ -50,5 +65,5 @@ export async function getUnitByCode(individualId: string): Promise<PhysicalUnit 
         .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data as any;
+    return data ? normalizePhysicalUnit(data) : null;
 }

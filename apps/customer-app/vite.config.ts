@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig(({ mode }) => {
   // Load env file from the current directory
@@ -18,15 +19,16 @@ export default defineConfig(({ mode }) => {
     },
 
     server: {
-      host: "localhost",
+      host: true,
       port: 5500,
     },
 
     plugins: [
+      // basicSsl(),
       react(),
 
       VitePWA({
-        registerType: "autoUpdate",
+        registerType: "prompt",
 
         includeAssets: [
           "favicon.ico",
@@ -38,16 +40,16 @@ export default defineConfig(({ mode }) => {
         ],
 
         manifest: {
-          name: "PopClozet - Rent the Trend",
-          short_name: "PopClozet",
+          name: "Popclozet - Rent the Trend",
+          short_name: "Popclozet",
           description:
-            "Rent designer fashion for every occasion. PopClozet delivers premium outfits in 60 minutes.",
+            "Rent designer fashion for every occasion. Popclozet delivers premium outfits in 60 minutes.",
           start_url: "/",
           scope: "/",
           display: "standalone",
           orientation: "portrait-primary",
-          background_color: "#F6F0E0",
-          theme_color: "#F6F0E0",
+          background_color: "#0a0a0a",
+          theme_color: "#0a0a0a",
           categories: ["shopping", "lifestyle", "fashion"],
 
           icons: [

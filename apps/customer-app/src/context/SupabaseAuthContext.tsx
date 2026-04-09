@@ -29,7 +29,7 @@ function clearCachedProfile() {
 }
 
 // ── Placeholder email helpers ──────────────────────────────────────────────
-const PLACEHOLDER_DOMAINS = ['@phone.popclozet.com', '@phone.popclozet.internal'];
+const PLACEHOLDER_DOMAINS = ['@phone.popclozet.in', '@phone.popclozet.internal'];
 
 export function isPlaceholderEmail(email: string | undefined | null): boolean {
   if (!email) return true;
@@ -68,15 +68,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const initialized = useRef(!!authPersistence.getCachedSessionSync().session);
 
   // ── Safety timeout — never leave the app stuck on loading ─────────────────
+  // Re-arms every time loading flips to true (e.g. after SIGNED_IN event)
   useEffect(() => {
+    if (!loading) return;
     const timeout = setTimeout(() => {
-      setLoading(prev => {
-        if (prev) console.warn('[Auth] Safety timeout — forcing loading=false after 4s');
-        return false;
-      });
+      console.warn('[Auth] Safety timeout — forcing loading=false after 4s');
+      setLoading(false);
     }, 4000);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [loading]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const resolveNeedsOnboarding = (p: any) =>
@@ -219,6 +219,49 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Real-time profile synchronization ─────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Listen for real-time changes to the user's profile
+    // This allows across-device sync (e.g. verifying email on desktop reflects on mobile)
+    let profileSync: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      profileSync = supabase
+        .channel(`profile-sync-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'customer_profiles',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.info('[Auth] Real-time profile change detected. Syncing...', payload.new);
+            try {
+              await refreshProfile();
+            } catch (error) {
+              console.warn('[Auth] Real-time refreshProfile failed:', error);
+            }
+          }
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('[Auth] Failed to start profile realtime sync:', error);
+    }
+
+    return () => {
+      if (!profileSync) return;
+      try {
+        supabase.removeChannel(profileSync);
+      } catch (error) {
+        console.warn('[Auth] Failed to remove profile realtime sync channel:', error);
+      }
+    };
+  }, [user?.id]);
+
   // ── updateProfile ─────────────────────────────────────────────────────────
   const updateProfile = async (updates: any) => {
     if (!user) throw new Error('No authenticated user');
@@ -263,7 +306,19 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // ── refreshProfile ────────────────────────────────────────────────────────
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user);
+    // 1. Force refresh the Auth User record from the server
+    //    This ensures attributes like 'email' and 'email_confirmed_at' are updated.
+    const { data: { user: freshUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (!authError && freshUser) {
+      console.info('[Auth] Refreshing session user state...');
+      setUser(freshUser);
+      // 2. Fetch the corresponding customer profile using the fresh user
+      await fetchProfile(freshUser);
+    } else if (user) {
+      // Fallback to existing user if auth.getUser fails
+      await fetchProfile(user);
+    }
   };
 
   // ── signOut ───────────────────────────────────────────────────────────────

@@ -29,16 +29,26 @@ export default function PaymentSuccessPage() {
                 setPlan(foundPlan);
 
                 if (type === "order" && orderId) {
-                    // Update order status to pending
-                    const { error } = await supabase
-                        .from('orders')
-                        .update({ status: 'pending' })
-                        .eq('id', orderId);
+                    // Update order status to placed using transition_order_state RPC
+                    // because direct update is denied by RLS
+                    const { data: user } = await supabase.auth.getUser();
+                    if (!user.user) throw new Error("Not logged in");
 
-                    if (error) throw error;
+                    const { data, error } = await supabase.rpc('transition_order_state', {
+                        p_order_id: orderId,
+                        p_new_status: 'placed',
+                        p_actor_role: 'customer',
+                        p_actor_id: user.user.id
+                    });
+
+                    if (error || !data?.success) {
+                        console.error("Transition failed:", error || data);
+                        throw new Error(data?.message || error?.message || "Failed to update order status");
+                    }
+                    
                     toast.success("Order confirmed successfully!");
                     // Navigate to order confirmed page
-                    navigate(`/order-confirmed/${orderId}`, { replace: true });
+                    navigate('/home', { replace: true });
                     return;
                 }
                 /*

@@ -12,7 +12,8 @@ const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://popclozet.vercel.app',
+    'https://popclozet.in',
+    'https://www.popclozet.in',
 ];
 
 app.use(cors({
@@ -36,6 +37,24 @@ app.get('/api/health', (_req, res) => {
 
 const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
 const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+
+function extractMatrixDistanceKm(data: any): number | null {
+    const rawDistance =
+        data?.results?.distances?.[0]?.[1] ??
+        data?.distances?.[0]?.[1] ??
+        data?.results?.[0]?.distances?.[0]?.[1];
+
+    const distanceInMeters =
+        typeof rawDistance === 'number'
+            ? rawDistance
+            : Number.parseFloat(String(rawDistance ?? ''));
+
+    if (!Number.isFinite(distanceInMeters) || distanceInMeters < 0) {
+        return null;
+    }
+
+    return distanceInMeters / 1000;
+}
 
 if (!REST_KEY || REST_KEY === 'your_mapmyindia_rest_key_here') {
     console.warn('WARNING: MAPPLS_REST_KEY is not configured or using placeholder value.');
@@ -84,7 +103,7 @@ app.get("/api/location/search", async (req, res) => {
             // Fallback: Nominatim (OpenStreetMap) — no key needed, great for addresses
             const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query as string)}&format=json&addressdetails=1&countrycodes=in&limit=10`;
             const nomResponse = await axios.get(nomUrl, {
-                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+                headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' }
             });
             
             const results = nomResponse.data.map((place: any) => ({
@@ -187,7 +206,7 @@ app.get("/api/location/reverse", async (req, res) => {
         try {
             const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
             const nomResponse = await axios.get(nominatimUrl, {
-                headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' }
+                headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' }
             });
 
             if (nomResponse.data && nomResponse.data.display_name) {
@@ -367,7 +386,7 @@ app.get("/api/location/geocode", async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 const response = await axios.get(nominatimUrl, {
-                    headers: { 'User-Agent': 'PopClozet/1.0 (popclozet.com)' },
+                    headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' },
                     timeout: 5000
                 });
 
@@ -425,18 +444,16 @@ app.get("/api/location/distance", async (req, res) => {
 
     try {
         // Mappls Distance Matrix API via route.mappls.com
-        const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?region=ind&access_token=${REST_KEY}`;
+        const url = `https://route.mappls.com/route/dm/distance_matrix/driving/${origin};${destination}?rtype=0&region=ind&access_token=${REST_KEY}`;
         
         const response = await axios.get(url, {
             headers: { 'Referer': req.headers.referer || 'http://localhost:5501/' }
         });
 
-        if (response.data && response.data.results && response.data.results.distances) {
-            const distanceInMeters = response.data.results.distances[0][1];
-            res.json({ distance: distanceInMeters / 1000 });
-        } else if (response.data && response.data.distances && response.data.distances[0]) {
-            const distanceInMeters = response.data.distances[0][1];
-            res.json({ distance: distanceInMeters / 1000 });
+        const distanceKm = extractMatrixDistanceKm(response.data);
+
+        if (distanceKm !== null) {
+            res.json({ distance: distanceKm });
         } else {
             console.warn("[DistanceAPI] Unexpected structure:", JSON.stringify(response.data));
             res.status(500).json({ error: "Unexpected response structure" });

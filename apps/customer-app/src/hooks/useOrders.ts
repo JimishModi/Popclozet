@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@popclozet/api-client";
 import { getUserOrders, DeliveryOrder as DeliveryOrderType } from "@/services/deliveryService";
+import {
+    buildManualAddressSummary,
+    type ManualAddressDetails,
+} from "@/lib/addressAccuracy";
 
 export interface Order {
     id: string;
@@ -20,6 +24,8 @@ export interface Order {
         lat: number;
         lng: number;
     };
+    manualAddressDetails?: ManualAddressDetails | null;
+    manualAddressSummary?: string;
     hubId: string;
     riderId?: string;
     deliveryPartner?: {
@@ -52,6 +58,8 @@ function mapToOrder(raw: any): Order {
             lat: raw.delivery_address?.latitude || raw.delivery_address_snapshot?.lat || 0,
             lng: raw.delivery_address?.longitude || raw.delivery_address_snapshot?.lng || 0,
         },
+        manualAddressDetails: raw.manual_address_details || null,
+        manualAddressSummary: buildManualAddressSummary(raw.manual_address_details),
         hubId: raw.hub_id,
         etaMinutes: (raw.delivery_eta || raw.estimated_delivery_at)
             ? Math.max(0, Math.round((new Date(raw.delivery_eta || raw.estimated_delivery_at).getTime() - Date.now()) / 60000))
@@ -82,7 +90,7 @@ export function useOrders() {
         try {
             setLoading(true);
             const rawOrders = await getUserOrders(user.id);
-            setOrders(rawOrders.map(mapToOrder));
+            setOrders(rawOrders.map(mapToOrder).filter(o => o.status !== 'cancelled'));
             setError(null);
         } catch (err) {
             console.error("Failed to fetch orders:", err);
@@ -152,7 +160,6 @@ export function useOrders() {
         [
             "picked_up",
             "return_completed",
-            "cancelled",
             "completed",
             "return_picked_up",
             "return_at_warehouse",
