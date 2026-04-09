@@ -8,6 +8,7 @@ import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import type { Product } from "@/services/productService";
+import { productService } from "@/services/productService";
 import { cacheProductsBatchDB } from "@/lib/db";
 import { getProductsWithFakeMix } from "@/services/fakeProductMixService";
 
@@ -193,16 +194,21 @@ const CategoryProductsPage: React.FC = () => {
         if (filters.gender === 'womens') dbGender = 'women';
 
         try {
-            if (!filters.category) {
-                setProducts([]);
-                return;
-            }
+            let mixedProducts: Product[];
 
-            const mixedProducts = await getProductsWithFakeMix(
-                filters.category,
-                filters.brands && filters.brands.length === 1 ? filters.brands[0] : undefined,
-                filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined
-            );
+            if (!filters.category) {
+                // No category — fetch all available products for this gender
+                const gender = filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined;
+                mixedProducts = gender
+                    ? await productService.getProductsByGender(gender as any)
+                    : [];
+            } else {
+                mixedProducts = await getProductsWithFakeMix(
+                    filters.category,
+                    filters.brands && filters.brands.length === 1 ? filters.brands[0] : undefined,
+                    filters.gender === 'mens' || filters.gender === 'womens' ? filters.gender : undefined
+                );
+            }
 
             const filteredByName = filters.nameQuery && filters.nameQuery.trim() !== ''
                 ? mixedProducts.filter((product) =>
@@ -312,6 +318,9 @@ const CategoryProductsPage: React.FC = () => {
     const filteredProducts = useMemo(() => {
         let filtered = [...products];
 
+        // Only show available products — exclude sold out, rented out, and fake/placeholder items
+        filtered = filtered.filter((p: any) => !p.isSoldOut && !p.isRentedOut && p._isFake !== true);
+
         // Case-insensitive category filter
         if (category) {
             const catLower = category.toLowerCase();
@@ -321,11 +330,13 @@ const CategoryProductsPage: React.FC = () => {
         }
 
         // Filter by gender — include unisex in both mens and womens
+        // Normalize app gender ('womens'/'mens') to DB gender ('women'/'men') for comparison
         if (genderFromPath && genderFromPath !== 'all') {
             filtered = filtered.filter((p: any) => {
                 const pGender = (p.gender as string || '').toLowerCase();
                 const targetGender = genderFromPath.toLowerCase();
-                return pGender === targetGender || pGender === 'unisex';
+                const dbGender = targetGender === 'womens' ? 'women' : targetGender === 'mens' ? 'men' : targetGender;
+                return pGender === dbGender || pGender === targetGender || pGender === 'unisex';
             });
         }
 

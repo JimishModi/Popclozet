@@ -197,7 +197,7 @@ class ProductService {
             mrp: dbProduct.mrp ? parseFloat(dbProduct.mrp) : undefined,
             category: dbProduct.category || '',
             gender: (dbProduct.gender === 'men' ? 'mens' : (dbProduct.gender === 'women' ? 'womens' : dbProduct.gender)) as GenderCategory,
-            eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as EventCategory, 
+            eventCategory: (dbProduct.occasion?.[0] || dbProduct.category) as EventCategory,
             occasions: dbProduct.occasion || [],
             imageUrl: dbProduct.images?.[0] || dbProduct.image_url || '',
             videoUrl: dbProduct.video_url,
@@ -752,8 +752,7 @@ class ProductService {
     // Get distinct categories with a representative image each
     async getCategories(): Promise<{ id: string; title: string; image: string }[]> {
         try {
-            // Primary source: category_configs table.
-            // Adding a new category to the app only requires inserting a row there.
+            // Primary source: category_configs table
             const { data: configs, error: configError } = await (supabase as any)
                 .from('category_configs')
                 .select('category, display_name, image_url')
@@ -764,7 +763,7 @@ class ProductService {
             if (configs && configs.length > 0) {
                 // Determine which categories still need a fallback image
                 const categoriesNeedImage = configs.filter((c: any) => !c.image_url).map((c: any) => c.category);
-                
+
                 let fallbackImages = new Map<string, string>();
                 if (categoriesNeedImage.length > 0) {
                     const { data: products } = await (supabase as any)
@@ -772,7 +771,7 @@ class ProductService {
                         .select('category, images')
                         .in('category', categoriesNeedImage)
                         .eq('is_available', true);
-                    
+
                     for (const p of products || []) {
                         if (p.category && !fallbackImages.has(p.category)) {
                             fallbackImages.set(p.category, (Array.isArray(p.images) ? p.images[0] : null) || '');
@@ -786,11 +785,23 @@ class ProductService {
                     image: c.image_url || fallbackImages.get(c.category) || '',
                 }));
             }
-            
-            return [];
+
+            // Fallback: the old derivation for robustness
+            const { data, error } = await (supabase as any)
+                .from('category_configs')
+                .select('category, display_name, image_url')
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            return (data || []).map((row: any) => ({
+                id: row.category as string,
+                title: (row.display_name as string) || row.category,
+                image: (row.image_url as string) || '',
+            }));
         } catch (error) {
             console.error('Error fetching categories:', (error as any)?.message ?? error);
-            // Fallback: derive distinct categories from cached IndexedDB products
+            // Deep fallback from IndexedDB
             const db = await this.initDB();
             const products = await db.getAll('products');
             const seen = new Map<string, string>();
@@ -800,7 +811,7 @@ class ProductService {
                 }
             }
             return Array.from(seen.entries()).map(([cat, img]) => ({
-                id:    cat,
+                id: cat,
                 title: cat.charAt(0).toUpperCase() + cat.slice(1),
                 image: img,
             }));
@@ -808,11 +819,11 @@ class ProductService {
     }
 
     // Get category configurations (for collection images/sizes)
-    async getCategoryConfigs(): Promise<{ 
-        category: string; 
-        display_name: string; 
-        image_url: string; 
-        sizes: string[] 
+    async getCategoryConfigs(): Promise<{
+        category: string;
+        display_name: string;
+        image_url: string;
+        sizes: string[]
     }[]> {
         const { data, error } = await supabase
             .from('category_configs')

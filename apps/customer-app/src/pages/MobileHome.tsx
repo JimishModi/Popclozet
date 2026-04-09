@@ -263,13 +263,11 @@ const MobileHome: React.FC = () => {
                     const targetGender = activeGender.toLowerCase();
                     return pGender === targetGender || pGender === 'unisex';
                 })
+                .filter((product) => !product.isRentedOut && !product.isSoldOut)
                 .filter((product, index, array) => array.findIndex((item) => item.id === product.id) === index)
                 .slice(0, 3);
 
-            const showcaseProducts = [
-                ...products.slice(0, Math.max(1, 4 - fakeProducts.length)),
-                ...fakeProducts,
-            ].slice(0, 4);
+            const showcaseProducts = products.slice(0, 4);
 
             if (showcaseProducts.length > 0) {
                 setCatalogueProducts(showcaseProducts as Product[]);
