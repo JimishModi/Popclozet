@@ -335,8 +335,8 @@ export default function MapLocationPage() {
             saveAddressLocally({ ...selectedAddress, label: 'Delivery Address' });
 
             setIsSaving(true);
-            let deliveryEstimate: '15min' | 'delayed' = '15min';
-            let deliveryFee = 40;
+            let deliveryEstimate: '60min' = '60min';
+            let deliveryFee = 60;
             let distanceKm = 0;
 
             // 2. Calculate road distance and delivery estimate via centralized function

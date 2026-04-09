@@ -133,11 +133,10 @@ export function coordinatesAreSuspiciouslyClose(
  */
 export async function getDeliveryEstimate(
     destination: { lat: number; lng: number; eLoc?: string }
-): Promise<{ estimate: '15min' | 'delayed'; distanceKm: number; fee: number }> {
+): Promise<{ estimate: '60min'; distanceKm: number; fee: number }> {
     const res = await getRoadDistance(WAREHOUSE, destination);
     const distanceKm = res.status === 'success' ? res.distanceKm : 0;
-    const estimate = distanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM ? 'delayed' : '15min';
     const fee = calculateDeliveryFee(distanceKm);
-    console.log(`[DeliveryEstimate] road=${distanceKm.toFixed(2)}km, threshold=${DELIVERY_THRESHOLDS.INSTANT_MAX_KM}km, result=${estimate}`);
-    return { estimate, distanceKm, fee };
+    console.log(`[DeliveryEstimate] road=${distanceKm.toFixed(2)}km, threshold=${DELIVERY_THRESHOLDS.MAX_KM}km, fee=${fee}`);
+    return { estimate: '60min', distanceKm, fee };
 }

@@ -66,7 +66,6 @@ export const WAREHOUSE = {
 
 // Delivery distance thresholds (road distance in km)
 export const DELIVERY_THRESHOLDS = {
-  INSTANT_MAX_KM: 7,       // Road distance ≤7km → "15min" delivery
-  SERVICE_MAX_KM: 12,      // Road distance >12km → not serviceable
+  MAX_KM: 7,               // Road distance ≤7km → 60min delivery, beyond → not serviceable
 } as const;
 

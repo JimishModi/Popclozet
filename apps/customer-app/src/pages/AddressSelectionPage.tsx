@@ -108,8 +108,8 @@ const AddressSelectionPage = () => {
       setIsSaving(true);
       const addr = addresses[selectedIdx];
       
-      let deliveryEstimate: '15min' | 'delayed' = '15min';
-      let deliveryFee = 40;
+      let deliveryEstimate: '60min' = '60min';
+      let deliveryFee = 60;
       let distanceKm = 0;
 
       // Calculate road distance and delivery estimate via centralized function
@@ -150,7 +150,7 @@ const AddressSelectionPage = () => {
       localStorage.setItem('selected_hub', JSON.stringify({
           name: 'Main Hub',
           distance_km: distanceKm,
-          estimated_minutes: deliveryEstimate === 'delayed' ? 120 : 60
+          estimated_minutes: 60
       }));
 
       // 2. If user is logged in, mark as default in DB + update estimate in profile

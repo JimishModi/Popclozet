@@ -56,7 +56,7 @@ export const QuickCheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClo
                                         {(() => {
                                             try {
                                                 const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '60 min';
+                                                return '60 min';
                                             } catch {
                                                 return '60 min';
                                             }

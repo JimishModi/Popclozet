@@ -8,7 +8,7 @@ import { locationStorage } from "@/lib/locationStorage";
 import heroImg from "@/images/formal/formal.jpg";
 
 const CoutureHero = () => {
-    const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed' | null>(null);
+    const [deliveryEstimate, setDeliveryEstimate] = useState<'60min' | null>(null);
 
     useEffect(() => {
         const stored = locationStorage.get();
@@ -47,9 +47,7 @@ const CoutureHero = () => {
                     >
                         New Outfit Everyday! <br />
                         <span className="text-5xl md:text-6xl lg:text-7xl text-purple-600 block mt-2">
-                            {deliveryEstimate === 'delayed' 
-                                ? "Expected Delayed Delivery!" 
-                                : "Delivered in 60 Minutes!"}
+                            {"Delivered in 60 Minutes!"}
                         </span>
                     </motion.h1>
 

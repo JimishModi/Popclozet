@@ -71,7 +71,7 @@ import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
 /* Constants                          */
 /* ---------------------------------- */
 const WAREHOUSE_LOCATION = WAREHOUSE;
-const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.SERVICE_MAX_KM;
+const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.MAX_KM;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 
@@ -1002,10 +1002,9 @@ export default function CheckoutPage() {
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
       const routeDistanceKm = actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0;
-      const isDelayed = routeDistanceKm > DELIVERY_THRESHOLDS.INSTANT_MAX_KM;
-      const deliveryEtaMins = isDelayed ? 120 : 60; // 2 hours if delayed, else 60 mins
+      const deliveryEtaMins = 60;
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
-      const deliveryEstimateVal = isDelayed ? 'delayed' : '15min';
+      const deliveryEstimateVal = '60min';
 
       // Parse pre-scheduled return slot if provided
       let returnPickupDate: string | null = null;
@@ -1399,14 +1398,6 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="mt-3 flex items-center gap-2 relative z-10">
-                    {/* Delayed Delivery Badge */}
-                    {actualDistance !== null && actualDistance > DELIVERY_THRESHOLDS.INSTANT_MAX_KM && !distanceLoading && !isResolvingAddress && (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                        <Clock className="w-3 h-3" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Delayed Delivery</span>
-                      </div>
-                    )}
-
                     {isResolvingAddress ? (
                       <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-zinc-800 animate-pulse">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Resolving address...</span>
