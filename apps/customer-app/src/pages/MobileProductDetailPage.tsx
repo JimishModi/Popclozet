@@ -181,7 +181,7 @@ const MobileProductDetailPage: React.FC = () => {
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
                         .from('product_reviews')
-                        .select('id, rating, review_text, created_at, user_id, profiles:customer_profiles(full_name)')
+                        .select('id, rating, review_text, reviewer_name, created_at, user_id, profiles:customer_profiles(full_name)')
                         .eq('product_id', productId)
                         .not('review_text', 'is', null)
                         .order('created_at', { ascending: false })
@@ -334,25 +334,25 @@ const MobileProductDetailPage: React.FC = () => {
                 }
             }
 
+            const nameToSave = reviewerName.trim() || profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || 'Anonymous';
+
             const { data, error } = await supabase
                 .from('product_reviews')
                 .insert([
-                    { product_id: productId, user_id: user.id, rating: reviewRating, review_text: reviewText }
+                    { product_id: productId, user_id: user.id, rating: reviewRating, review_text: reviewText, reviewer_name: nameToSave }
                 ])
-                .select('id, rating, review_text, created_at')
+                .select('id, rating, review_text, reviewer_name, created_at')
                 .single();
 
             if (error) throw error;
 
             // Update local state instantly so the user sees their new review
             if (data) {
-                // Fetch the profile name manually for the instant update if needed, 
-                // or just use user metadata as fallback
                 const newReview = {
                     ...data,
-                    profiles: {
-                        full_name: reviewerName.trim() || profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
-                    }
+                    user_id: user.id,
+                    reviewer_name: nameToSave,
+                    profiles: { full_name: nameToSave }
                 };
 
                 setRecentReviews(prev => {
@@ -892,48 +892,78 @@ const MobileProductDetailPage: React.FC = () => {
                     {/* ─── REVIEWS ─── */}
                     <div className="mt-12 mb-8">
                         {/* Header Area */}
-                        <div className="flex flex-col gap-3 mb-6">
-                            <div className="flex items-center justify-between">
+                        <div className="mb-6">
+                            <div className="flex items-center justify-between mb-5">
                                 <h2
-                                    className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2"
+                                    className="text-xl font-black text-white tracking-tight flex items-center gap-3"
                                     style={dmSans}
                                 >
                                     Customer Reviews
                                     {ratingStats.total > 0 && (
-                                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-xs font-medium text-zinc-300">
+                                        <span className="px-2.5 py-1 rounded-full bg-[#f2546d]/10 text-xs font-black text-[#f2546d] border border-[#f2546d]/20">
                                             {ratingStats.total}
                                         </span>
                                     )}
                                 </h2>
                                 <button
                                     onClick={() => user ? setIsReviewModalOpen(true) : toast.error("Please log in to write a review")}
-                                    className="text-sm font-bold text-[#f2546d] hover:text-[#ff7b92] transition-colors"
+                                    className="px-4 py-2 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/20 text-sm font-bold text-[#f2546d] hover:bg-[#f2546d]/20 transition-all active:scale-95"
                                 >
-                                    Write a Review
+                                    + Write Review
                                 </button>
                             </div>
                             
-                            {/* Average Rating Summary */}
+                            {/* Rating Overview Card */}
                             {ratingStats.total > 0 && (
-                                <div className="flex items-center gap-3">
-                                    <div className="flex gap-0.5">
-                                        {[1, 2, 3, 4, 5].map((star) => (
-                                            <Star
-                                                key={star}
-                                                className={cn(
-                                                    "w-5 h-5",
-                                                    star <= Math.round(ratingStats.average)
-                                                        ? "fill-[#f2546d] text-[#f2546d] filter drop-shadow-[0_0_6px_rgba(242,84,109,0.4)]"
-                                                        : "text-zinc-800 fill-zinc-900"
-                                                )}
-                                            />
-                                        ))}
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-gradient-to-br from-[#161616] to-[#0f0f0f] rounded-3xl border border-white/5 p-5 mb-6 shadow-xl shadow-black/30"
+                                >
+                                    <div className="flex items-center gap-5">
+                                        {/* Big Score */}
+                                        <div className="flex flex-col items-center min-w-[70px]">
+                                            <span className="text-4xl font-black text-white tracking-tight" style={dmSans}>{ratingStats.average.toFixed(1)}</span>
+                                            <div className="flex gap-0.5 mt-1.5">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <Star
+                                                        key={star}
+                                                        className={cn(
+                                                            "w-4 h-4",
+                                                            star <= Math.round(ratingStats.average)
+                                                                ? "fill-[#f2546d] text-[#f2546d] filter drop-shadow-[0_0_4px_rgba(242,84,109,0.5)]"
+                                                                : "text-zinc-800 fill-zinc-900"
+                                                        )}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-zinc-500 mt-1.5 uppercase tracking-wider">{ratingStats.total} review{ratingStats.total !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        
+                                        {/* Rating Distribution Bars */}
+                                        <div className="flex-1 space-y-1.5">
+                                            {[5, 4, 3, 2, 1].map((star) => {
+                                                const count = recentReviews.filter(r => r.rating === star).length;
+                                                const pct = recentReviews.length > 0 ? (count / recentReviews.length) * 100 : 0;
+                                                return (
+                                                    <div key={star} className="flex items-center gap-2">
+                                                        <span className="text-[11px] font-bold text-zinc-500 w-3 text-right">{star}</span>
+                                                        <Star className="w-3 h-3 fill-zinc-700 text-zinc-700" />
+                                                        <div className="flex-1 h-2 bg-zinc-900/80 rounded-full overflow-hidden">
+                                                            <motion.div
+                                                                initial={{ width: 0 }}
+                                                                animate={{ width: `${pct}%` }}
+                                                                transition={{ duration: 0.8, delay: (5 - star) * 0.1 }}
+                                                                className="h-full rounded-full bg-gradient-to-r from-[#f2546d] to-[#ff7b92]"
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-zinc-600 w-6 text-right">{count}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-black text-white">{ratingStats.average.toFixed(1)}</span>
-                                        <span className="text-sm text-zinc-500 font-medium">/ 5</span>
-                                    </div>
-                                </div>
+                                </motion.div>
                             )}
                         </div>
 
@@ -942,48 +972,69 @@ const MobileProductDetailPage: React.FC = () => {
                                 <motion.div 
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="bg-gradient-to-br from-[#1a1a1a] to-[#111] p-8 rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center shadow-lg"
+                                    className="bg-gradient-to-br from-[#1a1a1a] to-[#111] p-10 rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center shadow-xl"
                                 >
-                                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                                        <Star className="w-8 h-8 text-zinc-600" />
+                                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#f2546d]/10 to-transparent flex items-center justify-center mb-5 border border-[#f2546d]/10">
+                                        <Star className="w-10 h-10 text-[#f2546d]/30" />
                                     </div>
-                                    <h3 className="text-white font-bold text-lg mb-2 tracking-tight">No reviews yet</h3>
-                                    <p className="text-zinc-500 text-sm max-w-[200px] leading-relaxed">
-                                        Be the first to share your thoughts and help others make a decision.
+                                    <h3 className="text-white font-black text-lg mb-2 tracking-tight" style={dmSans}>No reviews yet</h3>
+                                    <p className="text-zinc-500 text-sm max-w-[220px] leading-relaxed">
+                                        Be the first to share your experience and help others decide.
                                     </p>
+                                    <button
+                                        onClick={() => user ? setIsReviewModalOpen(true) : toast.error("Please log in to write a review")}
+                                        className="mt-5 px-6 py-3 rounded-2xl bg-[#f2546d] text-white text-sm font-bold shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
+                                    >
+                                        Write the First Review
+                                    </button>
                                 </motion.div>
                             ) : (
                                 recentReviews.map((review, idx) => {
-                                    // Handle cases where profiles might be an array or object
+                                    // Use reviewer_name from DB row first, then fall back to profile join
                                     const profileData = Array.isArray(review.profiles) ? review.profiles[0] : review.profiles;
-                                    const name = profileData?.full_name || "Verified Customer";
+                                    const name = review.reviewer_name || profileData?.full_name || "Anonymous";
                                     const initial = name.charAt(0).toUpperCase();
+                                    
+                                    // Generate a consistent avatar color from the name
+                                    const avatarColors = [
+                                        ['from-[#f2546d]', 'to-[#ff7b92]', 'shadow-[#f2546d]/20'],
+                                        ['from-[#6366f1]', 'to-[#818cf8]', 'shadow-[#6366f1]/20'],
+                                        ['from-[#f59e0b]', 'to-[#fbbf24]', 'shadow-[#f59e0b]/20'],
+                                        ['from-[#10b981]', 'to-[#34d399]', 'shadow-[#10b981]/20'],
+                                        ['from-[#8b5cf6]', 'to-[#a78bfa]', 'shadow-[#8b5cf6]/20'],
+                                        ['from-[#ef4444]', 'to-[#f87171]', 'shadow-[#ef4444]/20'],
+                                    ];
+                                    const colorIdx = name.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0) % avatarColors.length;
+                                    const [gradFrom, gradTo, gradShadow] = avatarColors[colorIdx];
 
                                     return (
                                         <motion.div 
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: idx * 0.05 }}
+                                            transition={{ delay: idx * 0.06 }}
                                             key={review.id} 
-                                            className="group relative bg-[#141414]/80 backdrop-blur-md p-5 rounded-3xl border border-white/5 shadow-lg shadow-black/20 hover:bg-[#1a1a1a] transition-all duration-300 overflow-hidden"
+                                            className="group relative bg-[#141414]/90 backdrop-blur-xl p-5 rounded-3xl border border-white/[0.06] shadow-xl shadow-black/20 hover:border-white/10 hover:bg-[#1a1a1a]/90 transition-all duration-500 overflow-hidden"
                                         >
+                                            {/* Decorative Glow */}
+                                            <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#f2546d]/[0.03] rounded-full blur-3xl group-hover:bg-[#f2546d]/[0.06] transition-all duration-700 pointer-events-none" />
+                                            
                                             {/* Decorative Quote Mark */}
-                                            <div className="absolute -bottom-2 -right-1 text-8xl text-white/[0.02] font-serif leading-none select-none pointer-events-none group-hover:text-white/[0.04] transition-colors">
-                                                "
+                                            <div className="absolute -bottom-4 -right-2 text-[100px] text-white/[0.015] font-serif leading-none select-none pointer-events-none group-hover:text-white/[0.04] transition-colors duration-700">
+                                                &rdquo;
                                             </div>
 
                                             <div className="flex items-start justify-between mb-4 relative z-10">
                                                 <div className="flex items-center gap-3.5">
-                                                    {/* Avatar */}
-                                                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#f2546d] to-[#ff7b92] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-[#f2546d]/20 relative">
+                                                    {/* Avatar with dynamic color */}
+                                                    <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${gradFrom} ${gradTo} flex items-center justify-center text-white font-black text-lg shadow-lg ${gradShadow} relative flex-shrink-0`}>
                                                         {initial}
-                                                        <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20"></div>
+                                                        <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20" />
                                                     </div>
                                                     
                                                     <div className="flex flex-col">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-white font-bold text-sm tracking-tight">{name}</span>
-                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-[9px] font-black text-emerald-400 border border-emerald-500/20 tracking-wider">VERIFIED</span>
+                                                            <span className="text-white font-bold text-[14px] tracking-tight" style={dmSans}>{name}</span>
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-[8px] font-black text-emerald-400 border border-emerald-500/20 tracking-[0.1em] uppercase">Verified</span>
                                                         </div>
                                                         <div className="flex gap-0.5">
                                                             {[...Array(5)].map((_, i) => (
@@ -1013,7 +1064,7 @@ const MobileProductDetailPage: React.FC = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <p className="text-[14px] font-normal text-zinc-300 leading-[1.6] pl-1 relative z-10" style={dmSans}>{review.review_text}</p>
+                                            <p className="text-[14px] font-normal text-zinc-300 leading-[1.7] pl-1 relative z-10" style={dmSans}>{review.review_text}</p>
                                         </motion.div>
                                     );
                                 })
