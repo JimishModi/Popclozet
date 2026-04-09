@@ -472,8 +472,6 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + filteredSlides.length - 1) % filteredSlides.length].image}
                                     alt="Previous"
-                                    loading="lazy"
-                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                     loading="eager"
                                     decoding="async"
@@ -493,11 +491,10 @@ const MobileHome: React.FC = () => {
                                     <img
                                         src={filteredSlides[activeSlide].image}
                                         alt={filteredSlides[activeSlide].title}
-                                        decoding="async"
                                         className="w-full h-full object-cover"
                                         loading="eager"
-                                        fetchPriority="high"
                                         decoding="async"
+                                        fetchPriority="high"
                                     />
                                 </motion.div>
                             </AnimatePresence>
@@ -510,8 +507,6 @@ const MobileHome: React.FC = () => {
                                 <img
                                     src={filteredSlides[(activeSlide + 1) % filteredSlides.length].image}
                                     alt="Next"
-                                    loading="lazy"
-                                    decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
                                     loading="eager"
                                     decoding="async"
@@ -580,8 +575,6 @@ const MobileHome: React.FC = () => {
                                         <motion.img
                                             src={imageUrl}
                                             alt={collection.title}
-                                            loading="lazy"
-                                            decoding="async"
                                             className="absolute inset-0 w-full h-full object-cover"
                                             whileHover={{ scale: 1.05 }}
                                             transition={{ duration: 0.4 }}
@@ -829,8 +822,6 @@ const MobileHome: React.FC = () => {
                                             <img
                                                 src={imgSrc}
                                                 alt={item.name}
-                                                loading="lazy"
-                                                decoding="async"
                                                 className={cn(
                                                     "w-full h-full object-cover transition-transform duration-500",
                                                     isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
