@@ -85,7 +85,7 @@ const NON_PHYSICAL_UNIT_STATUSES = new Set([
 
 const normalizePhysicalUnit = (unit: any): PhysicalUnitInProfile => ({
     ...unit,
-    mrp: unit.mrp ?? unit.mrp_price ?? null,
+    mrp: unit.mrp ?? null,
 });
 
 /**
@@ -278,7 +278,7 @@ export async function addStockToInventory(
                 inventory_id: inventoryId,
                 status: 'available',
                 available: true,
-                mrp_price: mrp ?? null,
+                mrp: mrp ?? null,
                 actual_cost: actualCost ?? null,
             });
 

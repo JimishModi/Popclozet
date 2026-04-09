@@ -403,7 +403,7 @@ const CartPage = () => {
           subtotal: result.subtotal ?? 0,
           discount: result.discount ?? 0,
           coupon_discount: result.coupon_discount ?? 0,
-          delivery_fee: result.delivery_fee ?? 40,
+          delivery_fee: result.delivery_fee ?? 60,
           total: result.total ?? 0,
         });
       } else {
@@ -434,8 +434,8 @@ const CartPage = () => {
           subtotal,
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
-          delivery_fee: 40,
-          total: subtotal + 40,
+          delivery_fee: 60,
+          total: subtotal + 60,
         });
       }
     }).catch((err) => {
@@ -446,8 +446,8 @@ const CartPage = () => {
           subtotal,
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
-          delivery_fee: 40,
-          total: subtotal + 40,
+          delivery_fee: 60,
+          total: subtotal + 60,
         });
       }
     }).finally(() => {
@@ -518,7 +518,7 @@ const CartPage = () => {
         subtotal: result.subtotal ?? 0,
         discount: result.discount ?? 0,
         coupon_discount: result.coupon_discount ?? 0,
-        delivery_fee: result.delivery_fee ?? 40,
+        delivery_fee: result.delivery_fee ?? 60,
         total: result.total ?? 0,
       });
       toast.success(`Coupon applied! -₹${serverDiscount} off`);

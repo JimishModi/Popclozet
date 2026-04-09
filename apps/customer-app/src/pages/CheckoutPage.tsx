@@ -734,13 +734,16 @@ export default function CheckoutPage() {
           subtotal: result.subtotal ?? 0,
           discount: result.discount ?? 0,
           coupon_discount: result.coupon_discount ?? 0,
-          delivery_fee: isNoDeliveryFlow ? 0 : (result.delivery_fee ?? 40),
+          delivery_fee: isNoDeliveryFlow ? 0 : (result.delivery_fee ?? 60),
           total: isNoDeliveryFlow
             ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
             : (result.total ?? 0),
         });
       } else {
         console.warn("[Checkout] preview_order returned:", result.code, result.message);
+        if (result.code === 'OUT_OF_RANGE') {
+          setDistanceError(result.message || 'This area is outside our delivery range (max 7km).');
+        }
       }
     }).catch((err) => {
       if (!cancelled) {
