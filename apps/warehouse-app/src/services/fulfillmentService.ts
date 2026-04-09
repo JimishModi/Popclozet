@@ -260,7 +260,8 @@ export async function getReturnRequests() {
                     id, label, full_address, latitude, longitude, is_default
                 ),
                 orders:order_id (
-                    id, user_id, total_amount, status, lifecycle_state, rider_id,
+                    id, user_id, total_amount, status, lifecycle_state, rider_id, created_at,
+                    payment_method, delivery_address_snapshot, manual_address_details,
                     return_pickup_date, return_time_slot,
                     addresses:delivery_address_id (full_address, latitude, longitude),
                     riders:rider_id (name, full_name, phone),
@@ -289,7 +290,38 @@ export async function getReturnRequests() {
             console.warn('getReturnRequests:', error.message);
             return [];
         }
-        return data || [];
+
+        const requests = data || [];
+        const userIds = [...new Set(requests.map((request: any) => request.orders?.user_id).filter(Boolean))];
+        const customerProfiles = new Map<string, { id?: string; user_id?: string; full_name?: string | null; phone?: string | null; email?: string | null }>();
+
+        if (userIds.length > 0) {
+            const { data: profiles, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, user_id, full_name, phone, email')
+                .in('user_id', userIds);
+
+            if (profilesError) {
+                console.warn('getReturnRequests customer profiles:', profilesError.message);
+            } else {
+                for (const profile of profiles || []) {
+                    const profileUserId = profile.user_id || profile.id;
+                    if (profileUserId) {
+                        customerProfiles.set(profileUserId, profile);
+                    }
+                }
+            }
+        }
+
+        return requests.map((request: any) => ({
+            ...request,
+            orders: request.orders
+                ? {
+                    ...request.orders,
+                    customer_profile: customerProfiles.get(request.orders.user_id) ?? null,
+                }
+                : request.orders,
+        }));
     } catch {
         return [];
     }

@@ -242,7 +242,7 @@ const MobileHome: React.FC = () => {
         setLoadingCatalogue(true);
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
-            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor'));
+            const products = rawProducts.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
             if (products.length > 0) {
                 setCatalogueProducts(products.slice(0, 4));
                 catalogueRetryCount.current = 0;
@@ -253,7 +253,7 @@ const MobileHome: React.FC = () => {
                 console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
                 await productService.syncProducts();
                 const syncedRaw = await productService.getProductsByGender(activeGender);
-                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor'));
+                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
                 setCatalogueProducts(synced.slice(0, 4));
             }
         } catch (error) {
@@ -750,7 +750,7 @@ const MobileHome: React.FC = () => {
                             const isSoldOut = (item as any).isSoldOut === true;
                             const isUnavailable = isFake || isRentedOut || isSoldOut;
                             
-                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented";
+                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented Out";
                             
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (

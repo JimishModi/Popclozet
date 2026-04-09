@@ -160,6 +160,7 @@ function getNotificationIcon(type: string) {
         case 'order_confirmed':
             return <Check className={`${iconClass} text-green-400`} />;
         case 'out_for_delivery':
+        case 'driver_arrived_location':
             return <span className="text-sm">🚗</span>;
         case 'delivered':
             return <Check className={`${iconClass} text-green-400`} />;

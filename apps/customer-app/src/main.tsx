@@ -1,10 +1,8 @@
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
-import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 import { initTheme } from "./utils/theme";
-import { hasReloadGuard, setReloadGuard } from "./lib/reloadGuard";
 
 // === HashRouter Query Param Rescue ===
 const hasHashRoute = window.location.hash.startsWith("#/");

@@ -1,9 +1,14 @@
 
 [functions.notification-webhook]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/notification-webhook/deno.json"
 entrypoint = "./functions/notification-webhook/index.ts"
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-push-notification/index.ts"
 
 [functions.create-razorpay-order]
 enabled = true

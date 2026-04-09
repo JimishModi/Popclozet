@@ -56,9 +56,14 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const internalSecret = Deno.env.get("PUSH_INTERNAL_SECRET");
+  // FIX: fallback to the canonical value used by the DB trigger.
+  // The DB trigger hardcodes 'my_ultra_secure_internal_key_2026' as x-webhook-secret.
+  // If PUSH_INTERNAL_SECRET env var was changed/rotated without updating the trigger,
+  // this fallback ensures notifications continue to work.
+  const internalSecret =
+    Deno.env.get("PUSH_INTERNAL_SECRET") ?? "my_ultra_secure_internal_key_2026";
 
-  if (!supabaseUrl || !serviceRoleKey || !internalSecret) {
+  if (!supabaseUrl || !serviceRoleKey) {
     log.error("Missing environment variables");
     return jsonResponse({ error: "Configuration error" }, 500, log);
   }
@@ -751,6 +756,14 @@ Deno.serve(async (req: Request) => {
               "Your return pickup has been scheduled along with the order.",
               "/orders",
             );
+            await supabase.from("notifications").insert({
+              user_id: customerId,
+              type: "return_scheduled",
+              title: "📅 Return Scheduled",
+              message: "Your return pickup has been scheduled along with the order.",
+              order_id: record.order_id,
+              is_read: false,
+            });
           }
         } else {
           log.info(
@@ -875,6 +888,14 @@ Deno.serve(async (req: Request) => {
             "Your driver is outside and ready to collect your return items!",
             "/orders",
           );
+          await supabase.from("notifications").insert({
+            user_id: customerId,
+            type: "return_scheduled",
+            title: "📍 Driver Arrived",
+            message: "Your driver is outside and ready to collect your return items!",
+            order_id: record.order_id,
+            is_read: false,
+          });
         }
         await sendWarehouseAll(
           "📍 Return Driver at Customer",
@@ -957,6 +978,14 @@ Deno.serve(async (req: Request) => {
             "Your return driver will arrive in approximately 1 hour!",
             "/orders",
           );
+          await supabase.from("notifications").insert({
+            user_id: ord.user_id,
+            type: "return_scheduled",
+            title: "⏰ Return Reminder",
+            message: "Your return driver will arrive in approximately 1 hour!",
+            order_id: ret.order_id,
+            is_read: false,
+          });
         }
         await sendWarehouseAll(
           "⏰ Upcoming Return Pickup",

@@ -1,5 +1,6 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { supabase } from '@popclozet/api-client';
+import { computeInventoryAvailability } from '@/lib/inventoryAvailability';
 
 // Gender and Event types
 export type GenderCategory = 'mens' | 'womens' | 'unisex';
@@ -147,7 +148,7 @@ class ProductService {
             // Fetch all products from Supabase with discounts
             const { data: products, error } = await (supabase as any)
                 .from('products')
-                .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                 .eq('is_available', true);
 
             if (error) throw error;
@@ -182,12 +183,7 @@ class ProductService {
 
     private transformFromDB(dbProduct: any): Product {
         const inventory = dbProduct.inventory || [];
-        const totalStock = inventory.reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0);
-        const totalAvailableStock = inventory.reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0);
-        
-        // Sold Out wins when total stock is zero; otherwise zero available means rented out.
-        const isSoldOut = totalStock === 0;
-        const isRentedOut = totalStock > 0 && totalAvailableStock === 0;
+        const { isSoldOut, isRentedOut } = computeInventoryAvailability(inventory);
 
         return {
             id: dbProduct.id,
@@ -286,7 +282,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
@@ -394,7 +390,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -422,7 +418,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('event_category', event)
                     .eq('is_available', true)
                     .order('created_at', { ascending: false });
@@ -451,7 +447,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
                     .eq('event_category', event)
                     .eq('is_available', true)
@@ -480,7 +476,7 @@ class ProductService {
             try {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('id', id)
                     .single();
 
@@ -517,7 +513,7 @@ class ProductService {
             try {
                 let supabaseQuery = (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('is_available', true);
 
                 if (query.trim()) {
@@ -735,7 +731,7 @@ class ProductService {
             if (this.isOnline()) {
                 const { data, error } = await (supabase as any)
                     .from('products')
-                    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+                    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('category', category)
                     .eq('is_available', true)
                     .neq('id', excludeId)

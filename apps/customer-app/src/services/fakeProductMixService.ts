@@ -26,6 +26,7 @@
 
 import { supabase } from '@popclozet/api-client';
 import type { GenderCategory, EventCategory, Product } from './productService';
+import { computeInventoryAvailability } from '@/lib/inventoryAvailability';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -223,7 +224,7 @@ export async function getProductsWithFakeMix(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let realQuery = (supabase as any)
     .from('products')
-    .select('*, product_discounts(*), inventory(available_stock, total_stock)')
+    .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
     .eq('is_available', true)
     .eq('event_category', category);
 
@@ -242,6 +243,7 @@ export async function getProductsWithFakeMix(
   const realProducts: ProductWithMixMeta[] = (realData ?? []).map((row: Record<string, unknown>) => {
     const rawGender = row.gender as string;
     const discount = (row.product_discounts as Record<string, unknown>[])?.[0];
+    const availability = computeInventoryAvailability((row.inventory as any[]) || []);
 
     return {
       id:             row.id as string,
@@ -262,9 +264,8 @@ export async function getProductsWithFakeMix(
       isAvailable:    row.is_available as boolean,
       discount_type:  discount?.discount_type as 'percentage' | 'fixed_amount' | undefined,
       discount_value: discount?.discount_value as number | undefined,
-      isSoldOut: (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) === 0,
-      isRentedOut: (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.total_stock || 0), 0) > 0 &&
-                   (row.inventory as any[] || []).reduce((acc: number, item: any) => acc + (item.available_stock || 0), 0) === 0,
+      isSoldOut: availability.isSoldOut,
+      isRentedOut: availability.isRentedOut,
       _isFake:        false,
     };
   });

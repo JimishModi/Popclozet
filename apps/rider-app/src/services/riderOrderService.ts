@@ -495,6 +495,49 @@ export async function sendMessageToCustomer(
     return true;
 }
 
+export async function notifyCustomerDriverArrived(
+    orderId: string,
+    customerId: string,
+    riderName?: string,
+): Promise<boolean> {
+    const { data: existing, error: existingError } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', customerId)
+        .eq('order_id', orderId)
+        .eq('type', 'driver_arrived_location')
+        .limit(1)
+        .maybeSingle();
+
+    if (existingError) {
+        console.warn('[riderOrderService] notifyCustomerDriverArrived lookup failed:', existingError);
+    }
+
+    if (existing?.id) {
+        return true;
+    }
+
+    const riderLabel = riderName?.trim() || 'Your rider';
+    const { error } = await supabase.from('notifications').insert({
+        user_id: customerId,
+        type: 'driver_arrived_location',
+        title: '📍 Driver Arrived',
+        message: `${riderLabel} has arrived at your location. Please keep your delivery code ready.`,
+        order_id: orderId,
+        is_read: false,
+        metadata: {
+            rider_name: riderName || null,
+        },
+    });
+
+    if (error) {
+        console.error('[riderOrderService] notifyCustomerDriverArrived:', error);
+        return false;
+    }
+
+    return true;
+}
+
 // ─── Location ─────────────────────────────────────────────────────────────────
 
 export async function updateRiderLocation(

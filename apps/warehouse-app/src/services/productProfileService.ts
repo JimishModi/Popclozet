@@ -123,13 +123,21 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
 
     const inventory: InventorySubProfile[] = (inventoryRows || []).map((row: any) => {
         const unitsForSize = allUnits.filter(u => u.inventory_id === row.id);
+        const derivedAvailable = unitsForSize.filter(u => u.status === 'available').length;
+        const derivedWash = unitsForSize.filter(u => u.status === 'washing' || u.status === 'returned').length;
+        const derivedTotal = unitsForSize.filter(
+            u => u.status !== 'sold' && u.status !== 'instantly_bought'
+        ).length;
+
         return {
             id: row.id,
             size: row.size,
-            available_stock: unitsForSize.filter(u => u.status === 'available').length,
-            went_for_wash: 0,
+            // Inventory rows include reservation-aware counts even before a unit
+            // gets assigned during warehouse packing.
+            available_stock: row.available_stock ?? derivedAvailable,
+            went_for_wash: row.went_for_wash ?? derivedWash,
             instantly_bought: unitsForSize.filter(u => u.status === 'instantly_bought').length,
-            total_stock: unitsForSize.filter(u => u.status !== 'sold' && u.status !== 'instantly_bought').length,
+            total_stock: row.total_stock ?? derivedTotal,
             units: unitsForSize as any,
         };
     });

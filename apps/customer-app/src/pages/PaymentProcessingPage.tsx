@@ -151,7 +151,7 @@ export default function PaymentProcessingPage() {
                             removeFromCart(parts[0], data.size, data.plan);
                         }
                         clearCheckoutDraft();
-                        navigate('/home', { replace: true });
+                        navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
                     onFailure: (error) => {
                         if (paymentSettled.current) return;

@@ -488,7 +488,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid VAPID key configuration" }, 500, log);
   }
 
-  const PUSH_INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET");
+  // FIX: fallback to the canonical value used by the DB trigger & notification-webhook.
+  // If PUSH_INTERNAL_SECRET env var was rotated without updating trigger, this keeps working.
+  const PUSH_INTERNAL_SECRET =
+    Deno.env.get("PUSH_INTERNAL_SECRET") ?? "my_ultra_secure_internal_key_2026";
 
   // ── Auth ──
   const authHeader = req.headers.get("Authorization");

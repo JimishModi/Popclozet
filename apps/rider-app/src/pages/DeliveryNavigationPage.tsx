@@ -13,6 +13,7 @@ import {
   stopDeliveryTracking,
 } from '@/services/trackingService';
 import { verifyDeliveryOtp } from '@/services/deliveryOtpService';
+import { notifyCustomerDriverArrived } from '@/services/riderOrderService';
 import { openRazorpayCheckout, preloadRazorpayCheckout, type RazorpayFailedResponse, type RazorpayPaymentResponse } from '@/lib/razorpay';
 import {
   createRiderCollectionOrder,
@@ -275,7 +276,13 @@ export const DeliveryNavigationPage: React.FC = () => {
 
   // ── OTP-gated delivery completion ────────────────────────────────────────────
 
-  const handleRequestDelivery = useCallback(() => {
+  const handleRequestDelivery = useCallback(async () => {
+    if (id && order?.user_id && !RETURN_STATUSES.includes(order.status)) {
+      await notifyCustomerDriverArrived(id, order.user_id).catch((error) => {
+        console.warn('[DeliveryNavigation] Failed to notify customer about rider arrival:', error);
+      });
+    }
+
     // For POD orders where payment hasn't been collected yet, show payment step first
     if (isPayOnDelivery && !isPaymentCompleted) {
       setShowPaymentStep(true);
@@ -284,7 +291,7 @@ export const DeliveryNavigationPage: React.FC = () => {
     setOtpValue('');
     setOtpError('');
     setShowOtpModal(true);
-  }, [isPayOnDelivery, isPaymentCompleted]);
+  }, [id, isPayOnDelivery, isPaymentCompleted, order?.status, order?.user_id]);
 
   const handleVerifyAndDeliver = useCallback(async () => {
     if (!id || !user?.id) return;

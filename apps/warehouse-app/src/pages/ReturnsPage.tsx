@@ -19,7 +19,8 @@ import {
     Truck,
     Navigation,
     Phone,
-    Droplets
+    Droplets,
+    User
 } from 'lucide-react';
 import { supabase } from '@popclozet/api-client';
 import { clsx } from 'clsx';
@@ -32,6 +33,7 @@ import {
     receiveReturnAtWarehouse,
     completeReturnFlow
 } from '../services/fulfillmentService';
+import { buildManualAddressSummary } from '../services/addressDetails';
 import { sendUnitToWash } from '../services/washService';
 import { markUnitAsSold, setUnitStatus } from '../services/productProfileService';
 
@@ -48,6 +50,14 @@ const STATUS_BADGES: Record<string, string> = {
 
 const getOrderStatus = (order: { status?: string | null; lifecycle_state?: string | null } | null | undefined) =>
     order?.status || order?.lifecycle_state || 'unknown';
+
+const formatDateTime = (value?: string | null) =>
+    value
+        ? new Date(value).toLocaleString('en-IN', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+        })
+        : 'Not set';
 
 export function ReturnsPage() {
     const { user } = useAuth();
@@ -222,6 +232,12 @@ export function ReturnsPage() {
         const expanded = expandedOrderId === order?.id;
         const approveBusy = processingKey === `approve:${request.id}`;
         const receiveBusy = processingKey === `receive:${order?.id}`;
+        const customerName = order?.customer_profile?.full_name || 'Customer';
+        const customerPhone = order?.customer_profile?.phone;
+        const fetchedAddress = order?.delivery_address_snapshot?.full_address || order?.addresses?.full_address || '';
+        const manualAddressSummary = buildManualAddressSummary(order?.manual_address_details);
+        const requestCreatedAt = formatDateTime(request.created_at);
+        const pickupSlot = formatDateTime(request.pickup_slot);
 
         return (
             <motion.div
@@ -242,7 +258,7 @@ export function ReturnsPage() {
                             Pickup: {request.pickup_address?.full_address || 'Saved address'}
                         </p>
                         <p className="text-xs text-zinc-500 mt-1">
-                            Slot: {request.pickup_slot ? new Date(request.pickup_slot).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'}
+                            Slot: {pickupSlot}
                         </p>
                         <div className="flex gap-2 mt-2">
                            <span className={clsx(
@@ -283,6 +299,66 @@ export function ReturnsPage() {
                             </div>
                         )}
                     </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+                    <div className="rounded-lg border border-surface-border/70 bg-zinc-950/30 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Requested At</p>
+                        <p className="text-xs text-zinc-200 mt-1">{requestCreatedAt}</p>
+                    </div>
+
+                    <div className="rounded-lg border border-surface-border/70 bg-zinc-950/30 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Customer</p>
+                        <div className="mt-1 flex items-start gap-2 text-xs text-zinc-200">
+                            <User size={12} className="mt-0.5 shrink-0 text-zinc-500" />
+                            <div className="min-w-0">
+                                <p className="truncate">{customerName}</p>
+                                {customerPhone ? (
+                                    <a
+                                        href={`tel:${customerPhone}`}
+                                        className="text-[11px] text-zinc-400 underline decoration-transparent hover:text-purple-400 hover:decoration-purple-400 transition-colors"
+                                    >
+                                        {customerPhone}
+                                    </a>
+                                ) : (
+                                    <p className="text-[11px] text-zinc-500">Phone not available</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {order?.payment_method && (
+                        <div className="rounded-lg border border-surface-border/70 bg-zinc-950/30 px-3 py-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Payment</p>
+                            <span className={clsx(
+                                'inline-flex mt-1 text-[10px] font-bold uppercase px-2 py-1 rounded border',
+                                order.payment_method === 'cod'
+                                    ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                            )}>
+                                {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                            </span>
+                        </div>
+                    )}
+
+                    {fetchedAddress && (
+                        <div className="rounded-lg border border-surface-border/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Fetched Address</p>
+                            <p className="text-xs text-zinc-300 mt-1 line-clamp-2">{fetchedAddress}</p>
+                        </div>
+                    )}
+
+                    {manualAddressSummary && (
+                        <div className="rounded-lg border border-surface-border/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Manual Address</p>
+                            <p className="text-xs text-zinc-200 mt-1 line-clamp-3">{manualAddressSummary}</p>
+                            {(order?.manual_address_details?.contactName || order?.manual_address_details?.phoneNumber) && (
+                                <p className="text-[11px] text-zinc-500 mt-1">
+                                    {[order.manual_address_details?.contactName, order.manual_address_details?.phoneNumber].filter(Boolean).join(' • ')}
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {orderStatus === 'return_scheduled' && !order?.rider_id && (

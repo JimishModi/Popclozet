@@ -15,6 +15,7 @@ import InstantAddButton from "@/components/ui/InstantAddButton";
 import DeliveryStatusTile from "@/components/ui/DeliveryStatusTile";
 import { supabase } from "@popclozet/api-client";
 import { cn } from "@/lib/utils";
+import { computeInventoryAvailability } from "@/lib/inventoryAvailability";
 
 export interface Product {
   id: string;
@@ -35,6 +36,7 @@ interface InventoryRow {
   size: string;
   available_stock: number;
   total_stock: number;
+  all_products?: { status?: string | null }[];
 }
 
 interface QuickViewModalProps {
@@ -78,7 +80,7 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
     try {
       const { data, error } = await supabase
         .from('inventory')
-        .select('size, available_stock, total_stock')
+        .select('size, available_stock, total_stock, all_products(status)')
         .eq('product_id', product.id)
         .order('size');
       
@@ -98,11 +100,9 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
     }
   };
 
-  const totalStock = inventory.reduce((acc, r) => acc + (r.total_stock || 0), 0);
-  const totalAvailable = inventory.reduce((acc, r) => acc + (r.available_stock || 0), 0);
-  
-  const isActuallySoldOut = hasInventoryLoaded && totalStock === 0;
-  const isProductRentedOut = hasInventoryLoaded && totalStock > 0 && totalAvailable === 0;
+  const availability = computeInventoryAvailability(inventory);
+  const isActuallySoldOut = hasInventoryLoaded && availability.isSoldOut;
+  const isProductRentedOut = hasInventoryLoaded && availability.isRentedOut;
   const isUnavailable = isActuallySoldOut || isProductRentedOut;
 
   const currentSizeRow = inventory.find(r => r.size === selectedSize);

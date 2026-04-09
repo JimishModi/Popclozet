@@ -514,8 +514,11 @@ export async function getMyActiveRentals() {
         item:products (
           id,
           name,
+          brand,
           images,
-          rental_price
+          rental_price,
+          mrp_price,
+          buy_price
         )
       )
     `)

@@ -27,7 +27,7 @@ export const MobileShell: React.FC<MobileShellProps> = ({
             {/* Responsive Container */}
             <div
                 className={cn(
-                    "w-full min-h-dvh relative overflow-clip",
+                    "w-full min-h-dvh relative overflow-x-clip",
                     // Mobile constraints
                     "max-w-[430px]",
                     // Tablet constraints (md+)
@@ -63,13 +63,13 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                 {/* Main content area */}
                 <div
                     className={cn(
-                        "flex flex-col min-h-dvh relative z-[1] flex-1 min-w-0 w-full",
+                        "flex flex-col min-h-0 relative z-[1] flex-1 min-w-0 w-full",
                         !hideBottomNav && "md:pb-0 md:pt-20 lg:pt-0"
                     )}
-                    style={!hideBottomNav ? {
-                        // Keep scrollable content clear of the floating bottom nav on every phone size.
-                        paddingBottom: 'var(--mobile-bottom-nav-offset)',
-                    } : undefined}
+                    style={{
+                        // Keep scrollable content clear of the bottom chrome on every phone size.
+                        paddingBottom: hideBottomNav ? 'var(--safe-bottom)' : 'var(--mobile-bottom-nav-offset)',
+                    }}
                 >
                     {children}
                 </div>

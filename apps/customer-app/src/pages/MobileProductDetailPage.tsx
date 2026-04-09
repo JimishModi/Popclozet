@@ -15,6 +15,7 @@ import shareButtonIcon from "@/assets/icons/share-button.svg";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { toast } from "sonner";
 import type { PricingPlan } from "@/context/CartContext";
+import { computeInventoryAvailability } from "@/lib/inventoryAvailability";
 // import { ALL_MOCK_PRODUCTS } from "@/mocks/allProducts";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
@@ -69,6 +70,7 @@ interface InventoryRow {
     available_stock: number;
     went_for_wash: number;
     total_stock: number;
+    all_products?: { status?: string | null }[];
 }
 
 const MobileProductDetailPage: React.FC = () => {
@@ -165,7 +167,7 @@ const MobileProductDetailPage: React.FC = () => {
                         .single(),
                     supabase
                         .from('inventory')
-                        .select('size, available_stock, went_for_wash, total_stock')
+                        .select('size, available_stock, went_for_wash, total_stock, all_products(status)')
                         .eq('product_id', productId)
                         .order('size'),
                     supabase
@@ -217,12 +219,9 @@ const MobileProductDetailPage: React.FC = () => {
                 if (!inventoryRes.error && inventoryRes.data) {
                     const rows = inventoryRes.data as InventoryRow[];
                     setInventory(rows);
-                    
-                    const totalStock = rows.reduce((acc, r) => acc + (r.total_stock || 0), 0);
-                    const totalAvailable = rows.reduce((acc, r) => acc + (r.available_stock || 0), 0);
-                    
-                    const isSold = totalStock === 0;
-                    const allRented = !isSold && totalAvailable === 0;
+                    const availability = computeInventoryAvailability(rows);
+                    const isSold = availability.isSoldOut;
+                    const allRented = availability.isRentedOut;
                     
                     setIsProductRentedOut(allRented);
                     setIsProductSoldOut(isSold);
