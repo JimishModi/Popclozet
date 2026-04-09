@@ -61,16 +61,10 @@ export const MobileShell: React.FC<MobileShellProps> = ({
                 {isGlobalShell && !hideBottomNav && <BottomNavBar />}
 
                 {/* Main content area */}
-                <div
-                    className={cn(
-                        "flex flex-col min-h-0 relative z-[1] flex-1 min-w-0 w-full",
-                        !hideBottomNav && "md:pb-0 md:pt-20 lg:pt-0"
-                    )}
-                    style={{
-                        // Keep scrollable content clear of the bottom chrome on every phone size.
-                        paddingBottom: hideBottomNav ? 'var(--safe-bottom)' : 'var(--mobile-bottom-nav-offset)',
-                    }}
-                >
+                <div className={cn(
+                    "flex flex-col min-h-screen relative z-[1] flex-1 min-w-0 w-full",
+                    !hideBottomNav && "pb-nav md:pb-0 md:pt-20 lg:pt-0"
+                )}>
                     {children}
                 </div>
             </div>

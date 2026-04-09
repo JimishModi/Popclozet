@@ -186,7 +186,7 @@ export default function PaymentProcessingPage() {
 
 
     return (
-        <MobileShell className="bg-black text-white" hideBottomNav>
+        <MobileShell className="bg-black text-white">
             <div className="flex flex-col items-center justify-center h-full px-8 text-center">
                 {/* 3D-like Glowing Loader */}
                 <div className="relative mb-12">

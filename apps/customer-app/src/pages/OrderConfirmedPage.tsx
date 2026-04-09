@@ -185,7 +185,7 @@ export default function OrderConfirmedPage() {
     };
 
     return (
-        <MobileShell className="bg-[#111111] text-white" hideBottomNav>
+        <MobileShell className="bg-[#111111] text-white">
             <main className="flex-1 overflow-y-auto flex flex-col no-scrollbar">
                 {/* ─── STICKY HEADER ─── */}
                 <header className="sticky top-0 z-50 bg-[#111111]/80 backdrop-blur-lg px-5 py-4">

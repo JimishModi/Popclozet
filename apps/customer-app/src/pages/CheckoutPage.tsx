@@ -1105,7 +1105,7 @@ export default function CheckoutPage() {
       } catch (orderErr: any) {
         // Order creation failed AFTER stock was reserved — release stock
         console.error('[Checkout] Order creation failed, releasing reserved stock:', orderErr);
-        await releaseCheckoutStock(reservedItems).catch(() => {});
+        await releaseCheckoutStock(reservedItems).catch(() => { });
         throw orderErr; // Re-throw to hit the outer catch
       }
 
@@ -1117,7 +1117,7 @@ export default function CheckoutPage() {
           await persistOrderReservations(createdOrderId, reservedItems);
         } catch (e) {
           console.error('[Checkout] Failed to persist reservation records, releasing stock and cancelling order:', e);
-          await releaseCheckoutStock(reservedItems).catch(() => {});
+          await releaseCheckoutStock(reservedItems).catch(() => { });
           await cancelOrder(createdOrderId).catch((cancelErr) => {
             console.warn('[Checkout] Failed to cancel order after reservation persistence failure:', cancelErr);
           });
@@ -1628,11 +1628,8 @@ export default function CheckoutPage() {
       </main>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
-        <div
-          className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]"
-          style={{ paddingBottom: 'max(40px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
-        >
+      <div className="fixed bottom-[var(--nav-h)] md:bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40">
+        <div className="bg-[#232323] rounded-t-[32px] px-5 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
           <div className="flex items-center justify-between mb-6">
             <div onClick={() => setShowTermsModal(true)} className="flex items-center gap-2 cursor-pointer">
               <div className={cn("w-4 h-4 rounded border border-[#5f606a] flex items-center justify-center transition-colors", (agreedToTerms && agreedToSizing) ? "bg-[#f2546d] border-[#f2546d]" : "bg-transparent")}>
@@ -1899,12 +1896,12 @@ export default function CheckoutPage() {
                     try {
                       setIsKycLoading(true);
                       const { data, error } = await invokeWithUserJwt<{ verification_url?: string }>('create-kyc-session', {
-                        body: { 
-                          callbackParams: { 
+                        body: {
+                          callbackParams: {
                             user_id: user?.id,
                             callback_path: "/checkout",
                             app_origin: window.location.origin
-                          } 
+                          }
                         }
                       });
                       if (error) throw error;

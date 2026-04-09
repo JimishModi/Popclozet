@@ -70,7 +70,7 @@ export default function PaymentSuccessPage() {
     const PlanIcon = planId === 'essential' ? Zap : planId === 'standard' ? Sparkles : Trophy;
 
     return (
-        <MobileShell className="bg-black text-white" hideBottomNav>
+        <MobileShell className="bg-black text-white">
             <div className="flex flex-col h-full px-6 py-12 relative overflow-hidden">
                 {/* Background Confetti/Glow */}
                 <div className="absolute inset-0 pointer-events-none">

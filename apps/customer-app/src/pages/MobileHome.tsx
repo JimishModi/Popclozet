@@ -34,16 +34,16 @@ const FEATURED_SLIDES = [
 
 const ABOUT_US_SLIDES: { id: number; title: string; icon: React.ReactNode }[] = [
     {
-        id: 0, title: "Pre Cleaning", icon: <img src="/icons/process-1.png" className="w-full h-full object-cover" alt="Pre Cleaning" />,
+        id: 0, title: "Pre Cleaning", icon: <img src="/icons/process-1.png" className="w-full h-full object-cover" alt="Pre Cleaning" loading="lazy" decoding="async" />,
     },
     {
-        id: 1, title: "Sanitization", icon: <img src="/icons/process-2.png" className="w-full h-full object-cover" alt="Sanitization" />,
+        id: 1, title: "Sanitization", icon: <img src="/icons/process-2.png" className="w-full h-full object-cover" alt="Sanitization" loading="lazy" decoding="async" />,
     },
     {
-        id: 2, title: "Post Cleaning", icon: <img src="/icons/process-3.png" className="w-full h-full object-cover" alt="Post Cleaning" />,
+        id: 2, title: "Post Cleaning", icon: <img src="/icons/process-3.png" className="w-full h-full object-cover" alt="Post Cleaning" loading="lazy" decoding="async" />,
     },
     {
-        id: 3, title: "Quality Check", icon: <img src="/icons/process-4.png" className="w-full h-full object-cover" alt="Quality Check" />,
+        id: 3, title: "Quality Check", icon: <img src="/icons/process-4.png" className="w-full h-full object-cover" alt="Quality Check" loading="lazy" decoding="async" />,
     },
 ];
 
@@ -319,6 +319,9 @@ const MobileHome: React.FC = () => {
                         alt="Popclozet"
                         className="h-10 w-auto object-contain"
                         style={{ filter: "brightness(0) saturate(100%) invert(52%) sepia(79%) saturate(2166%) hue-rotate(316deg) brightness(100%) contrast(95%)" }}
+                        loading="eager"
+                        fetchPriority="high"
+                        decoding="async"
                     />
                 </div>
             </header>
@@ -472,6 +475,8 @@ const MobileHome: React.FC = () => {
                                     loading="lazy"
                                     decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
+                                    loading="eager"
+                                    decoding="async"
                                 />
                             </motion.div>
 
@@ -490,6 +495,9 @@ const MobileHome: React.FC = () => {
                                         alt={filteredSlides[activeSlide].title}
                                         decoding="async"
                                         className="w-full h-full object-cover"
+                                        loading="eager"
+                                        fetchPriority="high"
+                                        decoding="async"
                                     />
                                 </motion.div>
                             </AnimatePresence>
@@ -505,6 +513,8 @@ const MobileHome: React.FC = () => {
                                     loading="lazy"
                                     decoding="async"
                                     className="w-full h-full object-cover grayscale blur-[2px]"
+                                    loading="eager"
+                                    decoding="async"
                                 />
                             </motion.div>
                         </div>
@@ -575,6 +585,8 @@ const MobileHome: React.FC = () => {
                                             className="absolute inset-0 w-full h-full object-cover"
                                             whileHover={{ scale: 1.05 }}
                                             transition={{ duration: 0.4 }}
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
@@ -823,6 +835,8 @@ const MobileHome: React.FC = () => {
                                                     "w-full h-full object-cover transition-transform duration-500",
                                                     isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
                                                 )}
+                                                loading="lazy"
+                                                decoding="async"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
