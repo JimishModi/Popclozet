@@ -82,7 +82,7 @@ const MobileProductDetailPage: React.FC = () => {
     const isRented: boolean = location.state?.isRented === true;
     const fakeProductData = location.state?.fakeProduct ?? null;
 
-    const { addToCart, cartItems, totalItems } = useCart();
+    const { addToCart, cartItems, totalItems, cartLockedPlan } = useCart();
     const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const { user } = useAuth();
 
@@ -116,6 +116,15 @@ const MobileProductDetailPage: React.FC = () => {
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("1d");
+    const [showLockModal, setShowLockModal] = useState(false);
+
+    // Keep selectedPlan in sync with cart lock. When cart gets items, snap to
+    // the locked plan; when cart empties, keep whatever the user had selected.
+    useEffect(() => {
+        if (cartLockedPlan) {
+            setSelectedPlan(cartLockedPlan);
+        }
+    }, [cartLockedPlan]);
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
@@ -665,15 +674,24 @@ const MobileProductDetailPage: React.FC = () => {
                                 const hasPrice = plan.price && plan.price > 0;
                                 if (!hasPrice && plan.id !== '3d') return null; // Only show plans with valid prices
 
+                                const isLocked = !!cartLockedPlan && plan.id !== cartLockedPlan;
                                 return (
                                     <button
                                         key={plan.id}
-                                        onClick={() => setSelectedPlan(plan.id as PricingPlan)}
+                                        onClick={() => {
+                                            if (isLocked) {
+                                                setShowLockModal(true);
+                                            } else {
+                                                setSelectedPlan(plan.id as PricingPlan);
+                                            }
+                                        }}
                                         className={cn(
                                             "flex flex-col items-center justify-center p-3 rounded-2xl min-w-[80px] border transition-all duration-300",
-                                            isSelected 
-                                                ? "bg-[#f2546d] border-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105" 
-                                                : "bg-[#1A1A1A] border-white/5 text-zinc-400 hover:border-white/10"
+                                            isSelected
+                                                ? "bg-[#f2546d] border-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20 scale-105"
+                                                : isLocked
+                                                    ? "bg-[#1A1A1A] border-white/5 text-zinc-600 opacity-40 cursor-not-allowed"
+                                                    : "bg-[#1A1A1A] border-white/5 text-zinc-400 hover:border-white/10"
                                         )}
                                     >
                                         <span className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">
@@ -1159,6 +1177,59 @@ const MobileProductDetailPage: React.FC = () => {
                     )}
                 </div>
             </div>
+            {/* ─── CART LOCK MODAL ─── */}
+            {showLockModal && (
+                <div
+                    className="fixed inset-0 z-[999] flex items-end justify-center"
+                    onClick={() => setShowLockModal(false)}
+                >
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+                    {/* Sheet */}
+                    <div
+                        className="relative w-full max-w-[430px] bg-[#141414] rounded-t-3xl px-6 pt-6 pb-10 border-t border-white/10"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Drag handle */}
+                        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-6" />
+
+                        {/* Lock icon */}
+                        <div className="w-14 h-14 rounded-2xl bg-[#f2546d]/10 border border-[#f2546d]/20 flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-7 h-7 text-[#f2546d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+
+                        <h2 className="text-xl font-bold text-white text-center mb-2" style={dmSans}>
+                            Cart Locked to{" "}
+                            {cartLockedPlan === '1d' ? '1 Day'
+                                : cartLockedPlan === '2d' ? '2 Days'
+                                : cartLockedPlan === '3d' ? '3 Days'
+                                : 'Instant Buy'}
+                        </h2>
+                        <p className="text-sm text-zinc-400 text-center mb-6 leading-relaxed">
+                            All items in your cart must have the same rental duration.
+                            Clear your cart to choose a different plan.
+                        </p>
+
+                        <button
+                            onClick={() => { setShowLockModal(false); navigate('/cart'); }}
+                            className="w-full h-[52px] rounded-2xl bg-[#f2546d] text-white font-bold text-base tracking-tight shadow-lg shadow-[#f2546d]/20 active:scale-[0.98] transition-transform mb-3"
+                            style={dmSans}
+                        >
+                            Edit Cart
+                        </button>
+                        <button
+                            onClick={() => setShowLockModal(false)}
+                            className="w-full h-[44px] rounded-2xl bg-white/5 border border-white/10 text-zinc-400 font-medium text-sm active:scale-[0.98] transition-transform"
+                            style={dmSans}
+                        >
+                            Got it
+                        </button>
+                    </div>
+                </div>
+            )}
         </MobileShell>
     );
 };

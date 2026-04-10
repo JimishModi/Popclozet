@@ -62,10 +62,12 @@ const CARD_GAP = 12;
 const AddOnsCarousel = ({
   addOnProducts,
   primaryRentalDays,
+  cartLockedPlan,
   addToCart,
 }: {
   addOnProducts: any[];
   primaryRentalDays: number;
+  cartLockedPlan: string;
   addToCart: (id: string, size: string, plan: string) => void;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -157,7 +159,7 @@ const AddOnsCarousel = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   const bestSize = product.inventory?.find((inv: any) => inv.available_stock > 0)?.size || 'One Size';
-                  addToCart(product.id, bestSize, '1d');
+                  addToCart(product.id, bestSize, cartLockedPlan);
                   toast.success(`Added ${product.name} to bag`);
                 }}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#f2546d] flex items-center justify-center shadow-lg active:scale-90 transition-transform"
@@ -173,7 +175,7 @@ const AddOnsCarousel = ({
 };
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan, addToCart } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateSize, updatePlan, addToCart, cartLockedPlan } = useCart();
   const service = useServiceAvailability();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -569,6 +571,17 @@ const CartPage = () => {
     });
   };
 
+  // Changes the rental plan for ALL items in the cart at once.
+  const updateAllPlans = async (newPlan: PricingPlan) => {
+    const rentalEntries = validCartEntries.filter(([, d]) => ['1d', '2d', '3d'].includes(d.plan));
+    for (const [key, d] of rentalEntries) {
+      if (d.plan !== newPlan) {
+        const pid = key.split('_')[0];
+        await updatePlan(pid, d.size, d.plan as PricingPlan, newPlan);
+      }
+    }
+  };
+
   const renderCartItem = (key: string, data: any, bgColor: string) => {
     const parts = key.split('_');
     const productId = parts[0];
@@ -579,9 +592,11 @@ const CartPage = () => {
     const itemPrice = getPlanPrice(product, plan);
     const isRental = ['1d', '2d', '3d'].includes(plan);
 
+    const stableKey = `${productId}_${size}`;
+
     return (
       <motion.div
-        key={key}
+        key={stableKey}
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -652,8 +667,36 @@ const CartPage = () => {
             </div>
           )}
 
+          {/* Duration chips — rental items only */}
+          {isRental && (
+            <div className="mt-3 flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-1">Duration:</span>
+              {(['1d', '2d', '3d'] as const).map((p) => {
+                const isActive = plan === p;
+                const label = p === '1d' ? '1 Day' : p === '2d' ? '2 Days' : '3 Days';
+                const planPrice = getPlanPrice(product, p);
+                if (!planPrice) return null;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => updateAllPlans(p)}
+                    className={cn(
+                      "flex flex-col items-center px-2.5 py-1 rounded-xl border text-[10px] font-bold transition-all",
+                      isActive
+                        ? "bg-[#f2546d] border-[#f2546d] text-white"
+                        : "bg-white/5 border-white/10 text-zinc-400 hover:border-white/20"
+                    )}
+                  >
+                    <span className="uppercase tracking-wider">{label}</span>
+                    <span className="font-black text-[9px] opacity-80">₹{planPrice}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Pills: Size & Qty */}
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <button
               onClick={() => {
                 setSelectedItemForSize({ productId, plan, currentSize: size });
@@ -807,6 +850,7 @@ const CartPage = () => {
                 <AddOnsCarousel
                   addOnProducts={addOnProducts}
                   primaryRentalDays={primaryRentalDays}
+                  cartLockedPlan={cartLockedPlan ?? '1d'}
                   addToCart={addToCart}
                 />
               )}

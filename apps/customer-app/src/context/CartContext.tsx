@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useMemo,
   ReactNode,
 } from "react";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ interface CartItemData {
 
 interface CartContextType {
   cartItems: Record<string, CartItemData>;
+  cartLockedPlan: PricingPlan | null;
   addToCart: (productId: string, size: string, plan: PricingPlan) => void;
   removeFromCart: (productId: string, size: string, plan: PricingPlan) => void;
   updateQuantity: (productId: string, size: string, plan: PricingPlan, quantity: number) => void;
@@ -319,10 +321,22 @@ export const CartProvider = ({
     0
   );
 
+  // The plan that all cart items are locked to — minimum plan across all items.
+  // null when cart is empty, so the product page allows free selection.
+  const PLAN_ORDER: PricingPlan[] = ['1d', '2d', '3d', 'buy'];
+  const cartLockedPlan = useMemo<PricingPlan | null>(() => {
+    const plans = Object.values(cartItems).map(i => i.plan);
+    if (plans.length === 0) return null;
+    return plans.reduce((min, p) =>
+      PLAN_ORDER.indexOf(p) < PLAN_ORDER.indexOf(min) ? p : min
+    );
+  }, [cartItems]);
+
   return (
     <CartContext.Provider
       value={{
         cartItems,
+        cartLockedPlan,
         addToCart,
         removeFromCart,
         updateQuantity,
