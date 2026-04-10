@@ -52,6 +52,7 @@ const MobileHome: React.FC = () => {
     const [activeSlide, setActiveSlide] = useState(1);
     const [activeGender, setActiveGender] = usePersistentGender("womens");
     const [activeAboutSlide, setActiveAboutSlide] = useState(0);
+    const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
     const [userLocation, setUserLocation] = useState("Detecting...");
     const [userCoords, setUserCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
@@ -542,7 +543,7 @@ const MobileHome: React.FC = () => {
                 </section>
 
 
-                {/* ─── COLLECTIONS: 2 Cards with Gradient Overlay ─── */}
+                {/* ─── COLLECTIONS: 3 Cards in a Single Row ─── */}
                 <section className="px-4 mt-4 md:px-5 md:mt-6">
                     <div className="flex items-center justify-between mb-3 md:mb-4">
                         <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
@@ -551,26 +552,60 @@ const MobileHome: React.FC = () => {
                         <button
                             onClick={() => navigate('/collections')}
                             className="text-sm font-bold text-[#f2546d] hover:text-[#f2546d]/80 transition-colors"
-
                         >
                             See all
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 md:gap-[18px]">
-                        {collections.slice(0, 5).map((collection, index) => {
+                    <div className="grid grid-cols-3 gap-2.5 md:grid-cols-3 md:gap-[18px]">
+                        {(() => {
+                            // Sort collections: Jackets first, Footwear second, Accessories third, rest after
+                            const priorityOrder: Record<string, number> = {
+                                jackets: 1,
+                                footwear: 2,
+                                accessories: 3,
+                            };
+                            const sorted = [...collections].sort((a, b) => {
+                                const pa = priorityOrder[a.id?.toLowerCase()] ?? priorityOrder[a.title?.toLowerCase()] ?? 99;
+                                const pb = priorityOrder[b.id?.toLowerCase()] ?? priorityOrder[b.title?.toLowerCase()] ?? 99;
+                                return pa - pb;
+                            });
+                            return sorted.slice(0, 3);
+                        })().map((collection, index) => {
                             const imageUrl = collection.image;
+
+                            const isSelected = selectedCollection === collection.id;
 
                             return (
                                 <motion.div
                                     key={collection.id}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.1 + index * 0.1, type: "spring", stiffness: 200 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`)}
-                                    className="relative h-[140px] md:h-[210px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
+                                    initial={{ opacity: 0, y: 20, scale: 0.92 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={{ delay: 0.1 + index * 0.12, type: "spring", stiffness: 180, damping: 18 }}
+                                    whileTap={{ scale: 0.91 }}
+                                    onClick={() => {
+                                        setSelectedCollection(collection.id);
+                                        setTimeout(() => navigate(`/shop/${activeGender}?category=${collection.id}&title=${collection.title}`), 180);
+                                    }}
+                                    className="relative h-[130px] md:h-[210px] w-full rounded-[18px] md:rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] group"
+                                    style={{
+                                        border: isSelected
+                                            ? '1.5px solid rgba(242,84,109,0.9)'
+                                            : '1.5px solid rgba(255,255,255,0.08)',
+                                        boxShadow: isSelected
+                                            ? '0 0 0 3px rgba(242,84,109,0.18), 0 8px 32px rgba(242,84,109,0.22), 0 2px 8px rgba(0,0,0,0.5)'
+                                            : '0 2px 12px rgba(0,0,0,0.35)',
+                                        transition: 'border 0.25s ease, box-shadow 0.25s ease',
+                                    }}
                                 >
+                                    {/* Hover glow ring (CSS group-hover) */}
+                                    <div
+                                        className="absolute inset-0 rounded-[18px] md:rounded-[24px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10"
+                                        style={{
+                                            boxShadow: 'inset 0 0 0 1.5px rgba(242,84,109,0.5)',
+                                        }}
+                                    />
+
                                     {imageUrl ? (
                                         <motion.img
                                             src={imageUrl}
@@ -578,25 +613,42 @@ const MobileHome: React.FC = () => {
                                             loading="lazy"
                                             decoding="async"
                                             className="absolute inset-0 w-full h-full object-cover"
-                                            whileHover={{ scale: 1.05 }}
-                                            transition={{ duration: 0.4 }}
+                                            animate={{ scale: isSelected ? 1.06 : 1 }}
+                                            transition={{ duration: 0.35 }}
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
-                                            <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
+                                            <span className="text-3xl font-bold text-white/10">{collection.title.charAt(0)}</span>
                                         </div>
                                     )}
-                                    {/* Gradient overlay at bottom — reduced height to not cover the text */}
+
+                                    {/* Gradient overlay */}
                                     <div
-                                        className="absolute bottom-0 left-0 right-0 h-[60px] rounded-b-[24px]"
+                                        className="absolute bottom-0 left-0 right-0 h-[60px] rounded-b-[18px] md:rounded-b-[24px] z-[1]"
                                         style={{
-                                            background: "linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.7) 100%)",
+                                            background: isSelected
+                                                ? 'linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.92) 100%)'
+                                                : 'linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.82) 100%)',
                                         }}
                                     />
-                                    <div className="absolute bottom-4 left-0 right-0 text-center transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                        <span className="text-sm md:text-base font-bold text-white px-4 border-b border-white/0 group-hover:border-[#f2546d] pb-1 transition-all">
+
+                                    {/* Label */}
+                                    <div className="absolute bottom-3 left-0 right-0 text-center z-[2]">
+                                        <motion.span
+                                            animate={isSelected ? { color: '#f2546d' } : { color: '#ffffff' }}
+                                            transition={{ duration: 0.2 }}
+                                            className="text-[11px] md:text-base font-bold px-2"
+                                        >
                                             {collection.title}
-                                        </span>
+                                        </motion.span>
+                                        {isSelected && (
+                                            <motion.div
+                                                initial={{ scaleX: 0 }}
+                                                animate={{ scaleX: 1 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="mx-auto mt-0.5 h-[1.5px] w-2/3 rounded-full bg-[#f2546d]"
+                                            />
+                                        )}
                                     </div>
                                 </motion.div>
                             );
