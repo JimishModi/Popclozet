@@ -174,7 +174,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await adminClient
       .from('orders')
-      .select('id, status, razorpay_order_id')
+      .select('id, status, payment_method, cod_payment_collected, razorpay_order_id')
       .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
@@ -198,7 +198,11 @@ Deno.serve(async (req: Request) => {
     //   2. pg_cron cleanup after 10 minutes
     //   3. A subsequent payment.captured webhook overrides payment_failed
     if (isFailureEvent) {
-      if (['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
+      const isAlreadyProcessed =
+        (order.payment_method !== 'cod' && ['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) ||
+        (order.payment_method === 'cod' && order.cod_payment_collected === true);
+
+      if (isAlreadyProcessed) {
         log.info('Payment failure event for already-confirmed order - ignoring', {
           orderId: order.id,
           status: order.status,
@@ -250,7 +254,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) {
+    const isAlreadyProcessed =
+      (order.payment_method !== 'cod' && ['confirmed', 'paid', 'packed', 'ready_for_pickup', 'dispatched', 'delivered', 'completed'].includes(order.status)) ||
+      (order.payment_method === 'cod' && order.cod_payment_collected === true);
+
+    if (isAlreadyProcessed) {
       log.info('Order already confirmed - webhook is a no-op', {
         orderId: order.id,
         status: order.status,

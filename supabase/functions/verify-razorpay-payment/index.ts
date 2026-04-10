@@ -161,11 +161,11 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true, payment_id: razorpay_payment_id, already_processed: true }, 200, req, log);
     }
 
-    // COD orders being paid via UPI at delivery time — these are in delivery-in-progress states
+    // COD orders being paid via UPI at delivery time — only once the rider has the parcel
     const codDeliveryStates = [
-      'confirmed', 'packed', 'ready_for_pickup', 'rider_assigned',
-      'driver_arrived_warehouse', 'order_picked_up',
-      'dispatched', 'out_for_delivery',
+      'order_picked_up',
+      'dispatched',
+      'out_for_delivery',
     ];
     const isCodDeliveryPayment = order.payment_method === 'cod' && codDeliveryStates.includes(order.status);
 

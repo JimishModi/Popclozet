@@ -36,7 +36,13 @@ export default function DeliveryTrackingPage() {
     // Determine if this is a COD order that hasn't been paid yet
     const isCodOrder = (order as any)?.payment_method === 'cod';
     const isCodPaid = codPaymentDone || (order as any)?.cod_payment_collected === true;
-    const isDeliveryInProgress = order?.status && ['dispatched', 'out_for_delivery', 'order_picked_up', 'driver_arrived_warehouse', 'ready_for_pickup'].includes(order.status);
+    const deliveryInProgressStatuses = ['ready_for_pickup', 'driver_arrived_warehouse', 'order_picked_up', 'dispatched', 'out_for_delivery'] as const;
+    const codPaymentOpenStatuses = ['order_picked_up', 'dispatched', 'out_for_delivery'] as const;
+    const codPaymentPendingStatuses = ['ready_for_pickup', 'driver_arrived_warehouse', 'rider_assigned'] as const;
+    const orderStatus = order?.status;
+    const isDeliveryInProgress = !!orderStatus && deliveryInProgressStatuses.includes(orderStatus as typeof deliveryInProgressStatuses[number]);
+    const canCollectCodPaymentNow = !!orderStatus && codPaymentOpenStatuses.includes(orderStatus as typeof codPaymentOpenStatuses[number]);
+    const isCodPaymentLockedUntilPickup = !!orderStatus && codPaymentPendingStatuses.includes(orderStatus as typeof codPaymentPendingStatuses[number]);
 
     // Sync codPaymentDone with DB state (e.g. on real-time update)
     useEffect(() => {
@@ -48,6 +54,10 @@ export default function DeliveryTrackingPage() {
     // Handle cash payment confirmation
     const handleCashPayment = useCallback(async () => {
         if (!orderId) return;
+        if (!canCollectCodPaymentNow) {
+            toast.info('Payment will unlock once your rider picks up the order from the warehouse.');
+            return;
+        }
         setIsConfirmingCash(true);
         try {
             await confirmCodPayment(orderId, 'cash');
@@ -59,11 +69,15 @@ export default function DeliveryTrackingPage() {
         } finally {
             setIsConfirmingCash(false);
         }
-    }, [orderId]);
+    }, [orderId, canCollectCodPaymentNow]);
 
     // Handle UPI payment at door
     const handleUpiPayment = useCallback(async () => {
         if (!orderId || !order) return;
+        if (!canCollectCodPaymentNow) {
+            toast.info('UPI payment will unlock once your rider picks up the order from the warehouse.');
+            return;
+        }
         initiatePayment({
             internalOrderId: orderId,
             amountInRupees: order.total_amount || 0,
@@ -82,7 +96,7 @@ export default function DeliveryTrackingPage() {
                 toast.error('Payment failed. You can try again or pay cash.');
             },
         });
-    }, [orderId, order, profile, user, initiatePayment]);
+    }, [orderId, order, profile, user, initiatePayment, canCollectCodPaymentNow]);
 
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
@@ -248,7 +262,7 @@ export default function DeliveryTrackingPage() {
                 </div>
 
                 {/* COD: Pay the Bill button — shown when rider is on the way but payment not collected */}
-                {isCodOrder && !isCodPaid && isDeliveryInProgress && (
+                {isCodOrder && !isCodPaid && canCollectCodPaymentNow && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -267,6 +281,22 @@ export default function DeliveryTrackingPage() {
                         >
                             Pay the Bill
                         </button>
+                    </motion.div>
+                )}
+
+                {isCodOrder && !isCodPaid && isCodPaymentLockedUntilPickup && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-6 p-5 rounded-3xl bg-zinc-900 border border-zinc-800 shadow-2xl"
+                    >
+                        <div className="flex items-center gap-2 mb-3">
+                            <Banknote className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-black text-amber-400 uppercase tracking-[0.2em]">Payment Pending</span>
+                        </div>
+                        <p className="text-sm text-zinc-300">
+                            Your order is still being handed to the rider. UPI and cash confirmation will unlock once the rider picks it up from the warehouse.
+                        </p>
                     </motion.div>
                 )}
 
