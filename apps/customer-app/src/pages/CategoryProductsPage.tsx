@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ChevronLeft, SlidersHorizontal, Loader, Search, X, ShoppingBag, Heart } from "lucide-react";
-import { ClosetIcon } from "@/components/icons/ClosetIcon";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import type { Product } from "@/services/productService";
@@ -13,6 +12,7 @@ import { cacheProductsBatchDB } from "@/lib/db";
 import { getProductsWithFakeMix, fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 type FilterTab = "size" | "price" | "brand";
 
@@ -103,7 +103,7 @@ const CategoryProductsPage: React.FC = () => {
         });
         return Array.from(brandsSet).sort();
     }, [products]);
-    const [wishlist, setWishlist] = useState<Set<string>>(new Set());
+    const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const [showFilters, setShowFilters] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>("size");
 
@@ -259,15 +259,11 @@ const CategoryProductsPage: React.FC = () => {
 
     const toggleWishlist = (productId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        setWishlist(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(productId)) {
-                newSet.delete(productId);
-            } else {
-                newSet.add(productId);
-            }
-            return newSet;
-        });
+        if (isInWishlist(productId)) {
+            removeFromWishlist(productId);
+        } else {
+            addToWishlist(productId);
+        }
     };
 
     const toggleSize = (size: string) => {
@@ -392,16 +388,16 @@ const CategoryProductsPage: React.FC = () => {
             });
         }
 
-        // Sort: real rented-out / sold-out products first, then available, fake products last
+        // Sort: available first, then rented-out / sold-out, fake products last
         filtered.sort((a, b) => {
             const aFake = (a as any)._isFake === true;
             const bFake = (b as any)._isFake === true;
             const aUnavail = !aFake && (a.isSoldOut || a.isRentedOut);
             const bUnavail = !bFake && (b.isSoldOut || b.isRentedOut);
-            if (aUnavail && !bUnavail) return -1;
-            if (!aUnavail && bUnavail) return 1;
             if (aFake && !bFake) return 1;
             if (!aFake && bFake) return -1;
+            if (aUnavail && !bUnavail) return 1;
+            if (!aUnavail && bUnavail) return -1;
             return 0;
         });
 
@@ -426,9 +422,14 @@ const CategoryProductsPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => navigate('/closet?tab=wishlist')}
-                            className="p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
+                            className="relative p-2.5 rounded-full bg-[#1C1C1E] border border-white/10"
                         >
-                            <ClosetIcon className="w-4 h-4 text-zinc-400" />
+                            <Heart className="w-4 h-4 text-zinc-400" />
+                            {wishlistItems.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold text-white bg-[#f2546d] rounded-full px-1 shadow-lg shadow-[#f2546d]/30">
+                                    {wishlistItems.length > 9 ? '9+' : wishlistItems.length}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => navigate('/cart')}
@@ -545,12 +546,21 @@ const CategoryProductsPage: React.FC = () => {
                                         >
                                             <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
                                                 {imgSrc ? (
-                                                    <img
-                                                        src={thumbImage(imgSrc)}
-                                                        alt={product.name}
-                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                        loading="lazy"
-                                                    />
+                                                    <>
+                                                        {/* Shimmer skeleton shown while image loads */}
+                                                        <div className="absolute inset-0 overflow-hidden">
+                                                            <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                                        </div>
+                                                        <img
+                                                            src={thumbImage(imgSrc)}
+                                                            alt={product.name}
+                                                            className="relative w-full h-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 opacity-0 data-[loaded]:opacity-100"
+                                                            loading={index < 4 ? "eager" : "lazy"}
+                                                            fetchpriority={index < 4 ? "high" : "auto"}
+                                                            decoding="async"
+                                                            onLoad={(e) => (e.currentTarget.dataset.loaded = "1")}
+                                                        />
+                                                    </>
                                                 ) : (
                                                     <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
                                                         <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
@@ -563,7 +573,7 @@ const CategoryProductsPage: React.FC = () => {
                                                         className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
                                                     >
                                                         <Heart
-                                                            className={`w-4 h-4 transition-colors ${wishlist.has(product.id)
+                                                            className={`w-4 h-4 transition-colors ${isInWishlist(product.id)
                                                                 ? "text-[#FF4D6D] fill-[#FF4D6D]"
                                                                 : "text-white"
                                                                 }`}

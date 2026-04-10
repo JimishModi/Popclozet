@@ -114,8 +114,8 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
           {isUnavailable && (
             <div className="absolute top-2 left-2 z-10">
               <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
-                {isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                <span className={cn("h-1.5 w-1.5 rounded-full", isFake ? "bg-blue-400" : isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
               </span>
             </div>
           )}

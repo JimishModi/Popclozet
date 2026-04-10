@@ -21,6 +21,7 @@ export default {
   safelist: [
     // exact classes you might need in emergency override
     "force-dark-section",
+    "data-[loaded]:opacity-100",
 
     // common background/text/card variants you use in components
     "bg-white",
@@ -142,6 +143,10 @@ export default {
           "0%": { backgroundPosition: "-1000px 0" },
           "100%": { backgroundPosition: "1000px 0" },
         },
+        "shimmer-slide": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(200%)" },
+        },
         "gradient-shift": {
           "0%": { backgroundPosition: "0% 50%" },
           "50%": { backgroundPosition: "100% 50%" },
@@ -171,6 +176,7 @@ export default {
         float: "float 6s ease-in-out infinite",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         shimmer: "shimmer 2s infinite",
+        "shimmer-slide": "shimmer-slide 1.4s ease-in-out infinite",
         "gradient-shift": "gradient-shift 15s ease infinite",
         "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
         "rotate-3d": "rotate-3d 20s linear infinite",

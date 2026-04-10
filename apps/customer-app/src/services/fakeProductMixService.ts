@@ -141,24 +141,34 @@ function mapFakeRow(row: Record<string, unknown>): Product {
   const imagesArr = row.images as string[] | null;
   const primaryImage = imagesArr?.[0] || (row.image_url as string) || '';
 
+  const p = (field: string) => {
+    const v = row[field];
+    if (v === null || v === undefined || v === '') return 0;
+    return parseFloat(String(v).replace(/[^\d.]/g, '')) || 0;
+  };
+
   return {
-    id:            row.id as string,
-    name:          row.name as string,
-    description:   row.description as string | undefined,
-    price:         parseFloat((row.rental_price as string) ?? '0'),
-    rentalPrice:   parseFloat((row.rental_price as string) ?? '0'),
-    mrp:           row.mrp ? parseFloat(row.mrp as string) : undefined,
-    category:      row.category as string,
+    id:               row.id as string,
+    name:             row.name as string,
+    description:      row.description as string | undefined,
+    price:            p('rental_price'),
+    rentalPrice:      p('rental_price'),
+    rental_price_1d:  p('rental_price_1d'),
+    rental_price_2d:  p('rental_price_2d'),
+    rental_price_3d:  p('rental_price_3d') || p('rental_price'),
+    buy_price:        p('buy_price'),
+    mrp:              p('mrp') || undefined,
+    category:         row.category as string,
     gender,
-    eventCategory: row.category as EventCategory,
-    imageUrl:      primaryImage,
-    images:        imagesArr ?? [],
-    videoUrl:      row.video_url as string | undefined,
-    color:         (row.color as string) ?? '',
-    sizes:         [],
-    brand:         row.brand as string | undefined,
-    rating:        4.5,
-    isAvailable:   false,
+    eventCategory:    row.category as EventCategory,
+    imageUrl:         primaryImage,
+    images:           imagesArr ?? [],
+    videoUrl:         row.video_url as string | undefined,
+    color:            (row.color as string) ?? '',
+    sizes:            [],
+    brand:            row.brand as string | undefined,
+    rating:           4.5,
+    isAvailable:      false,
   };
 }
 
