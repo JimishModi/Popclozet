@@ -169,9 +169,12 @@ Deno.serve(async (req: Request) => {
     ];
     const isCodDeliveryPayment = order.payment_method === 'cod' && codDeliveryStates.includes(order.status);
 
-    // Allow verification from payment_failed too. Razorpay can emit a failed
-    // attempt before the user retries successfully on the same order.
-    if (!isCodDeliveryPayment && !['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
+    // Allow verification from payment_failed and cancelled too.
+    // payment_failed: Razorpay can emit a failed attempt before the user retries successfully.
+    // cancelled: On mobile UPI, ondismiss races the handler and may cancel the order
+    //            before the user finishes paying. If the payment is genuinely captured
+    //            (verified below via Razorpay API), we must still honour it.
+    if (!isCodDeliveryPayment && !['pending', 'pending_payment', 'payment_failed', 'cancelled'].includes(order.status)) {
       log.error('Invalid order state for payment', { status: order.status });
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be verified` }, 409, req, log);
     }

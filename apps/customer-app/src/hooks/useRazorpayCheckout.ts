@@ -148,6 +148,22 @@ export function useRazorpayCheckout() {
               return;
             }
 
+            // ── MOBILE UPI FIX ──
+            // On mobile, when the user taps a UPI app (PhonePe, GPay…),
+            // the browser switches away and Razorpay fires ondismiss
+            // BEFORE the payment is completed. If we cancel the order
+            // immediately, the handler will find a cancelled order when
+            // the user returns after paying. Wait a few seconds to let
+            // the handler fire first.
+            console.log('[useRazorpayCheckout] ondismiss: waiting 5s for possible UPI app return...');
+            await new Promise(r => setTimeout(r, 5000));
+
+            // Re-check after delay — handler may have fired during the wait
+            if (outcomeRef.current !== 'none') {
+              console.log('[useRazorpayCheckout] ondismiss: handler fired during delay, skipping cancel:', outcomeRef.current);
+              return;
+            }
+
             outcomeRef.current = 'cancelled';
             setIsProcessing(false);
             toast.info('Payment cancelled');
