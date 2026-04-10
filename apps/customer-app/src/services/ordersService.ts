@@ -512,6 +512,7 @@ export async function getMyActiveRentals() {
         individual_id,
         rental_price,
         rental_duration_days,
+        pricing_plan,
         item:products (
           id,
           name,

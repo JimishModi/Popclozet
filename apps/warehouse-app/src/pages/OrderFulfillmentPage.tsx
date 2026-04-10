@@ -151,6 +151,7 @@ export function OrderFulfillmentPage() {
                     ) : (
                         orders.map(order => {
                             const isProcessing = processing === order.id;
+                            const isBuyout = order.order_type === 'buyout';
                             const fetchedAddress =
                                 order.delivery_address_snapshot?.full_address ||
                                 order.addresses?.full_address ||
@@ -179,6 +180,11 @@ export function OrderFulfillmentPage() {
                                                             : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                                                     )}>
                                                         {order.payment_method === 'cod' ? 'COD' : 'PAID'}
+                                                    </span>
+                                                )}
+                                                {isBuyout && (
+                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border bg-pink-500/15 text-pink-400 border-pink-500/30">
+                                                        BUY
                                                     </span>
                                                 )}
                                             </div>

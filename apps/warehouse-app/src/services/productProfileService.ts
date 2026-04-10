@@ -79,7 +79,6 @@ const NON_PHYSICAL_UNIT_STATUSES = new Set([
     'sold',
     'lost',
     'damaged',
-    'archived',
     'instantly_bought',
 ]);
 
@@ -108,18 +107,8 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         .eq('product_id', productId)
         .order('size');
 
-    if (invErr || !inventoryRows || inventoryRows.length === 0) {
-        const fallbackInventory = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('item_id', productId)
-            .order('size');
-
-        inventoryRows = fallbackInventory.data || [];
-        invErr = fallbackInventory.error;
-    }
-
     if (invErr) throw invErr;
+    inventoryRows = inventoryRows || [];
 
     // Fetch all physical units for this product
     const inventoryIds = (inventoryRows || []).map((r: any) => r.id);
@@ -373,11 +362,11 @@ export async function updateProductProfile(productId: string, update: ProductUpd
 }
 
 /**
- * Transition a physical unit to a new status (e.g. from available to archived)
+ * Transition a physical unit to a new status
  */
 export async function setUnitStatus(
     individualId: string,
-    newStatus: 'available' | 'ready' | 'returned' | 'rented' | 'sold' | 'washing' | 'archived' | 'lost' | 'damaged',
+    newStatus: 'available' | 'ready' | 'returned' | 'rented' | 'sold' | 'washing' | 'lost' | 'damaged',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase
@@ -401,16 +390,8 @@ export async function setUnitStatus(
 }
 
 /**
- * Archive a physical unit that should no longer count as active stock.
- */
-export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
-    return setUnitStatus(individualId, 'archived', actorId);
-}
-
-/**
  * Permanently delete a physical unit row from all_products.
- * The DB trigger requires status = 'archived' before deletion is allowed,
- * so we archive first. Inventory counts are kept in sync by the database
+ * Inventory counts are kept in sync by the database
  * delete trigger (recalculate_inventory_stock_from_units).
  */
 export async function deletePhysicalUnit(
@@ -418,9 +399,6 @@ export async function deletePhysicalUnit(
     actorId: string = 'system',
     unitStatus?: string,
 ): Promise<void> {
-    // DB trigger requires status='archived' before DELETE is allowed
-    await archivePhysicalUnit(individualId, actorId);
-
     const { error, count } = await supabase
         .from('all_products')
         .delete({ count: 'exact' })

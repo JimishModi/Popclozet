@@ -392,6 +392,19 @@ const CategoryProductsPage: React.FC = () => {
             });
         }
 
+        // Sort: real rented-out / sold-out products first, then available, fake products last
+        filtered.sort((a, b) => {
+            const aFake = (a as any)._isFake === true;
+            const bFake = (b as any)._isFake === true;
+            const aUnavail = !aFake && (a.isSoldOut || a.isRentedOut);
+            const bUnavail = !bFake && (b.isSoldOut || b.isRentedOut);
+            if (aUnavail && !bUnavail) return -1;
+            if (!aUnavail && bUnavail) return 1;
+            if (aFake && !bFake) return 1;
+            if (!aFake && bFake) return -1;
+            return 0;
+        });
+
         return filtered;
     }, [products, category, selectedSizes, selectedBrands, priceRange, nameQuery, genderFromPath]);
 
@@ -518,9 +531,6 @@ const CategoryProductsPage: React.FC = () => {
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
                                     const isFake = (product as any)._isFake === true;
-                                    const isSoldOut = product.isSoldOut === true;
-                                    const isRentedOut = product.isRentedOut === true;
-                                    const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
 
@@ -538,12 +548,7 @@ const CategoryProductsPage: React.FC = () => {
                                                     <img
                                                         src={thumbImage(imgSrc)}
                                                         alt={product.name}
-                                                        className={cn(
-                                                            "w-full h-full object-cover transition-transform duration-300",
-                                                            isUnavailable
-                                                                ? "grayscale opacity-25"
-                                                                : "group-hover:scale-105"
-                                                        )}
+                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                         loading="lazy"
                                                     />
                                                 ) : (
@@ -552,7 +557,7 @@ const CategoryProductsPage: React.FC = () => {
                                                     </div>
                                                 )}
 
-                                                {!isUnavailable && (
+                                                {!isFake && (
                                                     <button
                                                         onClick={(e) => toggleWishlist(product.id, e)}
                                                         className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
@@ -567,14 +572,9 @@ const CategoryProductsPage: React.FC = () => {
                                                 )}
                                             </div>
                                             <div className="p-3">
-                                                <h3 className={cn("text-sm font-semibold mb-0.5 truncate", isUnavailable ? "text-zinc-500" : "text-white")}>{product.name}</h3>
+                                                <h3 className="text-sm font-semibold mb-0.5 truncate text-white">{product.name}</h3>
                                                 <p className="text-xs text-zinc-500 mb-2">{product.brand}</p>
-                                                {isUnavailable && (
-                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-                                                        {isSoldOut ? "Sold Out" : "Currently Rented Out"}
-                                                    </p>
-                                                )}
-                                                <span className={cn("text-base font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                <span className="text-base font-bold text-white">
                                                     ₹{product.rental_price_1d ?? product.rentalPrice ?? product.price}
                                                 </span>
                                             </div>

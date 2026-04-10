@@ -35,36 +35,22 @@
 -- 1a. Drop the trigger that auto-creates phantom units
 DROP TRIGGER IF EXISTS trg_reconcile_inventory_units_after_stock_change ON public.inventory;
 
+-- 1a2. Drop the delete guard trigger — warehouse can delete units directly
+DROP TRIGGER IF EXISTS trg_prevent_physical_unit_hard_delete ON public.all_products;
+DROP FUNCTION IF EXISTS public.prevent_physical_unit_hard_delete();
+
 -- 1b. Clean up existing phantom/NULL rows created by the trigger.
 -- Phantom rows have auto-generated IDs matching the pattern and have
 -- never been rented or washed (warehouse-created units will have activity).
---
--- The prevent_physical_unit_hard_delete trigger may still be active
--- (blocks DELETE unless status is 'archived'/'lost'/'damaged').
--- So we first archive the phantoms, then delete them.
+-- Delete guard trigger is already removed, so we can delete directly.
 DO $$
 BEGIN
   IF to_regclass('public.all_products') IS NOT NULL THEN
-    -- Step 1: Mark phantom rows as 'archived' so the delete guard allows removal
-    UPDATE public.all_products ap
-    SET status = 'archived'
-    WHERE ap.individual_id ~ '^PC-[A-F0-9]{8}-[A-Z0-9]{1,8}-[A-Z0-9]{4,8}$'
-      AND COALESCE(ap.times_rented, 0) = 0
-      AND ap.last_rented IS NULL
-      AND ap.last_washed IS NULL
-      AND ap.status NOT IN ('archived', 'lost', 'damaged')
-      AND NOT EXISTS (
-        SELECT 1 FROM public.order_items oi
-        WHERE oi.individual_id = ap.individual_id
-      );
-
-    -- Step 2: Delete the now-archived phantom rows
     DELETE FROM public.all_products ap
     WHERE ap.individual_id ~ '^PC-[A-F0-9]{8}-[A-Z0-9]{1,8}-[A-Z0-9]{4,8}$'
       AND COALESCE(ap.times_rented, 0) = 0
       AND ap.last_rented IS NULL
       AND ap.last_washed IS NULL
-      AND ap.status IN ('archived', 'lost', 'damaged')
       AND NOT EXISTS (
         SELECT 1 FROM public.order_items oi
         WHERE oi.individual_id = ap.individual_id
@@ -155,6 +141,9 @@ DECLARE
   v_item_count      INT := 0;
   v_item_size       TEXT;
   v_item_qty        INT;
+  v_unit_id         TEXT;
+  v_unit_idx        INT;
+  v_item_plan       TEXT;
 BEGIN
   -- ==============================
   -- AUTH
@@ -264,7 +253,6 @@ BEGIN
     END IF;
 
     -- Reserve: move from available to rented
-    -- Use set_config to prevent the reconcile trigger from firing
     PERFORM set_config('popclozet.reconciling_inventory_units', 'on', TRUE);
 
     UPDATE inventory
@@ -273,6 +261,35 @@ BEGIN
     WHERE id = v_inv.id;
 
     PERFORM set_config('popclozet.reconciling_inventory_units', 'off', TRUE);
+
+    -- Assign physical units immediately and mark as rented/bought
+    v_item_plan := COALESCE(v_item->>'plan', '3d');
+    FOR v_unit_idx IN 1..v_item_qty LOOP
+      v_unit_id := NULL;
+
+      SELECT ap.individual_id INTO v_unit_id
+      FROM all_products ap
+      WHERE ap.inventory_id = v_inv.id
+        AND COALESCE(ap.status, 'available') IN ('available', 'ready')
+      ORDER BY ap.last_washed NULLS FIRST, ap.created_at, ap.individual_id
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1;
+
+      IF v_unit_id IS NOT NULL THEN
+        IF v_item_plan = 'buy' THEN
+          UPDATE all_products
+          SET status = 'instantly_bought', available = FALSE
+          WHERE individual_id = v_unit_id;
+        ELSE
+          UPDATE all_products
+          SET status = 'rented',
+              available = FALSE,
+              last_rented = NOW(),
+              times_rented = COALESCE(times_rented, 0) + 1
+          WHERE individual_id = v_unit_id;
+        END IF;
+      END IF;
+    END LOOP;
   END LOOP;
 
   -- ==============================
@@ -420,6 +437,106 @@ $$;
 
 
 -- ============================================================
+-- PHASE 2b: UPDATE release_order_stock TO RESTORE UNIT STATUS
+--
+-- When an order is cancelled/payment fails, restore the physical
+-- units back to 'available' status (reverse of place_order assignment).
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.release_order_stock(
+  p_order_id UUID,
+  p_reason   TEXT DEFAULT 'manual'
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_reservation RECORD;
+  v_released    INT := 0;
+  v_rented      INT;
+  v_restore_qty INT;
+  v_unit        RECORD;
+  v_units_restored INT := 0;
+BEGIN
+  IF p_order_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'message', 'order_id required');
+  END IF;
+
+  FOR v_reservation IN
+    SELECT id, variant_id, quantity
+    FROM public.order_stock_reservations
+    WHERE order_id = p_order_id
+      AND released_at IS NULL
+    ORDER BY variant_id ASC
+    FOR UPDATE
+  LOOP
+    UPDATE public.order_stock_reservations
+    SET released_at = NOW(),
+        release_reason = p_reason
+    WHERE id = v_reservation.id;
+
+    SELECT rented_stock INTO v_rented
+    FROM public.inventory
+    WHERE id = v_reservation.variant_id
+    FOR UPDATE;
+
+    IF FOUND THEN
+      v_restore_qty := LEAST(v_rented, v_reservation.quantity);
+
+      PERFORM set_config('popclozet.reconciling_inventory_units', 'on', TRUE);
+
+      UPDATE public.inventory
+      SET available_stock = available_stock + v_restore_qty,
+          rented_stock = rented_stock - v_restore_qty
+      WHERE id = v_reservation.variant_id;
+
+      PERFORM set_config('popclozet.reconciling_inventory_units', 'off', TRUE);
+    END IF;
+
+    -- Restore physical units that were marked rented/bought by place_order
+    FOR v_unit IN
+      SELECT ap.individual_id
+      FROM public.all_products ap
+      WHERE ap.inventory_id = v_reservation.variant_id
+        AND ap.status IN ('rented', 'instantly_bought')
+      ORDER BY ap.last_rented DESC NULLS LAST
+      LIMIT v_reservation.quantity
+      FOR UPDATE
+    LOOP
+      UPDATE public.all_products
+      SET status = 'available', available = TRUE
+      WHERE individual_id = v_unit.individual_id;
+      v_units_restored := v_units_restored + 1;
+    END LOOP;
+
+    v_released := v_released + 1;
+  END LOOP;
+
+  IF v_released > 0 AND to_regclass('public.warehouse_activity_log') IS NOT NULL THEN
+    INSERT INTO public.warehouse_activity_log (
+      action, entity_type, entity_id,
+      actor_id, details
+    ) VALUES (
+      'stock_released',
+      'order',
+      p_order_id,
+      '00000000-0000-0000-0000-000000000000'::UUID,
+      jsonb_build_object('reason', p_reason, 'reservations_released', v_released, 'units_restored', v_units_restored)
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'order_id', p_order_id,
+    'released', v_released,
+    'units_restored', v_units_restored
+  );
+END;
+$$;
+
+
+-- ============================================================
 -- PHASE 3: FIX INVENTORY TRIGGER TO NOT DOUBLE-DECREMENT
 --
 -- The old deduct_inventory_on_dispatch trigger ALSO decremented stock
@@ -471,10 +588,10 @@ DECLARE
   v_product_id UUID;
   v_any_available BOOLEAN;
 BEGIN
-  -- Skip if inside reconciliation to avoid cascading triggers
-  IF current_setting('popclozet.reconciling_inventory_units', TRUE) = 'on' THEN
-    RETURN NEW;
-  END IF;
+  -- NOTE: We intentionally do NOT skip during reconciliation.
+  -- The reconciling_inventory_units guard is for the phantom-unit trigger only.
+  -- This trigger must always fire so products.is_available stays in sync
+  -- when stock is added/removed via warehouse operations.
 
   v_product_id := COALESCE(NEW.product_id, OLD.product_id);
 
@@ -583,7 +700,7 @@ BEGIN
     ALTER TABLE public.all_products DROP CONSTRAINT IF EXISTS all_products_status_check;
     ALTER TABLE public.all_products ADD CONSTRAINT all_products_status_check
       CHECK (status IN ('available', 'rented', 'returned', 'washing', 'ready',
-                        'sold', 'lost', 'damaged', 'archived', 'instantly_bought'));
+                        'sold', 'lost', 'damaged', 'instantly_bought'));
   END IF;
 END $$;
 
@@ -644,6 +761,20 @@ $$;
 -- Only service_role can call this (webhook uses service_role)
 REVOKE ALL ON FUNCTION public.cancel_order_payment_failed(UUID, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.cancel_order_payment_failed(UUID, TEXT) FROM authenticated;
+
+
+-- ============================================================
+-- PHASE 8: ALLOW CUSTOMERS TO SEE ALL PRODUCTS (sold out shown on UI)
+--
+-- The old RLS policy hid products where is_available = FALSE.
+-- Now we show all products and let the frontend display
+-- "Sold Out" / "Rented Out" badges instead of hiding them.
+-- ============================================================
+DROP POLICY IF EXISTS "Anyone can view available products" ON public.products;
+DROP POLICY IF EXISTS "Anyone can view entitled products" ON public.products;
+CREATE POLICY "Anyone can view products"
+  ON public.products FOR SELECT
+  USING (true);
 
 
 -- ============================================================

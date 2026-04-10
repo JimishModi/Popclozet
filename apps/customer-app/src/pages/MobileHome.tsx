@@ -242,14 +242,20 @@ const MobileHome: React.FC = () => {
         setLoadingCatalogue(true);
         try {
             const rawProducts = await productService.getProductsByGender(activeGender);
-            // Strictly only available, non-rented, non-sold-out products for the home page showcase
-            const products = rawProducts.filter(p => 
-                !p.category?.toLowerCase().includes('accessor') && 
+            // Show all real products including rented/sold out (no grey, status shown on detail page)
+            const products = rawProducts.filter(p =>
+                !p.category?.toLowerCase().includes('accessor') &&
                 p.isAvailable !== false &&
-                !p.isRentedOut && 
-                !p.isSoldOut &&
                 !(p as any)._isFake
             );
+            // Sort rented/sold out real products to top
+            products.sort((a, b) => {
+                const aUnavail = a.isRentedOut || a.isSoldOut;
+                const bUnavail = b.isRentedOut || b.isSoldOut;
+                if (aUnavail && !bUnavail) return -1;
+                if (!aUnavail && bUnavail) return 1;
+                return 0;
+            });
 
             const topCategories = Array.from(
                 new Set(
@@ -286,7 +292,7 @@ const MobileHome: React.FC = () => {
                 console.log(`🔄 Empty product list, syncing... (attempt ${catalogueRetryCount.current})`);
                 await productService.syncProducts();
                 const syncedRaw = await productService.getProductsByGender(activeGender);
-                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !p.isRentedOut && !p.isSoldOut);
+                const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !(p as any)._isFake);
                 setCatalogueProducts(synced.slice(0, 4));
             }
         } catch (error) {
@@ -780,12 +786,7 @@ const MobileHome: React.FC = () => {
                             ))
                         ) : catalogueProducts.map((item, index) => {
                             const isFake = (item as any)._isFake === true;
-                            const isRentedOut = (item as any).isRentedOut === true;
-                            const isSoldOut = (item as any).isSoldOut === true;
-                            const isUnavailable = isFake || isRentedOut || isSoldOut;
-                            
-                            const statusLabel = isSoldOut ? "Sold Out" : "Currently Rented Out";
-                            
+
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
                                 <motion.div
@@ -795,14 +796,11 @@ const MobileHome: React.FC = () => {
                                     viewport={{ once: true, margin: "-50px" }}
                                     transition={{ delay: index * 0.05 }}
                                     whileTap={{ scale: 0.97 }}
-                                    onClick={() => isUnavailable
-                                        ? navigate(`/product/${item.id}`, { state: { fakeProduct: item, isRented: !isSoldOut, isSold: isSoldOut } })
-                                        : navigate(`/product/${item.id}`)
-                                    }
+                                    onClick={() => navigate(`/product/${item.id}`)}
                                     className="relative rounded-2xl overflow-hidden bg-[#232323] border border-[#484848] cursor-pointer group flex flex-col"
                                 >
-                                    {/* Wishlist — hidden for fake/unavailable items */}
-                                    {!isUnavailable && (
+                                    {/* Wishlist — hidden for fake items */}
+                                    {!isFake && (
                                         <button
                                             className="absolute top-4 right-4 z-10"
                                             onClick={(e) => toggleWishlist(item.id, e)}
@@ -822,26 +820,13 @@ const MobileHome: React.FC = () => {
                                             <img
                                                 src={imgSrc}
                                                 alt={item.name}
-                                                className={cn(
-                                                    "w-full h-full object-cover transition-transform duration-500",
-                                                    isUnavailable ? "grayscale opacity-25" : "group-hover:scale-105"
-                                                )}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                                 loading="lazy"
                                                 decoding="async"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
                                                 No Image
-                                            </div>
-                                        )}
-
-                                        {/* Status badge */}
-                                        {isUnavailable && (
-                                            <div className="absolute top-2 left-2 z-10">
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                                                    <span className={cn("h-1.5 w-1.5 rounded-full", isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
-                                                    {statusLabel}
-                                                </span>
                                             </div>
                                         )}
                                     </div>
@@ -851,16 +836,16 @@ const MobileHome: React.FC = () => {
 
                                     {/* Product Details */}
                                     <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                                        <h3 className={cn("text-xs md:text-sm font-semibold mb-2 line-clamp-2", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                        <h3 className="text-xs md:text-sm font-semibold mb-2 line-clamp-2 text-white">
                                             {item.name}
                                         </h3>
 
                                         <div className="mt-auto">
                                             <div className="flex items-center gap-2">
-                                                <span className={cn("text-sm font-bold", isUnavailable ? "text-zinc-500" : "text-white")}>
+                                                <span className="text-sm font-bold text-white">
                                                     ₹{item.rental_price_1d ?? item.rentalPrice ?? item.price}
                                                 </span>
-                                                {!isUnavailable && item.price > (item.rentalPrice || item.price) && (
+                                                {item.price > (item.rentalPrice || item.price) && (
                                                     <span className="text-[10px] font-bold text-[#f2546d]">
                                                         Save {Math.round(((item.price - (item.rentalPrice || item.price)) / item.price) * 100)}%
                                                     </span>

@@ -148,7 +148,7 @@ class ProductService {
             const { data: products, error } = await (supabase as any)
                 .from('products')
                 .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                .eq('is_available', true);
+                /* is_available filter removed — show sold out/rented out on UI */;
 
             if (error) throw error;
 
@@ -281,8 +281,7 @@ class ProductService {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                    .eq('is_available', true)
-                    .order('created_at', { ascending: false });
+                        .order('created_at', { ascending: false });
 
                 if (error) throw error;
 
@@ -329,7 +328,7 @@ class ProductService {
                 let query = (supabase as any)
                     .from('products')
                     .select('brand')
-                    .eq('is_available', true);
+                    /* is_available filter removed — show sold out/rented out on UI */;
 
                 if (gender) {
                     const dbGender = gender === 'mens' ? 'men' : 'women';
@@ -390,8 +389,7 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
-                    .eq('is_available', true)
-                    .order('created_at', { ascending: false });
+                        .order('created_at', { ascending: false });
 
                 if (error) throw error;
                 return (data || []).map((p: any) => this.transformFromDB(p));
@@ -418,8 +416,7 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('event_category', event)
-                    .eq('is_available', true)
-                    .order('created_at', { ascending: false });
+                        .order('created_at', { ascending: false });
 
                 if (error) throw error;
                 return (data || []).map(this.transformFromDB);
@@ -448,8 +445,7 @@ class ProductService {
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
                     .eq('event_category', event)
-                    .eq('is_available', true)
-                    .order('created_at', { ascending: false });
+                        .order('created_at', { ascending: false });
 
                 if (error) throw error;
                 return (data || []).map((p: any) => this.transformFromDB(p));
@@ -512,7 +508,7 @@ class ProductService {
                 let supabaseQuery = (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                    .eq('is_available', true);
+                    /* is_available filter removed — show sold out/rented out on UI */;
 
                 if (query.trim()) {
                     // Search in multiple fields using 'or' with case-insensitive 'ilike'
@@ -649,7 +645,6 @@ class ProductService {
                 .from('products')
                 .select('*')
                 .is('hygiene_sop_id', null)
-                .eq('is_available', true)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -731,8 +726,7 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('category', category)
-                    .eq('is_available', true)
-                    .neq('id', excludeId)
+                        .neq('id', excludeId)
                     .limit(limit);
 
                 if (error) throw error;

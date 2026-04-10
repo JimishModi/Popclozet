@@ -283,8 +283,7 @@ const CartPage = () => {
         let query = supabase
           .from('products')
           .select('id, name, category, rental_price_1d, rental_price, rental_price_3d, buy_price, images, inventory(size, available_stock)')
-          .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet'])
-          .eq('is_available', true);
+          .in('category', ['accessories', 'neck chain', 'neclace', 'bracelet']);
 
         if (cartProductIds.length > 0) {
           query = query.not('id', 'in', `(${cartProductIds.join(',')})`);

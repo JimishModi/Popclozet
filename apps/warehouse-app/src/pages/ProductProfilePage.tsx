@@ -324,7 +324,6 @@ function AddDiscountModal({
 const statusColor = (s: string) => ({
     available: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
     rented:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    archived:  'text-zinc-400 bg-zinc-500/10 border-zinc-500/20',
     damaged:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
     lost:      'text-rose-400 bg-rose-500/10 border-rose-500/20',
     sold:      'text-red-400 bg-red-500/10 border-red-500/20',
@@ -419,7 +418,7 @@ function SizeCard({ product, inv, onRefresh }: { product: FullProductProfile; in
     const { user } = useAuth();
     const [pendingDeleteUnit, setPendingDeleteUnit] = useState<{ individual_id: string; status: string } | null>(null);
     const activeUnits = inv.units.filter(
-        unit => !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status)
+        unit => !['sold', 'lost', 'damaged', 'instantly_bought'].includes(unit.status)
     );
 
     const handleDownloadUnitLabel = async (unit: any, size: string) => {
@@ -484,7 +483,7 @@ function SizeCard({ product, inv, onRefresh }: { product: FullProductProfile; in
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                             {!['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(unit.status) && (
+                                             {!['sold', 'lost', 'damaged', 'instantly_bought'].includes(unit.status) && (
                                                 <button
                                                     onClick={() => setPendingDeleteUnit(unit)}
                                                     className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"

@@ -32,6 +32,7 @@ interface RentalItem {
     minutesLeft?: number;
     status: string; // Add raw status for label logic
     productId?: string;
+    isBuy?: boolean;
 }
 
 /* Clock/countdown icon */
@@ -68,7 +69,17 @@ const ClosetPage: React.FC = () => {
             setLoading(true);
             const activeOrders = await getMyActiveRentals();
 
-            const mapped: RentalItem[] = activeOrders.map((order: any) => {
+            // Filter out delivered buyout orders (no return needed)
+            const filteredOrders = activeOrders.filter((order: any) => {
+                const isBuyout = order.order_type === 'buyout';
+                const isDelivered = ['delivered', 'in_use'].includes(order.status);
+                // Also check item-level: if ALL items are buy, treat as buyout
+                const allBuyItems = order.order_items?.every((oi: any) => oi.pricing_plan === 'buy');
+                if ((isBuyout || allBuyItems) && isDelivered) return false;
+                return true;
+            });
+
+            const mapped: RentalItem[] = filteredOrders.map((order: any) => {
                 const firstItem = order.order_items?.[0]?.item;
                 const now = new Date();
                 const rentalEndTime = order.rental_end_date ? new Date(order.rental_end_date) : null;
@@ -111,7 +122,8 @@ const ClosetPage: React.FC = () => {
                     returnPickupDate: order.return_pickup_date,
                     returnTimeSlot: order.return_time_slot,
                     itemCount: order.order_items?.length || 0,
-                    productId: firstItem?.id
+                    productId: firstItem?.id,
+                    isBuy: order.order_type === 'buyout' || order.order_items?.every((oi: any) => oi.pricing_plan === 'buy'),
                 };
             });
 
@@ -152,16 +164,23 @@ const ClosetPage: React.FC = () => {
                     <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 shadow-lg">
                         <CountdownIcon />
                         <span className="text-xs font-bold text-white uppercase tracking-wider" style={dmSans}>
-                            {item.isReturnInProgress 
-                                ? 'Returning'
-                                : item.isDelivered 
-                                    ? (item.returnToday ? 'Return Today' : `${item.daysLeft}d left`)
-                                    : (item.status === 'pending' || item.status === 'confirmed') ? 'Confirmed'
+                            {item.isBuy
+                                ? ((item.status === 'pending' || item.status === 'confirmed') ? 'Purchased'
                                     : item.status === 'packed' ? 'Packed'
                                     : (item.status === 'ready_for_pickup' || item.status === 'rider_assigned' || item.status === 'driver_arrived_warehouse') ? 'Preparing'
                                     : (item.status === 'order_picked_up' || item.status === 'dispatched') ? 'Arriving'
                                     : item.status === 'out_for_delivery' ? 'Out for Delivery'
-                                    : 'Arriving'}
+                                    : 'Purchased')
+                                : item.isReturnInProgress
+                                    ? 'Returning'
+                                    : item.isDelivered
+                                        ? (item.returnToday ? 'Return Today' : `${item.daysLeft}d left`)
+                                        : (item.status === 'pending' || item.status === 'confirmed') ? 'Confirmed'
+                                        : item.status === 'packed' ? 'Packed'
+                                        : (item.status === 'ready_for_pickup' || item.status === 'rider_assigned' || item.status === 'driver_arrived_warehouse') ? 'Preparing'
+                                        : (item.status === 'order_picked_up' || item.status === 'dispatched') ? 'Arriving'
+                                        : item.status === 'out_for_delivery' ? 'Out for Delivery'
+                                        : 'Arriving'}
                         </span>
                     </div>
 
@@ -182,7 +201,7 @@ const ClosetPage: React.FC = () => {
 
             {/* Bottom Actions */}
             <div className="px-5 mt-4">
-                {item.isDelivered && (
+                {item.isDelivered && !item.isBuy && (
                     <button
                         onClick={() => navigate(`/pickup-tracking/${item.id}`)}
                         className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-sm font-bold active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-white/10"

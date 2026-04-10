@@ -792,10 +792,10 @@ export const DeliveryNavigationPage: React.FC = () => {
       {/* QR Scanner */}
       {showQRScanner && <QRScannerOverlay onClose={() => setShowQRScanner(false)} />}
 
-      {/* Hardcoded Payment QR (shown after OTP for COD orders) */}
+      {/* Payment QR (shown after OTP for COD orders) — mandatory, rider cannot skip */}
       {showPaymentQR && (
         <PaymentQRModal
-          onClose={() => { setShowPaymentQR(false); navigate('/'); }}
+          onClose={() => {/* no-op: rider must confirm payment before closing */}}
           onPaymentConfirmed={async () => {
             if (id) {
               await markManualPaymentCollected(id);

@@ -1,8 +1,11 @@
 /**
  * PaymentQRModal
  *
- * Displays a hardcoded payment QR code for the rider to show the customer.
- * Place your actual UPI/payment QR image at: public/payment-qr.png
+ * Displays the payment QR code fetched from Supabase (app_settings table).
+ * The QR image is stored server-side so it cannot be tampered with on the client.
+ *
+ * To update the QR: upload a new image to Supabase Storage bucket "app-assets"
+ * and update the app_settings row: UPDATE app_settings SET value = '<url>' WHERE key = 'payment_qr_url';
  *
  * Usage modes:
  *  - View-only (home header): omit onPaymentConfirmed — only X close button shown, no action button
@@ -10,15 +13,17 @@
  *    which updates the DB and navigates home
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Home, QrCode, Loader2 } from 'lucide-react';
+import { supabase } from '@popclozet/api-client';
 
 interface PaymentQRModalProps {
   onClose: () => void;
   /**
    * Called when rider confirms the customer has paid.
    * Should update DB + navigate home. Omit to render view-only mode (no action button).
+   * When provided, the modal becomes mandatory — rider cannot close without confirming payment.
    */
   onPaymentConfirmed?: () => Promise<void>;
 }
@@ -26,6 +31,33 @@ interface PaymentQRModalProps {
 export function PaymentQRModal({ onClose, onPaymentConfirmed }: PaymentQRModalProps) {
   const [imageError, setImageError] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // When onPaymentConfirmed is provided, this is a mandatory payment flow — no closing allowed
+  const isMandatory = !!onPaymentConfirmed;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'payment_qr_url')
+        .single();
+
+      if (!cancelled) {
+        if (data?.value && data.value.trim() !== '') {
+          setQrUrl(data.value.trim());
+        } else {
+          console.error('Payment QR fetch failed:', error?.message || 'empty value');
+          setImageError(true);
+        }
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handlePaymentConfirmed = async () => {
     if (!onPaymentConfirmed || confirming) return;
@@ -58,13 +90,16 @@ export function PaymentQRModal({ onClose, onPaymentConfirmed }: PaymentQRModalPr
               <QrCode size={18} className="text-emerald-400" />
               Scan to Pay
             </h3>
-            <button
-              onClick={onClose}
-              disabled={confirming}
-              className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-40"
-            >
-              <X size={20} />
-            </button>
+            {/* Hide close button during mandatory payment flow — rider must confirm payment */}
+            {!isMandatory && (
+              <button
+                onClick={onClose}
+                disabled={confirming}
+                className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors disabled:opacity-40"
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
 
           {/* Body */}
@@ -75,9 +110,11 @@ export function PaymentQRModal({ onClose, onPaymentConfirmed }: PaymentQRModalPr
 
             {/* QR image */}
             <div className="w-56 h-56 rounded-2xl bg-white p-3 shadow-2xl flex items-center justify-center">
-              {!imageError ? (
+              {loading ? (
+                <Loader2 size={32} className="animate-spin text-zinc-400" />
+              ) : qrUrl && !imageError ? (
                 <img
-                  src="/payment-qr.png"
+                  src={qrUrl}
                   alt="Payment QR Code"
                   className="w-full h-full object-contain"
                   onError={() => setImageError(true)}
@@ -86,7 +123,7 @@ export function PaymentQRModal({ onClose, onPaymentConfirmed }: PaymentQRModalPr
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-100 rounded-xl">
                   <QrCode size={64} className="text-zinc-400" />
                   <p className="text-[10px] text-zinc-500 font-bold text-center px-2 leading-tight">
-                    Add your QR image at{'\n'}public/payment-qr.png
+                    Payment QR not configured.{'\n'}Contact admin.
                   </p>
                 </div>
               )}

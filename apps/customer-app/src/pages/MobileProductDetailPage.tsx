@@ -532,10 +532,7 @@ const MobileProductDetailPage: React.FC = () => {
                                         transition={{ duration: 0.6 }}
                                         src={fullImage(img)}
                                         alt={`${product.name} ${idx + 1}`}
-                                        className={cn(
-                                            "w-full h-full object-cover",
-                                            (isRented || isProductRentedOut) && "grayscale opacity-50"
-                                        )}
+                                        className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">

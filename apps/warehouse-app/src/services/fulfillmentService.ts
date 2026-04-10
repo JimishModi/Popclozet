@@ -18,6 +18,7 @@ export interface OrderWithItems {
     rental_end_date: string;
     total_amount: number;
     status: string;
+    order_type?: string | null;
     delivery_eta: string | null;
     rider_id: string | null;
     rider_name?: string | null;
@@ -38,6 +39,7 @@ export interface OrderWithItems {
         product_id: string;
         size: string | null;
         rental_price: number;
+        pricing_plan?: string | null;
         individual_id?: string | null;
         products?: {
             id: string;
@@ -404,6 +406,7 @@ export async function getPackedOrders(): Promise<OrderWithItems[]> {
                     product_id,
                     size,
                     rental_price,
+                    pricing_plan,
                     individual_id,
                     products (id, name, images)
                 ),
@@ -439,6 +442,7 @@ export async function getFulfillmentOrders(): Promise<OrderWithItems[]> {
                     product_id,
                     size,
                     rental_price,
+                    pricing_plan,
                     individual_id,
                     products (id, name, images)
                 ),

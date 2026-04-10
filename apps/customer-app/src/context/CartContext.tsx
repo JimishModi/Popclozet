@@ -121,8 +121,7 @@ export const CartProvider = ({
         const { data: validProducts } = await supabase
           .from('products')
           .select('id')
-          .in('id', uniqueProductIds)
-          .eq('is_available', true);
+          .in('id', uniqueProductIds);
 
         const validIds = new Set((validProducts || []).map((p: any) => p.id));
         items.forEach((item) => {
@@ -156,6 +155,17 @@ export const CartProvider = ({
 
   const addToCart = async (productId: string, size: string, plan: PricingPlan) => {
     try {
+      // Prevent mixing buy and rent items in the same cart
+      const existingPlans = Object.values(cartItems).map(item => item.plan);
+      if (existingPlans.length > 0) {
+        const hasBuy = existingPlans.some(p => p === 'buy');
+        const hasRent = existingPlans.some(p => p !== 'buy');
+        if ((plan === 'buy' && hasRent) || (plan !== 'buy' && hasBuy)) {
+          toast.error("You can't mix buy and rent items in the same cart. Please checkout first or clear your cart.");
+          return;
+        }
+      }
+
       // Validate that the product actually exists in the products table before adding.
       // This prevents fake/deleted product IDs from entering the cart and causing
       // PRODUCT_NOT_FOUND errors in preview_order / place_order.
@@ -163,7 +173,6 @@ export const CartProvider = ({
         .from('products')
         .select('id')
         .eq('id', productId)
-        .eq('is_available', true)
         .maybeSingle();
 
       if (checkError || !productCheck) {
