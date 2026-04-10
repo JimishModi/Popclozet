@@ -43,28 +43,31 @@ export default function AddressAccuracyPage() {
   const { profile } = useAuth();
 
   const routeState = (location.state || {}) as AddressAccuracyState;
-  const storedContext = getCheckoutAddressContext();
+  // Read stored context once on mount to avoid new-object-every-render loop
+  const [storedContext] = useState(() => getCheckoutAddressContext());
 
   const selectedAddress =
     routeState.selectedAddress || storedContext?.selectedAddress || null;
   const nextRoute = routeState.nextRoute || "/checkout";
   const forwardState = routeState.forwardState || {};
 
-  const initialDetails = useMemo(
-    () =>
-      createInitialForm(
-        profile,
-        routeState.manualAddressDetails || storedContext?.manualAddressDetails,
-        selectedAddress
-      ),
-    [profile, routeState.manualAddressDetails, selectedAddress, storedContext]
+  const [form, setForm] = useState<ManualAddressDetails>(() =>
+    createInitialForm(
+      profile,
+      routeState.manualAddressDetails || storedContext?.manualAddressDetails,
+      selectedAddress
+    )
   );
 
-  const [form, setForm] = useState<ManualAddressDetails>(initialDetails);
-
+  // Sync form when profile loads asynchronously (only fills empty fields)
   useEffect(() => {
-    setForm(initialDetails);
-  }, [initialDetails]);
+    if (!profile) return;
+    setForm((prev) => ({
+      ...prev,
+      contactName: prev.contactName || profile.full_name || "",
+      phoneNumber: prev.phoneNumber || profile.phone || "",
+    }));
+  }, [profile]);
 
   useEffect(() => {
     if (!selectedAddress) {

@@ -954,6 +954,25 @@ Deno.serve(async (req: Request) => {
   // ==========================================
   if (type === "CRON") {
     log.info("Executing CRON 1-hour reminder check...");
+
+    // ── Auto-dispatch returns to riders ──────────────────────────────
+    // Call the DB function that transitions eligible orders to
+    // 'return_scheduled', which triggers broadcast_order_to_riders
+    // and creates rider_notifications rows so riders see the ride.
+    const { data: dispatchResult, error: dispatchErr } = await supabase.rpc(
+      "auto_dispatch_pre_scheduled_returns",
+    );
+    if (dispatchErr) {
+      log.error("auto_dispatch_pre_scheduled_returns failed", {
+        error: dispatchErr.message,
+      });
+    } else {
+      log.info("auto_dispatch_pre_scheduled_returns result", {
+        result: dispatchResult,
+      });
+    }
+
+    // ── 1-hour reminder notifications (customer + warehouse) ────────
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const next15Mins = new Date(Date.now() + 75 * 60 * 1000).toISOString();
 
@@ -968,7 +987,7 @@ Deno.serve(async (req: Request) => {
       for (const ret of upcomingReturns) {
         const { data: ord } = await supabase
           .from("orders")
-          .select("user_id")
+          .select("user_id, status, rider_id")
           .eq("id", ret.order_id)
           .single();
         if (ord?.user_id) {
@@ -992,6 +1011,13 @@ Deno.serve(async (req: Request) => {
           `1-hour warning: Return pickup for Order #${shortId(ret.order_id)} starting soon.`,
           "/returns",
         );
+
+        // If the order was just dispatched to riders by auto_dispatch above,
+        // send push notifications to all pending rider_notifications
+        if (ord && ord.status === "return_scheduled" && !ord.rider_id) {
+          const orderRecord = { id: ret.order_id, status: "return_scheduled" };
+          await sendRideRequestPushesForOrder(orderRecord);
+        }
       }
     }
   }

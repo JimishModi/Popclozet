@@ -458,9 +458,18 @@ export default function CheckoutPage() {
         }
 
         const distance = result.distanceKm;
-        console.log("[DistanceCheck] Verified distance:", distance);
+        console.log("[DistanceCheck] Verified road distance:", distance);
         setActualDistance(distance);
-        if (distance > MAX_DELIVERY_DISTANCE_KM) {
+
+        // Use haversine (straight-line) for the 7km range check — matches server-side logic.
+        // Road distance can exceed 7km even when the address is within the service area.
+        const { haversineDistance } = await import("@/utils/haversine");
+        const straightLine = haversineDistance(
+          WAREHOUSE_LOCATION.lat, WAREHOUSE_LOCATION.lng,
+          normalizedLat, normalizedLng
+        );
+        console.log("[DistanceCheck] Haversine distance:", straightLine.toFixed(2), "km");
+        if (straightLine > MAX_DELIVERY_DISTANCE_KM) {
           setDistanceError(`This area is out of our current service range (${MAX_DELIVERY_DISTANCE_KM}km).`);
         }
       } catch (error) {
@@ -717,18 +726,27 @@ export default function CheckoutPage() {
       setPricingLoading(false);
       return;
     }
+    // Wait for distance to be resolved before calling preview_order
+    // to avoid sending stale/fallback distance that may trigger OUT_OF_RANGE
+    if (!isNoDeliveryFlow && distanceLoading) {
+      setPricingLoading(true);
+      return;
+    }
+    // Use actual computed distance, fall back to 0 (not stale profile data)
+    const distanceKm = isNoDeliveryFlow ? 0 : (actualDistance ?? 0);
     let cancelled = false;
     setPricingLoading(true);
     previewOrder({
       items,
       couponCode: appliedCouponCode,
-      distanceKm: isNoDeliveryFlow ? 0 : (actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0),
+      distanceKm,
       addressId: isNoDeliveryFlow ? null : (deliveryAddress?.id || null),
       lat: isNoDeliveryFlow ? null : (deliveryAddress?.lat || null),
       lng: isNoDeliveryFlow ? null : (deliveryAddress?.lng || null),
     }).then((result) => {
       if (cancelled) return;
       if (result.success) {
+        setDistanceError(null); // Clear any previous OUT_OF_RANGE error
         setServerPricing({
           original_total: result.original_total ?? 0,
           subtotal: result.subtotal ?? 0,
@@ -754,7 +772,7 @@ export default function CheckoutPage() {
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData, actualDistance, selectedHub?.distance_km, profile?.delivery_distance_km, invalidCatalogItem]);
+  }, [previewItemsKey, checkoutAddressKey, appliedCouponCode, isNoDeliveryFlow, buyoutOrderData, actualDistance, distanceLoading, invalidCatalogItem]);
 
   // ── Display values: prefer server pricing, fall back to client estimates ──
   const subtotal = serverPricing?.subtotal != null
@@ -1004,7 +1022,7 @@ export default function CheckoutPage() {
             : 3;
       const startDate = new Date();
       const endDate = new Date(startDate.getTime() + rentalDays * 24 * 60 * 60 * 1000);
-      const routeDistanceKm = actualDistance ?? selectedHub?.distance_km ?? profile?.delivery_distance_km ?? 0;
+      const routeDistanceKm = actualDistance ?? 0;
       const deliveryEtaMins = 60;
       const deliveryEtaStr = new Date(startDate.getTime() + deliveryEtaMins * 60000).toISOString();
       const deliveryEstimateVal = '60min';
