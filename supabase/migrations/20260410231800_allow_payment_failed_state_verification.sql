@@ -56,7 +56,9 @@ BEGIN
         );
     END IF;
 
-    IF v_order.status NOT IN ('pending', 'pending_payment', 'payment_failed') THEN
+    -- CRITICAL FIX: Allow verifying payments for 'cancelled' orders. 
+    -- When using UPI on mobile, the PWA can trigger a premature cancellation via ondismiss.
+    IF v_order.status NOT IN ('pending', 'pending_payment', 'payment_failed', 'cancelled') THEN
         RETURN jsonb_build_object(
             'success', false, 'code', 'INVALID_STATE',
             'message', format('Cannot verify payment for order in state: %s', v_order.status)

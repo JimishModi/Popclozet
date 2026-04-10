@@ -9,17 +9,29 @@
 // CRITICAL: Uses a `handlerCalled` flag to prevent the known Razorpay bug
 // where `modal.ondismiss` fires AFTER `handler` on successful payments,
 // causing a false "cancelled" flash.
+//
+// MOBILE UPI FIX (v2): On mobile devices, tapping a UPI app causes the
+// browser to switch away. Razorpay fires `ondismiss` IMMEDIATELY when
+// the browser loses focus — long before the user finishes paying. The
+// previous 5-second delay inside ondismiss was too fragile:
+//   - If auth refresh after app return takes >5s, ondismiss cancels the order
+//   - If network is slow, verification retries overlap with the cancel
+//
+// New approach: ondismiss NEVER cancels the order. It simply navigates
+// back to checkout. The server-side cron (10-minute timeout) and the
+// Razorpay webhook handle genuinely abandoned orders. The handler callback
+// is the ONLY path that can mark success or verification_failed.
 
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { openRazorpayCheckout, type RazorpayPaymentResponse, type RazorpayFailedResponse } from '@/lib/razorpay';
 import { createRazorpayOrder, verifyRazorpayPayment } from '@/services/razorpayService';
-import { cancelOrder } from '@/services/ordersService';
 
 const popclozet_LOGO = '/icons/icon-192x192.png';
 
-// Payment outcome states — used to prevent race conditions
+// Payment outcome states — used to prevent race conditions between
+// handler and ondismiss callbacks. Only ONE of these may ever fire.
 type PaymentOutcome = 'none' | 'success' | 'failed' | 'cancelled';
 
 interface UseRazorpayCheckoutOptions {
@@ -67,16 +79,6 @@ export function useRazorpayCheckout() {
 
     setIsProcessing(true);
     outcomeRef.current = 'none';
-
-    /** Safely mark the order as cancelled/failed in DB */
-    const markOrderFailed = async (reason: string) => {
-      if (skipCancelOnFailure) return; // COD UPI at door — order stays active
-      try {
-        await cancelOrder(internalOrderId);
-      } catch (cancelErr) {
-        console.warn(`[useRazorpayCheckout] Failed to cancel order (${reason}):`, cancelErr);
-      }
-    };
 
     try {
       // Step 1: Create Razorpay order via edge function
@@ -148,27 +150,44 @@ export function useRazorpayCheckout() {
               return;
             }
 
-            // ── MOBILE UPI FIX ──
+            // ── MOBILE UPI FIX (v2) ──
             // On mobile, when the user taps a UPI app (PhonePe, GPay…),
             // the browser switches away and Razorpay fires ondismiss
-            // BEFORE the payment is completed. If we cancel the order
-            // immediately, the handler will find a cancelled order when
-            // the user returns after paying. Wait a few seconds to let
-            // the handler fire first.
-            console.log('[useRazorpayCheckout] ondismiss: waiting 5s for possible UPI app return...');
-            await new Promise(r => setTimeout(r, 5000));
+            // BEFORE the payment is completed.
+            //
+            // PREVIOUSLY we waited 5 seconds and then cancelled the order.
+            // This was WRONG because:
+            //   1. The handler may need more than 5s to fire (auth refresh + verification)
+            //   2. Cancelling the order while money is being deducted = inconsistent state
+            //   3. The server-side cron and webhook handle abandoned orders within 10 minutes
+            //
+            // NEW APPROACH: Wait 10 seconds. If the handler hasn't fired by then,
+            // the user genuinely dismissed the modal (desktop) or abandoned the
+            // UPI flow. We navigate back to checkout WITHOUT cancelling the order.
+            // The server-side 10-minute cron will cancel it if needed.
+            console.log('[useRazorpayCheckout] ondismiss: waiting 10s for possible UPI app return...');
+            await new Promise(r => setTimeout(r, 10000));
 
             // Re-check after delay — handler may have fired during the wait
             if (outcomeRef.current !== 'none') {
-              console.log('[useRazorpayCheckout] ondismiss: handler fired during delay, skipping cancel:', outcomeRef.current);
+              console.log('[useRazorpayCheckout] ondismiss: handler fired during delay, skipping:', outcomeRef.current);
               return;
             }
 
             outcomeRef.current = 'cancelled';
             setIsProcessing(false);
-            toast.info('Payment cancelled');
 
-            await markOrderFailed('user dismissed modal');
+            // ── DO NOT CANCEL THE ORDER HERE ──
+            // On mobile UPI, we can't distinguish between:
+            //   a) User genuinely cancelled (never went to UPI app)
+            //   b) User paid but handler hasn't fired yet (slow network/auth)
+            //
+            // In case (a), the 10-minute cron will cancel and release stock.
+            // In case (b), cancelling here would destroy a paid order.
+            //
+            // The worst case is 10 minutes of reserved stock — much better than
+            // losing a customer's payment.
+            toast.info('Payment cancelled. If money was deducted, it will be refunded automatically.');
 
             if (onFailure) {
               onFailure(new Error('PAYMENT_CANCELLED'));
@@ -216,7 +235,7 @@ export function useRazorpayCheckout() {
 
             // Payment was NOT actually captured (signature valid but gateway
             // says the payment never completed). Flip the outcome so the
-            // order gets cancelled and stock released.
+            // caller knows money wasn't charged.
             const notCaptured =
               msg.includes('was not completed') ||
               msg.includes('Could not confirm payment') ||
@@ -226,7 +245,8 @@ export function useRazorpayCheckout() {
             if (notCaptured) {
               outcomeRef.current = 'failed';
               toast.error(msg || 'Payment was not completed. Please try again.');
-              await markOrderFailed('payment not captured by gateway');
+              // DO NOT cancel order here — let the cron handle it.
+              // The order stays in pending_payment state and will be auto-cancelled.
               if (onFailure) {
                 onFailure(new Error(msg || 'PAYMENT_NOT_CAPTURED'));
               } else {
@@ -241,9 +261,10 @@ export function useRazorpayCheckout() {
               }
             } else {
               // Genuine "money charged but verification failed" case — do NOT cancel.
+              // The webhook will reconcile this. Show a reassuring message.
               toast.error(
                 'Payment was processed but verification failed. ' +
-                'Please contact support with your order ID — your payment is safe.'
+                'Your order will be confirmed automatically — please check My Orders.'
               );
               if (onFailure) {
                 onFailure(verifyErr);
@@ -278,7 +299,9 @@ export function useRazorpayCheckout() {
       toast.error(err.message || 'Failed to initiate payment. Please try again.');
 
       outcomeRef.current = 'failed';
-      await markOrderFailed('payment initiation failed');
+      // Don't cancel the order on initiation failure either — let the cron handle it.
+      // This prevents a potential race where the Razorpay order was created but the
+      // modal just failed to open.
 
       if (onFailure) onFailure(err);
       setIsProcessing(false);

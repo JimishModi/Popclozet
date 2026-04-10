@@ -270,21 +270,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // CRITICAL FIX: If the order was cancelled (by ondismiss racing the
+    // UPI app return) but the payment WAS captured, re-confirm the order.
+    // verify_payment_and_update now accepts 'cancelled' state and will
+    // transition it to 'confirmed'. This is the most common failure mode
+    // on mobile UPI payments.
     if (order.status === 'cancelled') {
-      log.warn('Order was cancelled but payment was captured - needs manual refund', {
+      log.warn('Order was cancelled but payment was captured — attempting to re-confirm', {
         orderId: order.id,
         razorpayPaymentId,
       });
-      log.done(200);
-      return new Response(JSON.stringify({
-        status: 'conflict',
-        message: 'Order cancelled but payment captured. Manual refund needed.',
-        order_id: order.id,
-        razorpay_payment_id: razorpayPaymentId,
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      // Fall through to the verify_payment_and_update call below
     }
 
     if (order.status === 'payment_failed') {

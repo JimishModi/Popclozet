@@ -11,6 +11,7 @@ import { clearCheckoutDraft } from "@/lib/checkoutDraft";
 import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@popclozet/api-client";
 import { debugAuthState } from "@/services/supabaseFunctionInvoke";
+import { toast } from "sonner";
 
 export default function PaymentProcessingPage() {
     const navigate = useNavigate();
@@ -159,44 +160,23 @@ export default function PaymentProcessingPage() {
 
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
 
-                        // Immediately cancel the order and release stock.
-                        // Don't wait for cron — the user expects instant feedback.
-                        // Verification failures are the exception: money may have been
-                        // charged, so we must NOT cancel (webhook will reconcile).
+                        // ── DO NOT CANCEL THE ORDER FROM THE CLIENT ──
+                        // On mobile UPI, ondismiss fires prematurely (before the user
+                        // finishes paying in PhonePe/GPay). If we cancel here, we
+                        // destroy a legitimate paid order. The server-side 10-minute
+                        // cron and Razorpay webhook are the authoritative handlers.
+                        //
+                        // The order stays in pending_payment and will either:
+                        //   a) Be confirmed by the webhook when payment is captured
+                        //   b) Be cancelled by the cron after 10 minutes of inactivity
+
                         const isVerificationFailure =
                           error.message?.includes('verification failed') ||
                           error.message?.includes('signature mismatch');
 
-                        if (orderId && !isVerificationFailure) {
-                            try {
-                                const { error: cancelErr } = await supabase.rpc('cancel_order_safe', {
-                                    p_order_id: orderId,
-                                });
-                                if (cancelErr) {
-                                    console.warn('[PaymentProcessing] Cancel RPC failed:', cancelErr.message);
-                                    // Save for retry on next app start
-                                    try {
-                                        localStorage.setItem(`pending_cancel:${orderId}`, JSON.stringify({
-                                            orderId,
-                                            timestamp: Date.now(),
-                                        }));
-                                    } catch { /* best-effort */ }
-                                } else {
-                                    console.log('[PaymentProcessing] Order cancelled immediately, stock released');
-                                }
-                            } catch (e) {
-                                console.warn('[PaymentProcessing] Cancel failed:', e);
-                                try {
-                                    localStorage.setItem(`pending_cancel:${orderId}`, JSON.stringify({
-                                        orderId,
-                                        timestamp: Date.now(),
-                                    }));
-                                } catch { /* best-effort */ }
-                            }
-                        }
-
                         // User cancelled → go back to checkout so they can retry
                         if (error.message === 'PAYMENT_CANCELLED') {
+                            toast.info('Payment cancelled. Your order will expire in 10 minutes if not completed.');
                             if (window.history.length > 1) {
                                 navigate(-1);
                             } else {
@@ -204,6 +184,7 @@ export default function PaymentProcessingPage() {
                             }
                         } else if (isVerificationFailure) {
                             // Money may have been charged but verification failed
+                            // The webhook will reconcile — show a reassuring page
                             navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
                         } else {
                             navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
