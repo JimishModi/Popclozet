@@ -1153,22 +1153,59 @@ export default function CheckoutPage() {
       // Navigate based on payment method
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
+      
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
+        setIsPlacingOrder(false);
+        placingOrderLockRef.current = false;
       } else {
-        // Pass return schedule data so PaymentProcessingPage can create the
-        // return_request AFTER payment succeeds (avoids false notifications).
-        const paymentParams = new URLSearchParams({
-          type: 'order',
-          orderId: createdOrderId,
-          amount: String(serverTotal),
-          method: 'upi',
+        // ONLINE PAYMENT FLOW directly from CheckoutPage!
+        // This avoids Android/iOS PWA WebView suspension issues associated with navigating to an intermediate route.
+        initiatePayment({
+          internalOrderId: createdOrderId,
+          amountInRupees: serverTotal,
+          preferredMethod: 'upi',
+          userName: recipientName || profile?.full_name || user?.user_metadata?.full_name || 'Guest',
+          userEmail: recipientEmail || user?.email || '',
+          userPhone: recipientPhone || profile?.phone || user?.phone || '',
+          skipCancelOnFailure: false, // For checkout, explicit failure means we should allow retry or cancel.
+          onSuccess: async (paymentId: string) => {
+            // Create return request AFTER payment succeeds
+            if (returnSchedule?.pickupSlotIso && addressId) {
+                try {
+                    await supabase.from('return_requests').insert({
+                        order_id: createdOrderId,
+                        user_id: user?.id,
+                        status: 'pending',
+                        pickup_address_id: addressId,
+                        scheduled_pickup_slot: returnSchedule.pickupSlotIso,
+                    });
+                } catch (err) {
+                    console.error("[Checkout] Failed to create return request", err);
+                }
+            }
+            
+            // Clear cart unconditionally after successful payment
+            if (!isNoDeliveryFlow) {
+              const uid = user?.id;
+              await (uid ? clearUserCartDB(uid) : clearCartDB()).catch(() => { });
+              clearCheckoutDraft();
+            }
+            
+            navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
+          },
+          onFailure: (err: any) => {
+             setIsPlacingOrder(false);
+             placingOrderLockRef.current = false;
+             // Handle explicit failures
+             if (err?.message === 'PAYMENT_CANCELLED') {
+                 // User closed modal — they are still on /checkout so no navigation needed.
+                 // The order in the DB might be left in pending_payment state but will automatically cancel if they don't retry.
+             } else {
+                 navigate(`/payment-failed?orderId=${createdOrderId}&reason=${encodeURIComponent(err?.message || 'verification_failed')}`, { replace: true });
+             }
+          }
         });
-        if (returnSchedule?.pickupSlotIso) {
-          paymentParams.set('pickupSlotIso', returnSchedule.pickupSlotIso);
-          paymentParams.set('pickupAddressId', addressId);
-        }
-        navigate(`/payment-processing?${paymentParams.toString()}`);
       }
     } catch (err: any) {
       console.error("[Checkout] Failed to place order:", err);
@@ -1176,7 +1213,6 @@ export default function CheckoutPage() {
       setError(err.message || "Failed to place order. Please try again.");
       // Reset idempotency key on error so user can retry
       idempotencyKeyRef.current = null;
-    } finally {
       setIsPlacingOrder(false);
       placingOrderLockRef.current = false;
     }
