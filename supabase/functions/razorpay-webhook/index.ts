@@ -116,7 +116,13 @@ Deno.serve(async (req: Request) => {
     const event = JSON.parse(rawBody);
     const eventType = event.event;
 
-    const isSuccessEvent = eventType === 'payment.captured' || eventType === 'payment.authorized';
+    // CRITICAL: only payment.captured means money actually moved.
+    // payment.authorized can happen for payments that are later auto-voided
+    // (e.g. PhonePe UPI intent that the user never completes) — we must NOT
+    // confirm the order on authorized alone. When the payment eventually
+    // auto-captures (or fails), Razorpay will fire captured/failed and we
+    // handle it then.
+    const isSuccessEvent = eventType === 'payment.captured';
     const isFailureEvent = eventType === 'payment.failed';
 
     if (!isSuccessEvent && !isFailureEvent) {

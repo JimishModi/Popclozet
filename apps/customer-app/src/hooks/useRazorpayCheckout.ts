@@ -163,11 +163,22 @@ export function useRazorpayCheckout() {
         },
 
         handler: async (response: RazorpayPaymentResponse) => {
-          // Mark outcome IMMEDIATELY — before any async work —
-          // so that ondismiss knows not to interfere.
+          // Log the raw Razorpay response for diagnostics.
+          // In live mode we have seen cases where handler fires even though
+          // the actual UPI payment was not captured (e.g. PhonePe "try later").
+          // The server-side verify step re-fetches the payment from Razorpay
+          // to confirm real capture before marking the order confirmed.
+          console.log('[useRazorpayCheckout] handler fired with response:', {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            hasSig: !!response.razorpay_signature,
+          });
+
+          // Tentatively mark outcome so ondismiss doesn't race us,
+          // but we only commit to 'success' after server-side confirmation.
           outcomeRef.current = 'success';
 
-          // Step 3: Verify signature server-side (CRITICAL security step)
+          // Step 3: Verify signature + actual payment capture server-side (CRITICAL)
           try {
             const result = await verifyRazorpayPayment({
               razorpay_order_id: response.razorpay_order_id,
@@ -186,18 +197,43 @@ export function useRazorpayCheckout() {
           } catch (verifyErr: any) {
             console.error('[useRazorpayCheckout] Verification failed:', verifyErr);
             const msg = verifyErr?.message || '';
-            if (msg.includes('signature mismatch')) {
+
+            // Payment was NOT actually captured (signature valid but gateway
+            // says the payment never completed). Flip the outcome so the
+            // order gets cancelled and stock released.
+            const notCaptured =
+              msg.includes('was not completed') ||
+              msg.includes('Could not confirm payment') ||
+              msg.includes('Payment amount mismatch') ||
+              msg.includes('order mismatch');
+
+            if (notCaptured) {
+              outcomeRef.current = 'failed';
+              toast.error(msg || 'Payment was not completed. Please try again.');
+              await markOrderFailed('payment not captured by gateway');
+              if (onFailure) {
+                onFailure(new Error(msg || 'PAYMENT_NOT_CAPTURED'));
+              } else {
+                navigate(`/payment-failed?orderId=${internalOrderId}&reason=not_captured`, { replace: true });
+              }
+            } else if (msg.includes('signature mismatch')) {
               toast.error('Payment verification failed. Please contact support.');
+              if (onFailure) {
+                onFailure(verifyErr);
+              } else {
+                navigate(`/payment-failed?orderId=${internalOrderId}&reason=signature_mismatch`, { replace: true });
+              }
             } else {
+              // Genuine "money charged but verification failed" case — do NOT cancel.
               toast.error(
                 'Payment was processed but verification failed. ' +
                 'Please contact support with your order ID — your payment is safe.'
               );
-            }
-            if (onFailure) {
-              onFailure(verifyErr);
-            } else {
-              navigate(`/payment-failed?orderId=${internalOrderId}&reason=verification_failed`, { replace: true });
+              if (onFailure) {
+                onFailure(verifyErr);
+              } else {
+                navigate(`/payment-failed?orderId=${internalOrderId}&reason=verification_failed`, { replace: true });
+              }
             }
           } finally {
             setIsProcessing(false);

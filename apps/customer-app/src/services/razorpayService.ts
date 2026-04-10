@@ -92,8 +92,17 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
       });
 
       if (error) {
-        // Network/server errors — retry
-        throw new Error(error.message || 'Payment verification failed');
+        // Extract the actual error body from the edge function response
+        // (Supabase wraps it under error.context.json()).
+        let detail = error.message;
+        const invokeError = error as any;
+        try {
+          if (invokeError.context && typeof invokeError.context.json === 'function') {
+            const body = await invokeError.context.json();
+            detail = body?.error || JSON.stringify(body);
+          }
+        } catch { /* ignore parse errors */ }
+        throw new Error(detail || 'Payment verification failed');
       }
 
       if (!data?.success) {
@@ -108,8 +117,21 @@ export async function verifyRazorpayPayment(params: VerifyPaymentParams): Promis
     } catch (err: any) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
-      // Don't retry signature mismatches — that's a real failure
-      if (lastError.message.includes('signature mismatch')) {
+      // Don't retry definitive failures:
+      //  - signature mismatch = tampering/bad client
+      //  - "was not completed" = gateway says payment wasn't captured
+      //  - amount/order mismatch = data integrity failure
+      const msg = lastError.message || '';
+      const isDefinitive =
+        msg.includes('signature mismatch') ||
+        msg.includes('was not completed') ||
+        msg.includes('Payment amount mismatch') ||
+        msg.includes('order mismatch') ||
+        msg.includes('Could not confirm payment');
+
+      if (isDefinitive) {
+        // Clear the pending verification record — this payment is dead
+        try { localStorage.removeItem(`rzp_pending_verify:${params.internal_order_id}`); } catch { }
         throw lastError;
       }
 

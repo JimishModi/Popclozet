@@ -212,6 +212,81 @@ Deno.serve(async (req: Request) => {
 
     log.info('Signature verified for order', { orderId: internal_order_id });
 
+    // ── CRITICAL: Verify actual payment status with Razorpay API ──────
+    // A valid signature only proves the response came from Razorpay —
+    // it does NOT prove the payment was actually captured. In live mode
+    // we have seen cases where the handler fires for an authorized-but-
+    // not-captured payment (e.g. PhonePe "try later" with no deduction),
+    // or the client somehow submits a stale/failed response. Always
+    // confirm against the source of truth.
+    const keyId = Deno.env.get('RAZORPAY_KEY_ID');
+    if (!keyId) {
+      log.error('RAZORPAY_KEY_ID not set');
+      return jsonResponse({ error: 'Payment service not configured' }, 500, req, log);
+    }
+
+    const rzpCredentials = btoa(`${keyId}:${keySecret}`);
+    let rzpPayment: { id: string; status: string; amount: number; order_id: string; method?: string } | null = null;
+    try {
+      const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Basic ${rzpCredentials}` },
+      });
+      if (!rzpRes.ok) {
+        const errText = await rzpRes.text();
+        log.error('Razorpay payment fetch failed', { status: rzpRes.status, errText });
+        return jsonResponse({ error: 'Could not confirm payment with gateway. Please contact support.' }, 502, req, log);
+      }
+      rzpPayment = await rzpRes.json();
+    } catch (fetchErr: any) {
+      log.error('Razorpay API fetch error', { error: String(fetchErr) });
+      return jsonResponse({ error: 'Could not reach payment gateway. Please try again.' }, 502, req, log);
+    }
+
+    if (!rzpPayment) {
+      return jsonResponse({ error: 'Invalid response from payment gateway' }, 502, req, log);
+    }
+
+    // Anti-substitution: the payment's order_id must match what the client sent
+    if (rzpPayment.order_id !== razorpay_order_id) {
+      log.error('Payment order_id mismatch with Razorpay', {
+        expected: razorpay_order_id,
+        actual: rzpPayment.order_id,
+      });
+      return jsonResponse({ error: 'Payment order mismatch. Possible tampering.' }, 400, req, log);
+    }
+
+    // Only 'captured' = money actually moved to us.
+    // 'authorized' = bank approved but not yet debited (rare for UPI; happens for cards).
+    // Anything else (created, failed, refunded) = NOT a successful payment.
+    if (rzpPayment.status !== 'captured' && rzpPayment.status !== 'authorized') {
+      log.warn('Payment not captured', {
+        orderId: internal_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        status: rzpPayment.status,
+      });
+      return jsonResponse({
+        error: `Payment was not completed (status: ${rzpPayment.status}). Please try again.`,
+        razorpay_status: rzpPayment.status,
+      }, 402, req, log);
+    }
+
+    // Amount cross-check — gateway amount (paise) must match order total
+    const expectedPaise = Math.round(order.total_amount * 100);
+    if (rzpPayment.amount !== expectedPaise) {
+      log.error('Payment amount mismatch', {
+        expected: expectedPaise,
+        actual: rzpPayment.amount,
+      });
+      return jsonResponse({ error: 'Payment amount mismatch. Please contact support.' }, 400, req, log);
+    }
+
+    log.info('Payment confirmed captured by Razorpay', {
+      orderId: internal_order_id,
+      status: rzpPayment.status,
+      method: rzpPayment.method,
+    });
+
     // ── Atomic DB update: order status + payment record ───────
     const { data: result, error: rpcErr } = await adminClient.rpc('verify_payment_and_update', {
       p_order_id: internal_order_id,
