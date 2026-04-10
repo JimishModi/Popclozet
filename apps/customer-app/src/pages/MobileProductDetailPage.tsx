@@ -115,6 +115,7 @@ const MobileProductDetailPage: React.FC = () => {
     const [selectedSize, setSelectedSize] = useState("S");
     const [showProductDetails, setShowProductDetails] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
     const [selectedPlan, setSelectedPlan] = useState<PricingPlan>("1d");
     const [showLockModal, setShowLockModal] = useState(false);
 
@@ -128,6 +129,22 @@ const MobileProductDetailPage: React.FC = () => {
 
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // When product loads, auto-select the first plan that actually has a price.
+    // This prevents ₹0 showing when e.g. only rental_price_3d is populated.
+    // Skip if the cart already has a locked plan — that takes priority.
+    useEffect(() => {
+        if (!product || cartLockedPlan) return;
+        const PLANS: PricingPlan[] = ['1d', '2d', '3d'];
+        const prices: Record<PricingPlan, number> = {
+            '1d': product.rental_price_1d || 0,
+            '2d': product.rental_price_2d || 0,
+            '3d': product.rental_price_3d || product.rentalPrice || 0,
+            'buy': product.buy_price || 0,
+        };
+        const firstValid = PLANS.find(p => prices[p] > 0);
+        if (firstValid) setSelectedPlan(firstValid);
+    }, [product?.id]); // only re-run when the product itself changes, not on every render
     const [inventory, setInventory] = useState<InventoryRow[]>([]);
     const [isProductRentedOut, setIsProductRentedOut] = useState(false);
     const [isProductSoldOut, setIsProductSoldOut] = useState(false);
@@ -148,23 +165,53 @@ const MobileProductDetailPage: React.FC = () => {
     const [categorySizes, setCategorySizes] = useState<string[]>([]);
 
     useEffect(() => {
+        setLoadedImages(new Set());
+    }, [productId]);
+
+    useEffect(() => {
         const fetchProduct = async () => {
             if (!productId) {
                 setLoading(false);
                 return;
             }
 
-            // Fake/rented product — use router state data directly, skip DB fetch
-            if (isRented && fakeProductData) {
-                const imgSrc = fakeProductData.imageUrl || fakeProductData.images?.[0] || '';
-                setProduct({
-                    ...fakeProductData,
-                    imageUrl: imgSrc,
-                    images: imgSrc ? [imgSrc] : [],
-                    isAvailable: false,
-                } as any);
-                setLoading(false);
-                return;
+            // Fake/rented product — always fetch fresh from fake_products for accurate prices.
+            // Router state (fakeProductData) may have stale/missing price fields.
+            if (isRented || fakeProductData) {
+                try {
+                    const { data: fakeRow } = await supabase
+                        .from('fake_products')
+                        .select('*')
+                        .eq('id', productId)
+                        .single();
+
+                    if (fakeRow) {
+                        const p = (field: string) => {
+                            const v = (fakeRow as any)[field];
+                            if (v === null || v === undefined || v === '') return 0;
+                            return parseFloat(String(v).replace(/[^\d.]/g, '')) || 0;
+                        };
+                        setProduct({
+                            ...fakeRow,
+                            price:           p('rental_price'),
+                            rentalPrice:     p('rental_price'),
+                            rental_price_1d: p('rental_price_1d'),
+                            rental_price_2d: p('rental_price_2d'),
+                            rental_price_3d: p('rental_price_3d') || p('rental_price'),
+                            buy_price:       p('buy_price'),
+                            mrp:             p('mrp') || undefined,
+                            imageUrl:        (fakeRow as any).images?.[0] || fakeProductData?.imageUrl || '',
+                            images:          (fakeRow as any).images ?? [],
+                            sizes:           [],
+                            isAvailable:     false,
+                        } as any);
+                        setIsProductRentedOut(true);
+                        setLoading(false);
+                        return;
+                    }
+                } catch {
+                    // fall through to products fetch below
+                }
             }
 
             try {
@@ -184,7 +231,7 @@ const MobileProductDetailPage: React.FC = () => {
                         .rpc('get_product_rating', { pid: productId }),
                     supabase
                         .from('product_reviews')
-                        .select('id, rating, review_text, created_at, user_id, profiles:customer_profiles(full_name)')
+                        .select('id, rating, review_text, created_at, user_id')
                         .eq('product_id', productId)
                         .not('review_text', 'is', null)
                         .order('created_at', { ascending: false })
@@ -246,13 +293,61 @@ const MobileProductDetailPage: React.FC = () => {
                     });
                 }
 
-                if (!reviewsRes.error && reviewsRes.data) {
-                    setRecentReviews(reviewsRes.data);
+                if (!reviewsRes.error && reviewsRes.data && reviewsRes.data.length > 0) {
+                    // Use SECURITY DEFINER RPC to bypass RLS and fetch reviewer display names
+                    const userIds = reviewsRes.data.map((r: any) => r.user_id).filter(Boolean);
+                    const { data: namesData } = await supabase
+                        .rpc('get_reviewer_names', { user_ids: userIds });
+
+                    const nameMap: Record<string, string> = {};
+                    (namesData ?? []).forEach((p: any) => {
+                        if (p.user_id && p.full_name) nameMap[p.user_id] = p.full_name;
+                    });
+
+                    setRecentReviews(reviewsRes.data.map((r: any) => ({
+                        ...r,
+                        displayName: nameMap[r.user_id] || null,
+                    })));
                 }
 
             } catch (err) {
-                console.error('CRITICAL: Supabase detail fetch failed:', err);
-                setProduct(null);
+                // Product not found in `products` table — try `fake_products` as fallback.
+                // This covers direct URL access / page refresh for fake product pages.
+                try {
+                    const { data: fakeRow, error: fakeErr } = await supabase
+                        .from('fake_products')
+                        .select('*')
+                        .eq('id', productId)
+                        .single();
+
+                    if (!fakeErr && fakeRow) {
+                        const p = (field: string) => {
+                            const v = (fakeRow as any)[field];
+                            if (v === null || v === undefined || v === '') return 0;
+                            return parseFloat(String(v).replace(/[^\d.]/g, '')) || 0;
+                        };
+                        setProduct({
+                            ...fakeRow,
+                            price:            p('rental_price'),
+                            rentalPrice:      p('rental_price'),
+                            rental_price_1d:  p('rental_price_1d'),
+                            rental_price_2d:  p('rental_price_2d'),
+                            rental_price_3d:  p('rental_price_3d') || p('rental_price'),
+                            buy_price:        p('buy_price'),
+                            mrp:              p('mrp') || undefined,
+                            imageUrl:         (fakeRow as any).images?.[0] || '',
+                            sizes:            [],
+                            isAvailable:      false,
+                        } as any);
+                        setIsProductRentedOut(true);
+                    } else {
+                        console.error('CRITICAL: Supabase detail fetch failed:', err);
+                        setProduct(null);
+                    }
+                } catch {
+                    console.error('CRITICAL: Supabase detail fetch failed:', err);
+                    setProduct(null);
+                }
             } finally {
                 setLoading(false);
             }
@@ -351,13 +446,9 @@ const MobileProductDetailPage: React.FC = () => {
 
             // Update local state instantly so the user sees their new review
             if (data) {
-                // Fetch the profile name manually for the instant update if needed, 
-                // or just use user metadata as fallback
                 const newReview = {
                     ...data,
-                    profiles: {
-                        full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || "Verified Customer"
-                    }
+                    displayName: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || null,
                 };
 
                 setRecentReviews(prev => {
@@ -533,15 +624,25 @@ const MobileProductDetailPage: React.FC = () => {
                         className="flex overflow-x-auto snap-x snap-proximity no-scrollbar bg-[#141414]"
                     >
                         {(product.images?.length ? product.images : [product.imageUrl]).map((img, idx) => (
-                            <div key={idx} className="min-w-full snap-center aspect-[344/360] flex items-center justify-center overflow-hidden">
+                            <div key={idx} className="relative min-w-full snap-center aspect-[344/360] flex items-center justify-center overflow-hidden">
+                                {/* Shimmer skeleton — hidden once image loads */}
+                                {!loadedImages.has(idx) && (
+                                    <div className="absolute inset-0 bg-zinc-800 overflow-hidden">
+                                        <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/6 to-transparent" />
+                                    </div>
+                                )}
                                 {img ? (
-                                    <motion.img
-                                        initial={{ opacity: 0, scale: 1.1 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ duration: 0.6 }}
+                                    <img
                                         src={fullImage(img)}
                                         alt={`${product.name} ${idx + 1}`}
-                                        className="w-full h-full object-cover"
+                                        className={cn(
+                                            "w-full h-full object-cover transition-opacity duration-300",
+                                            loadedImages.has(idx) ? "opacity-100" : "opacity-0"
+                                        )}
+                                        fetchpriority={idx === 0 ? "high" : "low"}
+                                        loading={idx === 0 ? "eager" : "lazy"}
+                                        decoding="async"
+                                        onLoad={() => setLoadedImages(prev => new Set(prev).add(idx))}
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
@@ -552,17 +653,17 @@ const MobileProductDetailPage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Rented Out / Sold Out Badge Overlay */}
+                    {/* Rented Out / Sold Out / Coming Soon Badge Overlay */}
                     {(isRented || isProductRentedOut || isProductSoldOut) && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
-                            <motion.div 
+                            <motion.div
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl border border-red-500/50 flex items-center gap-3 shadow-2xl"
+                                className={cn("px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl flex items-center gap-3 shadow-2xl border", isRented ? "border-blue-500/50" : "border-red-500/50")}
                             >
-                                <span className={cn("h-2 w-2 rounded-full", isProductSoldOut ? "bg-zinc-400" : "bg-red-400 animate-pulse")} />
+                                <span className={cn("h-2 w-2 rounded-full", isProductSoldOut ? "bg-zinc-400" : isRented ? "bg-blue-400 animate-pulse" : "bg-red-400 animate-pulse")} />
                                 <span className="text-sm font-black uppercase tracking-widest text-white">
-                                    {isProductSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                    {isProductSoldOut ? "Sold Out" : isRented ? "Coming Soon" : "Currently Rented Out"}
                                 </span>
                             </motion.div>
                         </div>
@@ -784,7 +885,14 @@ const MobileProductDetailPage: React.FC = () => {
                                      Sold Out
                                  </span>
                              </div>
-                        ) : isProductRentedOut || isRented ? (
+                        ) : isRented ? (
+                            <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
+                                <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                                <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
+                                    Coming Soon
+                                </span>
+                            </div>
+                        ) : isProductRentedOut ? (
                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
                                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
@@ -931,9 +1039,7 @@ const MobileProductDetailPage: React.FC = () => {
                                 <p className="text-sm text-zinc-500 italic">No reviews yet. Be the first to review!</p>
                             ) : (
                                 recentReviews.map(review => {
-                                    // Handle cases where profiles might be an array or object
-                                    const profileData = Array.isArray(review.profiles) ? review.profiles[0] : review.profiles;
-                                    const name = profileData?.full_name || "Verified Customer";
+                                    const name = review.displayName || "Customer";
                                     const initial = name.charAt(0).toUpperCase();
 
                                     return (
@@ -1151,7 +1257,15 @@ const MobileProductDetailPage: React.FC = () => {
             {/* ─── BOTTOM ACTION BAR ─── */}
             <div className="fixed bottom-[85px] left-0 right-0 z-40 pointer-events-none lg:hidden pb-safe">
                 <div className="max-w-[430px] mx-auto flex gap-4 px-5 py-4 pointer-events-auto">
-                    {isRented || isProductRentedOut ? (
+                    {isRented ? (
+                        /* Coming Soon — fake/placeholder product */
+                        <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3 shadow-xl">
+                            <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                            <span className="text-base font-bold text-zinc-500 tracking-tight" style={dmSans}>
+                                Coming Soon
+                            </span>
+                        </div>
+                    ) : isProductRentedOut ? (
                         /* Rented-out state — cannot order */
                         <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3 shadow-xl">
                             <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />

@@ -54,4 +54,4 @@ export const thumbImage = (url: string | null | undefined) =>
 
 /** Preset for product detail / full-screen images */
 export const fullImage = (url: string | null | undefined) =>
-    optimizeImage(url, { width: 900, quality: 85 });
+    optimizeImage(url, { width: 900, quality: 78 });

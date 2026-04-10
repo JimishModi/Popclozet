@@ -44,7 +44,7 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
    return (
   <div
     className={cn(
-      "relative flex items-center h-[190px] w-full max-w-[420px] mx-auto overflow-visible",
+      "relative flex items-center h-[110px] w-full max-w-[280px] mx-auto overflow-visible",
       className
     )}
   >
