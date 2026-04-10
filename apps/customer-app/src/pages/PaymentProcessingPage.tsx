@@ -154,40 +154,22 @@ export default function PaymentProcessingPage() {
                         clearCheckoutDraft();
                         navigate(`/order-confirmed/${orderId}`, { replace: true });
                     },
-                    onFailure: async (error) => {
+                    onFailure: (error) => {
                         if (paymentSettled.current) return;
                         paymentSettled.current = true;
 
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
 
-                        // ── DO NOT CANCEL THE ORDER FROM THE CLIENT ──
-                        // On mobile UPI, ondismiss fires prematurely (before the user
-                        // finishes paying in PhonePe/GPay). If we cancel here, we
-                        // destroy a legitimate paid order. The server-side 10-minute
-                        // cron and Razorpay webhook are the authoritative handlers.
-                        //
-                        // The order stays in pending_payment and will either:
-                        //   a) Be confirmed by the webhook when payment is captured
-                        //   b) Be cancelled by the cron after 10 minutes of inactivity
-
-                        const isVerificationFailure =
-                          error.message?.includes('verification failed') ||
-                          error.message?.includes('signature mismatch');
-
                         // User cancelled → go back to checkout so they can retry
                         if (error.message === 'PAYMENT_CANCELLED') {
-                            toast.info('Payment cancelled. Your order will expire in 10 minutes if not completed.');
-                            if (window.history.length > 1) {
-                                navigate(-1);
-                            } else {
-                                navigate('/checkout', { replace: true });
-                            }
-                        } else if (isVerificationFailure) {
-                            // Money may have been charged but verification failed
-                            // The webhook will reconcile — show a reassuring page
-                            navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
+                            toast.info('Payment not confirmed yet. Check My Orders if money was deducted.');
+                            navigate('/checkout', { replace: true });
                         } else {
-                            navigate(`/payment-failed?orderId=${orderId}`, { replace: true });
+                            // For ALL other failures (verification failed, not captured, etc.)
+                            // navigate to payment-failed with reason=verification_failed.
+                            // That page has auto-polling that will catch webhook confirmations
+                            // and auto-redirect to order-confirmed if the payment went through.
+                            navigate(`/payment-failed?orderId=${orderId}&reason=verification_failed`, { replace: true });
                         }
                     }
                 });

@@ -3,28 +3,32 @@
 //   1. Create Razorpay order (via edge function)
 //   2. Open Razorpay modal
 //   3. On success → verify signature server-side
-//   4. On cancel/failure → mark order as payment_failed
+//   4. On cancel/failure → navigate back
 //   5. Navigate to success/error page
 //
-// CRITICAL: Uses a `handlerCalled` flag to prevent the known Razorpay bug
+// CRITICAL: Uses a `outcomeRef` flag to prevent the known Razorpay bug
 // where `modal.ondismiss` fires AFTER `handler` on successful payments,
 // causing a false "cancelled" flash.
 //
-// MOBILE UPI FIX (v2): On mobile devices, tapping a UPI app causes the
+// MOBILE UPI FIX (v3): On mobile devices, tapping a UPI app causes the
 // browser to switch away. Razorpay fires `ondismiss` IMMEDIATELY when
-// the browser loses focus — long before the user finishes paying. The
-// previous 5-second delay inside ondismiss was too fragile:
-//   - If auth refresh after app return takes >5s, ondismiss cancels the order
-//   - If network is slow, verification retries overlap with the cancel
+// the browser loses focus — long before the user finishes paying.
 //
-// New approach: ondismiss NEVER cancels the order. It simply navigates
-// back to checkout. The server-side cron (10-minute timeout) and the
-// Razorpay webhook handle genuinely abandoned orders. The handler callback
-// is the ONLY path that can mark success or verification_failed.
+// DIAGNOSIS (from production logs):
+//   - create-razorpay-order fires at T+0s
+//   - User switches to PhonePe, ondismiss fires immediately
+//   - User pays, returns to PWA at T+30–60s
+//   - handler fires and verify-razorpay-payment runs at T+38s
+//   - But ondismiss already navigated to /payment-failed at T+10s!
+//
+// FIX: ondismiss now polls the ORDER STATUS from the database before
+// navigating. If the order has been confirmed (by handler or webhook),
+// it navigates to success. It only gives up after 2 minutes.
 
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@popclozet/api-client';
 import { openRazorpayCheckout, type RazorpayPaymentResponse, type RazorpayFailedResponse } from '@/lib/razorpay';
 import { createRazorpayOrder, verifyRazorpayPayment } from '@/services/razorpayService';
 
@@ -33,6 +37,12 @@ const popclozet_LOGO = '/icons/icon-192x192.png';
 // Payment outcome states — used to prevent race conditions between
 // handler and ondismiss callbacks. Only ONE of these may ever fire.
 type PaymentOutcome = 'none' | 'success' | 'failed' | 'cancelled';
+
+// Confirmed order statuses — any of these means the payment went through.
+const CONFIRMED_STATUSES = [
+  'confirmed', 'paid', 'packed', 'ready_for_pickup',
+  'dispatched', 'out_for_delivery', 'delivered', 'completed',
+];
 
 interface UseRazorpayCheckoutOptions {
   internalOrderId: string;    // Supabase order ID (already created before calling this)
@@ -150,44 +160,79 @@ export function useRazorpayCheckout() {
               return;
             }
 
-            // ── MOBILE UPI FIX (v2) ──
-            // On mobile, when the user taps a UPI app (PhonePe, GPay…),
-            // the browser switches away and Razorpay fires ondismiss
-            // BEFORE the payment is completed.
+            // ── MOBILE UPI FIX (v3) ──
+            // On mobile UPI, ondismiss fires the INSTANT the user switches
+            // to PhonePe/GPay. The handler won't fire until the user returns
+            // AND the Razorpay SDK reconnects — which can take 30–60+ seconds.
             //
-            // PREVIOUSLY we waited 5 seconds and then cancelled the order.
-            // This was WRONG because:
-            //   1. The handler may need more than 5s to fire (auth refresh + verification)
-            //   2. Cancelling the order while money is being deducted = inconsistent state
-            //   3. The server-side cron and webhook handle abandoned orders within 10 minutes
+            // OLD APPROACH (broken): Wait 10 seconds, then navigate to /payment-failed.
+            //   → 10s is far too short. Handler fires at T+38s on average.
             //
-            // NEW APPROACH: Wait 10 seconds. If the handler hasn't fired by then,
-            // the user genuinely dismissed the modal (desktop) or abandoned the
-            // UPI flow. We navigate back to checkout WITHOUT cancelling the order.
-            // The server-side 10-minute cron will cancel it if needed.
-            console.log('[useRazorpayCheckout] ondismiss: waiting 10s for possible UPI app return...');
-            await new Promise(r => setTimeout(r, 10000));
+            // NEW APPROACH: Poll the order status from the database every 5 seconds
+            // for up to 2 minutes. If the order gets confirmed (by the handler running
+            // in a parallel callback, or by the Razorpay webhook), navigate to success.
+            // Only navigate to checkout (not payment-failed) if it's still pending
+            // after 2 minutes.
+            console.log('[useRazorpayCheckout] ondismiss: starting order status polling for', internalOrderId);
 
-            // Re-check after delay — handler may have fired during the wait
-            if (outcomeRef.current !== 'none') {
-              console.log('[useRazorpayCheckout] ondismiss: handler fired during delay, skipping:', outcomeRef.current);
-              return;
+            const MAX_POLLS = 24; // 24 × 5s = 2 minutes
+            for (let i = 0; i < MAX_POLLS; i++) {
+              // Wait 5 seconds between each check
+              await new Promise(r => setTimeout(r, 5000));
+
+              // Re-check — handler may have fired during the wait
+              if (outcomeRef.current !== 'none') {
+                console.log('[useRazorpayCheckout] ondismiss: handler fired during polling, skipping:', outcomeRef.current);
+                return;
+              }
+
+              // Poll order status from database
+              try {
+                const { data: order } = await supabase
+                  .from('orders')
+                  .select('status')
+                  .eq('id', internalOrderId)
+                  .single();
+
+                if (order && CONFIRMED_STATUSES.includes(order.status)) {
+                  // ORDER WAS CONFIRMED! The handler or webhook did its job.
+                  console.log('[useRazorpayCheckout] ondismiss: order confirmed via polling!', order.status);
+                  outcomeRef.current = 'success';
+                  setIsProcessing(false);
+
+                  if (onSuccess) {
+                    onSuccess('confirmed-via-polling');
+                  } else {
+                    navigate('/home', { replace: true });
+                  }
+                  return;
+                }
+
+                if (order && order.status === 'cancelled') {
+                  // Order was cancelled (by cron or webhook payment.failed)
+                  console.log('[useRazorpayCheckout] ondismiss: order was cancelled');
+                  break; // Stop polling
+                }
+
+                console.log(`[useRazorpayCheckout] ondismiss: poll ${i + 1}/${MAX_POLLS}, status=${order?.status}`);
+              } catch (pollErr) {
+                console.warn('[useRazorpayCheckout] ondismiss: poll error:', pollErr);
+                // Continue polling on network errors
+              }
             }
+
+            // If we get here, either:
+            // a) 2 minutes of polling didn't find a confirmation
+            // b) The order was cancelled
+            // In either case, gently navigate back to checkout
+            if (outcomeRef.current !== 'none') return; // Final guard
 
             outcomeRef.current = 'cancelled';
             setIsProcessing(false);
 
-            // ── DO NOT CANCEL THE ORDER HERE ──
-            // On mobile UPI, we can't distinguish between:
-            //   a) User genuinely cancelled (never went to UPI app)
-            //   b) User paid but handler hasn't fired yet (slow network/auth)
-            //
-            // In case (a), the 10-minute cron will cancel and release stock.
-            // In case (b), cancelling here would destroy a paid order.
-            //
-            // The worst case is 10 minutes of reserved stock — much better than
-            // losing a customer's payment.
-            toast.info('Payment cancelled. If money was deducted, it will be refunded automatically.');
+            // DO NOT navigate to /payment-failed — the order may still be confirmed
+            // by the webhook after we navigate away. Just go back to checkout.
+            toast.info('Payment not confirmed yet. Check your order status in My Orders.');
 
             if (onFailure) {
               onFailure(new Error('PAYMENT_CANCELLED'));
@@ -199,10 +244,6 @@ export function useRazorpayCheckout() {
 
         handler: async (response: RazorpayPaymentResponse) => {
           // Log the raw Razorpay response for diagnostics.
-          // In live mode we have seen cases where handler fires even though
-          // the actual UPI payment was not captured (e.g. PhonePe "try later").
-          // The server-side verify step re-fetches the payment from Razorpay
-          // to confirm real capture before marking the order confirmed.
           console.log('[useRazorpayCheckout] handler fired with response:', {
             razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
@@ -245,8 +286,6 @@ export function useRazorpayCheckout() {
             if (notCaptured) {
               outcomeRef.current = 'failed';
               toast.error(msg || 'Payment was not completed. Please try again.');
-              // DO NOT cancel order here — let the cron handle it.
-              // The order stays in pending_payment state and will be auto-cancelled.
               if (onFailure) {
                 onFailure(new Error(msg || 'PAYMENT_NOT_CAPTURED'));
               } else {
@@ -299,10 +338,6 @@ export function useRazorpayCheckout() {
       toast.error(err.message || 'Failed to initiate payment. Please try again.');
 
       outcomeRef.current = 'failed';
-      // Don't cancel the order on initiation failure either — let the cron handle it.
-      // This prevents a potential race where the Razorpay order was created but the
-      // modal just failed to open.
-
       if (onFailure) onFailure(err);
       setIsProcessing(false);
     }
