@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await adminClient
       .from('orders')
-      .select('id, user_id, total_amount, status, razorpay_order_id')
+      .select('id, user_id, total_amount, status, payment_method, razorpay_order_id')
       .eq('id', receipt)
       .single();
 
@@ -122,7 +122,17 @@ Deno.serve(async (req: Request) => {
     }
 
     // Verify the order is in a payable state
-    if (!['pending', 'pending_payment'].includes(order.status)) {
+    // COD orders can be paid via UPI at delivery time (out_for_delivery, etc.)
+    const checkoutPayableStates = ['pending', 'pending_payment'];
+    const codDeliveryPayableStates = [
+      'confirmed', 'packed', 'ready_for_pickup', 'rider_assigned',
+      'driver_arrived_warehouse', 'order_picked_up',
+      'dispatched', 'out_for_delivery',
+    ];
+    const isCheckoutPayable = checkoutPayableStates.includes(order.status);
+    const isCodDeliveryPayable = order.payment_method === 'cod' && codDeliveryPayableStates.includes(order.status);
+
+    if (!isCheckoutPayable && !isCodDeliveryPayable) {
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be paid` }, 409, req, log);
     }
 

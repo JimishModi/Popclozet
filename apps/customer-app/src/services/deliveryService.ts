@@ -39,6 +39,8 @@ export interface DeliveryOrder {
     support_tier?: 'standard' | 'premium' | null;
     total_amount?: number;
     rider_id?: string | null;
+    payment_method?: string | null;
+    cod_payment_collected?: boolean | null;
     otp_delivery?: string | null;
     otp_return?: string | null;
     return_pickup_date?: string | null;

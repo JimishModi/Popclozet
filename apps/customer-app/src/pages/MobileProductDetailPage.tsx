@@ -521,7 +521,7 @@ const MobileProductDetailPage: React.FC = () => {
                             const width = e.currentTarget.offsetWidth;
                             setActiveImageIndex(Math.round(scrollLeft / width));
                         }}
-                        className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar bg-[#141414]"
+                        className="flex overflow-x-auto snap-x snap-proximity no-scrollbar bg-[#141414]"
                     >
                         {(product.images?.length ? product.images : [product.imageUrl]).map((img, idx) => (
                             <div key={idx} className="min-w-full snap-center aspect-[344/360] flex items-center justify-center overflow-hidden">

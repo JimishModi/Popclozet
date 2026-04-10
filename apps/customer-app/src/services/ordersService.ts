@@ -433,6 +433,32 @@ export async function confirmOrderPayment(orderId: string): Promise<void> {
 }
 
 /**
+ * Confirm COD payment (cash or UPI at door) and generate delivery OTP.
+ * Called from the tracking page when the customer clicks "Pay the Bill".
+ */
+export async function confirmCodPayment(
+  orderId: string,
+  paymentMode: 'cash' | 'upi' = 'cash'
+): Promise<{ success: boolean; otp?: string; already_collected?: boolean; code?: string; message?: string }> {
+  const { data, error } = await supabase.rpc("confirm_cod_payment", {
+    p_order_id: orderId,
+    p_payment_mode: paymentMode,
+  });
+
+  if (error) {
+    console.error("confirmCodPayment RPC error:", error);
+    throw new Error(error.message || "Failed to confirm payment");
+  }
+
+  const result = data as { success: boolean; otp?: string; already_collected?: boolean; code?: string; message?: string };
+  if (!result.success) {
+    throw new Error(result.message || `Payment confirmation failed: ${result.code}`);
+  }
+
+  return result;
+}
+
+/**
  * Get order with delivery info — enforces user ownership
  */
 export async function getOrderWithDelivery(orderId: string) {

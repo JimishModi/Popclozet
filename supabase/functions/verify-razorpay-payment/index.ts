@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await adminClient
       .from('orders')
-      .select('id, user_id, status, total_amount, razorpay_order_id')
+      .select('id, user_id, status, total_amount, payment_method, razorpay_order_id')
       .eq('id', internal_order_id)
       .single();
 
@@ -156,14 +156,22 @@ Deno.serve(async (req: Request) => {
     }
 
     // Idempotent: if already paid/confirmed, return success without re-processing
-    if (['paid', 'confirmed', 'packed', 'ready_for_pickup'].includes(order.status)) {
+    if (['paid', 'confirmed', 'packed', 'ready_for_pickup'].includes(order.status) && order.payment_method !== 'cod') {
       log.info('Order already processed', { orderId: internal_order_id, status: order.status });
       return jsonResponse({ success: true, payment_id: razorpay_payment_id, already_processed: true }, 200, req, log);
     }
 
+    // COD orders being paid via UPI at delivery time — these are in delivery-in-progress states
+    const codDeliveryStates = [
+      'confirmed', 'packed', 'ready_for_pickup', 'rider_assigned',
+      'driver_arrived_warehouse', 'order_picked_up',
+      'dispatched', 'out_for_delivery',
+    ];
+    const isCodDeliveryPayment = order.payment_method === 'cod' && codDeliveryStates.includes(order.status);
+
     // Allow verification from payment_failed too. Razorpay can emit a failed
     // attempt before the user retries successfully on the same order.
-    if (!['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
+    if (!isCodDeliveryPayment && !['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
       log.error('Invalid order state for payment', { status: order.status });
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be verified` }, 409, req, log);
     }

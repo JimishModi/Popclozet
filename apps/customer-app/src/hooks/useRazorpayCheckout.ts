@@ -31,6 +31,7 @@ interface UseRazorpayCheckoutOptions {
   userPhone?: string;
   onSuccess?: (paymentId: string) => void;
   onFailure?: (error: Error) => void;
+  skipCancelOnFailure?: boolean;  // For COD UPI at door — don't cancel the order on payment failure
 }
 
 export function useRazorpayCheckout() {
@@ -53,6 +54,7 @@ export function useRazorpayCheckout() {
       userPhone,
       onSuccess,
       onFailure,
+      skipCancelOnFailure,
     } = options;
 
     if (!internalOrderId || !amountInRupees) {
@@ -68,6 +70,7 @@ export function useRazorpayCheckout() {
 
     /** Safely mark the order as cancelled/failed in DB */
     const markOrderFailed = async (reason: string) => {
+      if (skipCancelOnFailure) return; // COD UPI at door — order stays active
       try {
         await cancelOrder(internalOrderId);
       } catch (cancelErr) {

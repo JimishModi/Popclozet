@@ -2,19 +2,22 @@
 // Real-time delivery tracking page
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound, Home } from 'lucide-react';
+import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound, Home, Banknote, CreditCard, Loader2, CheckCircle } from 'lucide-react';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { DeliveryTracker, TrackingData } from '@/components/map/DeliveryTracker';
 import { OrderChat } from '@/components/map/OrderChat';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@popclozet/api-client';
 import { DeliveryOrder } from '@/services/deliveryService';
+import { confirmCodPayment } from '@/services/ordersService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
 import { WAREHOUSE, DELIVERY_THRESHOLDS } from '@/lib/serviceAreas';
 import { buildManualAddressSummary } from '@/lib/addressAccuracy';
 import { useAuth } from '@/hooks/useAuth';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { CustomerDeliveryInfoCard } from '@/components/orders/CustomerDeliveryInfoCard';
+import { toast } from 'sonner';
 
 export default function DeliveryTrackingPage() {
     const { orderId } = useParams<{ orderId: string }>();
@@ -25,6 +28,61 @@ export default function DeliveryTrackingPage() {
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [riderProfile, setRiderProfile] = useState<{ name: string; phone: string; vehicle: string } | null>(null);
     const { profile, user } = useAuth();
+    const { initiatePayment, isProcessing: isRazorpayProcessing } = useRazorpayCheckout();
+    const [showPayDrawer, setShowPayDrawer] = useState(false);
+    const [codPaymentDone, setCodPaymentDone] = useState(false);
+    const [isConfirmingCash, setIsConfirmingCash] = useState(false);
+
+    // Determine if this is a COD order that hasn't been paid yet
+    const isCodOrder = (order as any)?.payment_method === 'cod';
+    const isCodPaid = codPaymentDone || (order as any)?.cod_payment_collected === true;
+    const isDeliveryInProgress = order?.status && ['dispatched', 'out_for_delivery', 'order_picked_up', 'driver_arrived_warehouse', 'ready_for_pickup'].includes(order.status);
+
+    // Sync codPaymentDone with DB state (e.g. on real-time update)
+    useEffect(() => {
+        if ((order as any)?.cod_payment_collected === true) {
+            setCodPaymentDone(true);
+        }
+    }, [(order as any)?.cod_payment_collected]);
+
+    // Handle cash payment confirmation
+    const handleCashPayment = useCallback(async () => {
+        if (!orderId) return;
+        setIsConfirmingCash(true);
+        try {
+            await confirmCodPayment(orderId, 'cash');
+            setCodPaymentDone(true);
+            setShowPayDrawer(false);
+            toast.success('Payment confirmed! Your delivery OTP is now visible.');
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to confirm payment');
+        } finally {
+            setIsConfirmingCash(false);
+        }
+    }, [orderId]);
+
+    // Handle UPI payment at door
+    const handleUpiPayment = useCallback(async () => {
+        if (!orderId || !order) return;
+        initiatePayment({
+            internalOrderId: orderId,
+            amountInRupees: order.total_amount || 0,
+            preferredMethod: 'upi',
+            userName: profile?.full_name || user?.user_metadata?.full_name || '',
+            userEmail: user?.email || '',
+            userPhone: profile?.phone || user?.phone || '',
+            skipCancelOnFailure: true, // COD order — don't cancel on UPI failure
+            onSuccess: async () => {
+                // verify_payment_and_update already marks cod_payment_collected + generates OTP
+                setCodPaymentDone(true);
+                setShowPayDrawer(false);
+                toast.success('Payment successful! Your delivery OTP is now visible.');
+            },
+            onFailure: () => {
+                toast.error('Payment failed. You can try again or pay cash.');
+            },
+        });
+    }, [orderId, order, profile, user, initiatePayment]);
 
     const userLocation = order?.delivery_address_snapshot
         ? { lat: order.delivery_address_snapshot.lat, lng: order.delivery_address_snapshot.lng }
@@ -189,8 +247,31 @@ export default function DeliveryTrackingPage() {
                     </div>
                 </div>
 
-                {/* Delivery OTP — shown when order is on its way */}
-                {order?.otp_delivery && ['dispatched', 'out_for_delivery', 'order_picked_up', 'driver_arrived_warehouse', 'ready_for_pickup'].includes((order as any).status) && (
+                {/* COD: Pay the Bill button — shown when rider is on the way but payment not collected */}
+                {isCodOrder && !isCodPaid && isDeliveryInProgress && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-amber-500/20 to-orange-900/10 border border-amber-500/30 shadow-xl shadow-amber-500/10"
+                    >
+                        <div className="flex items-center gap-2 mb-3">
+                            <Banknote className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-black text-amber-400 uppercase tracking-[0.2em]">Payment Required</span>
+                        </div>
+                        <p className="text-sm text-zinc-300 mb-4">
+                            Pay <span className="font-black text-white">₹{order?.total_amount || 0}</span> to receive your delivery OTP and complete the handover.
+                        </p>
+                        <button
+                            onClick={() => setShowPayDrawer(true)}
+                            className="w-full py-3.5 rounded-2xl bg-amber-500 text-black font-black text-base uppercase tracking-tight shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all"
+                        >
+                            Pay the Bill
+                        </button>
+                    </motion.div>
+                )}
+
+                {/* Delivery OTP — shown when payment is done (or non-COD orders) */}
+                {order?.otp_delivery && isDeliveryInProgress && (!isCodOrder || isCodPaid) && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -329,18 +410,81 @@ export default function DeliveryTrackingPage() {
                 )}
             </main>
 
+            {/* Pay the Bill Drawer */}
+            <AnimatePresence>
+                {showPayDrawer && (
+                    <div className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/60 backdrop-blur-sm">
+                        <div
+                            className="absolute inset-0"
+                            onClick={() => !isConfirmingCash && !isRazorpayProcessing && setShowPayDrawer(false)}
+                        />
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            className="relative bg-zinc-900 rounded-t-3xl border-t border-zinc-800 p-6 pb-10 z-10"
+                        >
+                            <div className="w-10 h-1 rounded-full bg-zinc-700 mx-auto mb-6" />
+                            <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Pay the Bill</h2>
+                            <p className="text-sm text-zinc-400 mb-6">
+                                Total amount: <span className="text-white font-black">₹{order?.total_amount || 0}</span>
+                            </p>
+
+                            <div className="space-y-3">
+                                {/* UPI Option */}
+                                <button
+                                    onClick={handleUpiPayment}
+                                    disabled={isConfirmingCash || isRazorpayProcessing}
+                                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-zinc-800 border border-zinc-700 hover:border-[#f2546d]/50 transition-all active:scale-[0.98] disabled:opacity-50"
+                                >
+                                    <div className="w-12 h-12 rounded-xl bg-[#f2546d]/10 flex items-center justify-center">
+                                        <CreditCard className="w-6 h-6 text-[#f2546d]" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <p className="text-[15px] font-black text-white uppercase tracking-tight">Pay via UPI</p>
+                                        <p className="text-[11px] text-zinc-500 mt-0.5">Google Pay, PhonePe, Paytm & more</p>
+                                    </div>
+                                    {isRazorpayProcessing && <Loader2 className="w-5 h-5 text-[#f2546d] animate-spin" />}
+                                </button>
+
+                                {/* Cash Option */}
+                                <button
+                                    onClick={handleCashPayment}
+                                    disabled={isConfirmingCash || isRazorpayProcessing}
+                                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-zinc-800 border border-zinc-700 hover:border-amber-500/50 transition-all active:scale-[0.98] disabled:opacity-50"
+                                >
+                                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                                        <Banknote className="w-6 h-6 text-amber-400" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <p className="text-[15px] font-black text-white uppercase tracking-tight">Pay Cash to Rider</p>
+                                        <p className="text-[11px] text-zinc-500 mt-0.5">Hand over ₹{order?.total_amount || 0} in cash</p>
+                                    </div>
+                                    {isConfirmingCash && <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />}
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] text-zinc-600 text-center mt-4 uppercase tracking-widest">
+                                OTP will be generated after payment
+                            </p>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
             {/* Chat Drawer */}
             <AnimatePresence>
                 {showChat && (
                     <div className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/60 backdrop-blur-sm">
-                        <div 
-                            className="absolute inset-0" 
-                            onClick={() => setShowChat(false)} 
+                        <div
+                            className="absolute inset-0"
+                            onClick={() => setShowChat(false)}
                         />
-                        <OrderChat 
-                            orderId={orderId} 
+                        <OrderChat
+                            orderId={orderId}
                             supportTier={order?.support_tier}
-                            onClose={() => setShowChat(false)} 
+                            onClose={() => setShowChat(false)}
                         />
                     </div>
                 )}
