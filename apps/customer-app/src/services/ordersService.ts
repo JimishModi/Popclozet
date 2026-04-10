@@ -544,8 +544,11 @@ export async function getMyActiveClosetItemCount(): Promise<number> {
     .from("orders")
     .select(`
       id,
+      status,
+      order_type,
       order_items (
-        id
+        id,
+        pricing_plan
       )
     `)
     .eq("user_id", user.id)
@@ -556,10 +559,15 @@ export async function getMyActiveClosetItemCount(): Promise<number> {
     throw error;
   }
 
-  return (data ?? []).reduce((total, order) => {
-    const itemCount = Array.isArray(order.order_items) ? order.order_items.length : 0;
-    return total + itemCount;
-  }, 0);
+  // Count orders (not items) — matches what ClosetPage shows as cards.
+  // Exclude delivered buyout orders (they don't appear in closet).
+  return (data ?? []).filter((order) => {
+    const isBuyout = order.order_type === 'buyout' ||
+      (order.order_items as any[])?.every((oi: any) => oi.pricing_plan === 'buy');
+    const isDelivered = ['delivered', 'in_use'].includes(order.status);
+    if (isBuyout && isDelivered) return false;
+    return true;
+  }).length;
 }
 
 /**
