@@ -639,7 +639,7 @@ const MobileProductDetailPage: React.FC = () => {
                                             "w-full h-full object-cover transition-opacity duration-300",
                                             loadedImages.has(idx) ? "opacity-100" : "opacity-0"
                                         )}
-                                        fetchpriority={idx === 0 ? "high" : "low"}
+                                        fetchPriority={idx === 0 ? "high" : "low"}
                                         loading={idx === 0 ? "eager" : "lazy"}
                                         decoding="async"
                                         onLoad={() => setLoadedImages(prev => new Set(prev).add(idx))}

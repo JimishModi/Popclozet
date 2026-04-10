@@ -326,7 +326,7 @@ const MobileHome: React.FC = () => {
                         className="h-10 w-auto object-contain"
                         style={{ filter: "brightness(0) saturate(100%) invert(52%) sepia(79%) saturate(2166%) hue-rotate(316deg) brightness(100%) contrast(95%)" }}
                         loading="eager"
-                        fetchpriority="high"
+                        fetchPriority="high"
                         decoding="async"
                     />
                 </div>
@@ -500,7 +500,7 @@ const MobileHome: React.FC = () => {
                                         className="w-full h-full object-cover"
                                         loading="eager"
                                         decoding="async"
-                                        fetchpriority="high"
+                                        fetchPriority="high"
                                     />
                                 </motion.div>
                             </AnimatePresence>

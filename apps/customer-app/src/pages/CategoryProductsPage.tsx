@@ -556,7 +556,7 @@ const CategoryProductsPage: React.FC = () => {
                                                             alt={product.name}
                                                             className="relative w-full h-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 opacity-0 data-[loaded]:opacity-100"
                                                             loading={index < 4 ? "eager" : "lazy"}
-                                                            fetchpriority={index < 4 ? "high" : "auto"}
+                                                            fetchPriority={index < 4 ? "high" : "auto"}
                                                             decoding="async"
                                                             onLoad={(e) => (e.currentTarget.dataset.loaded = "1")}
                                                         />
