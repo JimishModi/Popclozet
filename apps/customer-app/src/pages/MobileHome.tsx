@@ -20,13 +20,13 @@ import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
 
 const FEATURED_SLIDES = [
-    { id: 0, title: "New Arrivals", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400&q=60&fm=webp", gender: "womens" },
-    { id: 1, title: "Trending Now", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&q=60&fm=webp", gender: "womens" },
-    { id: 2, title: "Party Collection", image: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=400&q=60&fm=webp", gender: "womens" },
+    { id: 0, title: "Premium Jackets", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/jackets.jpeg", gender: "womens" },
+    { id: 1, title: "Premium Footwear", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/footwear.jpeg", gender: "womens" },
+    { id: 2, title: "Ready to Wear", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/ready-to-wear.jpeg", gender: "womens" },
 
-    { id: 3, title: "Men's Streetwear", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2?w=400&q=60&fm=webp", gender: "mens" },
-    { id: 4, title: "Formal Classics", image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=400&q=60&fm=webp", gender: "mens" },
-    { id: 5, title: "Party Collection", image: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&q=60&fm=webp", gender: "mens" },
+    { id: 3, title: "Premium Jackets", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/jackets.jpeg", gender: "mens" },
+    { id: 4, title: "Premium Footwear", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/footwear.jpeg", gender: "mens" },
+    { id: 5, title: "Ready to Wear", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/ready-to-wear.jpeg", gender: "mens" },
 
 ];
 
