@@ -120,6 +120,36 @@ const realtimeConfig = realtimeAvailable ? {
     },
 };
 
+// ── Auth Lock Workaround ────────────────────────────────────────────────────
+// PWAs and WebViews (especially on iOS/Android) can freeze or drop the native
+// navigator.locks API when the app is pushed to the background (e.g. to read an OTP SMS).
+// This causes Supabase Auth to throw a 10000ms timeout error and break the flow.
+// We use a simple in-memory lock to serialize token refreshes within the same tab,
+// completely bypassing the buggy native navigator.locks.
+const inMemoryLocks: Record<string, Promise<any>> = {};
+const memoryLock = async (name: string, acquireTimeout: number, acquire: () => Promise<any>) => {
+    while (inMemoryLocks[name]) {
+        try { await inMemoryLocks[name]; } catch { /* ignore */ }
+    }
+    let resolveLock!: (value?: any) => void;
+    let rejectLock!: (err: any) => void;
+    inMemoryLocks[name] = new Promise((res, rej) => {
+        resolveLock = res;
+        rejectLock = rej;
+    });
+
+    try {
+        const result = await acquire();
+        resolveLock();
+        return result;
+    } catch (err) {
+        rejectLock(err);
+        throw err;
+    } finally {
+        delete inMemoryLocks[name];
+    }
+};
+
 let client: SupabaseClient;
 if (globalThis.__popclozet_supabase_client__) {
     client = globalThis.__popclozet_supabase_client__;
@@ -128,23 +158,25 @@ if (globalThis.__popclozet_supabase_client__) {
     }
 } else {
     try {
-    client = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true,
-            storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        },
-        realtime: realtimeConfig,
-    });
-    globalThis.__popclozet_supabase_client__ = client;
-    if (import.meta.env.DEV) {
-        console.log('[api-client] Supabase client created successfully.');
+        client = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+                lock: memoryLock, // Use in-memory lock to fix PWA timeout
+            },
+            realtime: realtimeConfig,
+        });
+        globalThis.__popclozet_supabase_client__ = client;
+        if (import.meta.env.DEV) {
+            console.log('[api-client] Supabase client created successfully.');
+        }
+    } catch (e) {
+        console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
+        throw e;
     }
-} catch (e) {
-    console.error('❌ [@popclozet/api-client] CRITICAL: createClient failed:', e);
-    throw e;
-}
+
 }
 
 export const supabase = client;
