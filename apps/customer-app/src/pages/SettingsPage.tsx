@@ -323,7 +323,7 @@ const SettingsPage: React.FC = () => {
                     <Card>
                         <Row icon={HelpCircle} label="Help Center" sub="FAQs & contact support" onClick={() => navigate('/help')} />
                         <Row icon={Zap} label="About Popclozet" sub="Our hygiene process & brand" onClick={() => navigate('/about-us')} />
-                        <Row icon={Phone} label="Call Support" sub="+91 98765 43210" onClick={() => window.open('tel:+919876543210')} />
+                        <Row icon={Phone} label="Call Support" sub="+91 94268 78548" onClick={() => window.open('tel:+919426878548')} />
                         <Row icon={Shield} label="Privacy Policy" onClick={() => navigate('/privacy')} />
                         <Row icon={FileText} label="Terms & Conditions" onClick={() => navigate('/terms')} last />
                     </Card>

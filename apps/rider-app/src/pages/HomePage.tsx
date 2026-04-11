@@ -41,6 +41,9 @@ import {
 import { supabase } from '@popclozet/api-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+// Urgent alarm sound for new ride requests
+const RIDE_ALARM_URL = 'https://assets.mixkit.co/active_storage/sfx/2645/2645-preview.mp3';
+
 const getDismissedHomeRideStorageKey = (riderId: string) => `rider_home_dismissed:${riderId}`;
 
 function readDismissedHomeRideIds(riderId: string): Set<string> {
@@ -88,6 +91,48 @@ export function HomePage() {
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dismissedDirectOrderIdsRef = useRef<Set<string>>(new Set());
     const navigatingRef = useRef(false);
+    const rideAlarmRef = useRef<HTMLAudioElement | null>(null);
+    const prevPendingIdRef = useRef<string | null>(null);
+
+    // Preload ride alarm
+    useEffect(() => {
+        rideAlarmRef.current = new Audio(RIDE_ALARM_URL);
+        rideAlarmRef.current.load();
+    }, []);
+
+    // Play alarm + vibrate when a NEW pending order appears
+    useEffect(() => {
+        if (!pendingOrder) {
+            prevPendingIdRef.current = null;
+            return;
+        }
+        // Only fire alarm for new orders, not when re-rendering the same one
+        if (pendingOrder.id === prevPendingIdRef.current) return;
+        prevPendingIdRef.current = pendingOrder.id;
+
+        // Vibrate aggressively
+        if ('vibrate' in navigator) {
+            navigator.vibrate([300, 100, 300, 100, 300, 100, 500, 200, 500]);
+        }
+        // Play alarm sound (repeat twice)
+        if (rideAlarmRef.current) {
+            const audio = rideAlarmRef.current;
+            let playCount = 0;
+            const handleEnded = () => {
+                playCount++;
+                if (playCount < 2) {
+                    audio.currentTime = 0;
+                    audio.play().catch(() => {});
+                } else {
+                    audio.removeEventListener('ended', handleEnded);
+                }
+            };
+            audio.removeEventListener('ended', handleEnded);
+            audio.addEventListener('ended', handleEnded);
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        }
+    }, [pendingOrder]);
 
     const fetchPendingOrder = useCallback(async () => {
         if (!user?.id || navigatingRef.current) return;

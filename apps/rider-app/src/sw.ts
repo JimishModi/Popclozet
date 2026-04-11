@@ -226,7 +226,7 @@ self.addEventListener('push', (event) => {
         tag: payload.tag || 'rider-general',
         renotify: true,
         requireInteraction: true,
-        vibrate: [200, 100, 200, 100, 300],
+        vibrate: [300, 100, 300, 100, 300, 200, 500, 200, 500],
         data: payload.data || {},
         actions: [
             { action: 'open', title: 'View' },

@@ -134,7 +134,7 @@ export default function PaymentFailedPage() {
                                 Go Home
                             </button>
                             <a
-                                href="tel:+919876543210"
+                                href="tel:+919426878548"
                                 className="flex items-center justify-center gap-2 w-full bg-white/5 text-zinc-400 font-bold py-4 rounded-2xl active:scale-95 transition-transform"
                             >
                                 <Phone className="w-5 h-5" />

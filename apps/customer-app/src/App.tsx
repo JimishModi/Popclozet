@@ -4,7 +4,7 @@ import AuthGate from "@/components/auth/AuthGate";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import PageTransition from "./components/PageTransition";
 import ScrollProgress from "./components/ScrollProgress";
@@ -276,7 +276,7 @@ function App() {
                         className="w-full min-h-screen"
                       >
                         <Routes location={location}>
-                          <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+                          <Route path="/" element={<Navigate to="/home" replace />} />
                           <Route path="/home" element={<PageTransition><MobileHome /></PageTransition>} />
 
                           <Route path="/signin" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><SignInPage /></Suspense></PageTransition>} />
@@ -328,12 +328,12 @@ function App() {
                         <Route path="/pickup-tracking/:pickupId" element={<PageTransition><PickupTrackingPage /></PageTransition>} />
                         <Route path="/order-delivered/:orderId" element={<PageTransition><OrderDeliveredPage /></PageTransition>} />
                         <Route path="/virtual-try-on" element={<PageTransition><VirtualTryOnPage /></PageTransition>} />
-                        <Route path="/welcome" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><WelcomePage /></Suspense></PageTransition>} />
-                        <Route path="/welcome-grid" element={<PageTransition><WelcomeGridPage /></PageTransition>} />
-                        <Route path="/welcome-grid-2" element={<PageTransition><WelcomeGridPage2 /></PageTransition>} />
+                        <Route path="/welcome" element={<Navigate to="/home" replace />} />
+                        <Route path="/welcome-grid" element={<Navigate to="/home" replace />} />
+                        <Route path="/welcome-grid-2" element={<Navigate to="/home" replace />} />
                         <Route path="/gender" element={<PageTransition><GenderCategoryPage /></PageTransition>} />
                         <Route path="/mood" element={<PageTransition><MoodPage /></PageTransition>} />
-                        <Route path="/onboarding" element={<PageTransition><Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">Loading...</div>}><OnboardingPage /></Suspense></PageTransition>} />
+                        <Route path="/onboarding" element={<Navigate to="/home" replace />} />
 
                           <Route path="/search" element={<PageTransition><SearchResultsPage /></PageTransition>} />
                           <Route path="/brands" element={<PageTransition><BrandsPage /></PageTransition>} />

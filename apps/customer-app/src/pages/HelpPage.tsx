@@ -101,7 +101,7 @@ const HelpPage: React.FC = () => {
                     <div className="bg-gradient-to-br from-white/8 to-white/3 rounded-2xl border border-white/5 overflow-hidden">
                         {[
                             { icon: Mail, label: "Email Support", sub: "businessrep@popclozet.in", action: () => window.open("mailto:businessrep@popclozet.in") },
-                            { icon: PhoneIcon, label: "Call Us", sub: "+91 98765 43210", action: () => window.open("tel:+919876543210") },
+                            { icon: PhoneIcon, label: "Call Us", sub: "+91 94268 78548", action: () => window.open("tel:+919426878548") },
                         ].map((item, i, arr) => {
                             const Icon = item.icon;
                             return (

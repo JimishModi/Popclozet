@@ -222,7 +222,7 @@ self.addEventListener('push', (event) => {
         tag: payload.tag || 'warehouse-general',
         renotify: true,
         requireInteraction: true,
-        vibrate: [100, 50, 100],
+        vibrate: [300, 100, 300, 100, 300, 200, 500, 200, 500],
         data: payload.data || {},
         actions: [
             { action: 'open', title: 'View' },

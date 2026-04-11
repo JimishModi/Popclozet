@@ -373,7 +373,7 @@ export default function DeliveryTrackingPage() {
                                 </a>
                             ) : (
                                 <a 
-                                    href="tel:+918000155299"
+                                    href="tel:+919426878548"
                                     className="flex items-center gap-2 px-4 py-2 bg-white text-black font-semibold rounded-xl shadow-lg active:scale-95 transition-all"
                                 >
                                     <Phone className="w-4 h-4" />
@@ -396,7 +396,7 @@ export default function DeliveryTrackingPage() {
                     )}
                     <div className="flex gap-3">
                         <a 
-                            href="tel:+918000155299"
+                            href="tel:+919426878548"
                             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 text-white text-sm font-medium hover:bg-zinc-700 transition-colors"
                         >
                             <Phone className="w-4 h-4" />

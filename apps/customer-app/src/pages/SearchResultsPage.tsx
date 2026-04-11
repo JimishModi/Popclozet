@@ -2,15 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { ChevronLeft, Search, Heart, X, TrendingUp, Clock } from "lucide-react";
+import { ChevronLeft, Search, Heart, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { productService } from "@/services/productService";
 import { Product } from "@/services/productService";
 import { Loader } from "lucide-react";
-
-// ── Trending & recent searches ──
-// ── Trending searches ──
-const TRENDING_SEARCHES = ["Jackets", "Party Wear", "Saree", "Casual Dresses", "Blazer"];
 
 interface Suggestion {
     type: "brand" | "product" | "category";
@@ -242,22 +238,6 @@ const SearchResultsPage: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* Trending Searches */}
-                                    <div>
-                                        <div className="flex items-center px-4 mb-2">
-                                            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Trending</span>
-                                        </div>
-                                        {TRENDING_SEARCHES.map((term, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => handleSuggestionClick(term)}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left"
-                                            >
-                                                <TrendingUp className="w-4 h-4 text-[#f2546d]" />
-                                                <span className="text-sm text-zinc-300">{term}</span>
-                                            </button>
-                                        ))}
-                                    </div>
                                 </div>
                             )}
                         </motion.div>

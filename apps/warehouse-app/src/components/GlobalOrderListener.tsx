@@ -10,8 +10,10 @@ import {
     RotateCcw, XCircle, X, ShieldAlert, Clock,
 } from 'lucide-react';
 
-// Reliable notification chime sound
+// Notification sounds
 const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+// Loud urgent alarm for critical events (new order, instant return)
+const URGENT_ALARM_URL = 'https://assets.mixkit.co/active_storage/sfx/2645/2645-preview.mp3';
 
 // ─── Activity Toast config ─────────────────────────────────────────────────────
 
@@ -215,12 +217,16 @@ export function GlobalOrderListener() {
     const [activeReturnNotification, setActiveReturnNotification] = useState<any>(null);
     const [activityToasts, setActivityToasts] = useState<ActivityToastData[]>([]);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const urgentAudioRef = useRef<HTMLAudioElement | null>(null);
+    const urgentLoopCountRef = useRef(0);
     const channelNameRef = useRef(`global-warehouse-notifier-${Math.random().toString(36).slice(2)}`);
 
     useEffect(() => {
         // Preload audio
         audioRef.current = new Audio(NOTIFICATION_SOUND_URL);
         audioRef.current.load();
+        urgentAudioRef.current = new Audio(URGENT_ALARM_URL);
+        urgentAudioRef.current.load();
     }, []);
 
     const playNotificationSound = useCallback(() => {
@@ -230,7 +236,43 @@ export function GlobalOrderListener() {
                 console.warn('[GlobalOrderListener] Audio playback blocked by browser:', err);
             });
         }
+        // Vibrate for normal notifications
+        if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]);
+        }
     }, []);
+
+    /** Plays an urgent alarm that repeats 3 times + strong vibration */
+    const playUrgentAlarm = useCallback(() => {
+        // Strong vibration pattern
+        if ('vibrate' in navigator) {
+            navigator.vibrate([300, 100, 300, 100, 300, 100, 500, 200, 500]);
+        }
+        // Play urgent sound looping 3 times
+        if (urgentAudioRef.current) {
+            urgentLoopCountRef.current = 0;
+            const audio = urgentAudioRef.current;
+            const handleEnded = () => {
+                urgentLoopCountRef.current++;
+                if (urgentLoopCountRef.current < 3) {
+                    audio.currentTime = 0;
+                    audio.play().catch(() => {});
+                } else {
+                    audio.removeEventListener('ended', handleEnded);
+                }
+            };
+            audio.removeEventListener('ended', handleEnded);
+            audio.addEventListener('ended', handleEnded);
+            audio.currentTime = 0;
+            audio.play().catch(err => {
+                console.warn('[GlobalOrderListener] Urgent alarm blocked:', err);
+                // Fallback to normal sound
+                playNotificationSound();
+            });
+        } else {
+            playNotificationSound();
+        }
+    }, [playNotificationSound]);
 
     const dismissToast = useCallback((id: string) => {
         setActivityToasts(prev => prev.filter(t => t.id !== id));
@@ -270,7 +312,7 @@ export function GlobalOrderListener() {
             } catch {
                 // Silently fail — warehouse can refresh manually
             }
-            playNotificationSound();
+            playUrgentAlarm();
         };
 
         const showReturnNotification = async (requestId: string) => {
@@ -290,7 +332,7 @@ export function GlobalOrderListener() {
             } catch {
                 // Silently fail
             }
-            playNotificationSound();
+            playUrgentAlarm();
         };
 
         const channel = supabase
@@ -408,8 +450,7 @@ export function GlobalOrderListener() {
                             color: 'bg-amber-500/15 text-amber-400',
                             borderColor: 'border-amber-500/30',
                         });
-                        playNotificationSound();
-                        
+                        // showReturnNotification already plays urgent alarm
                         await showReturnNotification(newRequest.id);
                     } else {
                         // Normal return request — show full overlay card
@@ -476,7 +517,7 @@ export function GlobalOrderListener() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [playNotificationSound, pushActivityToast]);
+    }, [playNotificationSound, playUrgentAlarm, pushActivityToast]);
 
     const handleViewOrder = () => {
         if (activeNotification) {
