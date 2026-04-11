@@ -177,7 +177,7 @@ export const CartProvider = ({
       // Validate that the product actually exists and check stock
       const { data: productCheck, error: checkError } = await supabase
         .from('products')
-        .select('id, total_stock')
+        .select('id, inventory(available_stock)')
         .eq('id', productId)
         .maybeSingle();
 
@@ -186,12 +186,18 @@ export const CartProvider = ({
         return;
       }
 
+      // Sum available_stock across all sizes from inventory rows
+      const inventoryRows = (productCheck as any).inventory || [];
+      const totalAvailable = inventoryRows.reduce(
+        (sum: number, row: any) => sum + (row.available_stock || 0), 0
+      );
+
       // Check stock — sum up all cart quantities for this product (any size/plan)
       const currentQtyInCart = Object.entries(cartItems)
         .filter(([k]) => k.startsWith(`${productId}_`))
         .reduce((sum, [, item]) => sum + item.quantity, 0);
 
-      if (productCheck.total_stock != null && currentQtyInCart >= productCheck.total_stock) {
+      if (totalAvailable > 0 && currentQtyInCart >= totalAvailable) {
         toast.error("Sorry, no more stock available for this item.");
         return;
       }
@@ -275,17 +281,22 @@ export const CartProvider = ({
       if (quantity > currentQty) {
         const { data: product } = await supabase
           .from('products')
-          .select('total_stock')
+          .select('id, inventory(available_stock)')
           .eq('id', productId)
           .maybeSingle();
 
-        if (product?.total_stock != null) {
+        const invRows = (product as any)?.inventory || [];
+        const totalAvail = invRows.reduce(
+          (sum: number, row: any) => sum + (row.available_stock || 0), 0
+        );
+
+        if (totalAvail > 0) {
           // Total quantity across all sizes/plans for this product
           const otherQty = Object.entries(cartItems)
             .filter(([k]) => k.startsWith(`${productId}_`) && k !== key)
             .reduce((sum, [, item]) => sum + item.quantity, 0);
 
-          if (otherQty + quantity > product.total_stock) {
+          if (otherQty + quantity > totalAvail) {
             toast.error("Sorry, no more stock available for this item.");
             return;
           }
