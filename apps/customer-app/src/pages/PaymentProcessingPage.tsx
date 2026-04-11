@@ -11,6 +11,7 @@ import { clearCheckoutDraft } from "@/lib/checkoutDraft";
 import { preloadRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@popclozet/api-client";
 import { debugAuthState } from "@/services/supabaseFunctionInvoke";
+import { cancelOrder } from "@/services/ordersService";
 import { toast } from "sonner";
 
 export default function PaymentProcessingPage() {
@@ -58,7 +59,18 @@ export default function PaymentProcessingPage() {
         preloadRazorpayCheckout().catch((err) => {
             console.warn("[PaymentProcessing] Razorpay preload failed:", err);
         });
-    }, []);
+
+        // SAFETY CLEANUP: If the user navigates away from this page (back button, etc.)
+        // without settling the payment, we must release the stock immediately.
+        return () => {
+            if (!paymentSettled.current && orderId && type === "order") {
+                console.log("[PaymentProcessing] Unmounted before settlement — initiating auto-cancel for order:", orderId);
+                cancelOrder(orderId).catch((err) => {
+                    console.warn("[PaymentProcessing] Auto-cancel on unmount failed:", err);
+                });
+            }
+        };
+    }, [orderId, type]);
 
     // Safety timeout: if nothing settles within 5 minutes, something is stuck.
     // This is a last-resort fallback — the Razorpay hook's own ondismiss/handler
@@ -160,9 +172,14 @@ export default function PaymentProcessingPage() {
 
                         console.log('[PaymentProcessing] Payment failed or cancelled:', error.message);
 
-                        // User cancelled → go back to checkout so they can retry
+                        // User cancelled → cancel order immediately to release stock
                         if (error.message === 'PAYMENT_CANCELLED') {
-                            toast.info('Payment not confirmed yet. Check My Orders if money was deducted.');
+                            if (orderId) {
+                                cancelOrder(orderId).catch(err => {
+                                    console.warn("[PaymentProcessing] Failed to auto-cancel order:", err);
+                                });
+                            }
+                            toast.info('Payment cancelled. Your items have been released.');
                             navigate('/checkout', { replace: true });
                         } else {
                             // For ALL other failures (verification failed, not captured, etc.)
@@ -223,10 +240,29 @@ export default function PaymentProcessingPage() {
                         }
                     </p>
 
-                    <div className="flex items-center justify-center gap-3 bg-white/5 py-4 px-6 rounded-2xl border border-white/10 backdrop-blur-xl">
+                    <div className="flex items-center justify-center gap-3 bg-white/5 py-4 px-6 rounded-2xl border border-white/10 backdrop-blur-xl mb-8">
                         <ShieldCheck className="w-5 h-5 text-emerald-500" />
                         <span className="text-sm font-bold tracking-tight text-emerald-500/80 uppercase">PCI-DSS Compliant Secure Pay</span>
                     </div>
+
+                    <button
+                        onClick={async () => {
+                            if (paymentSettled.current) return;
+                            paymentSettled.current = true;
+                            if (orderId) {
+                                try {
+                                    await cancelOrder(orderId);
+                                    toast.success("Order cancelled. Stock released.");
+                                } catch (err) {
+                                    console.warn("[PaymentProcessing] Manual cancel failed:", err);
+                                }
+                            }
+                            navigate("/checkout", { replace: true });
+                        }}
+                        className="text-zinc-500 hover:text-white transition-colors text-sm font-medium underline underline-offset-4"
+                    >
+                        Cancel payment and release items
+                    </button>
                 </motion.div>
             </div>
         </MobileShell>

@@ -786,6 +786,9 @@ const MobileHome: React.FC = () => {
                             ))
                         ) : catalogueProducts.map((item, index) => {
                             const isFake = (item as any)._isFake === true;
+                            const isSoldOut = item.isSoldOut === true;
+                            const isRentedOut = item.isRentedOut === true;
+                            const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                             const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
                             return (
@@ -820,13 +823,25 @@ const MobileHome: React.FC = () => {
                                             <img
                                                 src={imgSrc}
                                                 alt={item.name}
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                className={cn(
+                                                    "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
+                                                    isUnavailable && "grayscale opacity-40 blur-[1px]"
+                                                )}
                                                 loading="lazy"
                                                 decoding="async"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
                                                 No Image
+                                            </div>
+                                        )}
+
+                                        {/* Status badge — overlay on top of image */}
+                                        {isUnavailable && (
+                                            <div className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none">
+                                                <span className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-wider text-white shadow-2xl">
+                                                    {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                </span>
                                             </div>
                                         )}
                                     </div>

@@ -4,39 +4,13 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Cookie } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
-const SECTIONS = [
-    {
-        title: "1. What are cookies?",
-        content: "Cookies are small data files that are placed on your computer or mobile device when you visit a website. They are widely used to make websites work, or to work more efficiently, as well as to provide reporting information."
-    },
-    {
-        title: "2. Why do we use cookies?",
-        content: "We use first- and third-party cookies for several reasons. Some are required for technical reasons ('essential' cookies), while others enable us to track and target the interests of our users to enhance their experience."
-    },
-    {
-        title: "3. How can I control cookies?",
-        content: "You have the right to decide whether to accept or reject cookies. You can set or amend your web browser controls to accept or refuse cookies. If you choose to reject cookies, your access to some functionality and areas of our Website may be restricted."
-    },
-    {
-        title: "4. Specific Cookies We Use",
-        content: "We use analytics and customization cookies (e.g., s7 by Adobe Analytics) to understand site usage. We also use session storage (e.g., welcomeSeen) and local storage (e.g., cart) to maintain your experience and shopping cart."
-    },
-    {
-        title: "5. Other tracking technologies",
-        content: "We may use other similar technologies like web beacons (tracking pixels) to monitor traffic patterns, understand if you came from an online advertisement, and measure the success of email marketing campaigns."
-    },
-    {
-        title: "6. Targeted advertising",
-        content: "Third parties may serve cookies on your computer or mobile device to serve advertising through our Website. These companies may use information about your visits to this and other websites to provide relevant advertisements."
-    },
-    {
-        title: "7. Contact Us",
-        content: "If you have any questions about our use of cookies or other technologies, please email us at businessrep@popclozet.in or post to: Popclozet Fashion Pvt Ltd, SANE Colony, haveli Pimpri chikhali, Pune, Maharashtra 411062, India. Phone: +91 77559 02716"
-    },
-];
+import { COOKIE_POLICY } from "@/constants/legalDocs";
 
 const CookiePolicyPage: React.FC = () => {
     const navigate = useNavigate();
+
+    const lastUpdatedMatch = COOKIE_POLICY.match(/Last updated\s+(.+)/i);
+    const lastUpdated = lastUpdatedMatch ? lastUpdatedMatch[1].trim() : "March 08, 2026";
 
     return (
         <MobileShell className="bg-black text-white">
@@ -62,25 +36,21 @@ const CookiePolicyPage: React.FC = () => {
                     </div>
                     <div>
                         <p className="text-white font-bold text-sm">Cookie Preferences</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">Last updated: March 08, 2026</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Last updated: {lastUpdated}</p>
                     </div>
                 </motion.div>
 
-                {/* Sections */}
-                <div className="space-y-5">
-                    {SECTIONS.map((section, i) => (
-                        <motion.div
-                            key={section.title}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.05 * i }}
-                            className="bg-gradient-to-br from-white/8 to-white/3 rounded-2xl border border-white/5 p-5"
-                        >
-                            <h2 className="text-white font-bold text-sm mb-2">{section.title}</h2>
-                            <p className="text-zinc-500 text-sm leading-relaxed">{section.content}</p>
-                        </motion.div>
-                    ))}
-                </div>
+                {/* Content */}
+                <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-gradient-to-br from-white/8 to-white/3 rounded-2xl border border-white/5 p-5"
+                >
+                    <div className="text-zinc-400 text-xs leading-relaxed whitespace-pre-line">
+                        {COOKIE_POLICY}
+                    </div>
+                </motion.div>
 
                 <p className="text-center text-xs text-zinc-700 mt-8 pb-2">
                     © 2026 Popclozet Pvt. Ltd. All rights reserved.

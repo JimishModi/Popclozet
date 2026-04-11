@@ -1,0 +1,9 @@
+ M apps/customer-app/src/constants/legalDocs.ts
+ M apps/customer-app/src/pages/CategoryProductsPage.tsx
+ M apps/customer-app/src/pages/CookiePolicyPage.tsx
+ M apps/customer-app/src/pages/MobileHome.tsx
+ M apps/customer-app/src/pages/PaymentProcessingPage.tsx
+ M apps/customer-app/src/pages/PrivacyPage.tsx
+ M apps/customer-app/src/pages/TermsPage.tsx
+ M extractPdf.cjs
+?? status.txt

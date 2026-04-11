@@ -532,6 +532,9 @@ const CategoryProductsPage: React.FC = () => {
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
                                 {filteredProducts.map((product, index) => {
                                     const isFake = (product as any)._isFake === true;
+                                    const isSoldOut = product.isSoldOut === true;
+                                    const isRentedOut = product.isRentedOut === true;
+                                    const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
 
@@ -554,7 +557,10 @@ const CategoryProductsPage: React.FC = () => {
                                                         <img
                                                             src={thumbImage(imgSrc)}
                                                             alt={product.name}
-                                                            className="relative w-full h-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 opacity-0 data-[loaded]:opacity-100"
+                                                            className={cn(
+                                                                "relative w-full h-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 opacity-0 data-[loaded]:opacity-100",
+                                                                isUnavailable && "grayscale opacity-40 blur-[1px]"
+                                                            )}
                                                             loading={index < 4 ? "eager" : "lazy"}
                                                             fetchPriority={index < 4 ? "high" : "auto"}
                                                             decoding="async"
@@ -564,6 +570,15 @@ const CategoryProductsPage: React.FC = () => {
                                                 ) : (
                                                     <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
                                                         <Heart className="w-8 h-8 text-zinc-700 opacity-50" />
+                                                    </div>
+                                                )}
+
+                                                {/* Status badge — overlay on top of image */}
+                                                {isUnavailable && (
+                                                    <div className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none">
+                                                        <span className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-white shadow-2xl">
+                                                            {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                        </span>
                                                     </div>
                                                 )}
 

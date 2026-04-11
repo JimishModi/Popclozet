@@ -1,3 +1,448 @@
-export const TERMS_AND_CONDITIONS = "TERMS  AND  CONDITIONS  \nLast  Updated:  March  08,  2026  \nAGREEMENT  TO  LEGAL  TERMS  \nThese  Terms  and  Conditions  (\u201cLegal  Terms\u201d)  constitute  a  legally  binding  agreement  between:  \npopclozet  Fashion  Pvt  Ltd  \n(\u201cCompany\u201d,\n \n\u201cwe\u201d,\n \n\u201cus\u201d,\n \nor\n \n\u201cour\u201d)\n \nRegistered\n \nOffice:\n \nSANE\n \nColony,\n \nHaveli\n \nPimpri\n \nChikhali,\n \nPune,\n \nMaharashtra\n \n411062\n \nIndia\n \nAnd:  \nYou  (\u201cUser\u201d,  \u201cyou\u201d,  or  \u201cyour\u201d).  \nBy  accessing,  browsing,  registering  with,  or  using  popclozet.in  (the  \u201cSite\u201d)  and  related  services  \n(collectively,\n \nthe\n \n\u201cServices\u201d),\n \nyou\n \nconfirm\n \nthat:\n \n\u25cf  You  have  read  these  Legal  Terms  \u25cf  You  understand  them  \u25cf  You  agree  to  be  legally  bound  by  them  \nIF  YOU  DO  NOT  AGREE,  YOU  MUST  IMMEDIATELY  DISCONTINUE  USE  OF  THE  \nSERVICES.\n \n1.  NATURE  OF  SERVICES  \npopclozet  is  a  Mumbai-based  hyperlocal  fashion  rental  utility  providing:  \n\u25cf  On-demand  60-minute  delivery  \u25cf  Curated  sneakers,  jackets,  and  low-fit-risk  apparel  \u25cf  No-deposit  rental  model  \u25cf  Rent-to-Buy  conversion  mechanism  \u25cf  RFID  hygiene  tracking  and  logistics  audit  systems  \nAll  products  remain  the  exclusive  property  of  popclozet  unless  legally  sold.  \nThe  rental  transaction  constitutes  a  temporary  bailment  arrangement ,  not  a  transfer  of  \nownership.\n \n2.  STORED  PAYMENT  AUTHORIZATION  &  \nTOKENIZATION\n \nCONSENT\n \n2.1  Mandatory  Payment  Authorization  \nBy  placing  an  order,  you:  \n\u25cf  Authorize  popclozet  to  securely  store,  tokenize,  and  retain  your  payment  credentials  via  \nRazorpay\n \nor\n \nequivalent\n \nRBI-compliant\n \ngateway.\n \u25cf  Grant  irrevocable  consent  for  future  automated  charges  without  requiring  fresh  OTP  \nauthentication,\n \nwhere\n \nlegally\n \npermissible.\n \n2.2  Auto-Debit  Rights  \nYou  expressly  authorize  us  to:  \n\u25cf  Charge  damage  penalties  \u25cf  Charge  late  return  penalties  \u25cf  Execute  Deemed  Sale  charges  \u25cf  Recover  unpaid  dues  \nFrom  your  stored  payment  method  without  additional  consent  at  the  time  of  debit.  \nFailure  of  payment  authorization  does  not  waive  your  liability.  \n3.  RENTAL,  LIABILITY  &  DEEMED  SALE  \nENFORCEMENT\n \n3.1  Rental  Ownership  \nAll  rented  items  remain  the  exclusive  property  of  popclozet  at  all  times  unless  purchased  under  \nRent-to-Buy.\n \nYou  acquire  only  temporary  possessory  rights.  \n3.2  Three-Tier  Liability  Structure  \nTier  1  \u2013  Normal  Wear  &  Tear  \nCovered  under  rental  fee:  \n\u25cf  Minor  removable  stains  \u25cf  Surface  dust  \u25cf  Standard  usage  marks  \nIndustrial  cleaning  is  conducted  at  120\u2013150\u00b0C  as  per  SOP.  \nTier  2  \u2013  Major  Damage  \nIncludes:  \n\u25cf  Permanent  stains  (ink,  bleach,  oil)  \u25cf  Rips,  tears,  structural  damage  \u25cf  Hardware  or  zipper  failure  \u25cf  Sole  damage  on  footwear  \nPenalty:  \nRepair\n \nCost\n \n+\n \n20%\n \nAdministrative\n \nFee\n \nOptional  damage  protection  may  be  purchased  at  checkout.  \n3.3  TOTAL  LOSS  /  NON-RETURN  \u2014  \u201cDEEMED  SALE\u201d  \nCLAUSE\n \nIf  the  rented  item  is  not  returned  within  24  hours  after  the  agreed  return  slot ,  the  transaction  \nshall\n \nautomatically\n \nbe\n \ntreated\n \nas\n \na\n \ncompleted\n \nsale\n \n(\u201cDeemed\n \nSale\u201d).\n \nUpon  Deemed  Sale:  \n1.  You  are  immediately  liable  for  110%  of  the  Retail  MRP  of  the  item.  2.  popclozet  is  authorized  to  immediately  charge  your  stored  payment  method.  3.  No  additional  notice,  reminder,  or  demand  is  required.  4.  Continued  retention  constitutes  unlawful  possession.  \nThis  clause  provides  popclozet  with  a  clear  contractual  and  legal  basis  to  execute  full  asset  \nrecovery\n \ncharges.\n \n4.  CRIMINAL  LIABILITY  WARNING  \nUnauthorized  retention,  concealment,  resale,  or  refusal  to  return  rented  items  may  constitute  \ncriminal\n \noffenses\n \nunder:\n \n\u25cf  Section  403  of  the  Indian  Penal  Code  (Criminal  Misappropriation  of  Property)  \u25cf  Section  405  of  the  Indian  Penal  Code  (Criminal  Breach  of  Trust)  \npopclozet  reserves  the  right  to:  \n\u25cf  Initiate  FIR  proceedings  \u25cf  File  criminal  complaints  \u25cf  Pursue  civil  recovery  \u25cf  Engage  recovery  agencies  \nThe  User  acknowledges  that  rental  misuse  is  not  merely  a  civil  debt  but  may  amount  to  criminal  \nliability.\n \n5.  STRICT  HANDS-OFF  CLEANING  \nPOLICY\n \nUsers  are  strictly  prohibited  from:  \n\u25cf  Washing  \u25cf  Dry  cleaning  \u25cf  Steam  treating  \u25cf  Ironing  \u25cf  Applying  detergents  \u25cf  Applying  stain  removers  \nOr  otherwise  attempting  to  clean  rented  items.  \nDomestic  washing  methods  can  permanently  damage  fabrics  and  RFID  tags.  \nViolation  automatically  upgrades  liability  to  Tier  2  (Major  Damage)  regardless  of  outcome.  \n6.  USER  REPRESENTATIONS  \nYou  represent  and  warrant  that:  \n\u25cf  You  are  at  least  18  years  old  (or  have  parental  consent  if  13\u201317)  \n\u25cf  You  provide  accurate  identity  and  payment  information  \u25cf  You  will  not  attempt  fraud  or  payment  disputes  without  legal  basis  \u25cf  You  will  not  resell  rented  items  \nProviding  false  information  may  result  in  permanent  blacklisting.  \n7.  PAYMENT  DISPUTE  &  CHARGEBACK  \nPOLICY\n \nInitiating  fraudulent  chargebacks  or  payment  disputes  after  valid  delivery  and  usage  constitutes:  \n\u25cf  Breach  of  contract  \u25cf  Financial  fraud  \nWe  reserve  the  right  to:  \n\u25cf  Submit  delivery  logs,  RFID  records,  and  usage  data  to  payment  gateways  \u25cf  Initiate  legal  proceedings  \u25cf  Recover  legal  costs  \n8.  LIMITATION  OF  LIABILITY  \nTo  the  maximum  extent  permitted  under  Indian  law:  \npopclozet  shall  not  be  liable  for:  \n\u25cf  Indirect  damages  \u25cf  Consequential  damages  \u25cf  Loss  of  profits  \u25cf  Loss  of  opportunity  \u25cf  Emotional  distress  \nTotal  liability,  if  any,  shall  not  exceed  the  rental  amount  paid  for  the  specific  transaction.  \n9.  INDEMNIFICATION  \nYou  agree  to  indemnify  and  hold  harmless  popclozet,  its  directors,  employees,  and  agents  \nagainst:\n \n\u25cf  Claims  arising  from  your  misuse  \n\u25cf  Criminal  investigations  triggered  by  your  actions  \u25cf  Third-party  IP  violations  \u25cf  Payment  fraud  attempts  \n \n10.  GOVERNING  LAW  &  JURISDICTION  \nThese  Legal  Terms  shall  be  governed  by  the  laws  of  India.  \nExclusive  jurisdiction  for  all  disputes  shall  lie  with  the  courts  of  Mumbai,  Maharashtra.  \nUsers  irrevocably  consent  to  Mumbai  jurisdiction.  \n11.  BINDING  ARBITRATION  CLAUSE  \n11.1  Mandatory  Arbitration  \nAny  dispute,  claim,  or  controversy  arising  out  of  or  relating  to  these  Terms  shall  be  resolved  \nthrough\n \nbinding\n \narbitration\n \nin\n \naccordance\n \nwith:\n \nThe  Arbitration  and  Conciliation  Act,  1996  (India).  \n11.2  Arbitration  Seat  &  Venue  \n\u25cf  Seat  of  arbitration:  Mumbai,  Maharashtra  \u25cf  Language:  English  \u25cf  Sole  arbitrator  appointed  by  popclozet  \n11.3  Waiver  of  Class  Action  \nUsers  waive  the  right  to:  \n\u25cf  Class  action  lawsuits  \u25cf  Collective  proceedings  \nArbitration  shall  be  conducted  on  an  individual  basis  only.  \n11.4  Injunctive  Relief  Exception  \npopclozet  retains  the  right  to  seek  immediate  injunctive  relief  in  Mumbai  courts  for:  \n\u25cf  Asset  recovery  \u25cf  IP  infringement  \u25cf  Criminal  complaints  \n12.  TERMINATION  RIGHTS  \nWe  may  suspend  or  permanently  terminate  accounts  for:  \n\u25cf  Fraud  suspicion  \u25cf  Repeated  damage  \u25cf  Non-payment  \u25cf  Chargeback  abuse  \nNo  refunds  shall  be  issued  in  cases  of  violation.  \n13.  MISCELLANEOUS  \nIf  any  provision  is  found  unenforceable,  the  remaining  provisions  remain  valid.  \nFailure  to  enforce  a  right  does  not  waive  it.  \nElectronic  contracts  and  signatures  are  legally  binding.  \n14.  CONTACT  INFORMATION  \npopclozet  Fashion  Pvt  Ltd  \nSANE\n \nColony,\n \nHaveli\n \nPimpri\n \nChikhali,\n \nPune,\n \nMaharashtra\n \n411062\n \nIndia\n \nPhone:  +91  77559  02716  \nEmail:\n \nbusinessrep@popclozet.in\n \n  \n";
+// Auto-generated by extractPdf.cjs — do not edit manually.
+export const TERMS_AND_CONDITIONS = `
+TERMS AND CONDITIONS
+Last Updated: March 08, 2026
+AGREEMENT TO LEGAL TERMS
+These Terms and Conditions (“Legal Terms”) constitute a legally binding agreement between:
+Popclozet Fashion Pvt Ltd
+(“Company”, “we”, “us”, or “our”)
+Registered Office:
+SANE Colony, Haveli Pimpri
+Chikhali, Pune, Maharashtra 411062
+India
+And:
+You (“User”, “you”, or “your”).
+By accessing, browsing, registering with, or using popclozet.in (the “Site”) and related services
+(collectively, the “Services”), you confirm that:
+● You have read these Legal Terms
+● You understand them
+● You agree to be legally bound by them
+IF YOU DO NOT AGREE, YOU MUST IMMEDIATELY DISCONTINUE USE OF THE
+SERVICES.
+1. NATURE OF SERVICES
+Popclozet is a Mumbai-based hyperlocal fashion rental utility providing:
+● On-demand 60-minute delivery
+● Curated sneakers, jackets, and low-fit-risk apparel
+● No-deposit rental model
+● Rent-to-Buy conversion mechanism
+● RFID hygiene tracking and logistics audit systems
+All products remain the exclusive property of Popclozet unless legally sold.
 
-export const COOKIE_POLICY = "COOKIE  POLICY  \nLast\n \nupdated\n \nMarch\n \n08,\n \n2026\n \nThis  Cookie  Policy  explains  how  popclozet  Fashion  Pvt  Ltd  (\"Company,\"  \n\"we,\"\n \n\"us,\"\n \nand\n \n\"our\")\n \nuses\n \ncookies\n \nand\n \nsimilar\n \ntechnologies\n \nto\n \nrecognize\n you  when  you  visit  our  website  at https://popclozet.in (\"Website\").  It  explains  what  these  technologies  are  and  why  we  use  them,  as  well  as  \nyour\n \nrights\n \nto\n \ncontrol\n \nour\n \nuse\n \nof\n \nthem.\n \nIn  some  cases  we  may  use  cookies  to  collect  personal  information,  or  that  \nbecomes\n \npersonal\n \ninformation\n \nif\n \nwe\n \ncombine\n \nit\n \nwith\n \nother\n \ninformation.\n \nWhat  are  cookies?  \nCookies  are  small  data  files  that  are  placed  on  your  computer  or  mobile  \ndevice\n \nwhen\n \nyou\n \nvisit\n \na\n \nwebsite.\n \nCookies\n \nare\n \nwidely\n \nused\n \nby\n \nwebsite\n \nowners\n \nin\n \norder\n \nto\n \nmake\n \ntheir\n \nwebsites\n \nwork,\n \nor\n \nto\n \nwork\n \nmore\n \nefficiently,\n \nas\n \nwell\n \nas\n \nto\n \nprovide\n \nreporting\n \ninformation.\n \nCookies  set  by  the  website  owner  (in  this  case,  popclozet  Fashion  Pvt  Ltd)  \nare\n \ncalled\n \n\"first-party\n \ncookies.\"\n \nCookies\n \nset\n \nby\n \nparties\n \nother\n \nthan\n \nthe\n \nwebsite\n \nowner\n \nare\n \ncalled\n \n\"third-party\n \ncookies.\"\n \nThird-party\n \ncookies\n \nenable\n \nthird-party\n \nfeatures\n \nor\n \nfunctionality\n \nto\n \nbe\n \nprovided\n \non\n \nor\n \nthrough\n \nthe\n \nwebsite\n \n(e.g.,\n \nadvertising,\n \ninteractive\n \ncontent,\n \nand\n \nanalytics).\n \nThe\n \nparties\n \nthat\n \nset\n \nthese\n \nthird-party\n \ncookies\n \ncan\n \nrecognize\n \nyour\n \ncomputer\n \nboth\n \nwhen\n \nit\n \nvisits\n \nthe\n \nwebsite\n \nin\n \nquestion\n \nand\n \nalso\n \nwhen\n \nit\n \nvisits\n \ncertain\n \nother\n \nwebsites.\n \nWhy  do  we  use  cookies?  \nWe  use  first-  and  third-party  cookies  for  several  reasons.  Some  cookies  are  \nrequired\n \nfor\n \ntechnical\n \nreasons\n \nin\n \norder\n \nfor\n \nour\n \nWebsite\n \nto\n \noperate,\n \nand\n \nwe\n \nrefer\n \nto\n \nthese\n \nas\n \n\"essential\"\n \nor\n \n\"strictly\n \nnecessary\"\n \ncookies.\n \nOther\n \ncookies\n \nalso\n \nenable\n \nus\n \nto\n \ntrack\n \nand\n \ntarget\n \nthe\n \ninterests\n \nof\n \nour\n \nusers\n \nto\n \nenhance\n \nthe\n \nexperience\n \non\n \nour\n \nOnline\n \nProperties.\n \nThird\n \nparties\n \nserve\n \ncookies\n \nthrough\n \nour\n \nWebsite\n \nfor\n \nadvertising,\n \nanalytics,\n \nand\n \nother\n \npurposes.\n \nThis\n \nis\n \ndescribed\n \nin\n \nmore\n \ndetail\n \nbelow.\n \nHow  can  I  control  cookies?  \nYou  have  the  right  to  decide  whether  to  accept  or  reject  cookies.  You  can  \nexercise\n \nyour\n \ncookie\n \nrights\n \nby\n \nsetting\n \nyour\n \npreferences\n \nin\n \nthe\n \nCookie\n \nPreference\n \nCenter.\n \nThe\n \nCookie\n \nPreference\n \nCenter\n \nallows\n \nyou\n \nto\n \nselect\n \nwhich\n \ncategories\n \nof\n \ncookies\n \nyou\n \naccept\n \nor\n \nreject.\n \nEssential\n \ncookies\n \ncannot\n \nbe\n \nrejected\n \nas\n \nthey\n \nare\n \nstrictly\n \nnecessary\n \nto\n \nprovide\n \nyou\n \nwith\n \nservices.\n \nThe  Cookie  Preference  Center  can  be  found  in  the  notification  banner  and  \non\n \nour\n \nWebsite.\n \nIf\n \nyou\n \nchoose\n \nto\n \nreject\n \ncookies,\n \nyou\n \nmay\n \nstill\n \nuse\n \nour\n \nWebsite\n \nthough\n \nyour\n \naccess\n \nto\n \nsome\n \nfunctionality\n \nand\n \nareas\n \nof\n \nour\n \nWebsite\n \nmay\n \nbe\n \nrestricted.\n \nYou\n \nmay\n \nalso\n \nset\n \nor\n \namend\n \nyour\n \nweb\n \nbrowser\n \ncontrols\n \nto\n \naccept\n \nor\n \nrefuse\n \ncookies.\n \nThe  specific  types  of  first-  and  third-party  cookies  served  through  our  \nWebsite\n \nand\n \nthe\n \npurposes\n \nthey\n \nperform\n \nare\n \ndescribed\n \nin\n \nthe\n \ntable\n \nbelow\n \n(please\n \nnote\n \nthat\n \nthe\n \nspecific\n \ncookies\n \nserved\n \nmay\n \nvary\n \ndepending\n \non\n \nthe\n \nspecific\n \nOnline\n \nProperties\n \nyou\n \nvisit):\n \nAnalytics  and  customization  cookies:  \nThese  cookies  collect  information  that  is  used  either  in  aggregate  form  to  \nhelp\n \nus\n \nunderstand\n \nhow\n \nour\n \nWebsite\n \nis\n \nbeing\n \nused\n \nor\n \nhow\n \neffective\n \nour\n \nmarketing\n \ncampaigns\n \nare,\n \nor\n \nto\n \nhelp\n \nus\n \ncustomize\n \nour\n \nWebsite\n \nfor\n \nyou.\n \nName:  s7  \nPurpose:  Gather  data  regarding  site  usage  and  user  behavior  on  \nthe\n \nwebsite.\n \nProvider:  popclozet.in  \nService:  Adobe  Analytics  \nType:  html_local_storage  \nExpires  in:  persistent  \nUnclassified  cookies:  \nThese  are  cookies  that  have  not  yet  been  categorized.  We  are  in  the  \nprocess\n \nof\n \nclassifying\n \nthese\n \ncookies\n \nwith\n \nthe\n \nhelp\n \nof\n \ntheir\n \nproviders.\n \nName:  welcomeSeen  \nProvider:  popclozet.in  \nType:  html_session_storage  \nExpires  in:  session  \nName:  cart  \nProvider:  popclozet.in  \nType:  html_local_storage  \nExpires  in:  persistent  \nHow  can  I  control  cookies  on  my  browser?  \nAs  the  means  by  which  you  can  refuse  cookies  through  your  web  browser  \ncontrols\n \nvary\n \nfrom\n \nbrowser\n \nto\n \nbrowser,\n \nyou\n \nshould\n \nvisit\n \nyour\n \nbrowser's\n \nhelp\n \nmenu\n \nfor\n \nmore\n \ninformation.\n \nThe\n \nfollowing\n \nis\n \ninformation\n \nabout\n \nhow\n \nto\n \nmanage\n \ncookies\n \non\n \nthe\n \nmost\n \npopular\n \nbrowsers:\n \nChrome  \nInternet\n \nExplorer\n \nFirefox\n \nSafari\n \nEdge\n \nOpera\n \nIn  addition,  most  advertising  networks  offer  you  a  way  to  opt  out  of  targeted  \nadvertising.\n \nIf\n \nyou\n \nwould\n \nlike\n \nto\n \nfind\n \nout\n \nmore\n \ninformation,\n \nplease\n \nvisit:\n \nDigital  Advertising  Alliance  \nDigital\n \nAdvertising\n \nAlliance\n \nof\n \nCanada\n \nEuropean\n \nInteractive\n \nDigital\n \nAdvertising\n \nAlliance\n \nWhat  about  other  tracking  technologies,  like  web  \nbeacons?\n \nCookies  are  not  the  only  way  to  recognize  or  track  visitors  to  a  website.  We  \nmay\n \nuse\n \nother,\n \nsimilar\n \ntechnologies\n \nfrom\n \ntime\n \nto\n \ntime,\n \nlike\n \nweb\n \nbeacons\n \n(sometimes\n \ncalled\n \n\"tracking\n \npixels\"\n \nor\n \n\"clear\n \ngifs\").\n \nThese\n \nare\n \ntiny\n \ngraphics\n \nfiles\n \nthat\n \ncontain\n \na\n \nunique\n \nidentifier\n \nthat\n \nenables\n \nus\n \nto\n \nrecognize\n \nwhen\n \nsomeone\n \nhas\n \nvisited\n \nour\n \nWebsite\n \nor\n \nopened\n \nan\n \nemail\n \nincluding\n \nthem.\n \nThis\n \nallows\n \nus,\n \nfor\n \nexample,\n \nto\n \nmonitor\n \nthe\n \ntraffic\n \npatterns\n \nof\n \nusers\n \nfrom\n \none\n \npage\n \nwithin\n \na\n \nwebsite\n \nto\n \nanother,\n \nto\n \ndeliver\n \nor\n \ncommunicate\n \nwith\n \ncookies,\n \nto\n \nunderstand\n \nwhether\n \nyou\n \nhave\n \ncome\n \nto\n \nthe\n \nwebsite\n \nfrom\n \nan\n \nonline\n \nadvertisement\n \ndisplayed\n \non\n \na\n \nthird-party\n \nwebsite,\n \nto\n \nimprove\n \nsite\n \nperformance,\n \nand\n \nto\n \nmeasure\n \nthe\n \nsuccess\n \nof\n \nemail\n \nmarketing\n \ncampaigns.\n \nIn\n \nmany\n \ninstances,\n \nthese\n \ntechnologies\n \nare\n \nreliant\n \non\n \ncookies\n \nto\n \nfunction\n \nproperly,\n \nand\n \nso\n \ndeclining\n \ncookies\n \nwill\n \nimpair\n \ntheir\n \nfunctioning.\n \nDo  you  use  Flash  cookies  or  Local  Shared  \nObjects?\n \nWebsites  may  also  use  so-called  \"Flash  Cookies\"  (also  known  as  Local  \nShared\n \nObjects\n \nor\n \n\"LSOs\")\n \nto,\n \namong\n \nother\n \nthings,\n \ncollect\n \nand\n \nstore\n \ninformation  about  your  use  of  our  services,  fraud  prevention,  and  for  other  \nsite\n \noperations.\n \nIf  you  do  not  want  Flash  Cookies  stored  on  your  computer,  you  can  adjust  \nthe\n \nsettings\n \nof\n \nyour\n \nFlash\n \nplayer\n \nto\n \nblock\n \nFlash\n \nCookies\n \nstorage\n \nusing\n \nthe\n \ntools\n \ncontained\n \nin\n \nthe\n \nWebsite\n \nStorage\n \nSettings\n \nPanel.\n \nYou\n \ncan\n \nalso\n \ncontrol\n \nFlash\n \nCookies\n \nby\n \ngoing\n \nto\n \nthe\n \nGlobal\n \nStorage\n \nSettings\n \nPanel\n \nand\n \nfollowing\n \nthe\n \ninstructions\n \n(which\n \nmay\n \ninclude\n \ninstructions\n \nthat\n \nexplain,\n \nfor\n \nexample,\n \nhow\n \nto\n \ndelete\n \nexisting\n \nFlash\n \nCookies\n \n(referred\n \nto\n \n\"information\"\n \non\n \nthe\n \nMacromedia\n \nsite),\n \nhow\n \nto\n \nprevent\n \nFlash\n \nLSOs\n \nfrom\n \nbeing\n \nplaced\n \non\n \nyour\n \ncomputer\n \nwithout\n \nyour\n \nbeing\n \nasked,\n \nand\n \n(for\n \nFlash\n \nPlayer\n \n8\n \nand\n \nlater)\n \nhow\n \nto\n \nblock\n \nFlash\n \nCookies\n \nthat\n \nare\n \nnot\n \nbeing\n \ndelivered\n \nby\n \nthe\n \noperator\n \nof\n \nthe\n \npage\n \nyou\n \nare\n \non\n \nat\n \nthe\n \ntime).\n \nPlease  note  that  setting  the  Flash  Player  to  restrict  or  limit  acceptance  of  \nFlash\n \nCookies\n \nmay\n \nreduce\n \nor\n \nimpede\n \nthe\n \nfunctionality\n \nof\n \nsome\n \nFlash\n \napplications,\n \nincluding,\n \npotentially,\n \nFlash\n \napplications\n \nused\n \nin\n \nconnection\n \nwith\n \nour\n \nservices\n \nor\n \nonline\n \ncontent.\n \nDo  you  serve  targeted  advertising?  \nThird  parties  may  serve  cookies  on  your  computer  or  mobile  device  to  \nserve\n \nadvertising\n \nthrough\n \nour\n \nWebsite.\n \nThese\n \ncompanies\n \nmay\n \nuse\n \ninformation\n \nabout\n \nyour\n \nvisits\n \nto\n \nthis\n \nand\n \nother\n \nwebsites\n \nin\n \norder\n \nto\n \nprovide\n \nrelevant\n \nadvertisements\n \nabout\n \ngoods\n \nand\n \nservices\n \nthat\n \nyou\n \nmay\n \nbe\n \ninterested\n \nin.\n \nThey\n \nmay\n \nalso\n \nemploy\n \ntechnology\n \nthat\n \nis\n \nused\n \nto\n \nmeasure\n \nthe\n \neffectiveness\n \nof\n \nadvertisements.\n \nThey\n \ncan\n \naccomplish\n \nthis\n \nby\n \nusing\n \ncookies\n \nor\n \nweb\n \nbeacons\n \nto\n \ncollect\n \ninformation\n \nabout\n \nyour\n \nvisits\n \nto\n \nthis\n \nand\n \nother\n \nsites\n \nin\n \norder\n \nto\n \nprovide\n \nrelevant\n \nadvertisements\n \nabout\n \ngoods\n \nand\n \nservices\n \nof\n \npotential\n \ninterest\n \nto\n \nyou.\n \nThe\n \ninformation\n \ncollected\n \nthrough\n \nthis\n \nprocess\n \ndoes\n \nnot\n \nenable\n \nus\n \nor\n \nthem\n \nto\n \nidentify\n \nyour\n \nname,\n \ncontact\n \ndetails,\n \nor\n \nother\n \ndetails\n \nthat\n \ndirectly\n \nidentify\n \nyou\n \nunless\n \nyou\n \nchoose\n \nto\n \nprovide\n \nthese.\n \nHow  often  will  you  update  this  Cookie  Policy?  \nWe  may  update  this  Cookie  Policy  from  time  to  time  in  order  to  reflect,  for  \nexample,\n \nchanges\n \nto\n \nthe\n \ncookies\n \nwe\n \nuse\n \nor\n \nfor\n \nother\n \noperational,\n \nlegal,\n \nor\n \nregulatory\n \nreasons.\n \nPlease\n \ntherefore\n \nrevisit\n \nthis\n \nCookie\n \nPolicy\n \nregularly\n \nto\n \nstay\n \ninformed\n \nabout\n \nour\n \nuse\n \nof\n \ncookies\n \nand\n \nrelated\n \ntechnologies.\n \nThe  date  at  the  top  of  this  Cookie  Policy  indicates  when  it  was  last  \nupdated.\n \nWhere  can  I  get  further  information?  \nIf  you  have  any  questions  about  our  use  of  cookies  or  other  technologies,  \nplease\n \nemail\n \nus\n \nat\n \nbusinessrep@popclozet.in\n \nor\n \nby\n \npost\n \nto:\n \npopclozet  Fashion  Pvt  Ltd  \nSANE\n \nColony,\n \nhaveli\n \nPimpri\n \nchikhali,\n \nPune\n \n,\n \nMaharashtra\n \n411062\n \nIndia\n \nPhone:\n \n+91\n \n77559\n \n02716\n \nThis  Cookie  Policy  was  created  using  Termly's  Cookie  Consent  Manager  \n \n";
+The rental transaction constitutes a temporary bailment arrangement, not a transfer of
+ownership.
+2. STORED PAYMENT AUTHORIZATION &
+TOKENIZATION CONSENT
+2.1 Mandatory Payment Authorization
+By placing an order, you:
+● Authorize Popclozet to securely store, tokenize, and retain your payment credentials via
+Razorpay or equivalent RBI-compliant gateway.
+● Grant irrevocable consent for future automated charges without requiring fresh OTP
+authentication, where legally permissible.
+2.2 Auto-Debit Rights
+You expressly authorize us to:
+● Charge damage penalties
+● Charge late return penalties
+● Execute Deemed Sale charges
+● Recover unpaid dues
+From your stored payment method without additional consent at the time of debit.
+Failure of payment authorization does not waive your liability.
+3. RENTAL, LIABILITY & DEEMED SALE
+ENFORCEMENT
+3.1 Rental Ownership
+All rented items remain the exclusive property of Popclozet at all times unless purchased under
+Rent-to-Buy.
+You acquire only temporary possessory rights.
+
+3.2 Three-Tier Liability Structure
+Tier 1 – Normal Wear & Tear
+Covered under rental fee:
+● Minor removable stains
+● Surface dust
+● Standard usage marks
+Industrial cleaning is conducted at 120–150°C as per SOP.
+Tier 2 – Major Damage
+Includes:
+● Permanent stains (ink, bleach, oil)
+● Rips, tears, structural damage
+● Hardware or zipper failure
+● Sole damage on footwear
+Penalty:
+Repair Cost + 20% Administrative Fee
+Optional damage protection may be purchased at checkout.
+3.3 TOTAL LOSS / NON-RETURN — “DEEMED SALE”
+CLAUSE
+If the rented item is not returned within 24 hours after the agreed return slot, the transaction
+shall automatically be treated as a completed sale (“Deemed Sale”).
+Upon Deemed Sale:
+1. You are immediately liable for 110% of the Retail MRP of the item.
+2. Popclozet is authorized to immediately charge your stored payment method.
+3. No additional notice, reminder, or demand is required.
+4. Continued retention constitutes unlawful possession.
+This clause provides Popclozet with a clear contractual and legal basis to execute full asset
+recovery charges.
+
+4. CRIMINAL LIABILITY WARNING
+Unauthorized retention, concealment, resale, or refusal to return rented items may constitute
+criminal offenses under:
+● Section 403 of the Indian Penal Code (Criminal Misappropriation of Property)
+● Section 405 of the Indian Penal Code (Criminal Breach of Trust)
+Popclozet reserves the right to:
+● Initiate FIR proceedings
+● File criminal complaints
+● Pursue civil recovery
+● Engage recovery agencies
+The User acknowledges that rental misuse is not merely a civil debt but may amount to criminal
+liability.
+5. STRICT HANDS-OFF CLEANING
+POLICY
+Users are strictly prohibited from:
+● Washing
+● Dry cleaning
+● Steam treating
+● Ironing
+● Applying detergents
+● Applying stain removers
+Or otherwise attempting to clean rented items.
+Domestic washing methods can permanently damage fabrics and RFID tags.
+Violation automatically upgrades liability to Tier 2 (Major Damage) regardless of outcome.
+6. USER REPRESENTATIONS
+You represent and warrant that:
+● You are at least 18 years old (or have parental consent if 13–17)
+
+● You provide accurate identity and payment information
+● You will not attempt fraud or payment disputes without legal basis
+● You will not resell rented items
+Providing false information may result in permanent blacklisting.
+7. PAYMENT DISPUTE & CHARGEBACK
+POLICY
+Initiating fraudulent chargebacks or payment disputes after valid delivery and usage constitutes:
+● Breach of contract
+● Financial fraud
+We reserve the right to:
+● Submit delivery logs, RFID records, and usage data to payment gateways
+● Initiate legal proceedings
+● Recover legal costs
+8. LIMITATION OF LIABILITY
+To the maximum extent permitted under Indian law:
+Popclozet shall not be liable for:
+● Indirect damages
+● Consequential damages
+● Loss of profits
+● Loss of opportunity
+● Emotional distress
+Total liability, if any, shall not exceed the rental amount paid for the specific transaction.
+9. INDEMNIFICATION
+You agree to indemnify and hold harmless Popclozet, its directors, employees, and agents
+against:
+● Claims arising from your misuse
+
+● Criminal investigations triggered by your actions
+● Third-party IP violations
+● Payment fraud attempts
+10. GOVERNING LAW & JURISDICTION
+These Legal Terms shall be governed by the laws of India.
+Exclusive jurisdiction for all disputes shall lie with the courts of Mumbai, Maharashtra.
+Users irrevocably consent to Mumbai jurisdiction.
+11. BINDING ARBITRATION CLAUSE
+11.1 Mandatory Arbitration
+Any dispute, claim, or controversy arising out of or relating to these Terms shall be resolved
+through binding arbitration in accordance with:
+The Arbitration and Conciliation Act, 1996 (India).
+11.2 Arbitration Seat & Venue
+● Seat of arbitration: Mumbai, Maharashtra
+● Language: English
+● Sole arbitrator appointed by Popclozet
+11.3 Waiver of Class Action
+Users waive the right to:
+● Class action lawsuits
+● Collective proceedings
+Arbitration shall be conducted on an individual basis only.
+11.4 Injunctive Relief Exception
+
+Popclozet retains the right to seek immediate injunctive relief in Mumbai courts for:
+● Asset recovery
+● IP infringement
+● Criminal complaints
+12. TERMINATION RIGHTS
+We may suspend or permanently terminate accounts for:
+● Fraud suspicion
+● Repeated damage
+● Non-payment
+● Chargeback abuse
+No refunds shall be issued in cases of violation.
+13. MISCELLANEOUS
+If any provision is found unenforceable, the remaining provisions remain valid.
+Failure to enforce a right does not waive it.
+Electronic contracts and signatures are legally binding.
+14. CONTACT INFORMATION
+Popclozet Fashion Pvt Ltd
+SANE Colony, Haveli Pimpri
+Chikhali, Pune, Maharashtra 411062
+India
+Phone: +91 77559 02716
+Email: businessrep@popclozet.in
+`;
+
+export const COOKIE_POLICY = `
+COOKIE POLICY
+Last updated March 08, 2026
+This Cookie Policy explains how Popclozet Fashion Pvt Ltd ("Company,"
+"we," "us," and "our") uses cookies and similar technologies to recognize
+you when you visit our website at https://popclozet.in ("Website"). It
+explains what these technologies are and why we use them, as well as
+your rights to control our use of them.
+In some cases we may use cookies to collect personal information, or that
+becomes personal information if we combine it with other information.
+What are cookies?
+Cookies are small data files that are placed on your computer or mobile
+device when you visit a website. Cookies are widely used by website
+owners in order to make their websites work, or to work more efficiently, as
+well as to provide reporting information.
+Cookies set by the website owner (in this case, Popclozet Fashion Pvt Ltd)
+are called "first-party cookies." Cookies set by parties other than the
+website owner are called "third-party cookies." Third-party cookies enable
+third-party features or functionality to be provided on or through the website
+(e.g., advertising, interactive content, and analytics). The parties that set
+these third-party cookies can recognize your computer both when it visits
+the website in question and also when it visits certain other websites.
+Why do we use cookies?
+We use first- and third-party cookies for several reasons. Some cookies are
+required for technical reasons in order for our Website to operate, and we
+refer to these as "essential" or "strictly necessary" cookies. Other cookies
+also enable us to track and target the interests of our users to enhance the
+experience on our Online Properties. Third parties serve cookies through
+our Website for advertising, analytics, and other purposes. This is
+described in more detail below.
+How can I control cookies?
+You have the right to decide whether to accept or reject cookies. You can
+exercise your cookie rights by setting your preferences in the Cookie
+Preference Center. The Cookie Preference Center allows you to select
+which categories of cookies you accept or reject. Essential cookies cannot
+be rejected as they are strictly necessary to provide you with services.
+
+The Cookie Preference Center can be found in the notification banner and
+on our Website. If you choose to reject cookies, you may still use our
+Website though your access to some functionality and areas of our
+Website may be restricted. You may also set or amend your web browser
+controls to accept or refuse cookies.
+The specific types of first- and third-party cookies served through our
+Website and the purposes they perform are described in the table below
+(please note that the specific cookies served may vary depending on the
+specific Online Properties you visit):
+Analytics and customization cookies:
+These cookies collect information that is used either in aggregate form to
+help us understand how our Website is being used or how effective our
+marketing campaigns are, or to help us customize our Website for you.
+Name: s7
+Purpose: Gather data regarding site usage and user behavior on
+the website.
+Provider: popclozet.in
+Service: Adobe Analytics
+Type: html_local_storage
+Expires in: persistent
+Unclassified cookies:
+These are cookies that have not yet been categorized. We are in the
+process of classifying these cookies with the help of their providers.
+Name: welcomeSeen
+Provider: popclozet.in
+Type: html_session_storage
+Expires in: session
+Name: cart
+Provider: popclozet.in
+
+Type: html_local_storage
+Expires in: persistent
+How can I control cookies on my browser?
+As the means by which you can refuse cookies through your web browser
+controls vary from browser to browser, you should visit your browser's help
+menu for more information. The following is information about how to
+manage cookies on the most popular browsers:
+Chrome
+Internet Explorer
+Firefox
+Safari
+Edge
+Opera
+In addition, most advertising networks offer you a way to opt out of targeted
+advertising. If you would like to find out more information, please visit:
+Digital Advertising Alliance
+Digital Advertising Alliance of Canada
+European Interactive Digital Advertising Alliance
+What about other tracking technologies, like web
+beacons?
+Cookies are not the only way to recognize or track visitors to a website. We
+may use other, similar technologies from time to time, like web beacons
+(sometimes called "tracking pixels" or "clear gifs"). These are tiny graphics
+files that contain a unique identifier that enables us to recognize when
+someone has visited our Website or opened an email including them. This
+allows us, for example, to monitor the traffic patterns of users from one
+page within a website to another, to deliver or communicate with cookies,
+to understand whether you have come to the website from an online
+advertisement displayed on a third-party website, to improve site
+performance, and to measure the success of email marketing campaigns.
+In many instances, these technologies are reliant on cookies to function
+properly, and so declining cookies will impair their functioning.
+Do you use Flash cookies or Local Shared
+Objects?
+Websites may also use so-called "Flash Cookies" (also known as Local
+Shared Objects or "LSOs") to, among other things, collect and store
+
+information about your use of our services, fraud prevention, and for other
+site operations.
+If you do not want Flash Cookies stored on your computer, you can adjust
+the settings of your Flash player to block Flash Cookies storage using the
+tools contained in the Website Storage Settings Panel. You can also control
+Flash Cookies by going to the Global Storage Settings Panel and following
+the instructions (which may include instructions that explain, for example,
+how to delete existing Flash Cookies (referred to "information" on the
+Macromedia site), how to prevent Flash LSOs from being placed on your
+computer without your being asked, and (for Flash Player 8 and later) how
+to block Flash Cookies that are not being delivered by the operator of the
+page you are on at the time).
+Please note that setting the Flash Player to restrict or limit acceptance of
+Flash Cookies may reduce or impede the functionality of some Flash
+applications, including, potentially, Flash applications used in connection
+with our services or online content.
+Do you serve targeted advertising?
+Third parties may serve cookies on your computer or mobile device to
+serve advertising through our Website. These companies may use
+information about your visits to this and other websites in order to provide
+relevant advertisements about goods and services that you may be
+interested in. They may also employ technology that is used to measure
+the effectiveness of advertisements. They can accomplish this by using
+cookies or web beacons to collect information about your visits to this and
+other sites in order to provide relevant advertisements about goods and
+services of potential interest to you. The information collected through this
+process does not enable us or them to identify your name, contact details,
+or other details that directly identify you unless you choose to provide
+these.
+How often will you update this Cookie Policy?
+We may update this Cookie Policy from time to time in order to reflect, for
+example, changes to the cookies we use or for other operational, legal, or
+regulatory reasons. Please therefore revisit this Cookie Policy regularly to
+stay informed about our use of cookies and related technologies.
+The date at the top of this Cookie Policy indicates when it was last
+updated.
+Where can I get further information?
+
+If you have any questions about our use of cookies or other technologies,
+please email us at businessrep@popclozet.in or by post to:
+Popclozet Fashion Pvt Ltd
+SANE Colony, haveli Pimpri
+chikhali, Pune , Maharashtra 411062
+India
+Phone: +91 77559 02716
+This Cookie Policy was created using Termly's Cookie Consent Manager
+`;
+
+export const PRIVACY_POLICY = `
+PRIVACY POLICY
+Last updated March 08, 2026
+This Privacy Notice for Popclozet Fashion Pvt Ltd ("we," "us," or
+"our"), describes how and why we might collect, store, use, and/or
+share ("process") your information when you use our services
+("Services"), such as when you:
+• Visit our website at https://popclozet.in, or any website of ours
+that links to this Privacy Notice
+• Engage with us in other related ways, including any sales,
+marketing, or events
+Questions or concerns? Reading this Privacy Notice will help you
+understand your privacy rights and choices. If you do not agree with
+our policies and practices, please do not use our Services. If you still
+have any questions or concerns, please contact us at
+businessrep@popclozet.in.
+SUMMARY OF KEY POINTS
+This summary provides key points from our Privacy Notice, but you
+can find out more details about any of these topics by clicking the link
+following each key point or by using our table of contents below to find
+the section you are looking for.
+What personal information do we process? When you visit, use, or
+navigate our Services, we may process personal information depending
+on how you interact with Popclozet Fashion Pvt Ltd and the Services,
+the choices you make, and the products and features you use.
+Do we process any sensitive personal information? We do not
+process sensitive personal information.
+Do we receive any information from third parties? We may receive
+information from public databases, marketing partners, social media
+platforms, and other outside sources.
+How do we process your information? We process your information
+to provide, improve, and administer our Services, communicate with
+you, for security and fraud prevention, and to comply with law. We may
+also process your information for other purposes with your consent.
+
+In what situations and with which parties do we share personal
+information? We may share information in specific situations and with
+specific third parties.
+How do we keep your information safe? We have organizational and
+technical processes and procedures in place to protect your personal
+information. However, no electronic transmission over the internet or
+information storage technology can be guaranteed to be 100% secure,
+so we cannot promise or guarantee that hackers, cybercriminals, or
+other unauthorized third parties will not be able to defeat our security
+and improperly collect, access, steal, or modify your information.
+What are your rights? Depending on where you are located
+geographically, the applicable privacy law may mean you have certain
+rights regarding your personal information.
+How do you exercise your rights? The easiest way to exercise your
+rights is by submitting a data subject access request, or by contacting
+us. We will consider and act upon any request in accordance with
+applicable data protection laws.
+TABLE OF CONTENTS
+1. WHAT INFORMATION DO WE COLLECT?
+2. HOW DO WE PROCESS YOUR INFORMATION?
+3. WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?
+4. DO WE USE COOKIES AND OTHER TRACKING TECHNOLOGIES?
+5. HOW LONG DO WE KEEP YOUR INFORMATION?
+6. HOW DO WE KEEP YOUR INFORMATION SAFE?
+7. DO WE COLLECT INFORMATION FROM MINORS?
+8. WHAT ARE YOUR PRIVACY RIGHTS?
+9. CONTROLS FOR DO-NOT-TRACK FEATURES
+10. DO WE MAKE UPDATES TO THIS NOTICE?
+11. HOW CAN YOU CONTACT US ABOUT THIS NOTICE?
+12. HOW CAN YOU REVIEW, UPDATE, OR DELETE THE DATA WE COLLECT FROM
+YOU?
+13. WHAT INFORMATION DO WE COLLECT?
+Personal information you disclose to us
+In Short: We collect personal information that you provide to us.
+We collect personal information that you voluntarily provide to us
+when you register on the Services, express an interest in obtaining
+information about us or our products and Services, when you
+
+participate in activities on the Services, or otherwise when you contact
+us.
+Personal Information Provided by You. The personal information
+that we collect depends on the context of your interactions with us and
+the Services, the choices you make, and the products and features you
+use. The personal information we collect may include the following:
+• Names
+• Phone numbers
+• Email addresses
+• Mailing addresses
+• Usernames
+• Passwords
+• Billing addresses
+• Debit/credit card numbers
+Sensitive Information. We do not process sensitive information.
+Payment Data. We may collect data necessary to process your
+payment if you make purchases, such as your payment instrument
+number, and the security code associated with your payment
+instrument. All payment data is stored by our payment processors.
+All personal information that you provide to us must be true, complete,
+and accurate, and you must notify us of any changes to such personal
+information.
+Information automatically collected
+In Short: Some information — such as your Internet Protocol (IP)
+address and/or browser and device characteristics — is collected
+automatically when you visit our Services.
+We automatically collect certain information when you visit, use, or
+navigate the Services. This information does not reveal your specific
+identity (like your name or contact information) but may include device
+and usage information, such as your IP address, browser and device
+characteristics, operating system, language preferences, referring
+URLs, device name, country, location, information about how and
+when you use our Services, and other technical information. This
+information is primarily needed to maintain the security and operation
+of our Services, and for our internal analytics and reporting purposes.
+Like many businesses, we also collect information through cookies
+and similar technologies.
+`;
