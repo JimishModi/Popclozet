@@ -3,27 +3,18 @@
 //   1. Create Razorpay order (via edge function)
 //   2. Open Razorpay modal
 //   3. On success → verify signature server-side
-//   4. On cancel/failure → navigate back
+//   4. On cancel/failure → INSTANTLY cancel the order + release stock
 //   5. Navigate to success/error page
 //
-// CRITICAL: Uses a `outcomeRef` flag to prevent the known Razorpay bug
+// CRITICAL: Uses an `outcomeRef` flag to prevent the known Razorpay bug
 // where `modal.ondismiss` fires AFTER `handler` on successful payments,
 // causing a false "cancelled" flash.
 //
-// MOBILE UPI FIX (v3): On mobile devices, tapping a UPI app causes the
-// browser to switch away. Razorpay fires `ondismiss` IMMEDIATELY when
-// the browser loses focus — long before the user finishes paying.
-//
-// DIAGNOSIS (from production logs):
-//   - create-razorpay-order fires at T+0s
-//   - User switches to PhonePe, ondismiss fires immediately
-//   - User pays, returns to PWA at T+30–60s
-//   - handler fires and verify-razorpay-payment runs at T+38s
-//   - But ondismiss already navigated to /payment-failed at T+10s!
-//
-// FIX: ondismiss now polls the ORDER STATUS from the database before
-// navigating. If the order has been confirmed (by handler or webhook),
-// it navigates to success. It only gives up after 2 minutes.
+// CANCELLATION FLOW (instant release):
+// When the user closes the Razorpay modal, we call
+// `force_cancel_pending_order` synchronously, which runs
+// `release_order_stock` server-side. This frees inventory the
+// moment the user dismisses the modal — no 10-minute cron wait.
 
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -37,12 +28,6 @@ const popclozet_LOGO = '/icons/icon-192x192.png';
 // Payment outcome states — used to prevent race conditions between
 // handler and ondismiss callbacks. Only ONE of these may ever fire.
 type PaymentOutcome = 'none' | 'success' | 'failed' | 'cancelled';
-
-// Confirmed order statuses — any of these means the payment went through.
-const CONFIRMED_STATUSES = [
-  'confirmed', 'paid', 'packed', 'ready_for_pickup',
-  'dispatched', 'out_for_delivery', 'delivered', 'completed',
-];
 
 interface UseRazorpayCheckoutOptions {
   internalOrderId: string;    // Supabase order ID (already created before calling this)
@@ -119,21 +104,21 @@ export function useRazorpayCheckout() {
         },
         ...(preferredMethod === 'upi'
           ? {
-              config: {
-                display: {
-                  blocks: {
-                    upi: {
-                      name: 'Pay via UPI',
-                      instruments: [{ method: 'upi' }],
-                    },
-                  },
-                  sequence: ['block.upi'],
-                  preferences: {
-                    show_default_blocks: false,
+            config: {
+              display: {
+                blocks: {
+                  upi: {
+                    name: 'Pay via UPI',
+                    instruments: [{ method: 'upi' }],
                   },
                 },
+                sequence: ['block.upi'],
+                preferences: {
+                  show_default_blocks: false,
+                },
               },
-            }
+            },
+          }
           : {}),
         retry: {
           enabled: true,
@@ -160,83 +145,32 @@ export function useRazorpayCheckout() {
               return;
             }
 
-            // ── MOBILE UPI FIX (v3) ──
-            // On mobile UPI, ondismiss fires the INSTANT the user switches
-            // to PhonePe/GPay. The handler won't fire until the user returns
-            // AND the Razorpay SDK reconnects — which can take 30–60+ seconds.
-            //
-            // OLD APPROACH (broken): Wait 10 seconds, then navigate to /payment-failed.
-            //   → 10s is far too short. Handler fires at T+38s on average.
-            //
-            // NEW APPROACH: Poll the order status from the database every 5 seconds
-            // for up to 2 minutes. If the order gets confirmed (by the handler running
-            // in a parallel callback, or by the Razorpay webhook), navigate to success.
-            // Only navigate to checkout (not payment-failed) if it's still pending
-            // after 2 minutes.
-            console.log('[useRazorpayCheckout] ondismiss: starting order status polling for', internalOrderId);
-
-            const MAX_POLLS = 24; // 24 × 5s = 2 minutes
-            for (let i = 0; i < MAX_POLLS; i++) {
-              // Wait 5 seconds between each check
-              await new Promise(r => setTimeout(r, 5000));
-
-              // Re-check — handler may have fired during the wait
-              if (outcomeRef.current !== 'none') {
-                console.log('[useRazorpayCheckout] ondismiss: handler fired during polling, skipping:', outcomeRef.current);
-                return;
-              }
-
-              // Poll order status from database
-              try {
-                const { data: order } = await supabase
-                  .from('orders')
-                  .select('status')
-                  .eq('id', internalOrderId)
-                  .single();
-
-                if (order && CONFIRMED_STATUSES.includes(order.status)) {
-                  // ORDER WAS CONFIRMED! The handler or webhook did its job.
-                  console.log('[useRazorpayCheckout] ondismiss: order confirmed via polling!', order.status);
-                  outcomeRef.current = 'success';
-                  setIsProcessing(false);
-
-                  if (onSuccess) {
-                    onSuccess('confirmed-via-polling');
-                  } else {
-                    navigate('/home', { replace: true });
-                  }
-                  return;
-                }
-
-                if (order && order.status === 'cancelled') {
-                  // Order was cancelled (by cron or webhook payment.failed)
-                  console.log('[useRazorpayCheckout] ondismiss: order was cancelled');
-                  break; // Stop polling
-                }
-
-                console.log(`[useRazorpayCheckout] ondismiss: poll ${i + 1}/${MAX_POLLS}, status=${order?.status}`);
-              } catch (pollErr) {
-                console.warn('[useRazorpayCheckout] ondismiss: poll error:', pollErr);
-                // Continue polling on network errors
-              }
-            }
-
-            // If we get here, either:
-            // a) 2 minutes of polling didn't find a confirmation
-            // b) The order was cancelled
-            // In either case, gently navigate back to checkout
-            if (outcomeRef.current !== 'none') return; // Final guard
-
+            // ── INSTANT CANCELLATION ──
+            // The user closed the modal. Release the reserved stock
+            // RIGHT NOW so the product is immediately bookable again.
+            // No polling, no waiting for the 10-minute cron.
             outcomeRef.current = 'cancelled';
             setIsProcessing(false);
 
-            // DO NOT navigate to /payment-failed — the order may still be confirmed
-            // by the webhook after we navigate away. Just go back to checkout.
-            toast.info('Payment not confirmed yet. Check your order status in My Orders.');
+            console.log('[useRazorpayCheckout] ondismiss: force-cancelling order', internalOrderId);
+
+            try {
+              const { error: rpcErr } = await supabase.rpc('force_cancel_pending_order', {
+                order_id: internalOrderId,
+              });
+              if (rpcErr) {
+                console.warn('[useRazorpayCheckout] force_cancel_pending_order RPC error:', rpcErr);
+              }
+            } catch (cancelErr) {
+              console.warn('[useRazorpayCheckout] force_cancel_pending_order threw:', cancelErr);
+              // Non-fatal — the caller's onFailure still runs, and the
+              // cron job remains as a last-resort safety net.
+            }
 
             if (onFailure) {
               onFailure(new Error('PAYMENT_CANCELLED'));
             } else {
+              toast.info('Payment cancelled.');
               navigate('/checkout', { replace: true });
             }
           },

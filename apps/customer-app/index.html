@@ -9,6 +9,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
+
+  <!-- ─────────────────────────────────────────────────────────────
+       AGGRESSIVE SERVICE WORKER KILL-SWITCH (localhost / dev only)
+       ─────────────────────────────────────────────────────────────
+       VitePWA is disabled in dev, but previously-installed service
+       workers keep serving cached bundles until explicitly removed.
+       This script unregisters every existing SW and nukes the Cache
+       Storage on localhost so fresh JS is always fetched.
+  -->
+  <script>
+    (function () {
+      try {
+        var host = window.location.hostname;
+        var isLocal =
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === '0.0.0.0' ||
+          host === '::1' ||
+          /^192\.168\./.test(host) ||
+          /^10\./.test(host) ||
+          host.endsWith('.local');
+
+        if (isLocal && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) {
+              reg.unregister().then(function (ok) {
+                console.log('[SW-KILL] unregistered:', reg.scope, ok);
+              });
+            });
+          }).catch(function (e) {
+            console.warn('[SW-KILL] getRegistrations failed:', e);
+          });
+
+          if (window.caches && caches.keys) {
+            caches.keys().then(function (keys) {
+              keys.forEach(function (key) {
+                caches.delete(key).then(function (ok) {
+                  console.log('[SW-KILL] cache deleted:', key, ok);
+                });
+              });
+            }).catch(function (e) {
+              console.warn('[SW-KILL] caches.keys failed:', e);
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[SW-KILL] failed:', e);
+      }
+    })();
+  </script>
+  <!-- ───────────────────────────────────────────────────────────── -->
   <meta name="theme-color" content="#0a0a0a" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />

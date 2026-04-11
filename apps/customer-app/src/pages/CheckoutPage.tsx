@@ -1153,7 +1153,7 @@ export default function CheckoutPage() {
       // Navigate based on payment method
       // Use server-computed total for payment amount (not client-side total)
       const serverTotal = orderResult.total ?? total;
-      
+
       if (paymentMethod === 'cod') {
         navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
         setIsPlacingOrder(false);
@@ -1172,38 +1172,56 @@ export default function CheckoutPage() {
           onSuccess: async (paymentId: string) => {
             // Create return request AFTER payment succeeds
             if (returnSchedule?.pickupSlotIso && addressId) {
-                try {
-                    await supabase.from('return_requests').insert({
-                        order_id: createdOrderId,
-                        user_id: user?.id,
-                        status: 'pending',
-                        pickup_address_id: addressId,
-                        scheduled_pickup_slot: returnSchedule.pickupSlotIso,
-                    });
-                } catch (err) {
-                    console.error("[Checkout] Failed to create return request", err);
-                }
+              try {
+                await supabase.from('return_requests').insert({
+                  order_id: createdOrderId,
+                  user_id: user?.id,
+                  status: 'pending',
+                  pickup_address_id: addressId,
+                  scheduled_pickup_slot: returnSchedule.pickupSlotIso,
+                });
+              } catch (err) {
+                console.error("[Checkout] Failed to create return request", err);
+              }
             }
-            
+
             // Clear cart unconditionally after successful payment
             if (!isNoDeliveryFlow) {
               const uid = user?.id;
               await (uid ? clearUserCartDB(uid) : clearCartDB()).catch(() => { });
               clearCheckoutDraft();
             }
-            
+
             navigate(`/order-confirmed/${createdOrderId}`, { replace: true });
           },
-          onFailure: (err: any) => {
-             setIsPlacingOrder(false);
-             placingOrderLockRef.current = false;
-             // Handle explicit failures
-             if (err?.message === 'PAYMENT_CANCELLED') {
-                 // User closed modal — they are still on /checkout so no navigation needed.
-                 // The order in the DB might be left in pending_payment state but will automatically cancel if they don't retry.
-             } else {
-                 navigate(`/payment-failed?orderId=${createdOrderId}&reason=${encodeURIComponent(err?.message || 'verification_failed')}`, { replace: true });
-             }
+          onFailure: async (err: any) => {
+            setIsPlacingOrder(false);
+            placingOrderLockRef.current = false;
+
+            if (err?.message === 'PAYMENT_CANCELLED') {
+              // The Razorpay hook has already invoked
+              // `force_cancel_pending_order` synchronously, so the
+              // server-side stock release is already in flight /
+              // complete. All we need to do here is clean up client
+              // state and get the user back to a safe screen.
+              console.log('[Checkout] Payment cancelled — clearing cart and returning to checkout');
+
+              try {
+                const uid = user?.id;
+                await (uid ? clearUserCartDB(uid) : clearCartDB()).catch(() => { });
+                clearCheckoutDraft();
+              } catch (cleanupErr) {
+                console.warn('[Checkout] Cart cleanup after cancel failed:', cleanupErr);
+              }
+
+              // Reset idempotency key so the user can place a new order
+              idempotencyKeyRef.current = null;
+
+              toast.info('Payment cancelled. Your stock has been released.');
+              navigate('/cart', { replace: true });
+            } else {
+              navigate(`/payment-failed?orderId=${createdOrderId}&reason=${encodeURIComponent(err?.message || 'verification_failed')}`, { replace: true });
+            }
           }
         });
       }

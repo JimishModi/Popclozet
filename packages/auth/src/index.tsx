@@ -250,35 +250,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       console.log('[Auth] Initializing bootstrap...');
 
-      // Detect fresh PWA install: sessionStorage is cleared on reinstall,
-      // but localStorage may still have stale auth tokens from before.
-      // If we find auth tokens without the session flag, clear them so
-      // bootstrap doesn't wait for a token refresh that will never succeed.
       try {
-        const sessionActive = sessionStorage.getItem('__auth_session_active');
-        if (!sessionActive) {
-          let hasStaleToken = false;
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token'))) {
-              hasStaleToken = true;
-              break;
-            }
-          }
-          if (hasStaleToken) {
-            console.warn('[Auth] Detected stale auth tokens after PWA reinstall — clearing');
-            clearSupabaseAuthStorage();
-          }
-        }
-      } catch { /* ignore storage errors */ }
-
-      try {
+        // Step 1: Try getSession() — returns cached session from localStorage.
+        // This is fast but may return null if the access token is expired.
         const { data: { session }, error } = await withTimeout(
           supabase.auth.getSession(),
           4000,
           'Auth session lookup timed out'
         );
-        
+
         console.log('[Auth] Bootstrap session status:', session ? 'Present' : 'Not found');
         if (error) console.error('[Auth] getSession error:', error);
         if (!active) return;
@@ -287,16 +267,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearBootstrapTimeout();
           bootstrapPendingRef.current = false;
           authListenerFiredRef.current = true;
-          // Mark session active so future reloads don't clear tokens
-          try { sessionStorage.setItem('__auth_session_active', '1'); } catch {}
           // Session is valid — use it immediately
           setSession(session);
           setUser(session.user);
           fetchProfile(session.user.id, session.user.user_metadata);
           setLoading(false);
         } else {
-          // No session from getSession. Check if there's even a stored token
-          // before waiting for onAuthStateChange to deliver a refreshed session.
+          // No session from getSession — check if there's a stored token.
+          // If so, try getUser() which forces a server-side token refresh.
+          // This is more reliable than waiting for onAuthStateChange.
           const hasStoredToken = (() => {
             try {
               for (let i = 0; i < localStorage.length; i++) {
@@ -319,21 +298,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(null);
             setLoading(false);
           } else {
-            // Token exists but may be expired — wait briefly for refresh.
-            console.log('[Auth] No session from getSession — waiting for auth listener to attempt token refresh...');
-            clearBootstrapTimeout();
+            // Token exists — force a server-side refresh via getUser().
+            console.log('[Auth] Stored token found — attempting server-side refresh...');
             bootstrapPendingRef.current = true;
-            bootstrapTimeoutRef.current = setTimeout(() => {
+
+            try {
+              const { data: { user: refreshedUser }, error: userError } = await withTimeout(
+                supabase.auth.getUser(),
+                8000,
+                'Auth token refresh timed out'
+              );
+
               if (!active || !mountedRef.current) return;
-              if (!authListenerFiredRef.current) {
+
+              if (refreshedUser && !userError) {
+                // getUser() succeeded — fetch the refreshed session
+                const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+                console.log('[Auth] Token refresh succeeded — user restored');
+                clearBootstrapTimeout();
                 bootstrapPendingRef.current = false;
-                console.log('[Auth] Auth listener did not fire within 4s — user is likely logged out');
+                authListenerFiredRef.current = true;
+                setSession(refreshedSession);
+                setUser(refreshedUser);
+                fetchProfile(refreshedUser.id, refreshedUser.user_metadata);
+                setLoading(false);
+              } else {
+                // Token is truly expired / invalid — clean up and show login
+                console.log('[Auth] Token refresh failed — clearing stale tokens');
+                clearBootstrapTimeout();
+                bootstrapPendingRef.current = false;
+                clearSupabaseAuthStorage();
                 setSession(null);
                 setUser(null);
                 setProfile(null);
                 setLoading(false);
               }
-            }, 4_000);
+            } catch (refreshErr) {
+              console.warn('[Auth] Token refresh attempt failed:', refreshErr);
+              if (!active || !mountedRef.current) return;
+              // Network error during refresh — don't log out, just show loading failed
+              // The onAuthStateChange listener may still recover
+              clearBootstrapTimeout();
+              bootstrapPendingRef.current = false;
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+              setLoading(false);
+            }
           }
         }
       } catch (err) {
@@ -358,19 +369,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== 'visible' || !active) return;
       try {
-        const { data: { session: latest } } = await withTimeout(
-          supabase.auth.getSession(),
-          4000,
+        // Use getUser() for server-side validation instead of getSession()
+        // which only reads from cache and may return stale data
+        const { data: { user: latestUser }, error: userErr } = await withTimeout(
+          supabase.auth.getUser(),
+          6000,
           'Visibility session check timed out'
         );
         if (!active || !mountedRef.current) return;
-        if (latest?.user) {
-          setSession(latest);
-          setUser(latest.user);
+        if (latestUser && !userErr) {
+          const { data: { session: latestSession } } = await supabase.auth.getSession();
+          setSession(latestSession);
+          setUser(latestUser);
           setLoading(false);
         }
-        // If latest is null and user is already null, nothing to do.
-        // If latest is null and user was set, onAuthStateChange will fire
+        // If latestUser is null and user is already null, nothing to do.
+        // If latestUser is null and user was set, onAuthStateChange will fire
         // SIGNED_OUT and handle it through the normal path.
       } catch (err) {
         console.warn('[Auth] Visibility change session check failed:', err);
@@ -386,7 +400,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearBootstrapTimeout();
         bootstrapPendingRef.current = false;
         authListenerFiredRef.current = true;
-        try { sessionStorage.setItem('__auth_session_active', '1'); } catch {}
         setSession(session);
         setUser(session.user);
         fetchProfile(session.user.id, session.user.user_metadata);
@@ -396,22 +409,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === 'SIGNED_OUT') {
         if (bootstrapPendingRef.current) {
-          // SIGNED_OUT can fire while Supabase is mid-refresh on PWA wake-up
-          // (e.g. token expired while app was backgrounded). During bootstrap,
-          // defer to the timer — the token may still be successfully refreshed.
-          console.log('[Auth] SIGNED_OUT during bootstrap — deferring to bootstrap timer');
-          // fall through to the bootstrapPendingRef guard below
-        } else {
-          clearBootstrapTimeout();
-          bootstrapPendingRef.current = false;
-          authListenerFiredRef.current = false;
-          try { sessionStorage.removeItem('__auth_session_active'); } catch {}
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
+          // SIGNED_OUT can fire while bootstrap is still actively refreshing.
+          // Ignore it — bootstrap's getUser() will determine the real auth state.
+          console.log('[Auth] SIGNED_OUT during bootstrap — ignoring (bootstrap handles auth state)');
           return;
         }
+        clearBootstrapTimeout();
+        bootstrapPendingRef.current = false;
+        authListenerFiredRef.current = false;
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
       }
 
       if (bootstrapPendingRef.current) {
