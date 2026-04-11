@@ -13,6 +13,7 @@ import LandingPage from "./pages/LandingPage";
 import React, { lazy, useEffect, useState, Suspense } from "react";
 import { MobileShell } from "./components/layout/MobileShell";
 import { BottomNavBar } from "./components/layout/BottomNavBar";
+import ScrollToTop from "./components/ScrollToTop";
 
 import { SupabaseAuthProvider } from "./context/SupabaseAuthContext";
 import { CartProvider } from "./context/CartContext";
@@ -243,6 +244,7 @@ function App() {
             <WishlistProvider>
               <FlyToCartProvider>
                 <TooltipProvider>
+                  <ScrollToTop />
                   {/* SYSTEM UI */}
                   <ScrollProgress />
                   <Toaster />

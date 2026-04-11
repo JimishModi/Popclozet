@@ -60,7 +60,7 @@ const MAX_FAKE_ABSOLUTE = 20;
 // Prevents fake products from rotating on every page reload.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FAKE_CACHE_KEY = 'pclz_fake_cache_v2'; // v2 = real storage images
+const FAKE_CACHE_KEY = 'pclz_fake_cache_v3'; // v3 = refresh images cache
 const FAKE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function getCachedFakes(cacheKey: string): ProductWithMixMeta[] | null {

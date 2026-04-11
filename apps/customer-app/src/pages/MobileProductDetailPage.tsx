@@ -166,6 +166,7 @@ const MobileProductDetailPage: React.FC = () => {
 
     useEffect(() => {
         setLoadedImages(new Set());
+        window.scrollTo(0, 0);
     }, [productId]);
 
     useEffect(() => {
