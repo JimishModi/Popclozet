@@ -185,11 +185,17 @@ export async function getAvailableIncomingOrders(
         getCancelledOrderIds(riderId),
     ]);
 
+    // Format current date in IST for accurate filtering
+    const today = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const todayIst = new Date(today.getTime() + istOffset);
+    const todayStr = todayIst.toISOString().split('T')[0];
+
     const { data, error } = await supabase
         .from('orders')
         .select(ORDER_SELECT)
         .is('rider_id', null)
-        .in('status', ['ready_for_pickup', 'return_scheduled'])
+        .or(`status.eq.ready_for_pickup,and(status.eq.return_scheduled,return_pickup_date.lte.${todayStr})`)
         .order('updated_at', { ascending: false })
         .limit(50);
 

@@ -453,6 +453,16 @@ export default function PickupTrackingPage() {
                                 <p className="text-sm text-white mt-1">{pickupAddress}</p>
                             </div>
                         </div>
+                        <div className="flex items-start gap-3">
+                            <Clock className="w-4 h-4 text-[#f2546d] mt-0.5" />
+                            <div>
+                                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Scheduled Time</p>
+                                <p className="text-sm text-white mt-1">
+                                    {returnDate ? new Date(returnDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Instant Pickup'}
+                                    {returnSlot && returnSlot !== 'Immediate' ? ` • ${returnSlot}` : ''}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
