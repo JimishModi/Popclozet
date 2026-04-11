@@ -203,7 +203,10 @@ export async function getAllProductProfiles(): Promise<{
         .select('id, name, brand, category, images, rental_price, rental_price_1d, rental_price_2d, rental_price_3d, buy_price, is_available')
         .order('name');
 
-    if (prodErr) throw prodErr;
+    if (prodErr) {
+        console.error('[ProductProfileService] Failed to fetch products:', prodErr.message);
+        throw prodErr;
+    }
     if (!products) return [];
 
     // Fetch all item statuses for all products to ensure ground-truth counts
@@ -216,7 +219,17 @@ export async function getAllProductProfiles(): Promise<{
             )
         `);
 
-    if (itemsErr) throw itemsErr;
+    if (itemsErr) {
+        // all_products view may not exist — return products with zero stock counts
+        console.warn('[ProductProfileService] Failed to fetch item statuses (all_products view may be missing):', itemsErr.message);
+        return products.map(p => ({
+            ...p,
+            total_available: 0,
+            total_wash: 0,
+            total_stock: 0,
+            total_instantly_bought: 0,
+        }));
+    }
 
     // Create a map of product_id -> { available, wash, total, instantly_bought }
     const stockMap = new Map<string, { available: number, wash: number, total: number, instantly_bought: number }>();

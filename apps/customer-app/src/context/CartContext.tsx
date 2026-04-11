@@ -155,7 +155,13 @@ export const CartProvider = ({
   /* Add to Cart                   */
   /* ----------------------------- */
 
+  const addingRef = React.useRef(false);
+
   const addToCart = async (productId: string, size: string, plan: PricingPlan) => {
+    // Prevent double-tap / rapid clicks from adding duplicate quantities
+    if (addingRef.current) return;
+    addingRef.current = true;
+
     try {
       // Prevent mixing buy and rent items in the same cart
       const existingPlans = Object.values(cartItems).map(item => item.plan);
@@ -168,17 +174,25 @@ export const CartProvider = ({
         }
       }
 
-      // Validate that the product actually exists in the products table before adding.
-      // This prevents fake/deleted product IDs from entering the cart and causing
-      // PRODUCT_NOT_FOUND errors in preview_order / place_order.
+      // Validate that the product actually exists and check stock
       const { data: productCheck, error: checkError } = await supabase
         .from('products')
-        .select('id')
+        .select('id, total_stock')
         .eq('id', productId)
         .maybeSingle();
 
       if (checkError || !productCheck) {
         toast.error("This item is no longer available.");
+        return;
+      }
+
+      // Check stock — sum up all cart quantities for this product (any size/plan)
+      const currentQtyInCart = Object.entries(cartItems)
+        .filter(([k]) => k.startsWith(`${productId}_`))
+        .reduce((sum, [, item]) => sum + item.quantity, 0);
+
+      if (productCheck.total_stock != null && currentQtyInCart >= productCheck.total_stock) {
+        toast.error("Sorry, no more stock available for this item.");
         return;
       }
 
@@ -217,6 +231,8 @@ export const CartProvider = ({
     } catch (error) {
       console.error("Add to cart failed:", error);
       toast.error("Failed to add item");
+    } finally {
+      addingRef.current = false;
     }
   };
 
@@ -252,8 +268,31 @@ export const CartProvider = ({
     }
 
     try {
-      await updateCartQuantityDB(productId, size, plan, quantity, userId);
+      // Check stock before allowing quantity increase
       const key = `${productId}_${size}_${plan}`;
+      const currentQty = cartItems[key]?.quantity || 0;
+
+      if (quantity > currentQty) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('total_stock')
+          .eq('id', productId)
+          .maybeSingle();
+
+        if (product?.total_stock != null) {
+          // Total quantity across all sizes/plans for this product
+          const otherQty = Object.entries(cartItems)
+            .filter(([k]) => k.startsWith(`${productId}_`) && k !== key)
+            .reduce((sum, [, item]) => sum + item.quantity, 0);
+
+          if (otherQty + quantity > product.total_stock) {
+            toast.error("Sorry, no more stock available for this item.");
+            return;
+          }
+        }
+      }
+
+      await updateCartQuantityDB(productId, size, plan, quantity, userId);
       setCartItems((prev) => {
         setAnnouncement(`Quantity updated to ${quantity}`);
         return {

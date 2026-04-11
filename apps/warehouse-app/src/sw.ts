@@ -58,9 +58,12 @@ registerRoute(
     })
 );
 
-// Cache Supabase API with NetworkFirst
+// Cache Supabase REST API with NetworkFirst (skip auth endpoints)
 registerRoute(
-    /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
+    ({ url }) =>
+        /\.supabase\.co$/i.test(url.hostname) &&
+        url.pathname.startsWith('/rest/v1/') &&
+        !url.pathname.includes('/auth/'),
     new NetworkFirst({
         cacheName: 'supabase-api-cache',
         plugins: [
@@ -69,7 +72,7 @@ registerRoute(
                 maxAgeSeconds: 60 * 5,
             }),
             new CacheableResponsePlugin({
-                statuses: [0, 200],
+                statuses: [200],
             }),
         ],
         networkTimeoutSeconds: 10,
@@ -177,7 +180,18 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event) => {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames
+                    .filter((name) => name !== 'workbox-precache-v2')
+                    .map((name) => {
+                        console.log('[SW] Clearing old cache:', name);
+                        return caches.delete(name);
+                    })
+            );
+        }).then(() => self.clients.claim())
+    );
 });
 
 // Listen for messages from clients

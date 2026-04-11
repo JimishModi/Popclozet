@@ -10,15 +10,18 @@ export function InventoryPage() {
     const navigate = useNavigate();
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
 
     const loadProducts = useCallback(async () => {
         try {
+            setLoadError(null);
             const data = await getAllProductProfiles();
             setProducts(data);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to load products:', err);
+            setLoadError(err.message || 'Failed to load products');
         } finally {
             setLoading(false);
         }
@@ -52,6 +55,17 @@ export function InventoryPage() {
 
     return (
         <div className="px-4 py-5 space-y-4">
+            {loadError && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
+                    <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                        <h3 className="text-sm font-semibold text-red-400">Products Load Error</h3>
+                        <p className="text-xs text-red-300 mt-1">{loadError}</p>
+                        <button onClick={loadProducts} className="text-xs text-warehouse-400 mt-2 underline">Retry</button>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

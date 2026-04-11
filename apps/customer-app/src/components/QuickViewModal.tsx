@@ -78,22 +78,28 @@ export default function QuickViewModal({
         setSelectedDates({ start, end });
     };
 
-    const handleAddToCart = () => {
-        if (!canAddToCart) return;
+    const [isAdding, setIsAdding] = useState(false);
 
-        // Use the Cart Context's addToCart which takes a productId
-        const days = getRentalDays();
-        let plan: PricingPlan = '3d';
-        if (days === 1) plan = '1d';
-        else if (days === 2) plan = '2d';
-        
-        addToCart(String(product.id), selectedSize!, plan);
+    const handleAddToCart = async () => {
+        if (!canAddToCart || isAdding) return;
+        setIsAdding(true);
 
-        setIsAdded(true);
-        setTimeout(() => {
-            setIsAdded(false);
-            onClose();
-        }, 1500);
+        try {
+            const days = getRentalDays();
+            let plan: PricingPlan = '3d';
+            if (days === 1) plan = '1d';
+            else if (days === 2) plan = '2d';
+
+            await addToCart(String(product.id), selectedSize!, plan);
+
+            setIsAdded(true);
+            setTimeout(() => {
+                setIsAdded(false);
+                onClose();
+            }, 1500);
+        } finally {
+            setIsAdding(false);
+        }
     };
 
     const formatDateRange = () => {
@@ -339,7 +345,7 @@ export default function QuickViewModal({
 
                                     <motion.button
                                         onClick={handleAddToCart}
-                                        disabled={!canAddToCart}
+                                        disabled={!canAddToCart || isAdding}
                                         className={cn(
                                             "flex-1 py-4 rounded-xl font-bold text-base transition-all flex items-center justify-center gap-2",
                                             canAddToCart

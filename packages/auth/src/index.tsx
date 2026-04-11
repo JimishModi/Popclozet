@@ -249,6 +249,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       console.log('[Auth] Initializing bootstrap...');
+
+      // Detect fresh PWA install: sessionStorage is cleared on reinstall,
+      // but localStorage may still have stale auth tokens from before.
+      // If we find auth tokens without the session flag, clear them so
+      // bootstrap doesn't wait for a token refresh that will never succeed.
+      try {
+        const sessionActive = sessionStorage.getItem('__auth_session_active');
+        if (!sessionActive) {
+          let hasStaleToken = false;
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token'))) {
+              hasStaleToken = true;
+              break;
+            }
+          }
+          if (hasStaleToken) {
+            console.warn('[Auth] Detected stale auth tokens after PWA reinstall — clearing');
+            clearSupabaseAuthStorage();
+          }
+        }
+      } catch { /* ignore storage errors */ }
+
       try {
         const { data: { session }, error } = await withTimeout(
           supabase.auth.getSession(),
@@ -264,6 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearBootstrapTimeout();
           bootstrapPendingRef.current = false;
           authListenerFiredRef.current = true;
+          // Mark session active so future reloads don't clear tokens
+          try { sessionStorage.setItem('__auth_session_active', '1'); } catch {}
           // Session is valid — use it immediately
           setSession(session);
           setUser(session.user);
@@ -361,6 +386,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearBootstrapTimeout();
         bootstrapPendingRef.current = false;
         authListenerFiredRef.current = true;
+        try { sessionStorage.setItem('__auth_session_active', '1'); } catch {}
         setSession(session);
         setUser(session.user);
         fetchProfile(session.user.id, session.user.user_metadata);
@@ -379,6 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearBootstrapTimeout();
           bootstrapPendingRef.current = false;
           authListenerFiredRef.current = false;
+          try { sessionStorage.removeItem('__auth_session_active'); } catch {}
           setSession(null);
           setUser(null);
           setProfile(null);

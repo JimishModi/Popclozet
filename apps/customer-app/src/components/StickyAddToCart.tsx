@@ -69,20 +69,27 @@ export default function StickyAddToCart({
         return Math.ceil(diff / (1000 * 60 * 60 * 24));
     };
 
-    const handleAddToCart = () => {
-        if (!canAddToCart) return;
+    const [isAdding, setIsAdding] = useState(false);
 
-        const days = getRentalDays();
-        let plan: PricingPlan = '3d';
-        if (days === 1) plan = '1d';
-        else if (days === 2) plan = '2d';
+    const handleAddToCart = async () => {
+        if (!canAddToCart || isAdding) return;
+        setIsAdding(true);
 
-        addToCart(productId, selectedSize!, plan);
-        setIsAdded(true);
+        try {
+            const days = getRentalDays();
+            let plan: PricingPlan = '3d';
+            if (days === 1) plan = '1d';
+            else if (days === 2) plan = '2d';
 
-        setTimeout(() => {
-            setIsAdded(false);
-        }, 2000);
+            await addToCart(productId, selectedSize!, plan);
+            setIsAdded(true);
+
+            setTimeout(() => {
+                setIsAdded(false);
+            }, 2000);
+        } finally {
+            setIsAdding(false);
+        }
     };
 
     const formatDateRange = () => {
@@ -189,7 +196,7 @@ export default function StickyAddToCart({
                             {/* Add to Cart Button */}
                             <motion.button
                                 onClick={handleAddToCart}
-                                disabled={!canAddToCart}
+                                disabled={!canAddToCart || isAdding}
                                 className={cn(
                                     "py-4 rounded-xl font-bold text-base transition-all",
                                     "flex items-center justify-center gap-2",

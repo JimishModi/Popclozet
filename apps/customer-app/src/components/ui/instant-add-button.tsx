@@ -1,5 +1,5 @@
 // src/components/ui/instant-add-button.tsx
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingBag, Plus, Minus } from "lucide-react";
 import { useCart, PricingPlan } from "@/context/CartContext";
@@ -44,23 +44,30 @@ const InstantAddButton: React.FC<InstantAddButtonProps> = ({
   const quantity = typeof quantityProp === "number" ? quantityProp : contextQuantity;
   const currentImage = productImage || imageSrc;
 
-  const handleAdd = () => {
-    if (disabled) return;
-    if (onAdd) {
-      onAdd(productId);
-    } else if (addToCart) {
-      addToCart(productId, size, plan);
+  const [adding, setAdding] = useState(false);
+
+  const handleAdd = async () => {
+    if (disabled || adding) return;
+    setAdding(true);
+    try {
+      if (onAdd) {
+        onAdd(productId);
+      } else if (addToCart) {
+        await addToCart(productId, size, plan);
+      }
+
+      const nextQty = (quantity || 0) + 1;
+      onChange?.(productId, nextQty);
+
+      if (btnRef.current && currentImage && triggerFlyAnimation) {
+        const rect = (btnRef.current as Element).getBoundingClientRect();
+        triggerFlyAnimation(currentImage, rect);
+      }
+
+      onIncrement?.(productId);
+    } finally {
+      setAdding(false);
     }
-
-    const nextQty = (quantity || 0) + 1;
-    onChange?.(productId, nextQty);
-
-    if (btnRef.current && currentImage && triggerFlyAnimation) {
-      const rect = (btnRef.current as Element).getBoundingClientRect();
-      triggerFlyAnimation(currentImage, rect);
-    }
-
-    onIncrement?.(productId);
   };
 
   const handleChange = (nextQty: number) => {
@@ -98,7 +105,7 @@ const InstantAddButton: React.FC<InstantAddButtonProps> = ({
               e.stopPropagation();
               handleAdd();
             }}
-            disabled={disabled}
+            disabled={disabled || adding}
             className={`inline-flex items-center gap-2 px-3 py-1.5 font-semibold rounded-full shadow-md active:scale-95 transition ${
               showLabel
                 ? "bg-primary text-primary-foreground text-xs"
