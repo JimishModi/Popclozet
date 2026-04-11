@@ -452,7 +452,7 @@ const MobileHome: React.FC = () => {
                 {/* ─── FEATURED CAROUSEL: 3-Card Peek with Swipe Support ─── */}
                 <section className="mt-5 md:mt-8 overflow-hidden">
                     <motion.div
-                        className="overflow-hidden w-full relative flex items-center justify-center h-[240px] md:h-[348px]"
+                        className="overflow-hidden w-full relative flex items-center justify-center h-[310px] md:h-[348px]"
                         drag="x"
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.1}
@@ -472,7 +472,7 @@ const MobileHome: React.FC = () => {
                         <div className="flex items-center gap-3 md:gap-6" style={{ width: '100%', justifyContent: 'center' }}>
                             {/* Left peek card */}
                             <motion.div
-                                className="w-[30px] h-[160px] md:w-[40px] md:h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
+                                className="w-[30px] h-[220px] md:w-[40px] md:h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
                                 animate={{ opacity: 0.4, scale: 0.9 }}
                             >
                                 <img
@@ -492,7 +492,7 @@ const MobileHome: React.FC = () => {
                                     animate={{ opacity: 1, scale: 1, x: 0 }}
                                     exit={{ opacity: 0, scale: 1.05, x: -20 }}
                                     transition={{ duration: 0.4, ease: "easeOut" }}
-                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-zinc-900 border border-white/5"
+                                    className="relative w-[210px] h-[290px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-zinc-900 border border-white/5"
                                 >
                                     <img
                                         src={filteredSlides[activeSlide].image}
@@ -507,7 +507,7 @@ const MobileHome: React.FC = () => {
 
                             {/* Right peek card */}
                             <motion.div
-                                className="w-[30px] h-[160px] md:w-[40px] md:h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
+                                className="w-[30px] h-[220px] md:w-[40px] md:h-[220px] bg-zinc-900 rounded-2xl flex-shrink-0 overflow-hidden"
                                 animate={{ opacity: 0.4, scale: 0.9 }}
                             >
                                 <img

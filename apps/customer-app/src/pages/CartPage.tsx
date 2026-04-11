@@ -669,34 +669,36 @@ const CartPage = () => {
 
           {/* Duration chips — rental items only */}
           {isRental && (
-            <div className="mt-3 flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-1">Duration:</span>
-              {(['1d', '2d', '3d'] as const).map((p) => {
-                const isActive = plan === p;
-                const label = p === '1d' ? '1 Day' : p === '2d' ? '2 Days' : '3 Days';
-                const planPrice = getPlanPrice(product, p);
-                if (!planPrice) return null;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => updateAllPlans(p)}
-                    className={cn(
-                      "flex flex-col items-center px-2.5 py-1 rounded-xl border text-[10px] font-bold transition-all",
-                      isActive
-                        ? "bg-[#f2546d] border-[#f2546d] text-white"
-                        : "bg-white/5 border-white/10 text-zinc-400 hover:border-white/20"
-                    )}
-                  >
-                    <span className="uppercase tracking-wider">{label}</span>
-                    <span className="font-black text-[9px] opacity-80">₹{planPrice}</span>
-                  </button>
-                );
-              })}
+            <div className="mt-3">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Duration:</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {(['1d', '2d', '3d'] as const).map((p) => {
+                  const isActive = plan === p;
+                  const label = p === '1d' ? '1 Day' : p === '2d' ? '2 Days' : '3 Days';
+                  const planPrice = getPlanPrice(product, p);
+                  if (!planPrice) return null;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => updateAllPlans(p)}
+                      className={cn(
+                        "flex flex-col items-center px-2.5 py-1 rounded-xl border text-[10px] font-bold transition-all",
+                        isActive
+                          ? "bg-[#f2546d] border-[#f2546d] text-white"
+                          : "bg-white/5 border-white/10 text-zinc-400 hover:border-white/20"
+                      )}
+                    >
+                      <span className="uppercase tracking-wider">{label}</span>
+                      <span className="font-black text-[9px] opacity-80">₹{planPrice}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {/* Pills: Size & Qty */}
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
                 setSelectedItemForSize({ productId, plan, currentSize: size });

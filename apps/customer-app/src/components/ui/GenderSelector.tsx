@@ -44,7 +44,7 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
    return (
   <div
     className={cn(
-      "relative flex items-center h-[110px] w-full max-w-[280px] mx-auto overflow-visible",
+      "relative flex items-center h-[77px] w-full max-w-[280px] mx-auto overflow-visible",
       className
     )}
   >
@@ -53,7 +53,14 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
       onClick={() => onChange("mens")}
       type="button"
       aria-pressed={!isWomens}
-      className="absolute left-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden bg-black"
+      className="absolute left-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden"
+      style={{
+        backgroundImage: `url(${genderMenImg})`,
+        backgroundSize: '80%',
+        backgroundPosition: 'center 55%',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#000',
+      }}
       initial={false}
       animate={{
         zIndex: !isWomens ? 20 : 10,
@@ -65,20 +72,21 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
           : "none",
       }}
       transition={{ type: "spring", stiffness: 260, damping: 25 }}
-    >
-      <img
-        src={genderMenImg}
-        alt="Men"
-        className="absolute inset-0 w-full h-full object-cover scale-110"
-      />
-    </motion.button>
+    />
 
     {/* WOMEN */}
     <motion.button
       onClick={() => onChange("womens")}
       type="button"
       aria-pressed={isWomens}
-      className="absolute right-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden bg-black"
+      className="absolute right-0 top-0 bottom-0 w-[65%] rounded-[28px] overflow-hidden"
+      style={{
+        backgroundImage: `url(${genderWomenImg})`,
+        backgroundSize: '80%',
+        backgroundPosition: 'center 55%',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#000',
+      }}
       initial={false}
       animate={{
         zIndex: isWomens ? 20 : 10,
@@ -90,12 +98,6 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange,
           : "none",
       }}
       transition={{ type: "spring", stiffness: 260, damping: 25 }}
-    >
-      <img
-        src={genderWomenImg}
-        alt="Women"
-        className="absolute inset-0 w-full h-full object-cover scale-110"
-      />
-    </motion.button>
+    />
   </div>
 )};
