@@ -34,6 +34,16 @@
         if (isLocal && 'serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function (regs) {
             regs.forEach(function (reg) {
+              // Preserve the dev push-testing SW (dev-sw.js). Only kill
+              // production/VitePWA-style workers that were cached locally.
+              var scriptURL =
+                (reg.active && reg.active.scriptURL) ||
+                (reg.installing && reg.installing.scriptURL) ||
+                (reg.waiting && reg.waiting.scriptURL) ||
+                '';
+              if (scriptURL.indexOf('/dev-sw.js') !== -1) {
+                return;
+              }
               reg.unregister().then(function (ok) {
                 console.log('[SW-KILL] unregistered:', reg.scope, ok);
               });

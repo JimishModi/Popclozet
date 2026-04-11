@@ -33,6 +33,16 @@ window.addEventListener("unhandledrejection", (event) => {
 initTheme();
 
 // Service worker registration will be handled by the UpdatePrompt component using useRegisterSW
+// (that's production only, via vite-plugin-pwa). In dev we register a minimal stub
+// that handles `push` / `notificationclick` events so Web Push can be tested on localhost.
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/dev-sw.js", { scope: "/" })
+      .then((reg) => console.log("[dev-sw] registered:", reg.scope))
+      .catch((err) => console.warn("[dev-sw] registration failed:", err));
+  });
+}
 
 
 // ─── React Mount ─────────────────────────────
