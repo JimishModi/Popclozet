@@ -20,7 +20,6 @@ export interface ImageOptions {
 
 /**
  * Append Supabase image transform parameters to a storage URL.
- * Converts /object/public/ to /render/image/public/ for on-the-fly resizing.
  * Safe to call with any URL — non-Supabase URLs are returned unchanged.
  *
  * Usage:
@@ -39,18 +38,13 @@ export function optimizeImage(
     const { width = 600, quality = 75, resize = 'cover' } = options;
 
     try {
-        // Use Supabase render endpoint for on-the-fly transforms
-        let renderUrl = url.replace(
-            '/storage/v1/object/public/',
-            '/storage/v1/render/image/public/'
-        );
-        const parsed = new URL(renderUrl);
+        const parsed = new URL(url);
         parsed.searchParams.set('width', String(width));
         parsed.searchParams.set('quality', String(quality));
         parsed.searchParams.set('resize', resize);
         return parsed.toString();
     } catch {
-        return url;
+        return url; // Fallback to original if URL parsing fails
     }
 }
 
