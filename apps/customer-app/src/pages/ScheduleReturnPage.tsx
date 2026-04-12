@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { ChevronLeft, MapPin, CalendarDays, Loader2, CheckCircle2, Plus, Zap } from 'lucide-react';
+import { thumbImage } from '@/lib/optimizeImage';
 import { toast } from 'sonner';
 
 import { MobileShell } from '@/components/layout/MobileShell';
@@ -244,7 +245,7 @@ const ScheduleReturnPage: React.FC = () => {
                                     className="w-16 h-20 rounded-xl overflow-hidden bg-zinc-900 border border-white/5 shrink-0"
                                 >
                                     {item.product?.images?.[0] ? (
-                                        <img src={item.product.images[0]} alt={item.product?.name || 'Item'} className="w-full h-full object-cover" />
+                                        <img src={thumbImage(item.product.images[0])} alt={item.product?.name || 'Item'} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                     ) : null}
                                 </div>
                             ))}

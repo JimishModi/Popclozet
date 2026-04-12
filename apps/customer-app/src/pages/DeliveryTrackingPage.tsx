@@ -3,6 +3,7 @@
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Share2, Phone, MessageCircle, Truck, Package, KeyRound, Home, Banknote, CreditCard, Loader2, CheckCircle } from 'lucide-react';
+import { thumbImage } from '@/lib/optimizeImage';
 import { MobileShell } from '@/components/layout/MobileShell';
 import { DeliveryTracker, TrackingData } from '@/components/map/DeliveryTracker';
 import { OrderChat } from '@/components/map/OrderChat';
@@ -232,7 +233,7 @@ export default function DeliveryTrackingPage() {
                                 <div key={idx} className="flex gap-4 items-center">
                                     <div className="w-14 h-14 rounded-2xl bg-zinc-800 overflow-hidden flex-shrink-0 border border-white/5">
                                         {item.products?.images?.[0] ? (
-                                            <img src={item.products.images[0]} className="w-full h-full object-cover" />
+                                            <img src={thumbImage(item.products.images[0])} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                         ) : (
                                             <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
                                                 <Package className="w-6 h-6 text-zinc-700" />

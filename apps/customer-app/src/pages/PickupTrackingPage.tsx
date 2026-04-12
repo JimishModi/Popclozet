@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { thumbImage } from "@/lib/optimizeImage";
 import {
     ChevronLeft, Package, Phone,
     MapPin, KeyRound, Truck, Clock,
@@ -402,7 +403,7 @@ export default function PickupTrackingPage() {
                                 <div key={idx} className="flex gap-4 items-center p-4 border-b border-zinc-800 last:border-0">
                                     <div className="w-14 h-14 rounded-2xl bg-zinc-800 overflow-hidden border border-white/5">
                                         {item.products?.images?.[0] && (
-                                            <img src={item.products.images[0]} alt={item.products.name} className="w-full h-full object-cover" />
+                                            <img src={thumbImage(item.products.images[0])} alt={item.products.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">

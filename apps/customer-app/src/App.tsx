@@ -280,7 +280,7 @@ function App() {
                   <GlobalLayout>
                     <AnimatePresence mode="popLayout" initial={false}>
                       <motion.div
-                        key={location.pathname}
+                        key={location.pathname.startsWith('/shop/') ? '/shop' : location.pathname}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}

@@ -7,6 +7,7 @@ import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { supabase } from '@popclozet/api-client';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { cancelOrder } from '@/services/ordersService';
+import { thumbImage } from '@/lib/optimizeImage';
 
 interface InstantBuyDrawerProps {
     isOpen: boolean;
@@ -204,7 +205,7 @@ export function InstantBuyDrawer({ isOpen, onClose, orderId, items, onSuccess }:
                                     >
                                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
                                             {item.products?.images?.[0] ? (
-                                                <img src={item.products.images[0]} alt={item.products?.name || 'Item'} className="w-full h-full object-cover" />
+                                                <img src={thumbImage(item.products.images[0])} alt={item.products?.name || 'Item'} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center">
                                                     <ShoppingBag className="w-6 h-6 text-zinc-700" />

@@ -10,6 +10,22 @@ import { formatCurrency } from '@/utils/helpers';
 import { HygieneBadge } from '@/components/features/products/HygieneBadge';
 import { motion } from 'framer-motion';
 
+function fullImage(url: string | undefined): string {
+    if (!url) return '';
+    if (!url.includes('supabase.co/storage')) return url;
+    try {
+        const parsed = new URL(url);
+        parsed.pathname = parsed.pathname.replace('/object/public/', '/render/image/public/');
+        parsed.search = '';
+        parsed.searchParams.set('width', '900');
+        parsed.searchParams.set('quality', '78');
+        parsed.searchParams.set('resize', 'contain');
+        return parsed.toString();
+    } catch {
+        return url;
+    }
+}
+
 const sectionVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: (i: number) => ({
@@ -116,9 +132,12 @@ export const ProductDetailPage: React.FC = () => {
                 <div className="aspect-[3/4] bg-zinc-800 rounded-2xl overflow-hidden">
                     {product.images && product.images[0] ? (
                         <img
-                            src={product.images[0]}
+                            src={fullImage(product.images[0])}
                             alt={product.name}
                             className="w-full h-full object-cover"
+                            loading="eager"
+                            decoding="async"
+                            fetchPriority="high"
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-zinc-600">

@@ -4,11 +4,28 @@ import { motion } from 'framer-motion';
 import type { Product } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 
+/** Convert Supabase storage URL to optimized render URL (deterministic) */
+function thumbImage(url: string | undefined): string {
+    if (!url) return '';
+    if (!url.includes('supabase.co/storage')) return url;
+    try {
+        const parsed = new URL(url);
+        parsed.pathname = parsed.pathname.replace('/object/public/', '/render/image/public/');
+        parsed.search = '';
+        parsed.searchParams.set('width', '400');
+        parsed.searchParams.set('quality', '70');
+        parsed.searchParams.set('resize', 'contain');
+        return parsed.toString();
+    } catch {
+        return url;
+    }
+}
+
 interface ProductCardProps {
     product: Product;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) => {
     return (
         <Link to={`/products/${product.id}`}>
             <motion.div
@@ -19,9 +36,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 <div className="relative aspect-[3/4] bg-zinc-800 overflow-hidden">
                     {product.images && product.images[0] ? (
                         <img
-                            src={product.images[0]}
+                            src={thumbImage(product.images[0])}
                             alt={product.name}
                             className="w-full h-full object-cover"
+                            loading="eager"
+                            decoding="async"
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-zinc-600">
@@ -71,4 +90,4 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             </motion.div>
         </Link>
     );
-};
+});
