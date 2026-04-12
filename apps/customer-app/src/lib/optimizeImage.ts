@@ -19,7 +19,17 @@ export interface ImageOptions {
 }
 
 /**
- * Append Supabase image transform parameters to a storage URL.
+ * Supabase Storage URL pattern:
+ * https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<path>
+ *
+ * We rewrite these to /img/<bucket>/<path>?width=...&quality=...&resize=...
+ * which is proxied via Vercel edge → Supabase render endpoint with CDN caching.
+ */
+const SUPABASE_STORAGE_RE = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/(?:object|render\/image)\/public\/(.+)/;
+
+/**
+ * Append Supabase image transform parameters to a storage URL and route
+ * through the Vercel edge proxy (/img/*) for CDN caching.
  * Safe to call with any URL — non-Supabase URLs are returned unchanged.
  *
  * Usage:
@@ -33,19 +43,14 @@ export function optimizeImage(
     if (!url) return '';
 
     // Only transform Supabase Storage URLs
-    if (!url.includes('supabase.co/storage')) return url;
+    const match = url.match(SUPABASE_STORAGE_RE);
+    if (!match) return url;
 
+    const storagePath = match[1]; // e.g. "product-images/jacket.jpg"
     const { width = 600, quality = 75, resize = 'cover' } = options;
 
-    try {
-        const parsed = new URL(url);
-        parsed.searchParams.set('width', String(width));
-        parsed.searchParams.set('quality', String(quality));
-        parsed.searchParams.set('resize', resize);
-        return parsed.toString();
-    } catch {
-        return url; // Fallback to original if URL parsing fails
-    }
+    // Route through Vercel edge proxy with transform params
+    return `/img/${storagePath}?width=${width}&quality=${quality}&resize=${resize}`;
 }
 
 /** Preset for product card thumbnails (grid views) */

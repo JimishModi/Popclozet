@@ -13,8 +13,8 @@ export function InstallPrompt() {
             return;
         }
 
-        // Show prompt if user hasn't dismissed it
-        const dismissed = localStorage.getItem('pwa-install-customer-v2');
+        // Show prompt if user hasn't dismissed it in this session
+        const dismissed = sessionStorage.getItem('pwa-install-dismissed');
         if (!dismissed) {
             // Show if it's natively installable (Android/Windows) or if it's iOS (manual install)
             if (isInstallableNatively || isIOS) {
@@ -31,7 +31,8 @@ export function InstallPrompt() {
 
     const handleDismiss = () => {
         setShowPrompt(false);
-        localStorage.setItem('pwa-install-customer-v2', 'true');
+        // Only hide for this session — show again on next visit
+        sessionStorage.setItem('pwa-install-dismissed', 'true');
     };
 
     if (!showPrompt) return null;

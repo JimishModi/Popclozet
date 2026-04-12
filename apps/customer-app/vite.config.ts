@@ -23,6 +23,14 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5500,
+      proxy: {
+        // Mirror the Vercel /img/* rewrite for local dev
+        '/img': {
+          target: 'https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/render/image/public',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/img/, ''),
+        },
+      },
     },
 
     plugins: [

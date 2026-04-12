@@ -28,6 +28,15 @@
             ]
         },
         {
+            "source": "/img/(.*)",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=2592000, s-maxage=2592000, immutable"
+                }
+            ]
+        },
+        {
             "source": "/(.*)",
             "headers": [
                 {
@@ -62,6 +71,10 @@
         }
     ],
     "rewrites": [
+        {
+            "source": "/img/:path*",
+            "destination": "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/render/image/public/:path*"
+        },
         {
             "source": "/otp-provider.js",
             "destination": "https://verify.msg91.com/otp-provider.js"
