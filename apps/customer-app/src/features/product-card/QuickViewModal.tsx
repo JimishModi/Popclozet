@@ -112,15 +112,21 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[850px] p-0 overflow-hidden gap-0 bg-[#0A0A0A] border-white/5 text-white">
         <div className="grid md:grid-cols-2 h-full">
-          <div className="relative h-[350px] md:h-[550px] bg-[#111]">
+          <div className="relative h-[350px] md:h-[550px] bg-[#111] overflow-hidden">
+            {/* Shimmer skeleton */}
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+            </div>
             <img
               src={normalizeSrc(product.image)}
               alt={product.name}
               className={cn(
-                "w-full h-full object-cover transition-all duration-500",
-                isUnavailable && "grayscale opacity-25"
+                "relative w-full h-full object-cover transition-opacity duration-300 opacity-0 data-[loaded]:opacity-100",
+                isUnavailable && "grayscale data-[loaded]:opacity-25"
               )}
-              loading="lazy"
+              loading="eager"
+              decoding="async"
+              onLoad={(e) => (e.currentTarget.dataset.loaded = "1")}
             />
             
             {isUnavailable && (

@@ -1,6 +1,7 @@
 // src/components/QuickViewModal.tsx
 import { useState } from "react";
 import { useCart, PricingPlan } from "@/context/CartContext";
+import { fullImage } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -152,16 +153,22 @@ export default function QuickViewModal({
                         <div className="flex flex-col md:flex-row h-full max-h-[90vh] overflow-y-auto">
                             {/* Image Gallery */}
                             <div className="relative md:w-1/2 bg-gradient-to-br from-muted/30 to-muted/10">
-                                <div className="aspect-[3/4] relative">
+                                <div className="aspect-[3/4] relative overflow-hidden">
+                                    {/* Shimmer skeleton */}
+                                    <div className="absolute inset-0 overflow-hidden">
+                                        <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                    </div>
                                     <AnimatePresence mode="wait">
                                         <motion.img
                                             key={currentImageIndex}
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
-                                            src={product.images[currentImageIndex]}
+                                            src={fullImage(product.images[currentImageIndex])}
                                             alt={`${product.name} - Image ${currentImageIndex + 1}`}
-                                            className="w-full h-full object-cover"
+                                            className="relative w-full h-full object-cover"
+                                            loading="eager"
+                                            decoding="async"
                                         />
                                     </AnimatePresence>
 

@@ -6,6 +6,7 @@ import QuickViewModal, { Product } from "./QuickViewModal";
 import { cn } from "@/lib/utils";
 import { useCart, PricingPlan } from "@/context/CartContext";
 import InstantAddButton from "@/components/ui/InstantAddButton";
+import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 
 interface SmartProductCardProps {
   product: Product;
@@ -52,7 +53,9 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
   const isSoldOut = (product as any).isSoldOut === true;
   const isUnavailable = isFake || isRentedOut || isSoldOut;
 
-  const imgSrc = normalizeSrc(product.image);
+  const rawImg = normalizeSrc(product.image);
+  const imgSrc = thumbImage(rawImg);
+  const alreadyCached = isImageLoaded(imgSrc);
   const videoSrc = product.videoUrl ? normalizeSrc(product.videoUrl) : undefined;
 
   const handleConfirmAdd = () => {
@@ -73,16 +76,35 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
       >
         {/* Image/Video Container */}
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
+          {/* Shimmer skeleton — hidden if image already cached */}
+          {!alreadyCached && (
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+            </div>
+          )}
           {/* Static Image — grayscale + dimmed when unavailable */}
           <img
             src={imgSrc}
             alt={product.name}
             className={cn(
-              "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-              isPlaying ? "opacity-0" : "opacity-100",
-              isUnavailable && "grayscale opacity-25"
+              "absolute inset-0 h-full w-full object-cover",
+              alreadyCached
+                ? (isPlaying ? "opacity-0" : isUnavailable ? "grayscale opacity-25" : "opacity-100")
+                : cn(
+                    "transition-opacity duration-300 opacity-0",
+                    isPlaying
+                      ? "data-[loaded]:opacity-0"
+                      : isUnavailable
+                        ? "grayscale data-[loaded]:opacity-25"
+                        : "data-[loaded]:opacity-100"
+                  )
             )}
             loading="lazy"
+            decoding="async"
+            onLoad={(e) => {
+              e.currentTarget.dataset.loaded = "1";
+              markImageLoaded(imgSrc);
+            }}
             onError={(e) => {
               const img = e.currentTarget as HTMLImageElement;
               img.onerror = null;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { thumbImage } from "@/lib/optimizeImage";
+import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -537,6 +537,8 @@ const CategoryProductsPage: React.FC = () => {
                                     const isUnavailable = isFake || isSoldOut || isRentedOut;
 
                                     const imgSrc = product.images?.[0] || (product as any).imageUrl || '';
+                                    const optimizedSrc = thumbImage(imgSrc);
+                                    const alreadyCached = isImageLoaded(optimizedSrc);
 
                                     return (
                                         <motion.div
@@ -550,21 +552,29 @@ const CategoryProductsPage: React.FC = () => {
                                             <div className="aspect-square md:aspect-[3/4] bg-[#2A2A2E] relative overflow-hidden">
                                                 {imgSrc ? (
                                                     <>
-                                                        {/* Shimmer skeleton shown while image loads */}
-                                                        <div className="absolute inset-0 overflow-hidden">
-                                                            <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-                                                        </div>
+                                                        {/* Shimmer skeleton — hidden if image already cached */}
+                                                        {!alreadyCached && (
+                                                            <div className="absolute inset-0 overflow-hidden">
+                                                                <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                                            </div>
+                                                        )}
                                                         <img
-                                                            src={thumbImage(imgSrc)}
+                                                            src={optimizedSrc}
                                                             alt={product.name}
                                                             className={cn(
-                                                                "relative w-full h-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 opacity-0 data-[loaded]:opacity-100",
+                                                                "relative w-full h-full object-cover group-hover:scale-105",
+                                                                alreadyCached
+                                                                    ? "opacity-100"
+                                                                    : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100",
                                                                 isUnavailable && "grayscale opacity-40 blur-[1px]"
                                                             )}
                                                             loading={index < 4 ? "eager" : "lazy"}
                                                             fetchPriority={index < 4 ? "high" : "auto"}
                                                             decoding="async"
-                                                            onLoad={(e) => (e.currentTarget.dataset.loaded = "1")}
+                                                            onLoad={(e) => {
+                                                                e.currentTarget.dataset.loaded = "1";
+                                                                markImageLoaded(optimizedSrc);
+                                                            }}
                                                         />
                                                     </>
                                                 ) : (

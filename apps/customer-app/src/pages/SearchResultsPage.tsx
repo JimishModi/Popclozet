@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ChevronLeft, Search, Heart, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 import { productService } from "@/services/productService";
 import { Product } from "@/services/productService";
 import { Loader } from "lucide-react";
@@ -272,7 +273,10 @@ const SearchResultsPage: React.FC = () => {
                             </div>
                         ) : results.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
-                                {results.map((product, index) => (
+                                {results.map((product, index) => {
+                                    const optSrc = thumbImage(product.imageUrl);
+                                    const srcCached = isImageLoaded(optSrc);
+                                    return (
                                     <motion.div
                                         key={product.id}
                                         initial={{ opacity: 0, y: 20 }}
@@ -296,11 +300,28 @@ const SearchResultsPage: React.FC = () => {
                                         </button>
 
                                         {/* Image */}
-                                        <div className="aspect-square md:aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] overflow-hidden">
+                                        <div className="aspect-square md:aspect-[3/4] bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] overflow-hidden relative">
+                                            {!srcCached && (
+                                                <div className="absolute inset-0 overflow-hidden">
+                                                    <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                                </div>
+                                            )}
                                             <img
-                                                src={product.imageUrl}
+                                                src={optSrc}
                                                 alt={product.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                className={cn(
+                                                    "relative w-full h-full object-cover group-hover:scale-105",
+                                                    srcCached
+                                                        ? "opacity-100"
+                                                        : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100"
+                                                )}
+                                                loading={index < 4 ? "eager" : "lazy"}
+                                                fetchPriority={index < 4 ? "high" : "auto"}
+                                                decoding="async"
+                                                onLoad={(e) => {
+                                                    e.currentTarget.dataset.loaded = "1";
+                                                    markImageLoaded(optSrc);
+                                                }}
                                                 onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/300x400?text=No+Image"; }}
                                             />
                                         </div>
@@ -323,7 +344,8 @@ const SearchResultsPage: React.FC = () => {
                                             </div>
                                         </div>
                                     </motion.div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             /* Empty state */

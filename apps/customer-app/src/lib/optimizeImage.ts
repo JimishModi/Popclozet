@@ -55,3 +55,19 @@ export const thumbImage = (url: string | null | undefined) =>
 /** Preset for product detail / full-screen images */
 export const fullImage = (url: string | null | undefined) =>
     optimizeImage(url, { width: 900, quality: 78 });
+
+/**
+ * Global set of image URLs that have already been loaded in this session.
+ * Used to skip shimmer/fade-in for images the browser has cached.
+ */
+const _loadedUrls = new Set<string>();
+
+/** Mark a URL as loaded (call from onLoad) */
+export function markImageLoaded(url: string) {
+    if (url) _loadedUrls.add(url);
+}
+
+/** Check if a URL was already loaded this session */
+export function isImageLoaded(url: string): boolean {
+    return _loadedUrls.has(url);
+}

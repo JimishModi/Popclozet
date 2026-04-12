@@ -1,5 +1,6 @@
 // src/pages/CartPage.tsx
 import { useState, useEffect, useMemo, useRef } from "react";
+import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "vaul";
 import { useCart } from "@/context/CartContext";
@@ -139,10 +140,34 @@ const AddOnsCarousel = ({
               className="relative rounded-2xl overflow-hidden bg-[#1C1C1E] border border-white/5 cursor-pointer flex-shrink-0 snap-start"
               style={{ width: cardWidth }}
             >
-              <div className="bg-zinc-900 overflow-hidden" style={{ height: cardWidth }}>
-                {product.images?.[0] && (
-                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                )}
+              <div className="bg-zinc-900 overflow-hidden relative" style={{ height: cardWidth }}>
+                {product.images?.[0] && (() => {
+                  const src = thumbImage(product.images[0]);
+                  const cached = isImageLoaded(src);
+                  return (
+                    <>
+                      {!cached && (
+                        <div className="absolute inset-0 overflow-hidden">
+                          <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                        </div>
+                      )}
+                      <img
+                        src={src}
+                        alt={product.name}
+                        className={cached
+                          ? "relative w-full h-full object-cover"
+                          : "relative w-full h-full object-cover transition-opacity duration-300 opacity-0 data-[loaded]:opacity-100"
+                        }
+                        loading="lazy"
+                        decoding="async"
+                        onLoad={(e) => {
+                          e.currentTarget.dataset.loaded = "1";
+                          markImageLoaded(src);
+                        }}
+                      />
+                    </>
+                  );
+                })()}
               </div>
               <div className="p-2.5">
                 <p className="text-xs font-semibold text-white truncate">{product.name}</p>
@@ -615,15 +640,35 @@ const CartPage = () => {
         {/* Product Image */}
         <div
           onClick={() => navigate(`/product/${productId}`)}
-          className="w-24 h-24 rounded-2xl bg-zinc-800 flex-shrink-0 overflow-hidden border border-white/5 cursor-pointer hover:opacity-80 transition-opacity"
+          className="w-24 h-24 rounded-2xl bg-zinc-800 flex-shrink-0 overflow-hidden border border-white/5 cursor-pointer hover:opacity-80 transition-opacity relative"
         >
-          {product.imageUrl && (
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
-          )}
+          {product.imageUrl && (() => {
+            const src = thumbImage(product.imageUrl);
+            const cached = isImageLoaded(src);
+            return (
+              <>
+                {!cached && (
+                  <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                  </div>
+                )}
+                <img
+                  src={src}
+                  alt={product.name}
+                  className={cached
+                    ? "relative w-full h-full object-cover"
+                    : "relative w-full h-full object-cover transition-opacity duration-300 opacity-0 data-[loaded]:opacity-100"
+                  }
+                  loading="eager"
+                  decoding="async"
+                  onLoad={(e) => {
+                    e.currentTarget.dataset.loaded = "1";
+                    markImageLoaded(src);
+                  }}
+                />
+              </>
+            );
+          })()}
         </div>
 
         {/* Content */}

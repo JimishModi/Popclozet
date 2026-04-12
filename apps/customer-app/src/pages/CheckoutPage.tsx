@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { thumbImage } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
@@ -1582,7 +1583,7 @@ export default function CheckoutPage() {
             {buyoutOrderData ? (
               buyoutOrderData.order_items?.map((oi: any) => (
                 <div key={oi.id} className="w-[100px] h-[120px] rounded-2xl flex-shrink-0 bg-[#232323] overflow-hidden border border-white/5 shadow-xl">
-                  {oi.item?.images?.[0] && <img src={oi.item.images[0]} className="w-full h-full object-cover" alt="" />}
+                  {oi.item?.images?.[0] && <img src={thumbImage(oi.item.images[0])} className="w-full h-full object-cover" alt="" />}
                 </div>
               ))
             ) : (
@@ -1590,7 +1591,7 @@ export default function CheckoutPage() {
                 const product = cartProducts[id.split('_')[0]];
                 return (
                   <div key={id} className="w-[100px] h-[120px] rounded-2xl flex-shrink-0 bg-[#232323] overflow-hidden border border-white/5 shadow-xl">
-                    {product?.imageUrl && <img src={product.imageUrl} className="w-full h-full object-cover" alt="" />}
+                    {product?.imageUrl && <img src={thumbImage(product.imageUrl)} className="w-full h-full object-cover" alt="" />}
                   </div>
                 );
               })

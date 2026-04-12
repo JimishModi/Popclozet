@@ -18,6 +18,7 @@ import { fetchRotatedFakeProducts } from "@/services/fakeProductMixService";
 import { ActiveDeliveryBanner } from "@/components/ActiveDeliveryBanner";
 import popclozetLogo from "@/logo/popclozet-logo.svg";
 import useNearbyHubs from "@/hooks/useNearbyHubs";
+import { thumbImage, optimizeImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 
 const FEATURED_SLIDES = [
     { id: 0, title: "Premium Jackets", image: "https://hfcdvcpgpkdgmcakgiuy.supabase.co/storage/v1/object/public/app-assets/carousel/jackets.jpeg", gender: "womens" },
@@ -565,7 +566,8 @@ const MobileHome: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-3 md:gap-[18px]">
                         {collections.slice(0, 5).map((collection, index) => {
-                            const imageUrl = collection.image;
+                            const imageUrl = optimizeImage(collection.image, { width: 500, quality: 70 });
+                            const collCached = isImageLoaded(imageUrl);
 
                             return (
                                 <motion.div
@@ -578,15 +580,29 @@ const MobileHome: React.FC = () => {
                                     className="relative h-[140px] md:h-[210px] w-full rounded-[24px] shadow-xl overflow-hidden cursor-pointer bg-[#232323] border border-white/5 group hover:border-[#f2546d]/40 transition-colors"
                                 >
                                     {imageUrl ? (
-                                        <motion.img
-                                            src={imageUrl}
-                                            alt={collection.title}
-                                            className="absolute inset-0 w-full h-full object-cover"
-                                            whileHover={{ scale: 1.05 }}
-                                            transition={{ duration: 0.4 }}
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
+                                        <>
+                                            {!collCached && (
+                                                <div className="absolute inset-0 overflow-hidden">
+                                                    <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                                </div>
+                                            )}
+                                            <img
+                                                src={imageUrl}
+                                                alt={collection.title}
+                                                className={cn(
+                                                    "absolute inset-0 w-full h-full object-cover group-hover:scale-105",
+                                                    collCached
+                                                        ? "opacity-100"
+                                                        : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100"
+                                                )}
+                                                loading="lazy"
+                                                decoding="async"
+                                                onLoad={(e) => {
+                                                    e.currentTarget.dataset.loaded = "1";
+                                                    markImageLoaded(imageUrl);
+                                                }}
+                                            />
+                                        </>
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a]">
                                             <span className="text-4xl font-bold text-white/10">{collection.title.charAt(0)}</span>
@@ -790,7 +806,8 @@ const MobileHome: React.FC = () => {
                             const isRentedOut = item.isRentedOut === true;
                             const isUnavailable = isFake || isSoldOut || isRentedOut;
 
-                            const imgSrc = item.imageUrl || (item as any).images?.[0] || '';
+                            const imgSrc = thumbImage(item.imageUrl || (item as any).images?.[0] || '');
+                            const prodCached = isImageLoaded(imgSrc);
                             return (
                                 <motion.div
                                     key={item.id}
@@ -820,16 +837,31 @@ const MobileHome: React.FC = () => {
                                     {/* Product Image */}
                                     <div className="aspect-square md:aspect-[3/4] bg-[#2a2a2a] relative overflow-hidden">
                                         {imgSrc ? (
-                                            <img
-                                                src={imgSrc}
-                                                alt={item.name}
-                                                className={cn(
-                                                    "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
-                                                    isUnavailable && "grayscale opacity-40 blur-[1px]"
+                                            <>
+                                                {!prodCached && (
+                                                    <div className="absolute inset-0 overflow-hidden">
+                                                        <div className="absolute inset-y-0 w-1/2 animate-shimmer-slide bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                                                    </div>
                                                 )}
-                                                loading="lazy"
-                                                decoding="async"
-                                            />
+                                                <img
+                                                    src={imgSrc}
+                                                    alt={item.name}
+                                                    className={cn(
+                                                        "relative w-full h-full object-cover group-hover:scale-105",
+                                                        prodCached
+                                                            ? (isUnavailable ? "grayscale opacity-40 blur-[1px]" : "opacity-100")
+                                                            : cn("transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100",
+                                                                isUnavailable && "grayscale data-[loaded]:opacity-40 blur-[1px]")
+                                                    )}
+                                                    loading={index < 4 ? "eager" : "lazy"}
+                                                    fetchPriority={index < 4 ? "high" : "auto"}
+                                                    decoding="async"
+                                                    onLoad={(e) => {
+                                                        e.currentTarget.dataset.loaded = "1";
+                                                        markImageLoaded(imgSrc);
+                                                    }}
+                                                />
+                                            </>
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs text-center p-2">
                                                 No Image
