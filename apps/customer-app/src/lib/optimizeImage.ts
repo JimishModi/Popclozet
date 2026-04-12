@@ -71,3 +71,19 @@ export function markImageLoaded(url: string) {
 export function isImageLoaded(url: string): boolean {
     return _loadedUrls.has(url);
 }
+
+/**
+ * Prefetch a list of image URLs in the background using invisible Image objects.
+ * Browser caches them so subsequent <img src=...> renders are instant.
+ */
+export function prefetchImages(urls: (string | null | undefined)[], preset: 'thumb' | 'full' = 'thumb') {
+    const optimize = preset === 'thumb' ? thumbImage : fullImage;
+    for (const url of urls) {
+        const optimized = optimize(url);
+        if (optimized && !_loadedUrls.has(optimized)) {
+            const img = new Image();
+            img.src = optimized;
+            img.onload = () => _loadedUrls.add(optimized);
+        }
+    }
+}

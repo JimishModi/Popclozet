@@ -57,8 +57,10 @@ const MobileHome: React.FC = () => {
     const [userCoords, setUserCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [isInServiceArea, setIsInServiceArea] = useState<boolean | null>(null);
     const [brands, setBrands] = useState<string[]>([]);
-    const [catalogueProducts, setCatalogueProducts] = useState<Product[]>([]);
-    const [loadingCatalogue, setLoadingCatalogue] = useState(true);
+    const homeCacheKey = `home_${activeGender}`;
+    const cachedHome = productService.getFromMemoryCache(homeCacheKey);
+    const [catalogueProducts, setCatalogueProducts] = useState<Product[]>(cachedHome || []);
+    const [loadingCatalogue, setLoadingCatalogue] = useState(!cachedHome);
     const [catalogueError, setCatalogueError] = useState(false);
     const catalogueRetryCount = useRef(0);
     const [deliveryEstimate, setDeliveryEstimate] = useState<'60min'>('60min');
@@ -285,6 +287,7 @@ const MobileHome: React.FC = () => {
 
             if (showcaseProducts.length > 0) {
                 setCatalogueProducts(showcaseProducts as Product[]);
+                productService.setMemoryCache(homeCacheKey, showcaseProducts as Product[]);
                 catalogueRetryCount.current = 0;
             } else if (catalogueRetryCount.current < 2) {
                 // Products came back empty — might be a stale IDB on fresh install.
@@ -294,7 +297,9 @@ const MobileHome: React.FC = () => {
                 await productService.syncProducts();
                 const syncedRaw = await productService.getProductsByGender(activeGender);
                 const synced = syncedRaw.filter(p => !p.category?.toLowerCase().includes('accessor') && !(p as any)._isFake);
-                setCatalogueProducts(synced.slice(0, 4));
+                const syncedSlice = synced.slice(0, 4);
+                setCatalogueProducts(syncedSlice);
+                productService.setMemoryCache(homeCacheKey, syncedSlice);
             }
         } catch (error) {
             console.error("Failed to fetch catalogue products:", error);

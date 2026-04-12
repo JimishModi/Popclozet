@@ -178,7 +178,15 @@ if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
   configureMapbox(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60 * 1000,    // data stays "fresh" for 2 min — no refetch on re-mount
+      gcTime: 10 * 60 * 1000,       // keep cache for 10 min even after unmount
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   const location = useLocation();
@@ -270,13 +278,13 @@ function App() {
                   {/* ROUTES CONTAINER with persistent background to prevent flashes */}
                   <AppErrorBoundary>
                   <GlobalLayout>
-                    <AnimatePresence mode="wait" initial={false}>
+                    <AnimatePresence mode="popLayout" initial={false}>
                       <motion.div
                         key={location.pathname}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        transition={{ duration: 0.08, ease: "easeOut" }}
                         className="w-full min-h-screen"
                       >
                         <Routes location={location}>

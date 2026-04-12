@@ -98,6 +98,24 @@ class ProductService {
     private readonly BRAND_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
     private activeSearchController: AbortController | null = null;
 
+    // In-memory product cache — survives React page re-mounts (back/forward navigation)
+    private _memoryCache = new Map<string, { data: Product[]; ts: number }>();
+    private readonly MEMORY_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+    /** Get products from memory cache if fresh enough */
+    getFromMemoryCache(key: string): Product[] | null {
+        const entry = this._memoryCache.get(key);
+        if (entry && Date.now() - entry.ts < this.MEMORY_CACHE_TTL) {
+            return entry.data;
+        }
+        return null;
+    }
+
+    /** Store products in memory cache */
+    setMemoryCache(key: string, data: Product[]) {
+        this._memoryCache.set(key, { data, ts: Date.now() });
+    }
+
     constructor() { }
 
     // Initialize IndexedDB
@@ -383,8 +401,21 @@ class ProductService {
         // Map app gender ('womens'/'mens') → DB gender ('women'/'men')
         const dbGender = gender === 'womens' ? 'women' : gender === 'mens' ? 'men' : gender;
 
+        // Stale-while-revalidate: return IndexedDB cache instantly, refresh from network in background
         if (this.isOnline()) {
             try {
+                const db = await this.initDB();
+                const cached = await db.getAllFromIndex('products', 'by-gender', gender);
+                const cachedUnisex = await db.getAllFromIndex('products', 'by-gender', 'unisex');
+                const cachedProducts = [...cached, ...cachedUnisex].filter(p => this.isOfflineVisible(p));
+
+                if (cachedProducts.length > 0) {
+                    // Return cache immediately, refresh in background
+                    this._refreshGenderInBackground(dbGender, gender);
+                    return cachedProducts;
+                }
+
+                // No cache — must wait for network
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
@@ -392,7 +423,18 @@ class ProductService {
                         .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                return (data || []).map((p: any) => this.transformFromDB(p));
+
+                const products = (data || []).map((p: any) => this.transformFromDB(p));
+
+                // Cache to IndexedDB
+                const txDb = await this.initDB();
+                const tx = txDb.transaction('products', 'readwrite');
+                for (const product of products) {
+                    await tx.objectStore('products').put(product);
+                }
+                await tx.done;
+
+                return products;
             } catch (error) {
                 console.warn('⚠️ Falling back to offline:', error);
                 const db = await this.initDB();
@@ -406,6 +448,27 @@ class ProductService {
             const unisexProducts = await db.getAllFromIndex('products', 'by-gender', 'unisex');
             return [...products, ...unisexProducts].filter(product => this.isOfflineVisible(product));
         }
+    }
+
+    /** Silently refresh products for a gender from Supabase and update IndexedDB */
+    private _refreshGenderInBackground(dbGender: string, appGender: GenderCategory) {
+        (supabase as any)
+            .from('products')
+            .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
+            .in('gender', [dbGender, 'unisex'])
+            .order('created_at', { ascending: false })
+            .then(async ({ data, error }: any) => {
+                if (error || !data) return;
+                try {
+                    const db = await this.initDB();
+                    const tx = db.transaction('products', 'readwrite');
+                    for (const p of data) {
+                        await tx.objectStore('products').put(this.transformFromDB(p));
+                    }
+                    await tx.done;
+                } catch { /* silent */ }
+            })
+            .catch(() => { /* silent */ });
     }
 
     // Get products by event

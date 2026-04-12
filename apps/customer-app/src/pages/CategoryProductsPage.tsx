@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
+import { thumbImage, markImageLoaded, isImageLoaded, prefetchImages } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -62,8 +62,11 @@ const CategoryProductsPage: React.FC = () => {
 
     const categoryTitle = searchParams.get('title') || (category ? category.charAt(0).toUpperCase() + category.slice(1) : (brandParam || 'Products'));
 
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true); // Start true so skeleton shows immediately, no flash of empty state
+    // Instant restore from memory cache on re-mount (back navigation)
+    const cacheKey = `cat_${category}_${effectiveGender}_${brandParam}`;
+    const cachedProducts = productService.getFromMemoryCache(cacheKey);
+    const [products, setProducts] = useState<Product[]>(cachedProducts || []);
+    const [loading, setLoading] = useState(!cachedProducts); // Skip skeleton if we have cached data
 
     // Derive available sizes and brands dynamically from the fetched products
     // Size sorting helper
@@ -244,6 +247,18 @@ const CategoryProductsPage: React.FC = () => {
                 : mixedProducts;
 
             setProducts(filteredByName);
+
+            // Save to memory cache for instant back-navigation
+            productService.setMemoryCache(cacheKey, filteredByName);
+
+            // Prefetch first 8 product thumbnails for instant rendering
+            prefetchImages(filteredByName.slice(0, 8).map(p => p.images?.[0] || (p as any).imageUrl));
+
+            // Prefetch other gender's products so MEN/WOMEN switch is instant
+            const otherGender = effectiveGender === 'mens' ? 'womens' : 'mens';
+            productService.getProductsByGender(otherGender as any).then(otherProducts => {
+                prefetchImages(otherProducts.slice(0, 8).map(p => p.imageUrl));
+            }).catch(() => {});
 
             // Cache only real products for offline use.
             const realProducts = filteredByName.filter((product: any) => product._isFake !== true);
