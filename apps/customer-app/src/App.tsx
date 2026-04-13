@@ -15,6 +15,7 @@ import React, { lazy, useEffect, useState, Suspense } from "react";
 import { MobileShell } from "./components/layout/MobileShell";
 import { BottomNavBar } from "./components/layout/BottomNavBar";
 import ScrollToTop from "./components/ScrollToTop";
+import { useMetaPixel } from "./utils/metaPixel";
 
 import { SupabaseAuthProvider } from "./context/SupabaseAuthContext";
 import { CartProvider } from "./context/CartContext";
@@ -193,6 +194,7 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
 
+  useMetaPixel();
   useStandalonePullToRefresh();
 
   useEffect(() => {
