@@ -186,6 +186,7 @@ export interface PlaceOrderResult {
   subtotal?: number;
   coupon_discount?: number;
   delivery_fee?: number;
+  delivery_discount?: number;
   total?: number;
   item_count?: number;
   idempotent?: boolean;
@@ -207,9 +208,10 @@ export interface PreviewOrderResult {
   original_total?: number;
   subtotal?: number;
   discount?: number;
-  coupon?: { valid: boolean; reason?: string; message?: string; discount?: number; discount_type?: string; discount_value?: number };
+  coupon?: { valid: boolean; reason?: string; message?: string; discount?: number; discount_type?: string; discount_value?: number; free_delivery?: boolean };
   coupon_discount?: number;
   delivery_fee?: number;
+  delivery_discount?: number;
   total?: number;
   items?: { product_id: string; unit_price: number; quantity: number; line_total: number; mrp: number }[];
   code?: string;

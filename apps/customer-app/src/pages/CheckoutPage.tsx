@@ -128,6 +128,7 @@ export default function CheckoutPage() {
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(
     () => location.state?.couponCode || searchParams.get("coupon") || checkoutDraft?.appliedCouponCode || null
   );
+  const [couponInput, setCouponInput] = useState(() => location.state?.couponCode || searchParams.get("coupon") || checkoutDraft?.appliedCouponCode || "");
 
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressList, setAddressList] = useState<SavedAddress[]>([]);
@@ -692,7 +693,7 @@ export default function CheckoutPage() {
   // Client-side estimates are only used as instant fallbacks while the RPC loads.
   const [serverPricing, setServerPricing] = useState<{
     original_total: number; subtotal: number; discount: number;
-    coupon_discount: number; delivery_fee: number; total: number;
+    coupon_discount: number; delivery_fee: number; delivery_discount: number; total: number;
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
 
@@ -754,6 +755,7 @@ export default function CheckoutPage() {
           discount: result.discount ?? 0,
           coupon_discount: result.coupon_discount ?? 0,
           delivery_fee: isNoDeliveryFlow ? 0 : (result.delivery_fee ?? 60),
+          delivery_discount: isNoDeliveryFlow ? 0 : (result.delivery_discount ?? 0),
           total: isNoDeliveryFlow
             ? (result.subtotal ?? 0) - (result.coupon_discount ?? 0)
             : (result.total ?? 0),
@@ -812,10 +814,14 @@ export default function CheckoutPage() {
   const deliveryFeeBase = serverPricing?.delivery_fee != null
     ? Math.round(serverPricing.delivery_fee)
     : null;
+  const deliveryDiscount = serverPricing?.delivery_discount != null
+    ? Math.round(serverPricing.delivery_discount)
+    : 0;
   const distanceSurcharge = 0;
 
   const deliveryFee = isNoDeliveryFlow ? 0 : deliveryFeeBase;
   const isDeliveryFeeWaived = isNoDeliveryFlow;
+  const isCouponFreeDelivery = deliveryDiscount > 0;
   const insuranceFee = 0;
   const total = serverPricing?.total != null ? Math.round(serverPricing.total) : null;
 
@@ -1599,6 +1605,53 @@ export default function CheckoutPage() {
           </div>
         </section>
 
+        {/* Coupon Section */}
+        <section className="px-5 mt-8">
+          <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={dmSans}>Coupons</h2>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Have a coupon code?"
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value)}
+              className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
+              disabled={!!appliedCouponCode}
+            />
+            <button
+              onClick={() => {
+                if (appliedCouponCode) return;
+                const code = couponInput.trim().toUpperCase();
+                if (!code) { toast.error("Please enter a coupon code"); return; }
+                setAppliedCouponCode(code);
+              }}
+              disabled={!!appliedCouponCode}
+              className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors disabled:opacity-40"
+            >
+              Apply
+            </button>
+          </div>
+          {appliedCouponCode && (
+            <div className={`mt-3 flex items-center justify-between px-4 py-2 border rounded-xl ${
+              pricingLoading ? 'bg-zinc-500/10 border-zinc-500/20' :
+              (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'bg-red-500/10 border-red-500/20' :
+              'bg-green-500/10 border-green-500/20'
+            }`}>
+              <span className={`text-sm font-bold ${
+                pricingLoading ? 'text-zinc-500' :
+                (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'text-red-500' :
+                'text-green-500'
+              }`}>
+                {pricingLoading ? 'Validating...' : 
+                 (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'Invalid coupon code' : 
+                 `${appliedCouponCode} applied!`}
+              </span>
+              <button onClick={() => { setAppliedCouponCode(null); setCouponInput(""); }} className="text-zinc-500 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </section>
+
         {/* Price details */}
         <section className="px-5 mt-10">
           <h2 className="text-2xl font-bold text-white mb-6" style={dmSans}>Price details</h2>
@@ -1607,9 +1660,15 @@ export default function CheckoutPage() {
               <span>Order value</span>
               <span>₹ {originalTotal}</span>
             </div>
-            <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
-              <span>Discount</span>
-              <span>-₹ {discount}</span>
+            {discount > 0 && (
+              <div className="flex justify-between text-lg text-[#b4b4b4]" style={dmSans}>
+                <span>Discount</span>
+                <span>-₹ {discount}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-lg font-semibold text-white" style={dmSans}>
+              <span>Subtotal</span>
+              <span>₹ {subtotal}</span>
             </div>
             {couponDiscount > 0 && (
               <div className="flex justify-between text-lg text-green-500" style={dmSans}>
@@ -1633,6 +1692,11 @@ export default function CheckoutPage() {
                   <span className="text-zinc-500 animate-pulse">...</span>
                 ) : deliveryFeeBase === -1 ? (
                   <span className="text-sm font-bold text-red-500">Not Serviceable</span>
+                ) : isCouponFreeDelivery ? (
+                  <>
+                    <span className="line-through opacity-50">₹ {deliveryDiscount}</span>
+                    <span className="ml-2 text-green-500 font-bold">FREE</span>
+                  </>
                 ) : (
                   <>
                     <span className={cn(isDeliveryFeeWaived && "line-through opacity-50")}>₹ {deliveryFeeBase}</span>
@@ -1641,6 +1705,12 @@ export default function CheckoutPage() {
                 )}
               </div>
             </div>
+            {isCouponFreeDelivery && (
+              <div className="flex justify-between text-lg text-green-500" style={dmSans}>
+                <span>Delivery discount ({appliedCouponCode})</span>
+                <span>-₹ {deliveryDiscount}</span>
+              </div>
+            )}
             {/* Removed Pop Insurance Row */}
             <div className="pt-4 border-t border-white/10 flex justify-between text-2xl font-bold text-white" style={dmSans}>
               <span>Total</span>

@@ -384,7 +384,7 @@ const CartPage = () => {
   // preview_order RPC computes delivery fee from distance server-side.
   const [serverPricing, setServerPricing] = useState<{
     original_total: number; subtotal: number; discount: number;
-    coupon_discount: number; delivery_fee: number; total: number;
+    coupon_discount: number; delivery_fee: number; delivery_discount: number; total: number;
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
 
@@ -439,6 +439,7 @@ const CartPage = () => {
           discount: result.discount ?? 0,
           coupon_discount: result.coupon_discount ?? 0,
           delivery_fee: result.delivery_fee ?? 60,
+          delivery_discount: result.delivery_discount ?? 0,
           total: result.total ?? 0,
         });
       } else {
@@ -474,6 +475,7 @@ const CartPage = () => {
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
           delivery_fee: 60,
+          delivery_discount: 0,
           total: subtotal + 60,
         });
       }
@@ -486,6 +488,7 @@ const CartPage = () => {
           discount: Math.max(0, originalTotal - subtotal),
           coupon_discount: 0,
           delivery_fee: 60,
+          delivery_discount: 0,
           total: subtotal + 60,
         });
       }
@@ -558,9 +561,13 @@ const CartPage = () => {
         discount: result.discount ?? 0,
         coupon_discount: result.coupon_discount ?? 0,
         delivery_fee: result.delivery_fee ?? 60,
+        delivery_discount: result.delivery_discount ?? 0,
         total: result.total ?? 0,
       });
-      toast.success(`Coupon applied! -₹${serverDiscount} off`);
+      const hasFreeDelivery = result.coupon?.free_delivery || (result.delivery_discount ?? 0) > 0;
+      const discountMsg = serverDiscount > 0 ? `-₹${serverDiscount} off` : '';
+      const deliveryMsg = hasFreeDelivery ? '+ FREE delivery' : '';
+      toast.success(`Coupon applied! ${discountMsg} ${deliveryMsg}`.trim());
     } catch {
       toast.error("Failed to validate coupon. Try again.");
     }
@@ -905,36 +912,6 @@ const CartPage = () => {
 
             {/* Right Column */}
             <div className="lg:w-[340px] lg:flex-shrink-0 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
-              {/* ─── COUPON SECTION ─── */}
-              <section className="px-5 lg:px-0">
-                <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  Coupons
-                </h2>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter code (e.g. POP20)"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
-                  />
-                  <button
-                    onClick={handleApplyCoupon}
-                    className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors"
-                  >
-                    Apply
-                  </button>
-                </div>
-                {appliedCoupon && (
-                  <div className="mt-3 flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-                    <span className="text-sm font-bold text-green-500">{appliedCoupon.id} applied!</span>
-                    <button onClick={() => setAppliedCoupon(null)} className="text-zinc-500 p-1">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </section>
-
               {/* ─── PRICE DETAILS ─── */}
               <section className="px-5 lg:px-0">
                 <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -951,16 +928,27 @@ const CartPage = () => {
                     </span>
                   </div>
 
+                  {discount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        Discount
+                      </span>
+                      <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        -₹ {discount}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      Discount
+                    <span className="text-lg font-semibold text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      Subtotal
                     </span>
-                    <span className="text-lg text-[#b4b4b4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      -₹ {discount + couponDiscount}
+                    <span className="text-lg font-semibold text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                      ₹ {subtotal}
                     </span>
                   </div>
 
-                  {appliedCoupon && (
+                  {appliedCoupon && couponDiscount > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-lg text-green-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         Coupon ({appliedCoupon.id})
