@@ -122,7 +122,7 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
               alt={product.name}
               className={cn(
                 "relative w-full h-full object-cover transition-opacity duration-300 opacity-0 data-[loaded]:opacity-100",
-                isUnavailable && "grayscale data-[loaded]:opacity-25"
+                isUnavailable && "data-[loaded]:opacity-25"
               )}
               loading="eager"
               decoding="async"
@@ -134,7 +134,7 @@ const QuickViewModal = ({ product, isOpen, onOpenChange }: QuickViewModalProps) 
                 <div className="px-5 py-2.5 rounded-full bg-black/80 backdrop-blur-md border border-white/10 shadow-2xl">
                   <span className="text-xs font-black uppercase tracking-[0.2em] text-white flex items-center gap-2">
                     <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", isActuallySoldOut ? "bg-zinc-500" : "bg-red-500")} />
-                    {isActuallySoldOut ? "Sold Out" : "Currently Rented Out"}
+                    {isActuallySoldOut ? "Sold" : "Rented Out"}
                   </span>
                 </div>
               </div>

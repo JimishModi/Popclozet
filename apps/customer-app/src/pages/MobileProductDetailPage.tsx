@@ -656,15 +656,15 @@ const MobileProductDetailPage: React.FC = () => {
 
                     {/* Rented Out / Sold Out / Coming Soon Badge Overlay */}
                     {(isRented || isProductRentedOut || isProductSoldOut) && (
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                        <div className="absolute top-16 right-4 z-20">
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className={cn("px-6 py-3 rounded-full bg-black/80 backdrop-blur-xl flex items-center gap-3 shadow-2xl border", isRented ? "border-blue-500/50" : "border-red-500/50")}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className={cn("px-3 py-1.5 rounded-full bg-black/80 backdrop-blur-xl flex items-center gap-2 shadow-2xl border", isRented ? "border-blue-500/50" : "border-red-500/50")}
                             >
-                                <span className={cn("h-2 w-2 rounded-full", isProductSoldOut ? "bg-zinc-400" : isRented ? "bg-blue-400 animate-pulse" : "bg-red-400 animate-pulse")} />
-                                <span className="text-sm font-black uppercase tracking-widest text-white">
-                                    {isProductSoldOut ? "Sold Out" : isRented ? "Coming Soon" : "Currently Rented Out"}
+                                <span className={cn("h-1.5 w-1.5 rounded-full", isProductSoldOut ? "bg-zinc-400" : isRented ? "bg-blue-400 animate-pulse" : "bg-red-400 animate-pulse")} />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                                    {isProductSoldOut ? "Sold" : isRented ? "Coming Soon" : "Rented Out"}
                                 </span>
                             </motion.div>
                         </div>
@@ -883,7 +883,7 @@ const MobileProductDetailPage: React.FC = () => {
                              <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
                                  <span className="h-2 w-2 rounded-full bg-zinc-400" />
                                  <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
-                                     Sold Out
+                                     Sold
                                  </span>
                              </div>
                         ) : isRented ? (
@@ -897,7 +897,7 @@ const MobileProductDetailPage: React.FC = () => {
                             <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3">
                                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                                 <span className="text-lg font-bold text-zinc-500 tracking-tight" style={dmSans}>
-                                    Currently Rented Out
+                                    Rented Out
                                 </span>
                             </div>
                         ) : (
@@ -1271,7 +1271,7 @@ const MobileProductDetailPage: React.FC = () => {
                         <div className="w-full h-[56px] flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 gap-3 shadow-xl">
                             <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
                             <span className="text-base font-bold text-zinc-500 tracking-tight" style={dmSans}>
-                                Currently Rented Out
+                                Rented Out
                             </span>
                         </div>
                     ) : (

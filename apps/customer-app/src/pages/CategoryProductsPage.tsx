@@ -580,8 +580,7 @@ const CategoryProductsPage: React.FC = () => {
                                                                 "relative w-full h-full object-cover group-hover:scale-105",
                                                                 alreadyCached
                                                                     ? "opacity-100"
-                                                                    : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100",
-                                                                isUnavailable && "grayscale opacity-40 blur-[1px]"
+                                                                    : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100"
                                                             )}
                                                             loading={index < 4 ? "eager" : "lazy"}
                                                             fetchPriority={index < 4 ? "high" : "auto"}
@@ -598,11 +597,12 @@ const CategoryProductsPage: React.FC = () => {
                                                     </div>
                                                 )}
 
-                                                {/* Status badge — overlay on top of image */}
+                                                {/* Status badge — relocated to top-right */}
                                                 {isUnavailable && (
-                                                    <div className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none">
-                                                        <span className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-white shadow-2xl">
-                                                            {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                                    <div className="absolute top-3 right-3 z-20 p-0 pointer-events-none">
+                                                        <span className="bg-black/80 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-white shadow-2xl flex items-center gap-1.5">
+                                                            <span className={cn("h-1.5 w-1.5 rounded-full", isFake ? "bg-blue-400" : isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                                                            {isFake ? "Coming Soon" : isSoldOut ? "Sold" : "Rented Out"}
                                                         </span>
                                                     </div>
                                                 )}
@@ -610,7 +610,7 @@ const CategoryProductsPage: React.FC = () => {
                                                 {!isFake && (
                                                     <button
                                                         onClick={(e) => toggleWishlist(product.id, e)}
-                                                        className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+                                                        className={cn("absolute top-3 p-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-all duration-300 z-10", isUnavailable ? "left-3" : "right-3")}
                                                     >
                                                         <Heart
                                                             className={`w-4 h-4 transition-colors ${isInWishlist(product.id)

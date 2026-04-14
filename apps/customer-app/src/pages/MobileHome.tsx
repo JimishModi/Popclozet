@@ -827,7 +827,7 @@ const MobileHome: React.FC = () => {
                                     {/* Wishlist — hidden for fake items */}
                                     {!isFake && (
                                         <button
-                                            className="absolute top-4 right-4 z-10"
+                                            className={cn("absolute top-4 z-10 transition-all duration-300", isUnavailable ? "left-4" : "right-4")}
                                             onClick={(e) => toggleWishlist(item.id, e)}
                                         >
                                             <Heart
@@ -853,10 +853,7 @@ const MobileHome: React.FC = () => {
                                                     alt={item.name}
                                                     className={cn(
                                                         "relative w-full h-full object-cover group-hover:scale-105",
-                                                        prodCached
-                                                            ? (isUnavailable ? "grayscale opacity-40 blur-[1px]" : "opacity-100")
-                                                            : cn("transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100",
-                                                                isUnavailable && "grayscale data-[loaded]:opacity-40 blur-[1px]")
+                                                        prodCached ? "opacity-100" : "transition-[opacity,transform] duration-300 opacity-0 data-[loaded]:opacity-100"
                                                     )}
                                                     loading={index < 4 ? "eager" : "lazy"}
                                                     fetchPriority={index < 4 ? "high" : "auto"}
@@ -873,11 +870,12 @@ const MobileHome: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Status badge — overlay on top of image */}
+                                        {/* Status badge — relocated to top-right */}
                                         {isUnavailable && (
-                                            <div className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none">
-                                                <span className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-wider text-white shadow-2xl">
-                                                    {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
+                                            <div className="absolute top-3 right-3 z-[11] p-0 pointer-events-none">
+                                                <span className="bg-black/80 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-wider text-white shadow-2xl flex items-center gap-1.5">
+                                                    <span className={cn("h-1.5 w-1.5 rounded-full", isFake ? "bg-blue-400" : isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
+                                                    {isFake ? "Coming Soon" : isSoldOut ? "Sold" : "Rented Out"}
                                                 </span>
                                             </div>
                                         )}
