@@ -124,8 +124,8 @@ export default function StickyAddToCart({
                     transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     className={cn(
                         "fixed bottom-0 left-0 right-0 z-50 md:hidden",
-                        "bg-background/95 backdrop-blur-xl",
-                        "border-t border-border shadow-2xl",
+                        "bg-[#111111]/95 backdrop-blur-xl",
+                        "border-t border-white/5 shadow-2xl",
                         "pb-safe", // Safe area for iPhone notch
                         className
                     )}
@@ -175,7 +175,7 @@ export default function StickyAddToCart({
                                     className={cn(
                                         "flex-1 py-4 rounded-xl font-bold text-base transition-all",
                                         "flex items-center justify-center gap-2",
-                                        "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                                        "bg-zinc-900 border border-white/5 text-white hover:bg-zinc-800",
                                         "min-h-[56px]" // Thumb-accessible
                                     )}
                                 >
@@ -205,8 +205,8 @@ export default function StickyAddToCart({
                                     canAddToCart
                                         ? isAdded
                                             ? "bg-green-500 text-white"
-                                            : "bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl"
-                                        : "bg-muted text-muted-foreground cursor-not-allowed"
+                                            : "bg-gradient-to-r from-[#f2546d] to-pink-500 text-white shadow-lg shadow-[#f2546d]/25"
+                                        : "bg-white/5 text-zinc-600 cursor-not-allowed"
                                 )}
                                 whileHover={canAddToCart && !isAdded ? { scale: 1.02 } : {}}
                                 whileTap={canAddToCart && !isAdded ? { scale: 0.98 } : {}}

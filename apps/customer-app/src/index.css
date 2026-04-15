@@ -24,10 +24,10 @@
     --headline: 0 0% 8%;
 
     /* Primary - Coral Pink (popclozet Brand) */
-    --primary: 0 84% 70%;
-    /* #F87171 - Coral Pink */
+    --primary: 351 86% 64%;
+    /* #f2546d - Brand Coral Pink */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 0 84% 60%;
+    --primary-hover: 351 86% 54%;
 
     /* Secondary - Lavender */
     --secondary: 295 45% 82%;
@@ -101,17 +101,17 @@
     --headline: 0 0% 100%;
 
     /* Primary - Coral Pink (from brand palette) */
-    --primary: 0 84% 70%;
-    /* #F87171 - Coral Pink */
+    --primary: 351 86% 64%;
+    /* #f2546d - Brand Coral Pink */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 0 84% 60%;
+    --primary-hover: 351 86% 54%;
 
     /* Secondary - Muted Gray */
     --secondary: 0 0% 20%;
     --secondary-foreground: 0 0% 90%;
 
     /* Accent - Same Coral for consistency */
-    --accent: 0 84% 70%;
+    --accent: 351 86% 64%;
     --accent-foreground: 0 0% 100%;
 
     /* Muted */
@@ -121,7 +121,7 @@
     /* Borders */
     --border: 0 0% 18%;
     --input: 0 0% 18%;
-    --ring: 0 84% 70%;
+    --ring: 351 86% 64%;
 
     /* Card */
     --card: 0 0% 8%;
@@ -132,7 +132,7 @@
     --popover-foreground: 0 0% 98%;
 
     --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.7);
-    --shadow-glow-coral: 0 0 60px -10px rgba(248, 113, 113, 0.25);
+    --shadow-glow-coral: 0 0 60px -10px rgba(242, 84, 109, 0.25);
   }
 }
 

@@ -912,6 +912,50 @@ const CartPage = () => {
 
             {/* Right Column */}
             <div className="lg:w-[340px] lg:flex-shrink-0 lg:sticky lg:top-32 mt-12 lg:mt-0 flex flex-col gap-8">
+              {/* ─── COUPONS ─── */}
+              <section className="px-5 lg:px-0">
+                <h2 className="text-xl font-bold text-white mb-4 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  Coupons
+                </h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Have a coupon code?"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    className="flex-1 bg-[#232323] border border-white/5 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#f2546d]/50 transition-colors"
+                    disabled={!!appliedCoupon}
+                  />
+                  <button
+                    onClick={handleApplyCoupon}
+                    disabled={!!appliedCoupon || pricingLoading}
+                    className="px-6 py-3 bg-[#303135] rounded-2xl text-sm font-bold text-white hover:bg-[#404045] transition-colors disabled:opacity-40"
+                  >
+                    {pricingLoading ? "..." : "Apply"}
+                  </button>
+                </div>
+                {appliedCoupon && (
+                  <div className={`mt-3 flex items-center justify-between px-4 py-2 border rounded-xl ${
+                    pricingLoading ? 'bg-zinc-500/10 border-zinc-500/20' :
+                    (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'bg-red-500/10 border-red-500/20' :
+                    'bg-green-500/10 border-green-500/20'
+                  }`}>
+                    <span className={`text-sm font-bold ${
+                      pricingLoading ? 'text-zinc-500' :
+                      (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'text-red-500' :
+                      'text-green-500'
+                    }`}>
+                      {pricingLoading ? 'Validating...' :
+                       (serverPricing?.coupon_discount === 0 && serverPricing?.delivery_discount === 0) ? 'Invalid coupon code' :
+                       `${appliedCoupon.id} applied!`}
+                    </span>
+                    <button onClick={() => { setAppliedCoupon(null); setCouponCode(""); }} className="text-zinc-500 hover:text-white transition-colors p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </section>
+
               {/* ─── PRICE DETAILS ─── */}
               <section className="px-5 lg:px-0">
                 <h2 className="text-2xl font-semibold text-white mb-6 tracking-tight" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -1003,9 +1047,9 @@ const CartPage = () => {
             onClick={canCheckout ? handleCheckout : undefined}
             disabled={!canCheckout}
             className={cn(
-              "w-full h-14 flex items-center justify-center rounded-full font-black text-lg transition-all",
+              "w-full h-14 flex items-center justify-center rounded-2xl font-bold text-lg transition-all active:scale-[0.98]",
               canCheckout
-                ? "bg-[#E95466] text-white shadow-lg shadow-[#E95466]/20 active:scale-[0.98]"
+                ? "bg-[#f2546d] text-white shadow-lg shadow-[#f2546d]/20"
                 : "bg-white/10 text-white/40 cursor-not-allowed"
             )}
           >
@@ -1038,9 +1082,9 @@ const CartPage = () => {
                           setSizeDrawerOpen(false);
                         }}
                         className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all ${isSelected
-                          ? "bg-[#E95466] border-[#E95466] text-white"
+                          ? "bg-[#f2546d] border-[#f2546d] text-white"
                           : isAvailable
-                            ? "bg-white/5 border-white/10 text-white hover:border-[#E95466]/50 hover:bg-white/10"
+                            ? "bg-white/5 border-white/10 text-white hover:border-[#f2546d]/50 hover:bg-white/10"
                             : "bg-white/5 border-transparent text-zinc-600 cursor-not-allowed hidden"
                           }`}
                       >

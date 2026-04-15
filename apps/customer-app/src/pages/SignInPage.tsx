@@ -67,9 +67,9 @@ const SignInPage: React.FC = () => {
             <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-all active:scale-95"
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 border border-white/10 transition-all active:scale-95"
                 >
-                    <ArrowLeft className="w-5 h-5 text-white" />
+                    <ArrowLeft className="w-4 h-4 text-white" />
                 </button>
                 <img src={logo} alt="Popclozet" className="h-10 w-auto object-contain ml-3" />
             </div>
@@ -110,7 +110,7 @@ const SignInPage: React.FC = () => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="your@email.com"
-                                className="w-full h-14 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
+                                className="w-full h-[52px] pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                         </div>
@@ -139,7 +139,7 @@ const SignInPage: React.FC = () => {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full h-14 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
+                                className="w-full h-[52px] pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#f2546d]/50 focus:ring-2 focus:ring-[#f2546d]/20 transition-all"
                                 required
                             />
                             <button
@@ -170,7 +170,7 @@ const SignInPage: React.FC = () => {
                     <button
                         type="submit"
                         disabled={!isValidEmail || password.length < 6 || isLoading || isLocked}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-600 text-white font-bold text-lg shadow-[0_10px_30px_rgba(242,84,109,0.4)] hover:shadow-[0_15px_40px_rgba(242,84,109,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="w-full h-[52px] rounded-2xl bg-gradient-to-r from-[#f2546d] to-pink-500 text-white font-bold text-[15px] shadow-lg shadow-[#f2546d]/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         {isLoading ? (
                             <>
