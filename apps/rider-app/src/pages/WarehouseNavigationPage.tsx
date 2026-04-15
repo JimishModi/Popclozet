@@ -37,7 +37,7 @@ function haversineMetres(a: { lat: number; lng: number }, b: { lat: number; lng:
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WAREHOUSE_LOCATION: [number, number] = [72.9125, 19.1367]; // Hostel 2, IIT Bombay
+const WAREHOUSE_LOCATION: [number, number] = [72.9135, 19.1305]; // Hostel 2, IIT Bombay
 const WAREHOUSE_ADDRESS = 'Hostel 2, IIT Bombay, Powai, Mumbai';
 
 type PickupStep = 'navigating' | 'arrived' | 'picked_up';
@@ -106,7 +106,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpVerifying, setOtpVerifying] = useState(false);
-    
+
     const returnOtpStorageKey = id ? `returnOtp_${id}` : null;
     const [returnOtp, setReturnOtpState] = useState<string | null>(() => {
         if (!id) return null;
@@ -319,7 +319,7 @@ export const WarehouseNavigationPage: React.FC = () => {
         try {
             const result = await verifyWarehouseOtp(id, otpValue, user.id);
             console.log(`[handleVerifyOtp] Result:`, result);
-            
+
             if (!result || !result.success) {
                 const errMsg = result?.message || 'Failed to verify PIN (Unknown error)';
                 throw new Error(errMsg);
@@ -449,7 +449,7 @@ export const WarehouseNavigationPage: React.FC = () => {
     return (
         <div className="fixed inset-0 bg-[#080808] flex flex-col font-sans">
             <div className="flex-1 overflow-y-auto px-6 pt-12 pb-48 space-y-8">
-                
+
                 {/* Header & Status */}
                 <div className="flex items-center justify-between">
                     <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex items-center gap-2">
@@ -610,9 +610,7 @@ export const WarehouseNavigationPage: React.FC = () => {
                                     <p className="text-emerald-500/60 text-xs mt-1">Waiting for warehouse validation</p>
                                 </div>
                             )}
-                            {order?.status !== 'return_at_warehouse' && (
-                                <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Return to Dashboard</button>
-                            )}
+                            <button onClick={() => navigate('/')} className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/5 text-white font-bold text-sm">Return to Dashboard</button>
                         </motion.div>
                     )}
                 </AnimatePresence>

@@ -335,32 +335,6 @@ export async function confirmOrderPayment(orderId: string): Promise<void> {
 }
 
 /**
- * Confirm COD payment (cash or UPI at door) and generate delivery OTP.
- * Called from the tracking page when the customer clicks "Pay the Bill".
- */
-export async function confirmCodPayment(
-  orderId: string,
-  paymentMode: 'cash' | 'upi' = 'cash'
-): Promise<{ success: boolean; otp?: string; already_collected?: boolean; code?: string; message?: string }> {
-  const { data, error } = await supabase.rpc("confirm_cod_payment", {
-    p_order_id: orderId,
-    p_payment_mode: paymentMode,
-  });
-
-  if (error) {
-    console.error("confirmCodPayment RPC error:", error);
-    throw new Error(error.message || "Failed to confirm payment");
-  }
-
-  const result = data as { success: boolean; otp?: string; already_collected?: boolean; code?: string; message?: string };
-  if (!result.success) {
-    throw new Error(result.message || `Payment confirmation failed: ${result.code}`);
-  }
-
-  return result;
-}
-
-/**
  * Get order with delivery info — enforces user ownership
  */
 export async function getOrderWithDelivery(orderId: string) {
@@ -440,7 +414,6 @@ export async function getMyActiveRentals() {
         individual_id,
         rental_price,
         rental_duration_days,
-        pricing_plan,
         item:products (
           id,
           name,
@@ -472,11 +445,8 @@ export async function getMyActiveClosetItemCount(): Promise<number> {
     .from("orders")
     .select(`
       id,
-      status,
-      order_type,
       order_items (
-        id,
-        pricing_plan
+        id
       )
     `)
     .eq("user_id", user.id)
@@ -487,15 +457,10 @@ export async function getMyActiveClosetItemCount(): Promise<number> {
     throw error;
   }
 
-  // Count orders (not items) — matches what ClosetPage shows as cards.
-  // Exclude delivered buyout orders (they don't appear in closet).
-  return (data ?? []).filter((order) => {
-    const isBuyout = order.order_type === 'buyout' ||
-      (order.order_items as any[])?.every((oi: any) => oi.pricing_plan === 'buy');
-    const isDelivered = ['delivered', 'in_use'].includes(order.status);
-    if (isBuyout && isDelivered) return false;
-    return true;
-  }).length;
+  return (data ?? []).reduce((total, order) => {
+    const itemCount = Array.isArray(order.order_items) ? order.order_items.length : 0;
+    return total + itemCount;
+  }, 0);
 }
 
 /**

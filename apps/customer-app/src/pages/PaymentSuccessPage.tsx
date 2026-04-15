@@ -45,7 +45,7 @@ export default function PaymentSuccessPage() {
                         console.error("Transition failed:", error || data);
                         throw new Error(data?.message || error?.message || "Failed to update order status");
                     }
-                    
+
                     toast.success("Order confirmed successfully!");
                     // Navigate to order confirmed page
                     navigate('/home', { replace: true });
@@ -96,7 +96,7 @@ export default function PaymentSuccessPage() {
                             >
                                 Go Back
                             </button>
-                            {/* 
+                            {/*
                             <button
                                 onClick={() => navigate('/subscription-plans')}
                                 className="h-14 px-8 rounded-full bg-white text-black font-bold active:scale-95 transition-all shadow-xl shadow-white/10"
@@ -177,7 +177,7 @@ export default function PaymentSuccessPage() {
                                         {(() => {
                                             try {
                                                 const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                                return '45-60 MINS';
+                                                return loc.delivery_estimate === 'delayed' ? 'Delayed' : '45-60 MINS';
                                             } catch {
                                                 return '45-60 MINS';
                                             }

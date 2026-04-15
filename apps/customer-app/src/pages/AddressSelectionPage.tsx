@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@popclozet/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { locationStorage } from "@/lib/locationStorage";
 import { motion } from "framer-motion";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { ChevronLeft, MapPin, Plus, Check, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronLeft, MapPin, Plus, Check, Trash2 } from "lucide-react";
 import { getLocalAddresses, ValidatedAddress, deleteRecentAddress } from "@/services/addressService";
 import { clearCheckoutAddressContext } from "@/lib/addressAccuracy";
 import { cn } from "@/lib/utils";
-import { haversineDistance } from "@/utils/haversine";
-import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
 
 const dmSans = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -22,20 +20,6 @@ const AddressSelectionPage = () => {
   const [addresses, setAddresses] = useState<ValidatedAddress[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Check which addresses are outside the 7km delivery range from warehouse
-  const outOfRangeSet = useMemo(() => {
-    const out = new Set<number>();
-    addresses.forEach((addr, idx) => {
-      if (addr.lat && addr.lng) {
-        const dist = haversineDistance(WAREHOUSE.lat, WAREHOUSE.lng, addr.lat, addr.lng);
-        if (dist > DELIVERY_THRESHOLDS.MAX_KM) {
-          out.add(idx);
-        }
-      }
-    });
-    return out;
-  }, [addresses]);
 
   useEffect(() => {
     const fetchAddresses = async () => {
@@ -73,13 +57,8 @@ const AddressSelectionPage = () => {
       });
 
       setAddresses(merged);
-      // Auto-select the first address that is within delivery range
-      const firstInRange = merged.findIndex((addr) => {
-        if (!addr.lat || !addr.lng) return true; // no coords = allow selection
-        return haversineDistance(WAREHOUSE.lat, WAREHOUSE.lng, addr.lat, addr.lng) <= DELIVERY_THRESHOLDS.MAX_KM;
-      });
-      if (firstInRange >= 0) {
-        setSelectedIdx(firstInRange);
+      if (merged.length > 0) {
+        setSelectedIdx(0);
       }
     };
 
@@ -129,8 +108,8 @@ const AddressSelectionPage = () => {
       setIsSaving(true);
       const addr = addresses[selectedIdx];
       
-      let deliveryEstimate: '60min' = '60min';
-      let deliveryFee = 60;
+      let deliveryEstimate: '15min' | 'delayed' = '15min';
+      let deliveryFee = 40;
       let distanceKm = 0;
 
       // Calculate road distance and delivery estimate via centralized function
@@ -171,7 +150,7 @@ const AddressSelectionPage = () => {
       localStorage.setItem('selected_hub', JSON.stringify({
           name: 'Main Hub',
           distance_km: distanceKm,
-          estimated_minutes: 60
+          estimated_minutes: deliveryEstimate === 'delayed' ? 120 : 60
       }));
 
       // 2. If user is logged in, mark as default in DB + update estimate in profile
@@ -235,42 +214,31 @@ const AddressSelectionPage = () => {
             </h2>
             
             <div className="space-y-3">
-              {addresses.map((addr, idx) => {
-                const isOutOfRange = outOfRangeSet.has(idx);
-                return (
+              {addresses.map((addr, idx) => (
                 <button
                   key={idx}
-                  onClick={() => { if (!isOutOfRange) setSelectedIdx(idx); }}
+                  onClick={() => setSelectedIdx(idx)}
                   className={cn(
                     "w-full text-left p-3 md:p-4 rounded-2xl md:rounded-3xl border transition-all duration-300",
-                    isOutOfRange
-                      ? "bg-[#1A1A1A] border-red-500/30 opacity-60 cursor-not-allowed"
-                      : selectedIdx === idx
-                        ? "bg-[#f2546d]/10 border-[#f2546d] shadow-[0_0_20px_rgba(242,84,109,0.1)]"
-                        : "bg-[#1A1A1A] border-white/5 hover:border-white/10"
+                    selectedIdx === idx 
+                      ? "bg-[#f2546d]/10 border-[#f2546d] shadow-[0_0_20px_rgba(242,84,109,0.1)]" 
+                      : "bg-[#1A1A1A] border-white/5 hover:border-white/10"
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <div className={cn(
                       "w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0",
-                      isOutOfRange
-                        ? "bg-red-500/20 text-red-400"
-                        : selectedIdx === idx ? "bg-[#f2546d] text-white" : "bg-zinc-800 text-zinc-500"
+                      selectedIdx === idx ? "bg-[#f2546d] text-white" : "bg-zinc-800 text-zinc-500"
                     )}>
-                      {isOutOfRange ? <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" /> : <MapPin className="w-4 h-4 md:w-5 md:h-5" />}
+                      <MapPin className="w-4 h-4 md:w-5 md:h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider mb-1">
                         {addr.label || 'Home / Other'}
                       </p>
-                      <p className={cn("text-xs md:text-sm font-bold leading-relaxed line-clamp-2", isOutOfRange ? "text-zinc-500" : "text-white")} style={dmSans}>
+                      <p className="text-xs md:text-sm font-bold text-white leading-relaxed line-clamp-2" style={dmSans}>
                         {addr.formattedAddress}
                       </p>
-                      {isOutOfRange && (
-                        <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-wider">
-                          Outside delivery range ({DELIVERY_THRESHOLDS.MAX_KM}km)
-                        </p>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 self-center">
                       <button
@@ -279,7 +247,7 @@ const AddressSelectionPage = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      {selectedIdx === idx && !isOutOfRange && (
+                      {selectedIdx === idx && (
                         <div className="w-6 h-6 rounded-full bg-[#f2546d] flex items-center justify-center">
                           <Check className="w-4 h-4 text-white" />
                         </div>
@@ -287,8 +255,7 @@ const AddressSelectionPage = () => {
                     </div>
                   </div>
                 </button>
-                );
-              })}
+              ))}
 
               {addresses.length === 0 && (
                 <div className="py-8 text-center bg-[#1A1A1A] rounded-3xl border border-dashed border-white/10">

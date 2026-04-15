@@ -41,10 +41,10 @@ def center_card_replacement(match):
     img_part = match.group(8)
     # overlays is match.group(9)
     suffix = match.group(11)
-    
+
     # Remove cursor-pointer and add border
     new_class = f'{class_start} border border-white/5{class_end}'
-    
+
     return f'{prefix}{new_class}{remaining_props}>{img_part}{suffix}'
 
 # Apply the replacement
@@ -83,7 +83,7 @@ if final_content == new_content:
                                         </h3>
                                     </div>
                                 </motion.div>"""
-    
+
     new_block = """                                    className="relative w-[220px] h-[220px] md:w-[260px] md:h-[340px] rounded-[24px] md:rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-zinc-900 border border-white/5"
                                 >
                                     <img
@@ -92,7 +92,7 @@ if final_content == new_content:
                                         className="w-full h-full object-cover"
                                     />
                                 </motion.div>"""
-    
+
     final_content = new_content.replace(target_block, new_block)
 
 if final_content == content:

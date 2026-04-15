@@ -92,7 +92,7 @@ const ColorfulStats = () => {
                                 {(() => {
                                     try {
                                         const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                        return '⚡ Arrives in 60 minutes';
+                                        return loc.delivery_estimate === 'delayed' ? '⚡ Expected Delayed Delivery' : '⚡ Arrives in 60 minutes';
                                     } catch {
                                         return '⚡ Arrives in 60 minutes';
                                     }

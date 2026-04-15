@@ -81,7 +81,7 @@ const StatsBento = () => {
                                 {(() => {
                                     try {
                                         const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                                        return '60 min';
+                                        return loc.delivery_estimate === 'delayed' ? 'Delayed' : '60 min';
                                     } catch {
                                         return '60 min';
                                     }

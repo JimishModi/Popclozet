@@ -19,7 +19,7 @@ const steps = [
     description: (() => {
         try {
             const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-            return 'Get it delivered in 60 minutes';
+            return loc.delivery_estimate === 'delayed' ? 'Get it with Delayed Delivery' : 'Get it delivered in 60 minutes';
         } catch {
             return 'Get it delivered in 60 minutes';
         }

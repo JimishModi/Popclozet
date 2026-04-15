@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await adminClient
       .from('orders')
-      .select('id, user_id, status, total_amount, payment_method, razorpay_order_id')
+      .select('id, user_id, status, total_amount, razorpay_order_id')
       .eq('id', internal_order_id)
       .single();
 
@@ -156,25 +156,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // Idempotent: if already paid/confirmed, return success without re-processing
-    if (['paid', 'confirmed', 'packed', 'ready_for_pickup'].includes(order.status) && order.payment_method !== 'cod') {
+    if (['paid', 'confirmed', 'packed', 'ready_for_pickup'].includes(order.status)) {
       log.info('Order already processed', { orderId: internal_order_id, status: order.status });
       return jsonResponse({ success: true, payment_id: razorpay_payment_id, already_processed: true }, 200, req, log);
     }
 
-    // COD orders being paid via UPI at delivery time — only once the rider has the parcel
-    const codDeliveryStates = [
-      'order_picked_up',
-      'dispatched',
-      'out_for_delivery',
-    ];
-    const isCodDeliveryPayment = order.payment_method === 'cod' && codDeliveryStates.includes(order.status);
-
-    // Allow verification from payment_failed and cancelled too.
-    // payment_failed: Razorpay can emit a failed attempt before the user retries successfully.
-    // cancelled: On mobile UPI, ondismiss races the handler and may cancel the order
-    //            before the user finishes paying. If the payment is genuinely captured
-    //            (verified below via Razorpay API), we must still honour it.
-    if (!isCodDeliveryPayment && !['pending', 'pending_payment', 'payment_failed', 'cancelled'].includes(order.status)) {
+    // Allow verification from payment_failed too. Razorpay can emit a failed
+    // attempt before the user retries successfully on the same order.
+    if (!['pending', 'pending_payment', 'payment_failed'].includes(order.status)) {
       log.error('Invalid order state for payment', { status: order.status });
       return jsonResponse({ error: `Order is in state '${order.status}' and cannot be verified` }, 409, req, log);
     }
@@ -214,81 +203,6 @@ Deno.serve(async (req: Request) => {
     }
 
     log.info('Signature verified for order', { orderId: internal_order_id });
-
-    // ── CRITICAL: Verify actual payment status with Razorpay API ──────
-    // A valid signature only proves the response came from Razorpay —
-    // it does NOT prove the payment was actually captured. In live mode
-    // we have seen cases where the handler fires for an authorized-but-
-    // not-captured payment (e.g. PhonePe "try later" with no deduction),
-    // or the client somehow submits a stale/failed response. Always
-    // confirm against the source of truth.
-    const keyId = Deno.env.get('RAZORPAY_KEY_ID');
-    if (!keyId) {
-      log.error('RAZORPAY_KEY_ID not set');
-      return jsonResponse({ error: 'Payment service not configured' }, 500, req, log);
-    }
-
-    const rzpCredentials = btoa(`${keyId}:${keySecret}`);
-    let rzpPayment: { id: string; status: string; amount: number; order_id: string; method?: string } | null = null;
-    try {
-      const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Basic ${rzpCredentials}` },
-      });
-      if (!rzpRes.ok) {
-        const errText = await rzpRes.text();
-        log.error('Razorpay payment fetch failed', { status: rzpRes.status, errText });
-        return jsonResponse({ error: 'Could not confirm payment with gateway. Please contact support.' }, 502, req, log);
-      }
-      rzpPayment = await rzpRes.json();
-    } catch (fetchErr: any) {
-      log.error('Razorpay API fetch error', { error: String(fetchErr) });
-      return jsonResponse({ error: 'Could not reach payment gateway. Please try again.' }, 502, req, log);
-    }
-
-    if (!rzpPayment) {
-      return jsonResponse({ error: 'Invalid response from payment gateway' }, 502, req, log);
-    }
-
-    // Anti-substitution: the payment's order_id must match what the client sent
-    if (rzpPayment.order_id !== razorpay_order_id) {
-      log.error('Payment order_id mismatch with Razorpay', {
-        expected: razorpay_order_id,
-        actual: rzpPayment.order_id,
-      });
-      return jsonResponse({ error: 'Payment order mismatch. Possible tampering.' }, 400, req, log);
-    }
-
-    // Only 'captured' = money actually moved to us.
-    // 'authorized' = bank approved but not yet debited (rare for UPI; happens for cards).
-    // Anything else (created, failed, refunded) = NOT a successful payment.
-    if (rzpPayment.status !== 'captured' && rzpPayment.status !== 'authorized') {
-      log.warn('Payment not captured', {
-        orderId: internal_order_id,
-        razorpayPaymentId: razorpay_payment_id,
-        status: rzpPayment.status,
-      });
-      return jsonResponse({
-        error: `Payment was not completed (status: ${rzpPayment.status}). Please try again.`,
-        razorpay_status: rzpPayment.status,
-      }, 402, req, log);
-    }
-
-    // Amount cross-check — gateway amount (paise) must match order total
-    const expectedPaise = Math.round(order.total_amount * 100);
-    if (rzpPayment.amount !== expectedPaise) {
-      log.error('Payment amount mismatch', {
-        expected: expectedPaise,
-        actual: rzpPayment.amount,
-      });
-      return jsonResponse({ error: 'Payment amount mismatch. Please contact support.' }, 400, req, log);
-    }
-
-    log.info('Payment confirmed captured by Razorpay', {
-      orderId: internal_order_id,
-      status: rzpPayment.status,
-      method: rzpPayment.method,
-    });
 
     // ── Atomic DB update: order status + payment record ───────
     const { data: result, error: rpcErr } = await adminClient.rpc('verify_payment_and_update', {

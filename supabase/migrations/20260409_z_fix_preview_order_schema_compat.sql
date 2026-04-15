@@ -80,6 +80,14 @@ BEGIN
       );
     END IF;
 
+    IF v_product.is_available = false THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRODUCT_UNAVAILABLE',
+        'message', format('Product %s is currently unavailable', v_item->>'product_id')
+      );
+    END IF;
+
     v_quantity := GREATEST(COALESCE((v_item->>'quantity')::INT, 1), 1);
 
     v_unit_price := CASE COALESCE(v_item->>'plan', '3d')

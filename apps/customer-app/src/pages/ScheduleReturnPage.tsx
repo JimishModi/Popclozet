@@ -163,22 +163,6 @@ const ScheduleReturnPage: React.FC = () => {
         );
     }
 
-    // Buyout orders cannot be returned
-    if (order.order_type === 'buyout') {
-        return (
-            <MobileShell className="bg-[#111111] text-white flex flex-col items-center justify-center px-6">
-                <p className="text-zinc-400 mb-2 text-lg font-semibold" style={dmSans}>No return needed</p>
-                <p className="text-zinc-500 text-sm mb-6 text-center">This is a purchased item — it's yours to keep!</p>
-                <button
-                    onClick={() => navigate('/closet')}
-                    className="px-6 py-3 bg-[#f2546d] rounded-2xl font-bold"
-                >
-                    Back to Closet
-                </button>
-            </MobileShell>
-        );
-    }
-
     const orderItems = (order.order_items ?? []) as OrderItemCard[];
     const heroImage = orderItems[0]?.product?.images?.[0];
     const itemsCount = orderItems.length;

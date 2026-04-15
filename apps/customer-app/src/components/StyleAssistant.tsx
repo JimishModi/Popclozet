@@ -15,7 +15,7 @@ You are the popclozet Style Assistant. You help users pick outfits from our rent
         We offer premium fashion rentals {(() => {
             try {
                 const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                return 'delivered in 60 minutes';
+                return loc.delivery_estimate === 'delayed' ? 'with reliable tracked delivery' : 'delivered in 60 minutes';
             } catch {
                 return 'delivered in 60 minutes';
             }

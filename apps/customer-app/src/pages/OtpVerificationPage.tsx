@@ -83,33 +83,20 @@ export default function OtpVerificationPage() {
       const accessToken = msg91Data?.message;
       if (!accessToken) throw new Error('OTP verification failed. No token received.');
 
-      // Step 2: Edge function (retry once on CORS/network failure)
-      let res: Response | undefined;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          res = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-token`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY!,
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              },
-              body: JSON.stringify({ accessToken, mobile: phoneNumber }),
-            }
-          );
-          break; // success — exit retry loop
-        } catch (fetchErr) {
-          if (attempt === 0) {
-            // First failure is likely a cold-start CORS issue — wait and retry
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-          throw fetchErr; // second failure — give up
+      // Step 2: Edge function
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ accessToken, mobile: phoneNumber }),
         }
-      }
-      const result = await res!.json();
+      );
+      const result = await res.json();
       if (!result.success) {
         throw new Error(result.details ? `${result.error}: ${result.details}` : (result.error || 'Server verification failed.'));
       }

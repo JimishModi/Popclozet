@@ -79,12 +79,13 @@ const NON_PHYSICAL_UNIT_STATUSES = new Set([
     'sold',
     'lost',
     'damaged',
+    'archived',
     'instantly_bought',
 ]);
 
 const normalizePhysicalUnit = (unit: any): PhysicalUnitInProfile => ({
     ...unit,
-    mrp: unit.mrp ?? null,
+    mrp: unit.mrp ?? unit.mrp_price ?? null,
 });
 
 /**
@@ -107,8 +108,18 @@ export async function getFullProductProfile(productId: string): Promise<FullProd
         .eq('product_id', productId)
         .order('size');
 
+    if (invErr || !inventoryRows || inventoryRows.length === 0) {
+        const fallbackInventory = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('item_id', productId)
+            .order('size');
+
+        inventoryRows = fallbackInventory.data || [];
+        invErr = fallbackInventory.error;
+    }
+
     if (invErr) throw invErr;
-    inventoryRows = inventoryRows || [];
 
     // Fetch all physical units for this product
     const inventoryIds = (inventoryRows || []).map((r: any) => r.id);
@@ -280,7 +291,7 @@ export async function addStockToInventory(
                 inventory_id: inventoryId,
                 status: 'available',
                 available: true,
-                mrp: mrp ?? null,
+                mrp_price: mrp ?? null,
                 actual_cost: actualCost ?? null,
             });
 
@@ -375,11 +386,11 @@ export async function updateProductProfile(productId: string, update: ProductUpd
 }
 
 /**
- * Transition a physical unit to a new status
+ * Transition a physical unit to a new status (e.g. from available to archived)
  */
 export async function setUnitStatus(
     individualId: string,
-    newStatus: 'available' | 'ready' | 'returned' | 'rented' | 'sold' | 'washing' | 'lost' | 'damaged',
+    newStatus: 'available' | 'ready' | 'returned' | 'rented' | 'sold' | 'washing' | 'archived' | 'lost' | 'damaged',
     actorId: string = 'system'
 ): Promise<void> {
     const { error } = await supabase
@@ -403,29 +414,30 @@ export async function setUnitStatus(
 }
 
 /**
- * Permanently delete a physical unit row from all_products.
- * Inventory counts are kept in sync by the database
- * delete trigger (recalculate_inventory_stock_from_units).
+ * Archive a physical unit that should no longer count as active stock.
  */
-export async function deletePhysicalUnit(
-    individualId: string,
-    actorId: string = 'system',
-    unitStatus?: string,
-): Promise<void> {
-    const { error, count } = await supabase
+export async function archivePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
+    return setUnitStatus(individualId, 'archived', actorId);
+}
+
+/**
+ * Permanently delete a physical unit row from all_products.
+ * Inventory counts are kept in sync by the database delete trigger.
+ */
+export async function deletePhysicalUnit(individualId: string, actorId: string = 'system'): Promise<void> {
+    const { error } = await supabase
         .from('all_products')
-        .delete({ count: 'exact' })
+        .delete()
         .eq('individual_id', individualId);
 
     if (error) throw error;
-    if (count === 0) throw new Error(`Unit ${individualId} not found or could not be deleted`);
 
     await supabase.from('warehouse_activity_log').insert({
         actor_id: actorId === 'system' ? null : actorId,
         action: 'delete_unit',
         entity_type: 'individual_unit',
         entity_id: null,
-        details: { individual_id: individualId, status_at_deletion: unitStatus ?? 'unknown' },
+        details: { individual_id: individualId },
     });
 }
 

@@ -29,7 +29,6 @@ interface LiveRentalItem {
     status: string;
     type: 'current' | 'future';
     arrivalDays?: number;
-    isBuy?: boolean;
 }
 
 /* Small countdown/return icon (inline SVG) */
@@ -90,7 +89,7 @@ const LiveClosetPage: React.FC = () => {
                 for (const order of (orders ?? [])) {
                     const isDelivered = ['delivered', 'in_use'].includes(order.status);
                     const isInTransit = ['dispatched', 'out_for_delivery'].includes(order.status);
-                    const isPending = ['pending_payment', 'confirmed', 'packed', 'ready_for_pickup'].includes(order.status);
+                    const isPending = ['confirmed', 'packed', 'ready_for_pickup'].includes(order.status);
 
                     const endDate = order.rental_end_date ? new Date(order.rental_end_date) : null;
                     const startDate = order.rental_start_date ? new Date(order.rental_start_date) : null;
@@ -111,9 +110,6 @@ const LiveClosetPage: React.FC = () => {
                     for (const item of (order.order_items ?? [])) {
                         const product = item.products as any;
                         if (!product) continue;
-                        const isBuyItem = (item as any).pricing_plan === 'buy';
-                        // Buy items: show while in transit, hide once delivered
-                        if (isBuyItem && isDelivered) continue;
 
                         items.push({
                             id: item.id,
@@ -133,7 +129,6 @@ const LiveClosetPage: React.FC = () => {
                             status: order.status,
                             type: isDelivered ? 'current' : 'future',
                             arrivalDays: isDelivered ? undefined : arrivalDays,
-                            isBuy: isBuyItem,
                         });
                     }
                 }
@@ -445,11 +440,6 @@ const LiveClosetPage: React.FC = () => {
                                                     : `Arriving in ${item.arrivalDays} Days`}
                                             </span>
                                         </div>
-                                        {item.isBuy && (
-                                            <div className="absolute bottom-3 left-3 bg-pink-500/80 backdrop-blur-md rounded-full px-2.5 py-0.5">
-                                                <span className="text-[10px] font-bold text-white uppercase">Purchased</span>
-                                            </div>
-                                        )}
 
                                         {/* Size badge */}
                                         {item.size && (

@@ -54,7 +54,7 @@ const Index = () => {
   const [heroSubmitting, setHeroSubmitting] = useState(false);
   const [heroSuccess, setHeroSuccess] = useState(false);
   const [heroError, setHeroError] = useState<string | null>(null);
-  const [deliveryEstimate, setDeliveryEstimate] = useState<'60min' | null>(null);
+  const [deliveryEstimate, setDeliveryEstimate] = useState<'15min' | 'delayed' | null>(null);
 
   useEffect(() => {
     const stored = locationStorage.get();
@@ -172,7 +172,9 @@ const Index = () => {
                 >
                   New Outfit Everyday!
                   <br />
-                  {"Delivered in 60 Minutes!"}
+                  {deliveryEstimate === 'delayed' 
+                    ? "Expected Delayed Delivery!" 
+                    : "Delivered in 60 Minutes!"}
                 </span>
               </motion.h1>
 

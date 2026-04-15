@@ -26,7 +26,7 @@ const HassleReturn = () => {
       description: (() => {
         try {
           const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-          return 'Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.';
+          return loc.delivery_estimate === 'delayed' ? 'Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear with our delayed delivery service.' : 'Your plans are spontaneous, so are we. Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.';
         } catch {
           return 'Your outfit arrives at your door, fresh, clean, and ready to wear in 60 minutes.';
         }

@@ -373,26 +373,23 @@ export default function PickupTrackingPage() {
                 )}
 
                 {showOtp && (
-                    <motion.div
+                    <motion.section
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="mx-5 mb-6 p-5 rounded-3xl bg-gradient-to-br from-[#f2546d]/20 to-pink-900/10 border border-[#f2546d]/30 shadow-xl shadow-[#f2546d]/10"
+                        className="mx-5 mb-6 p-5 rounded-3xl bg-zinc-900 border border-[#f2546d]/30"
                     >
                         <div className="flex items-center gap-2 mb-3">
                             <KeyRound className="w-4 h-4 text-[#f2546d]" />
-                            <span className="text-xs font-black text-[#f2546d] uppercase tracking-[0.2em]">Return PIN</span>
+                            <span className="text-xs font-black text-[#f2546d] uppercase tracking-[0.2em]">Return Pickup OTP</span>
                         </div>
-                        <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-3">
                             {(order.otp_return as string).split('').map((digit: string, i: number) => (
-                                <div key={i} className="flex-1 aspect-square max-w-[56px] flex items-center justify-center rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black shadow-inner">
+                                <div key={i} className="flex-1 aspect-square rounded-2xl bg-white/10 border border-[#f2546d]/30 text-white text-2xl font-black flex items-center justify-center">
                                     {digit}
                                 </div>
                             ))}
                         </div>
-                        <p className="text-xs text-zinc-400 text-center font-medium">
-                            Show this code to your rider when they arrive
-                        </p>
-                    </motion.div>
+                    </motion.section>
                 )}
 
                 {items.length > 0 && (

@@ -39,6 +39,8 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
         ? 'bg-emerald-500 text-black'
         : item.status === 'rented'
         ? 'bg-blue-500 text-white'
+        : item.status === 'archived'
+        ? 'bg-zinc-600 text-white'
         : item.status === 'instantly_bought'
         ? 'bg-purple-500 text-white'
         : 'bg-red-500 text-white';
@@ -77,7 +79,7 @@ export function ProductActionCard({ item, onClose, onActionComplete }: ProductAc
                 </div>
 
                 {item.status !== 'available'
-                    && !['sold', 'lost', 'damaged', 'instantly_bought'].includes(item.status) && (
+                    && !['sold', 'lost', 'damaged', 'archived', 'instantly_bought'].includes(item.status) && (
                     <button
                         onClick={handleMarkAvailable}
                         disabled={processing}

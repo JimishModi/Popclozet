@@ -18,7 +18,7 @@ export const DeliveryBadge = () => {
                 {(() => {
                     try {
                         const loc = JSON.parse(localStorage.getItem('locationStorage') || '{}');
-                        return 'Delivered in 60 minutes';
+                        return loc.delivery_estimate === 'delayed' ? 'Delayed Delivery' : 'Delivered in 60 minutes';
                     } catch {
                         return 'Delivered in 60 minutes';
                     }
