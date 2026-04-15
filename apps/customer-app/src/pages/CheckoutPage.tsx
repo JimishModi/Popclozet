@@ -72,7 +72,7 @@ import { WAREHOUSE, DELIVERY_THRESHOLDS } from "@/lib/serviceAreas";
 /* Constants                          */
 /* ---------------------------------- */
 const WAREHOUSE_LOCATION = WAREHOUSE;
-const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.MAX_KM;
+const MAX_DELIVERY_DISTANCE_KM = DELIVERY_THRESHOLDS.SERVICE_MAX_KM;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 

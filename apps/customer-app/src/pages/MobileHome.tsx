@@ -63,7 +63,7 @@ const MobileHome: React.FC = () => {
     const [loadingCatalogue, setLoadingCatalogue] = useState(!cachedHome);
     const [catalogueError, setCatalogueError] = useState(false);
     const catalogueRetryCount = useRef(0);
-    const [deliveryEstimate, setDeliveryEstimate] = useState<'60min'>('60min');
+    const [deliveryEstimate, setDeliveryEstimate] = useState<'60min' | '15min' | 'delayed'>('60min');
     const [collections, setCollections] = useState<{ id: string; title: string; image: string }[]>([]);
 
     const { selectedHub } = useNearbyHubs({

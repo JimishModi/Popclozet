@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@popclozet/api-client';
 import { DeliveryOrder } from '@/services/deliveryService';
-import { confirmCodPayment } from '@/services/ordersService';
+import { confirmOrderPayment } from '@/services/ordersService';
 import { calculateHaversineDistance as calculateDistance } from '@/lib/locationUtils';
 import { WAREHOUSE, DELIVERY_THRESHOLDS } from '@/lib/serviceAreas';
 import { buildManualAddressSummary } from '@/lib/addressAccuracy';
@@ -61,7 +61,7 @@ export default function DeliveryTrackingPage() {
         }
         setIsConfirmingCash(true);
         try {
-            await confirmCodPayment(orderId, 'cash');
+            await confirmOrderPayment(orderId);
             setCodPaymentDone(true);
             setShowPayDrawer(false);
             toast.success('Payment confirmed! Your delivery OTP is now visible.');
