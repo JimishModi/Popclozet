@@ -1,9 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-// VitePWA is intentionally DISABLED in dev to stop the service worker
-// from caching stale bundles. Re-enable only for production builds.
-// import { VitePWA } from "vite-plugin-pwa";
 // import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig(({ mode }) => {
@@ -29,10 +26,9 @@ export default defineConfig(({ mode }) => {
       // basicSsl(),
       react(),
 
-      // VitePWA disabled — service worker aggressively cached stale
-      // JS bundles during `npm run dev`, blocking new frontend code
-      // from reaching the browser. Re-register explicitly when
-      // reintroducing PWA support, and keep `devOptions.enabled: false`.
+      // Service worker lives at public/sw.js (plain JS, no build step).
+      // In dev mode, main.tsx registers public/dev-sw.js for push testing.
+      // In production, UpdatePrompt.tsx registers /sw.js via workbox-window.
     ],
 
     /**

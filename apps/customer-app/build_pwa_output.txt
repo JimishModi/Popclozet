@@ -1,0 +1,94 @@
+﻿[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 3011 modules transformed.
+rendering chunks...
+npx : [1m[33m[plugin:vite:reporter][39m[22m [33m[plugin vite:reporter] 
+At line:1 char:1
++ npx vite build 2>&1 | Out-File -FilePath "build_pwa_output.txt" -Enco ...
++ ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([1m[33m[plugi...vite:reporter] :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) C:/Users/reddy/Downloads/PopCLozet-Apps-2/packages/map-core/src/index.ts is dynamically imported by 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/pages/MobileHome.tsx but also statically imported by 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/App.tsx, 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/services/mapService.ts, 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/packages/api-client/src/rentalOrderService.ts, dynamic import will not move 
+module into another chunk.
+[39m
+[1m[33m[plugin:vite:reporter][39m[22m [33m[plugin vite:reporter] 
+(!) C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/services/profileService.ts is dynamically imported 
+by C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/pages/AddressSelectionPage.tsx, 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/pages/MapLocationPage.tsx, 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/pages/MobileHome.tsx but also statically imported by 
+C:/Users/reddy/Downloads/PopCLozet-Apps-2/apps/customer-app/src/context/SupabaseAuthContext.tsx, dynamic import will 
+not move module into another chunk.
+[39m
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m   11.12 kB[22m[1m[22m[2m Γöé gzip:   3.94 kB[22m
+[2mdist/[22m[32massets/share-button-DUUB1EQV.svg               [39m[1m[2m   12.87 kB[22m[1m[22m[2m Γöé gzip:   8.49 kB[22m
+[2mdist/[22m[32massets/logo-rf7mq0Bx.png                       [39m[1m[2m   31.11 kB[22m[1m[22m
+[2mdist/[22m[32massets/cocktail-CLu-PUvH.jpg                   [39m[1m[2m   67.87 kB[22m[1m[22m
+[2mdist/[22m[32massets/trendy-outfits-Bv9npocA.webp            [39m[1m[2m   74.69 kB[22m[1m[22m
+[2mdist/[22m[32massets/download-D9qGA1zO.jpg                   [39m[1m[2m   85.27 kB[22m[1m[22m
+[2mdist/[22m[32massets/formal-DheSiOQo.jpg                     [39m[1m[2m   97.14 kB[22m[1m[22m
+[2mdist/[22m[32massets/party-DWIa8TyL.jpg                      [39m[1m[2m  117.94 kB[22m[1m[22m
+[2mdist/[22m[32massets/casuals-BNgjZGic.jpg                    [39m[1m[2m  118.99 kB[22m[1m[22m
+[2mdist/[22m[32massets/streetwear-fL-pp-Ge.jpg                 [39m[1m[2m  126.60 kB[22m[1m[22m
+[2mdist/[22m[32massets/vacation-CZnyXO_j.jpg                   [39m[1m[2m  138.76 kB[22m[1m[22m
+[2mdist/[22m[32massets/popclozet-logo-DzZPoGoH.svg             [39m[1m[2m  352.75 kB[22m[1m[22m[2m Γöé gzip: 128.92 kB[22m
+[2mdist/[22m[32massets/story-choice-BLxpnpqb.png               [39m[1m[2m  544.87 kB[22m[1m[22m
+[2mdist/[22m[32massets/hero-business-D1ocoYPu.png              [39m[1m[2m  776.01 kB[22m[1m[22m
+[2mdist/[22m[32massets/hero-wedding-CIYFq1nx.png               [39m[1m[2m  786.90 kB[22m[1m[22m
+[2mdist/[22m[32massets/hero-vacation-B7Ko8B16.png              [39m[1m[2m  864.82 kB[22m[1m[22m
+[2mdist/[22m[32massets/gender-women-CgjMbwL9.png               [39m[1m[2m  897.58 kB[22m[1m[22m
+[2mdist/[22m[32massets/gender-men-n65mGLP4.png                 [39m[1m[2m1,057.48 kB[22m[1m[22m
+[2mdist/[22m[32massets/hero-party-vdL5sBP4.png                 [39m[1m[2m1,154.64 kB[22m[1m[22m
+[2mdist/[22m[35massets/index-CUQ9brVe.css                      [39m[1m[2m2,300.75 kB[22m[1m[22m[2m Γöé gzip: 166.42 kB[22m
+[2mdist/[22m[36massets/haversine-5HLwZDNg.js                   [39m[1m[2m    0.22 kB[22m[1m[22m[2m Γöé gzip:   0.17 kB[22m
+[2mdist/[22m[36massets/log-out-wIsjJzWz.js                     [39m[1m[2m    0.40 kB[22m[1m[22m[2m Γöé gzip:   0.29 kB[22m
+[2mdist/[22m[36massets/circle-question-mark-BCTwzcod.js        [39m[1m[2m    0.42 kB[22m[1m[22m[2m Γöé gzip:   0.31 kB[22m
+[2mdist/[22m[36massets/calendar-days-DDPVClek.js               [39m[1m[2m    0.67 kB[22m[1m[22m[2m Γöé gzip:   0.37 kB[22m
+[2mdist/[22m[36massets/AuthCallback-HCewn8JV.js                [39m[1m[2m    0.80 kB[22m[1m[22m[2m Γöé gzip:   0.48 kB[22m
+[2mdist/[22m[36massets/lock-CW2QXnkg.js                        [39m[1m[2m    0.93 kB[22m[1m[22m[2m Γöé gzip:   0.47 kB[22m
+[2mdist/[22m[36massets/EmailVerifyCallbackPage-Dl7TIq_w.js     [39m[1m[2m    2.30 kB[22m[1m[22m[2m Γöé gzip:   1.10 kB[22m
+[2mdist/[22m[36massets/mapServices-BuRSXJm1.js                 [39m[1m[2m    2.33 kB[22m[1m[22m[2m Γöé gzip:   1.03 kB[22m
+[2mdist/[22m[36massets/OnboardingPage-8dQ3FC7s.js              [39m[1m[2m    2.99 kB[22m[1m[22m[2m Γöé gzip:   0.95 kB[22m
+[2mdist/[22m[36massets/SignOutPage-CRZSkIOA.js                 [39m[1m[2m    3.05 kB[22m[1m[22m[2m Γöé gzip:   1.27 kB[22m
+[2mdist/[22m[36massets/WelcomePage-DcqhnSqy.js                 [39m[1m[2m    3.68 kB[22m[1m[22m[2m Γöé gzip:   1.16 kB[22m
+[2mdist/[22m[36massets/CreateAccountPage-B9kiUHQl.js           [39m[1m[2m    3.73 kB[22m[1m[22m[2m Γöé gzip:   1.68 kB[22m
+[2mdist/[22m[36massets/HowItWorksPage-BZs6nYph.js              [39m[1m[2m    4.35 kB[22m[1m[22m[2m Γöé gzip:   1.56 kB[22m
+[2mdist/[22m[36massets/SignInPage-CyOOdU_P.js                  [39m[1m[2m    4.90 kB[22m[1m[22m[2m Γöé gzip:   1.84 kB[22m
+[2mdist/[22m[36massets/PaymentFailedPage-BqqZQfGi.js           [39m[1m[2m    5.29 kB[22m[1m[22m[2m Γöé gzip:   1.64 kB[22m
+[2mdist/[22m[36massets/PaymentProcessingPage-Do1lukWU.js       [39m[1m[2m    5.31 kB[22m[1m[22m[2m Γöé gzip:   2.35 kB[22m
+[2mdist/[22m[36massets/LoginPage-Rv_O6N8a.js                   [39m[1m[2m    5.41 kB[22m[1m[22m[2m Γöé gzip:   2.21 kB[22m
+[2mdist/[22m[36massets/CheckoutReturnSchedulePage-zvX_LKtW.js  [39m[1m[2m    6.09 kB[22m[1m[22m[2m Γöé gzip:   2.08 kB[22m
+[2mdist/[22m[36massets/AddressAccuracyPage-DG3l03VH.js         [39m[1m[2m    6.35 kB[22m[1m[22m[2m Γöé gzip:   1.72 kB[22m
+[2mdist/[22m[36massets/CollectionsPage-D5kihzxl.js             [39m[1m[2m    6.76 kB[22m[1m[22m[2m Γöé gzip:   2.08 kB[22m
+[2mdist/[22m[36massets/AddressSelectionPage-D3s_prbS.js        [39m[1m[2m    6.80 kB[22m[1m[22m[2m Γöé gzip:   2.76 kB[22m
+[2mdist/[22m[36massets/PaymentSuccessPage-DndnoE9N.js          [39m[1m[2m    7.56 kB[22m[1m[22m[2m Γöé gzip:   2.70 kB[22m
+[2mdist/[22m[36massets/ClosetPage-b75tmqqq.js                  [39m[1m[2m    8.67 kB[22m[1m[22m[2m Γöé gzip:   3.01 kB[22m
+[2mdist/[22m[36massets/SignUpPage-Cfoc7hlC.js                  [39m[1m[2m    8.99 kB[22m[1m[22m[2m Γöé gzip:   2.51 kB[22m
+[2mdist/[22m[36massets/ScheduleReturnPage-LjAhJKj5.js          [39m[1m[2m    9.68 kB[22m[1m[22m[2m Γöé gzip:   3.06 kB[22m
+[2mdist/[22m[36massets/OrderConfirmedPage-tEQ4C4B8.js          [39m[1m[2m   10.94 kB[22m[1m[22m[2m Γöé gzip:   3.37 kB[22m
+[2mdist/[22m[36massets/SettingsPage-CtDhhWJV.js                [39m[1m[2m   11.70 kB[22m[1m[22m[2m Γöé gzip:   3.62 kB[22m
+[2mdist/[22m[36massets/LiveClosetPage-BYOSRT1d.js              [39m[1m[2m   13.37 kB[22m[1m[22m[2m Γöé gzip:   4.02 kB[22m
+[2mdist/[22m[36massets/CategoryProductsPage-BslNNmky.js        [39m[1m[2m   14.84 kB[22m[1m[22m[2m Γöé gzip:   4.93 kB[22m
+[2mdist/[22m[36massets/OtpVerificationPage-CktGWB99.js         [39m[1m[2m   18.92 kB[22m[1m[22m[2m Γöé gzip:   7.29 kB[22m
+[2mdist/[22m[36massets/format-Cdttx4Da.js                      [39m[1m[2m   19.72 kB[22m[1m[22m[2m Γöé gzip:   5.59 kB[22m
+[2mdist/[22m[36massets/DeliveryTrackingPage-CgEfCImB.js        [39m[1m[2m   25.35 kB[22m[1m[22m[2m Γöé gzip:   6.98 kB[22m
+[2mdist/[22m[36massets/CartPage-9_4IC99o.js                    [39m[1m[2m   26.54 kB[22m[1m[22m[2m Γöé gzip:   7.96 kB[22m
+[2mdist/[22m[36massets/ProfilePage-VxjqRGAZ.js                 [39m[1m[2m   27.57 kB[22m[1m[22m[2m Γöé gzip:   7.57 kB[22m
+[2mdist/[22m[36massets/MapLocationPage-ZgdYcXwT.js             [39m[1m[2m   35.74 kB[22m[1m[22m[2m Γöé gzip:  10.92 kB[22m
+[2mdist/[22m[36massets/animations-DvMj-NNd.js                  [39m[1m[2m  107.96 kB[22m[1m[22m[2m Γöé gzip:  36.59 kB[22m
+[2mdist/[22m[36massets/vendor-CFJGYGZ2.js                      [39m[1m[2m  163.98 kB[22m[1m[22m[2m Γöé gzip:  53.57 kB[22m
+[2mdist/[22m[36massets/ReceiptPDF-CIzQ0KOw.js                  [39m[1m[33m1,042.81 kB[39m[22m[2m Γöé gzip: 726.11 kB[22m
+[2mdist/[22m[36massets/index-ZQfnk_ft.js                       [39m[1m[33m1,210.84 kB[39m[22m[2m Γöé gzip: 357.44 kB[22m
+[2mdist/[22m[36massets/react-pdf.browser-BAdnqqpp.js           [39m[1m[33m1,571.69 kB[39m[22m[2m Γöé gzip: 527.46 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: 
+https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32mΓ£ô built in 1m 24s[39m

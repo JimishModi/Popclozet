@@ -950,28 +950,66 @@ Deno.serve(async (req: Request) => {
   }
 
   // ==========================================
-  // CRON: 1-hour return reminder
+  // CRON: auto-dispatch + 1-hour reminder
   // ==========================================
   if (type === "CRON") {
-    log.info("Executing CRON 1-hour reminder check...");
-    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    const next15Mins = new Date(Date.now() + 75 * 60 * 1000).toISOString();
+    log.info("CRON: running auto-dispatch + reminder check");
+
+    // ── 1. Auto-dispatch returns within the next 60 minutes ──────────────────
+    // Belt-and-suspenders: pg_cron also calls auto_dispatch_pre_scheduled_returns()
+    // directly every 15 min via SQL, but we call it here too as a fallback.
+    // When the RPC transitions an order to 'return_scheduled':
+    //   → broadcast_order_to_riders trigger creates rider_notifications rows
+    //   → trg_orders_notify_webhook trigger queues an async webhook call
+    //   → The 'return_scheduled' UPDATE handler below sends warehouse push +
+    //     customer push + rider pushes (via sendRideRequestPushesForOrder)
+    const { data: dispatchData, error: dispatchError } = await supabase.rpc(
+      "auto_dispatch_pre_scheduled_returns",
+    );
+    if (dispatchError) {
+      log.error("auto_dispatch RPC failed", { error: dispatchError.message });
+    } else {
+      log.info("auto_dispatch complete", {
+        dispatched: dispatchData?.dispatched_count ?? 0,
+      });
+    }
+
+    // ── 2. Customer 1-hour reminder for upcoming approved return_requests ─────
+    // FIX: widen the window from [now+60, now+75) to [now+45, now+75) so a
+    // cron that fires up to 15 minutes early still catches the pickup.
+    // Dedup via the notifications table so reminders are sent at most once.
+    const windowStart = new Date(Date.now() + 45 * 60 * 1000).toISOString();
+    const windowEnd   = new Date(Date.now() + 75 * 60 * 1000).toISOString();
 
     const { data: upcomingReturns } = await supabase
       .from("return_requests")
       .select("id, order_id, pickup_slot")
-      .gte("pickup_slot", oneHourFromNow)
-      .lt("pickup_slot", next15Mins)
+      .gte("pickup_slot", windowStart)
+      .lt("pickup_slot", windowEnd)
       .eq("status", "approved");
 
-    if (upcomingReturns) {
+    if (upcomingReturns?.length) {
       for (const ret of upcomingReturns) {
+        // Dedup: skip if a reminder was already sent for this order
+        const { data: existing } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("order_id", ret.order_id)
+          .eq("type", "return_scheduled")
+          .eq("title", "⏰ Return Reminder")
+          .limit(1);
+        if (existing?.length) continue;
+
         const { data: ord } = await supabase
           .from("orders")
-          .select("user_id")
+          .select("user_id, status")
           .eq("id", ret.order_id)
           .single();
-        if (ord?.user_id) {
+
+        // Only send reminder if the order hasn't been dispatched yet
+        if (!ord || !["delivered", "in_use"].includes(ord.status)) continue;
+
+        if (ord.user_id) {
           await sendPush(
             ord.user_id,
             "⏰ Return Reminder",
@@ -994,6 +1032,11 @@ Deno.serve(async (req: Request) => {
         );
       }
     }
+
+    log.info("CRON complete", {
+      dispatched: dispatchData?.dispatched_count ?? 0,
+      reminders: upcomingReturns?.length ?? 0,
+    });
   }
 
   return jsonResponse(

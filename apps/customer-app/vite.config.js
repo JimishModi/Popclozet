@@ -1,9 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-// VitePWA is intentionally DISABLED in dev to stop the service worker
-// from caching stale bundles. Re-enable only for production builds.
-// import { VitePWA } from "vite-plugin-pwa";
+// import basicSsl from "@vitejs/plugin-basic-ssl";
 export default defineConfig(function (_a) {
     var mode = _a.mode;
     // Load env file from the current directory
@@ -22,7 +20,9 @@ export default defineConfig(function (_a) {
         plugins: [
             // basicSsl(),
             react(),
-            // VitePWA disabled — service worker cached stale JS bundles in dev.
+            // Service worker lives at public/sw.js (plain JS, no build step).
+            // In dev mode, main.tsx registers public/dev-sw.js for push testing.
+            // In production, UpdatePrompt.tsx registers /sw.js via workbox-window.
         ],
         /**
          * 🔑 Monorepo internal package resolution

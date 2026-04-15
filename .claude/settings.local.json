@@ -1,6 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(npx supabase:*)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__deploy_edge_function"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "code-review-graph"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
