@@ -10,10 +10,10 @@ import {
     RotateCcw, XCircle, X, ShieldAlert, Clock,
 } from 'lucide-react';
 
-// Notification sounds
-const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+// Notification sounds (local files to avoid CSP blocks)
+const NOTIFICATION_SOUND_URL = '/sounds/notification.mp3';
 // Loud urgent alarm for critical events (new order, instant return)
-const URGENT_ALARM_URL = 'https://assets.mixkit.co/active_storage/sfx/2645/2645-preview.mp3';
+const URGENT_ALARM_URL = '/sounds/urgent-alarm.mp3';
 
 // ─── Activity Toast config ─────────────────────────────────────────────────────
 

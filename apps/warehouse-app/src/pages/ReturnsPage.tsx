@@ -121,12 +121,12 @@ export function ReturnsPage() {
         () => withActiveFlow
             .filter((r) => r.reason !== 'immediate')
             .sort((a, b) => {
-                // Sort by pickup_slot (date) first
+                // Sort by pickup_slot (date) — latest first
                 const dateA = a.pickup_slot ? new Date(a.pickup_slot).getTime() : 0;
                 const dateB = b.pickup_slot ? new Date(b.pickup_slot).getTime() : 0;
-                if (dateA !== dateB) return dateA - dateB;
-                // Then by request time (created_at)
-                return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                if (dateA !== dateB) return dateB - dateA;
+                // Then by request time (latest first)
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             }),
         [withActiveFlow],
     );
@@ -273,7 +273,7 @@ export function ReturnsPage() {
                         </div>
                         {request.reason !== 'immediate' && request.status === 'approved' && (
                             <p className="text-[10px] text-purple-400/80 mt-1">
-                                Auto-dispatch 60 min before pickup
+                                Auto-dispatch 30 min before pickup
                             </p>
                         )}
                     </div>

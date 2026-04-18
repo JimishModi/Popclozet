@@ -950,12 +950,12 @@ Deno.serve(async (req: Request) => {
   }
 
   // ==========================================
-  // CRON: auto-dispatch + 1-hour reminder
+  // CRON: auto-dispatch + 1-hour & 15-min reminders
   // ==========================================
   if (type === "CRON") {
     log.info("CRON: running auto-dispatch + reminder check");
 
-    // ── 1. Auto-dispatch returns within the next 60 minutes ──────────────────
+    // ── 1. Auto-dispatch returns within the next 30 minutes ──────────────────
     // Belt-and-suspenders: pg_cron also calls auto_dispatch_pre_scheduled_returns()
     // directly every 15 min via SQL, but we call it here too as a fallback.
     // When the RPC transitions an order to 'return_scheduled':
@@ -974,29 +974,43 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── Helper: check if an order has an instant return or return already in progress ──
+    const shouldSkipReminder = async (orderId: string): Promise<boolean> => {
+      const { data: returnReqs } = await supabase
+        .from("return_requests")
+        .select("reason, status")
+        .eq("order_id", orderId);
+      if (!returnReqs?.length) return false;
+      return returnReqs.some(
+        (rr: any) =>
+          rr.reason === "immediate" ||
+          ["dispatched", "picked_up", "completed"].includes(rr.status),
+      );
+    };
+
     // ── 2. Customer 1-hour reminder for upcoming approved return_requests ─────
-    // FIX: widen the window from [now+60, now+75) to [now+45, now+75) so a
-    // cron that fires up to 15 minutes early still catches the pickup.
-    // Dedup via the notifications table so reminders are sent at most once.
-    const windowStart = new Date(Date.now() + 45 * 60 * 1000).toISOString();
-    const windowEnd   = new Date(Date.now() + 75 * 60 * 1000).toISOString();
+    // Window: [now+45, now+75) to absorb 15-min cron drift.
+    // Dedup via notification_key (unique index) so reminders are sent at most once.
+    const window1hStart = new Date(Date.now() + 45 * 60 * 1000).toISOString();
+    const window1hEnd   = new Date(Date.now() + 75 * 60 * 1000).toISOString();
 
     const { data: upcomingReturns } = await supabase
       .from("return_requests")
       .select("id, order_id, pickup_slot")
-      .gte("pickup_slot", windowStart)
-      .lt("pickup_slot", windowEnd)
+      .gte("pickup_slot", window1hStart)
+      .lt("pickup_slot", window1hEnd)
       .eq("status", "approved");
 
+    let reminders1hSent = 0;
     if (upcomingReturns?.length) {
       for (const ret of upcomingReturns) {
-        // Dedup: skip if a reminder was already sent for this order
+        const notifKey = `return_reminder_1h:${ret.order_id}`;
+
+        // Dedup: skip if this reminder was already sent
         const { data: existing } = await supabase
           .from("notifications")
           .select("id")
-          .eq("order_id", ret.order_id)
-          .eq("type", "return_scheduled")
-          .eq("title", "⏰ Return Reminder")
+          .eq("notification_key", notifKey)
           .limit(1);
         if (existing?.length) continue;
 
@@ -1006,15 +1020,18 @@ Deno.serve(async (req: Request) => {
           .eq("id", ret.order_id)
           .single();
 
-        // Only send reminder if the order hasn't been dispatched yet
+        // Only send if order is still in pre-return state
         if (!ord || !["delivered", "in_use"].includes(ord.status)) continue;
+
+        // Skip if instant return was triggered or return is already in progress
+        if (await shouldSkipReminder(ret.order_id)) continue;
 
         if (ord.user_id) {
           await sendPush(
             ord.user_id,
             "⏰ Return Reminder",
             "Your return driver will arrive in approximately 1 hour!",
-            "/orders",
+            `/tracking/${ret.order_id}`,
           );
           await supabase.from("notifications").insert({
             user_id: ord.user_id,
@@ -1022,8 +1039,10 @@ Deno.serve(async (req: Request) => {
             title: "⏰ Return Reminder",
             message: "Your return driver will arrive in approximately 1 hour!",
             order_id: ret.order_id,
+            notification_key: notifKey,
             is_read: false,
           });
+          reminders1hSent++;
         }
         await sendWarehouseAll(
           "⏰ Upcoming Return Pickup",
@@ -1033,9 +1052,89 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── 3. Customer 15-minute reminder for imminent return pickups ────────────
+    // Window: [now+10, now+20) to absorb cron drift.
+    // Skip if rider is already assigned (customer already got "rider on the way").
+    const window15mStart = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const window15mEnd   = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+
+    const { data: imminentReturns } = await supabase
+      .from("return_requests")
+      .select("id, order_id, pickup_slot")
+      .gte("pickup_slot", window15mStart)
+      .lt("pickup_slot", window15mEnd)
+      .in("status", ["approved"]);
+
+    let reminders15mSent = 0;
+    if (imminentReturns?.length) {
+      for (const ret of imminentReturns) {
+        const notifKey = `return_reminder_15m:${ret.order_id}`;
+
+        // Dedup: skip if already sent
+        const { data: existing } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("notification_key", notifKey)
+          .limit(1);
+        if (existing?.length) continue;
+
+        const { data: ord } = await supabase
+          .from("orders")
+          .select("user_id, status, rider_id")
+          .eq("id", ret.order_id)
+          .single();
+
+        // Only send if order is still in pre-return state
+        if (!ord || !["delivered", "in_use"].includes(ord.status)) continue;
+
+        // Skip if rider already assigned (customer already got "rider on the way")
+        if (ord.rider_id) continue;
+
+        // Skip if instant return was triggered or return already in progress
+        if (await shouldSkipReminder(ret.order_id)) continue;
+
+        // Build slot window string (e.g. "7:00 PM - 8:00 PM")
+        const slotStart = new Date(ret.pickup_slot);
+        const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+        const fmtTime = (d: Date) =>
+          d.toLocaleTimeString("en-IN", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+          });
+        const slotWindow = `${fmtTime(slotStart)} - ${fmtTime(slotEnd)}`;
+
+        if (ord.user_id) {
+          await sendPush(
+            ord.user_id,
+            "📦 Return Pickup Soon",
+            `Your rider will arrive between ${slotWindow}. Please keep your items ready!`,
+            `/tracking/${ret.order_id}`,
+          );
+          await supabase.from("notifications").insert({
+            user_id: ord.user_id,
+            type: "return_scheduled",
+            title: "📦 Return Pickup Soon",
+            message: `Your rider will arrive between ${slotWindow}. Please keep your items ready!`,
+            order_id: ret.order_id,
+            notification_key: notifKey,
+            is_read: false,
+          });
+          reminders15mSent++;
+        }
+        await sendWarehouseAll(
+          "⏰ Return Pickup in 15 Minutes",
+          `Return pickup for Order #${shortId(ret.order_id)} starts in 15 minutes.`,
+          "/returns",
+        );
+      }
+    }
+
     log.info("CRON complete", {
       dispatched: dispatchData?.dispatched_count ?? 0,
-      reminders: upcomingReturns?.length ?? 0,
+      reminders_1h: reminders1hSent,
+      reminders_15m: reminders15mSent,
     });
   }
 

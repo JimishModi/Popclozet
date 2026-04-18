@@ -89,8 +89,21 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Order not found' }, 404, req, log);
     }
 
+    // Allow if rider is currently assigned OR was the delivery rider
+    // (rider_id may have been cleared when order moved to return_scheduled)
     if (order.rider_id !== user.id) {
-      return jsonResponse({ error: 'Only the assigned rider can collect payment' }, 403, req, log);
+      const { data: riderClaim } = await adminClient
+        .from('rider_notifications')
+        .select('id')
+        .eq('order_id', receipt)
+        .eq('rider_id', user.id)
+        .eq('status', 'accepted')
+        .limit(1)
+        .maybeSingle();
+
+      if (!riderClaim) {
+        return jsonResponse({ error: 'Only the assigned rider can collect payment' }, 403, req, log);
+      }
     }
 
     if (order.payment_method !== 'cod') {

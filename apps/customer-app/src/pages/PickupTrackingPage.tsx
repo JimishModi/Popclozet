@@ -421,9 +421,6 @@ export default function PickupTrackingPage() {
                                 >
                                     Instant Buy & Keep Items
                                 </button>
-                                <p className="text-[10px] text-center text-zinc-500 font-bold uppercase tracking-widest mt-2 px-6">
-                                    Option available until rider is 2.5km away
-                                </p>
                             </div>
                         )}
                     </section>
@@ -468,7 +465,6 @@ export default function PickupTrackingPage() {
                     <h3 className="text-sm font-semibold text-white mb-3">Need Help?</h3>
                     <div className="flex gap-3">
                         <a href="tel:+919426878548" className="flex-1 py-3 text-center bg-zinc-800 rounded-xl text-white text-sm font-medium">Call</a>
-                        <a href="mailto:business.popclozet@gmail.com" className="flex-1 py-3 text-center bg-zinc-800 rounded-xl text-white text-sm font-medium">Report</a>
                     </div>
                 </section>
 
