@@ -166,7 +166,7 @@ class ProductService {
             const { data: products, error } = await (supabase as any)
                 .from('products')
                 .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                .eq('is_available', true);
+                /* is_available filter removed — show sold out/rented out on UI */;
 
             if (error) throw error;
 
@@ -299,7 +299,6 @@ class ProductService {
                 const { data, error } = await (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                    .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -347,7 +346,7 @@ class ProductService {
                 let query = (supabase as any)
                     .from('products')
                     .select('brand')
-                    .eq('is_available', true);
+                    /* is_available filter removed — show sold out/rented out on UI */;
 
                 if (gender) {
                     const dbGender = gender === 'mens' ? 'men' : 'women';
@@ -421,7 +420,6 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
-                    .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -481,7 +479,6 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('event_category', event)
-                    .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -511,7 +508,6 @@ class ProductService {
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .in('gender', [dbGender, 'unisex'])
                     .eq('event_category', event)
-                    .eq('is_available', true)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -575,7 +571,7 @@ class ProductService {
                 let supabaseQuery = (supabase as any)
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-                    .eq('is_available', true);
+                    /* is_available filter removed — show sold out/rented out on UI */;
 
                 if (query.trim()) {
                     // Search in multiple fields using 'or' with case-insensitive 'ilike'
@@ -712,7 +708,6 @@ class ProductService {
                 .from('products')
                 .select('*')
                 .is('hygiene_sop_id', null)
-                .eq('is_available', true)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -794,7 +789,6 @@ class ProductService {
                     .from('products')
                     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
                     .eq('category', category)
-                    .eq('is_available', true)
                     .neq('id', excludeId)
                     .limit(limit);
 
@@ -815,69 +809,30 @@ class ProductService {
     // Get distinct categories with a representative image each
     async getCategories(): Promise<{ id: string; title: string; image: string }[]> {
         try {
-            // Primary source: category_configs table
-            const { data: configs, error: configError } = await (supabase as any)
-                .from('category_configs')
-                .select('category, display_name, image_url');
-
-            if (!configError && configs && configs.length > 0) {
-                // Determine which categories still need a fallback image
-                const categoriesNeedImage = configs.filter((c: any) => !c.image_url).map((c: any) => c.category);
-                
-                let fallbackImages = new Map<string, string>();
-                if (categoriesNeedImage.length > 0) {
-                    const { data: products } = await (supabase as any)
-                        .from('products')
-                        .select('category, images')
-                        .in('category', categoriesNeedImage)
-                        .eq('is_available', true);
-                    
-                    for (const p of products || []) {
-                        if (p.category && !fallbackImages.has(p.category)) {
-                            fallbackImages.set(p.category, (Array.isArray(p.images) ? p.images[0] : null) || '');
-                        }
-                    }
-                }
-
-                return configs.map((c: any) => ({
-                    id: c.category,
-                    title: c.display_name || (c.category.charAt(0).toUpperCase() + c.category.slice(1)),
-                    image: c.image_url || fallbackImages.get(c.category) || '',
-                }));
-            }
-
-            // Fallback: the old derivation for robustness
+            // Source of truth: category_configs table.
+            // Adding a new category to the app only requires inserting a row there —
+            // no code changes needed.
             const { data, error } = await (supabase as any)
-                .from('products')
-                .select('category, images')
-                .eq('is_available', true)
-                .not('category', 'is', null);
+                .from('category_configs')
+                .select('category, display_name, image_url')
+                .order('created_at', { ascending: true });
 
             if (error) throw error;
 
-            const seen = new Map<string, string>();
-            for (const p of data || []) {
-                const cat = p.category as string;
-                if (cat && !seen.has(cat)) {
-                    const img = (Array.isArray(p.images) ? p.images[0] : null) || '';
-                    seen.set(cat, img);
-                }
-            }
-
-            return Array.from(seen.entries()).map(([cat, img]) => ({
-                id: cat,
-                title: cat.charAt(0).toUpperCase() + cat.slice(1),
-                image: img,
+            return (data || []).map((row: any) => ({
+                id: row.category as string,
+                title: (row.display_name as string) || row.category,
+                image: (row.image_url as string) || '',
             }));
         } catch (error) {
             console.error('Error fetching categories:', (error as any)?.message ?? error);
-            // Deep fallback from IndexedDB
+            // Fallback: derive distinct categories from cached IndexedDB products
             const db = await this.initDB();
             const products = await db.getAll('products');
             const seen = new Map<string, string>();
             for (const p of products) {
                 if (p.category && !seen.has(p.category)) {
-                    seen.set(p.category, p.imageUrl);
+                    seen.set(p.category, p.imageUrl ?? '');
                 }
             }
             return Array.from(seen.entries()).map(([cat, img]) => ({

@@ -89,12 +89,14 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
             className={cn(
               "absolute inset-0 h-full w-full object-cover",
               alreadyCached
-                ? (isPlaying ? "opacity-0" : "opacity-100")
+                ? (isPlaying ? "opacity-0" : isUnavailable ? "grayscale opacity-25" : "opacity-100")
                 : cn(
                     "transition-opacity duration-300 opacity-0",
                     isPlaying
                       ? "data-[loaded]:opacity-0"
-                      : "data-[loaded]:opacity-100"
+                      : isUnavailable
+                        ? "grayscale data-[loaded]:opacity-25"
+                        : "data-[loaded]:opacity-100"
                   )
             )}
             loading="lazy"
@@ -117,7 +119,8 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
               src={videoSrc}
               className={cn(
                 "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-                isPlaying ? "opacity-100" : "opacity-0"
+                isPlaying ? "opacity-100" : "opacity-0",
+                isUnavailable && "grayscale opacity-25"
               )}
               muted
               loop
@@ -131,10 +134,10 @@ const SmartProductCard = ({ product, className, isFake = false }: SmartProductCa
 
           {/* Status badge — for fake products, rented out, or sold out */}
           {isUnavailable && (
-            <div className="absolute top-2 right-2 z-10">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-black/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md border border-white/10 shadow-xl">
+            <div className="absolute top-2 left-2 z-10">
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
                 <span className={cn("h-1.5 w-1.5 rounded-full", isFake ? "bg-blue-400" : isSoldOut ? "bg-zinc-400" : "bg-red-400")} />
-                {isFake ? "Coming Soon" : isSoldOut ? "Sold" : "Rented Out"}
+                {isFake ? "Coming Soon" : isSoldOut ? "Sold Out" : "Currently Rented Out"}
               </span>
             </div>
           )}

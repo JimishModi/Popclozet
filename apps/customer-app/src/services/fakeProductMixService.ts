@@ -235,7 +235,7 @@ export async function getProductsWithFakeMix(
   let realQuery = (supabase as any)
     .from('products')
     .select('*, product_discounts(*), inventory(available_stock, total_stock, all_products(status))')
-    .eq('is_available', true)
+    /* is_available filter removed — show sold out/rented out on UI */
     .eq('category', category)
     .order('id');
 
