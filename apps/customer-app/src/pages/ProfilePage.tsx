@@ -76,6 +76,7 @@ const ProfilePage: React.FC = () => {
   const { orders, activeOrders, loading: ordersLoading } = useOrders();
   const { isInstallableNatively, isIOS, isStandalone, triggerInstallPrompt } = usePWAInstall();
   const [showIOSInstallGuide, setShowIOSInstallGuide] = useState(false);
+  const [showAndroidInstallGuide, setShowAndroidInstallGuide] = useState(false);
 
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState('');
@@ -724,8 +725,8 @@ const ProfilePage: React.FC = () => {
                         if (isInstallableNatively) {
                           await triggerInstallPrompt();
                         } else {
-                          // Fallback: guide user to browser's install option
-                          toast.info("Tap the browser menu (⋮) and select 'Install app' or 'Add to Home Screen'", { duration: 5000 });
+                          // Show step-by-step guide for manual install
+                          setShowAndroidInstallGuide(true);
                         }
                       }}
                       className="w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all"
@@ -925,6 +926,58 @@ const ProfilePage: React.FC = () => {
 
                 <button
                   onClick={() => setShowIOSInstallGuide(false)}
+                  className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-base shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
+                >
+                  Got it
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Android Install Guide Modal */}
+      <AnimatePresence>
+        {showAndroidInstallGuide && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowAndroidInstallGuide(false)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200]"
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto z-[200] bg-[#111] rounded-t-3xl border-t border-white/10 px-6 pt-5"
+              style={{ paddingBottom: 'max(48px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
+            >
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-[#f2546d]/15 flex items-center justify-center mb-5">
+                  <Smartphone className="w-8 h-8 text-[#f2546d]" />
+                </div>
+                <h2 className="text-white font-bold text-xl mb-3">Install Popclozet</h2>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+                  Follow these steps to install Popclozet on your phone for fast access.
+                </p>
+
+                <div className="w-full space-y-4 mb-8">
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">1</div>
+                    <p className="text-zinc-300 text-sm">Tap the <span className="font-bold text-white">three-dot menu</span> ( ⋮ ) at the top-right corner of Chrome.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">2</div>
+                    <p className="text-zinc-300 text-sm">Tap <span className="font-bold text-white">"Install app"</span> or <span className="font-bold text-white">"Add to Home Screen"</span>.</p>
+                  </div>
+                  <div className="flex items-start gap-4 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                    <div className="w-8 h-8 rounded-full bg-[#f2546d] flex items-center justify-center text-white font-bold text-sm shrink-0">3</div>
+                    <p className="text-zinc-300 text-sm">Tap <span className="font-bold text-white">"Install"</span> on the confirmation dialog.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowAndroidInstallGuide(false)}
                   className="w-full py-4 rounded-2xl bg-[#f2546d] text-white font-bold text-base shadow-lg shadow-[#f2546d]/20 active:scale-95 transition-all"
                 >
                   Got it
