@@ -696,7 +696,7 @@ const ProfilePage: React.FC = () => {
             </div>
 
             {/* ── Install App (PWA) ── */}
-            {!isStandalone && (isInstallableNatively || isIOS) && (
+            {!isStandalone && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -704,27 +704,7 @@ const ProfilePage: React.FC = () => {
               >
                 <h2 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.15em] mb-3 pl-1">App</h2>
                 <div className="bg-gradient-to-br from-white/8 to-white/3 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden">
-                  {isInstallableNatively && (
-                    <button
-                      onClick={async () => {
-                        await triggerInstallPrompt();
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all",
-                        isIOS && "border-b border-white/5"
-                      )}
-                    >
-                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
-                        <Download className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-white font-medium block">Install App</span>
-                        <span className="text-[11px] text-zinc-500">Fast access from home screen</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
-                    </button>
-                  )}
-                  {isIOS && (
+                  {isIOS ? (
                     <button
                       onClick={() => setShowIOSInstallGuide(true)}
                       className="w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all"
@@ -735,6 +715,27 @@ const ProfilePage: React.FC = () => {
                       <div className="flex-1">
                         <span className="text-white font-medium block">Add to Home Screen</span>
                         <span className="text-[11px] text-zinc-500">Get the full app experience</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        if (isInstallableNatively) {
+                          await triggerInstallPrompt();
+                        } else {
+                          // Fallback: guide user to browser's install option
+                          toast.info("Tap the browser menu (⋮) and select 'Install app' or 'Add to Home Screen'", { duration: 5000 });
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-3 md:px-4 py-3 md:py-4 group text-left hover:bg-white/5 transition-all"
+                    >
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#f2546d]/20 flex items-center justify-center">
+                        <Download className="w-4 h-4 md:w-5 md:h-5 text-[#f2546d]" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block">Install App</span>
+                        <span className="text-[11px] text-zinc-500">Fast access from home screen</span>
                       </div>
                       <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
                     </button>

@@ -38,14 +38,19 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return await Notification.requestPermission();
 }
 
+let cachedRegistration: ServiceWorkerRegistration | null = null;
+
 async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (cachedRegistration) return cachedRegistration;
   if (!("serviceWorker" in navigator)) return null;
 
   try {
     const timeout = new Promise<null>((resolve) =>
       setTimeout(() => resolve(null), 15000)
     );
-    return await Promise.race([navigator.serviceWorker.ready, timeout]);
+    const reg = await Promise.race([navigator.serviceWorker.ready, timeout]);
+    if (reg) cachedRegistration = reg;
+    return reg;
   } catch {
     return null;
   }

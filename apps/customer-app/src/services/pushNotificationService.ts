@@ -82,7 +82,10 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 /**
  * Get the active service worker registration (with timeout to prevent hanging)
  */
+let cachedRegistration: ServiceWorkerRegistration | null = null;
+
 async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (cachedRegistration) return cachedRegistration;
   if (!("serviceWorker" in navigator)) return null;
 
   try {
@@ -104,6 +107,7 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
       navigator.serviceWorker.ready,
       timeout,
     ]);
+    if (registration) cachedRegistration = registration;
     return registration;
   } catch (err) {
     console.error("[Push] Failed to get SW registration:", err);
