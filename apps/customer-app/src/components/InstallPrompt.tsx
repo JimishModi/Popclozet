@@ -38,7 +38,7 @@ export function InstallPrompt() {
     if (!showPrompt) return null;
 
     return (
-        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[100] bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-[2rem] shadow-[0_20px_50px_rgba(79,70,229,0.3)] p-6 animate-in slide-in-from-bottom-8 duration-500 backdrop-blur-sm border border-white/10">
+        <div className="fixed left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[100] bg-gradient-to-br from-[#f2546d] to-[#d4364f] text-white rounded-[2rem] shadow-[0_20px_50px_rgba(242,84,109,0.3)] p-6 animate-in slide-in-from-bottom-8 duration-500 backdrop-blur-sm border border-white/10" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
             <button
                 onClick={handleDismiss}
                 className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition-colors group"
@@ -66,7 +66,7 @@ export function InstallPrompt() {
                 {isInstallableNatively ? (
                     <button
                         onClick={handleInstallClick}
-                        className="bg-white text-indigo-600 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all shadow-xl active:scale-95 duration-200"
+                        className="bg-white text-[#f2546d] py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all shadow-xl active:scale-95 duration-200"
                     >
                         Install App
                     </button>
