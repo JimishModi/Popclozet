@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Search, Heart, Bell } from "lucide-react";
@@ -324,6 +325,10 @@ const MobileHome: React.FC = () => {
 
     return (
         <div className="bg-black text-white min-h-screen">
+            <Helmet>
+                <title>Popclozet - Premium Jackets, Boots & Accessories for Rent</title>
+                <meta name="description" content="Premium jackets, boots and accessories for rent. Delivered in 60 minutes in Powai, Mumbai." />
+            </Helmet>
             <header className="sticky top-0 z-[60] bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md px-4 py-2 md:py-3 flex items-center justify-between">
                 <div className="flex items-center">
                     <img

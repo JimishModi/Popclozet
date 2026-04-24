@@ -362,6 +362,30 @@ async function handleDistance(body: any, log: ReturnType<typeof makeLogger>) {
   }
 }
 
+async function handleToken(log: ReturnType<typeof makeLogger>) {
+  const clientId = Deno.env.get("MAPPLS_CLIENT_ID") || REST_KEY;
+  const clientSecret = Deno.env.get("MAPPLS_CLIENT_SECRET") || REST_KEY;
+
+  try {
+    const res = await fetch("https://outpost.mappls.com/api/security/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`,
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      log.info("Minted short-lived Mappls OAuth token");
+      return json({ token: data.access_token, expires_in: data.expires_in }, 200, log);
+    }
+    log.warn("Mappls OAuth failed — set MAPPLS_CLIENT_ID + MAPPLS_CLIENT_SECRET as Supabase secrets", { response: data });
+  } catch (e: any) {
+    log.warn("Mappls OAuth token mint failed", { error: e.message });
+  }
+
+  // Fallback: REST key. Rotate MAPPLS_REST_KEY and set MAPPLS_CLIENT_ID/SECRET to eliminate this.
+  return json({ token: REST_KEY }, 200, log);
+}
+
 async function handleDirections(body: any, log: ReturnType<typeof makeLogger>) {
   const { origin, destination } = body;
   if (!origin || !destination) {
@@ -412,6 +436,8 @@ Deno.serve(async (req: Request) => {
         return await handleDistance(body, log);
       case "directions":
         return await handleDirections(body, log);
+      case "token":
+        return await handleToken(log);
       default:
         log.warn("Unknown action", { action });
         return json({ error: `Unknown action: ${action}` }, 400, log);

@@ -1,16 +1,12 @@
 /**
- * Map Picker View
+ * Address Search View
  * 
- * Phase 4: Swiggy-style "Pick on Map" with center-pin UX
- * - Map moves, pin stays fixed at center
- * - Reverse-geocode on map idle
- * - Confirm button when address resolved
+ * Replaces the map-based MapPickerView with a search-first approach using Mappls proxy.
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { isMapboxAvailable, getMapboxToken } from '@/services/mapbox/core';
+import { searchAddress } from '@popclozet/map-core';
 import { Loader } from '@/components/ui/Loader';
 import { Button } from '@/components/ui/Button';
 
@@ -20,180 +16,134 @@ interface MapPickerViewProps {
     onBack: () => void;
 }
 
-// Default to Mumbai center
-const DEFAULT_CENTER: [number, number] = [72.8777, 19.0760];
-
 export const MapPickerView: React.FC<MapPickerViewProps> = ({
-    initialCenter = DEFAULT_CENTER,
+    initialCenter,
     onConfirm,
     onBack,
 }) => {
-    const mapContainer = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const [mapLoaded, setMapLoaded] = useState(false);
-    const [resolvedAddress, setResolvedAddress] = useState<string>('');
-    const [centerCoords, setCenterCoords] = useState<[number, number]>(initialCenter);
-    const [isGeocoding, setIsGeocoding] = useState(false);
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedAddress, setSelectedAddress] = useState<any>(null);
 
-    // Reverse geocode function
-    const reverseGeocode = useCallback(async (lng: number, lat: number) => {
-        const token = getMapboxToken();
-        if (!token) {
-            setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    const handleSearch = useCallback(async (text: string) => {
+        setQuery(text);
+        if (text.length < 3) {
+            setResults([]);
             return;
         }
 
-        setIsGeocoding(true);
+        setIsSearching(true);
         try {
-            const response = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,locality`
+            const data = await searchAddress(
+                text, 
+                initialCenter?.[1], 
+                initialCenter?.[0]
             );
-            const data = await response.json();
-
-            if (data.features && data.features.length > 0) {
-                setResolvedAddress(data.features[0].place_name);
-            } else {
-                setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-            }
-        } catch (error) {
-            console.error('Reverse geocode error:', error);
-            setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+            setResults(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error('Search failed', err);
+            setResults([]);
         } finally {
-            setIsGeocoding(false);
+            setIsSearching(false);
         }
-    }, []);
+    }, [initialCenter]);
 
-    // Initialize map
-    useEffect(() => {
-        if (!mapContainer.current || !isMapboxAvailable()) return;
+    const handleSelect = (place: any) => {
+        setSelectedAddress(place);
+        setQuery(place.placeAddress || place.placeName || '');
+        setResults([]);
+    };
 
-        const token = getMapboxToken();
-        if (!token) return;
-
-        mapboxgl.accessToken = token;
-
-        const map = new mapboxgl.Map({
-            container: mapContainer.current,
-            style: 'mapbox://styles/mapbox/dark-v11',
-            center: initialCenter,
-            zoom: 16,
-            attributionControl: false,
-        });
-
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-        map.on('load', () => {
-            setMapLoaded(true);
-            // Initial reverse geocode
-            reverseGeocode(initialCenter[0], initialCenter[1]);
-        });
-
-        // On map move end, reverse geocode center
-        map.on('moveend', () => {
-            const center = map.getCenter();
-            setCenterCoords([center.lng, center.lat]);
-            reverseGeocode(center.lng, center.lat);
-        });
-
-        mapRef.current = map;
-
-        return () => {
-            map.remove();
-        };
-    }, [initialCenter, reverseGeocode]);
-
-    // Handle map not available
-    if (!isMapboxAvailable()) {
-        return (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-black">
-                <p className="text-zinc-400 text-center mb-4">
-                    Map is not available. Please enter your address manually.
-                </p>
-                <Button onClick={onBack}>Go Back</Button>
-            </div>
-        );
-    }
+    const handleConfirm = () => {
+        if (selectedAddress) {
+            onConfirm(
+                [selectedAddress.longitude, selectedAddress.latitude],
+                selectedAddress.placeAddress || selectedAddress.placeName || ''
+            );
+        }
+    };
 
     return (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col">
+        <div className="fixed inset-0 bg-[#0f0f0f] z-50 flex flex-col">
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black via-black/80 to-transparent p-4">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={onBack}
-                        className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                    <div>
-                        <h1 className="text-lg font-bold text-white">Pick Location</h1>
-                        <p className="text-xs text-zinc-400">Move the map to adjust pin</p>
-                    </div>
+            <div className="bg-[#1a1a1a] p-4 border-b border-white/10 flex items-center gap-3">
+                <button
+                    onClick={onBack}
+                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div>
+                    <h1 className="text-lg font-bold text-white">Search Location</h1>
                 </div>
             </div>
 
-            {/* Map Container */}
-            <div ref={mapContainer} className="flex-1" />
+            {/* Search Input */}
+            <div className="p-4">
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder="Search for an address..."
+                    className="w-full bg-[#1a1a1a] text-white p-4 rounded-xl border border-white/10 focus:outline-none focus:border-white/30"
+                />
+            </div>
 
-            {/* Center Pin - Fixed at center of map */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="relative"
-                >
-                    {/* Pin shadow */}
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-black/30 rounded-full blur-sm" />
-                    {/* Pin */}
-                    <svg width="48" height="48" viewBox="0 0 48 48" className="-mb-4">
-                        <path
-                            d="M24 4C16.268 4 10 10.268 10 18C10 28 24 44 24 44C24 44 38 28 38 18C38 10.268 31.732 4 24 4Z"
-                            fill="#ff4d6d"
-                            stroke="#fff"
-                            strokeWidth="2"
-                        />
-                        <circle cx="24" cy="18" r="6" fill="white" />
-                    </svg>
-                </motion.div>
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto p-4">
+                {isSearching ? (
+                    <div className="flex justify-center p-8">
+                        <Loader size="md" />
+                    </div>
+                ) : results.length > 0 ? (
+                    <ul className="space-y-2">
+                        {results.map((place, idx) => (
+                            <li 
+                                key={idx}
+                                onClick={() => handleSelect(place)}
+                                className={`p-4 rounded-xl cursor-pointer transition-colors ${
+                                    selectedAddress?.eLoc === place.eLoc || selectedAddress?.placeName === place.placeName
+                                        ? 'bg-[#2a2a2a] border border-white/20'
+                                        : 'bg-[#1a1a1a] hover:bg-[#222]'
+                                }`}
+                            >
+                                <p className="text-white font-medium">{place.placeName}</p>
+                                <p className="text-zinc-400 text-sm mt-1">{place.placeAddress}</p>
+                            </li>
+                        ))}
+                    </ul>
+                ) : query.length >= 3 ? (
+                    <p className="text-zinc-500 text-center mt-8">No locations found.</p>
+                ) : (
+                    <p className="text-zinc-500 text-center mt-8">Type to search for your address</p>
+                )}
             </div>
 
             {/* Bottom Panel */}
-            <motion.div
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-                className="absolute bottom-0 left-0 right-0 bg-[#0f0f0f] rounded-t-3xl border-t border-white/10 p-6"
-            >
-                <div className="mb-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Selected Location</p>
-                    {isGeocoding ? (
-                        <div className="flex items-center gap-2 text-zinc-400">
-                            <Loader size="sm" />
-                            <span className="text-sm">Finding address...</span>
-                        </div>
-                    ) : (
-                        <p className="text-white font-medium line-clamp-2">
-                            {resolvedAddress || 'Move the map to select a location'}
-                        </p>
-                    )}
-                </div>
-
-                <Button
-                    onClick={() => onConfirm(centerCoords, resolvedAddress)}
-                    className="w-full"
-                    size="lg"
-                    disabled={!resolvedAddress || isGeocoding}
+            {selectedAddress && (
+                <motion.div
+                    initial={{ y: 100 }}
+                    animate={{ y: 0 }}
+                    className="bg-[#1a1a1a] rounded-t-3xl border-t border-white/10 p-6"
                 >
-                    Confirm Location
-                </Button>
-            </motion.div>
+                    <div className="mb-4">
+                        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Selected Location</p>
+                        <p className="text-white font-medium line-clamp-2">
+                            {selectedAddress.placeAddress || selectedAddress.placeName}
+                        </p>
+                    </div>
 
-            {/* Loading overlay */}
-            {!mapLoaded && (
-                <div className="absolute inset-0 bg-black flex items-center justify-center z-20">
-                    <Loader size="lg" text="Loading map..." />
-                </div>
+                    <Button
+                        onClick={handleConfirm}
+                        className="w-full"
+                        size="lg"
+                    >
+                        Confirm Location
+                    </Button>
+                </motion.div>
             )}
         </div>
     );

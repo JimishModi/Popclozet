@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import logoImage from "@/logo/popclozet-logo.svg";
@@ -59,6 +60,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen w-full max-w-[430px] mx-auto overflow-hidden relative flex flex-col">
+      <Helmet>
+        <title>Popclozet - Rent Premium Fashion | Delivered in 60 Minutes in Powai</title>
+        <meta name="description" content="Rent premium jackets, boots and accessories in Powai, Mumbai. Delivered in 60 minutes. Sustainable, affordable fashion for every occasion." />
+        <meta property="og:title" content="Popclozet - Rent Premium Fashion | 60-Minute Delivery in Powai" />
+        <meta property="og:description" content="Rent premium jackets, boots and accessories in Powai, Mumbai. Delivered in 60 minutes." />
+        <link rel="canonical" href="https://www.popclozet.in" />
+      </Helmet>
       <AnimatePresence mode="wait">
         {activeSlide === 0 ? (
           <MockupSlide key="mockup" {...sharedProps} />

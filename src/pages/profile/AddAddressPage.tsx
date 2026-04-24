@@ -63,6 +63,9 @@ export const AddAddressPage: React.FC = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Debounced Search Function
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
     const performSearch = useCallback(
         debounce(async (query: string) => {
             if (!query || query.length < 3) {
@@ -70,21 +73,24 @@ export const AddAddressPage: React.FC = () => {
                 return;
             }
 
-            const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-            if (!mapboxToken) return;
-
             try {
-                let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=in&types=address,poi&bbox=${MUMBAI_BBOX}`;
-
-                if (latitude && longitude) {
-                    url += `&proximity=${longitude},${latitude}`;
-                }
-
-                const res = await fetch(url);
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/location`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        action: 'search',
+                        query,
+                        lat: latitude || undefined,
+                        lng: longitude || undefined,
+                    }),
+                });
                 const data = await res.json();
-
-                if (data.features) {
-                    setSuggestions(data.features);
+                if (Array.isArray(data)) {
+                    setSuggestions(data);
                     setShowSuggestions(true);
                 }
             } catch (error) {

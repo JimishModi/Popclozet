@@ -22,7 +22,6 @@
         "jspdf": "^4.2.1",
         "leaflet": "^1.9.4",
         "lucide-react": "^0.563.0",
-        "mappls-web-maps": "^3.8.0",
         "pdfjs-dist": "^5.4.296",
         "qrcode.react": "^4.2.0",
         "react": "18.2.0",

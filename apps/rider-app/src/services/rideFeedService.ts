@@ -88,7 +88,7 @@ function mapDbOrderToIncoming(
     const items = (dbOrder.order_items ?? []).map((item: any) => ({
         name: item.products?.name || `Product ${item.product_id.slice(0, 8)}`,
         qty: 1,
-        imageUrl: Array.isArray(item.products?.images) ? item.products.images[0] : null,
+        imageUrl: Array.isArray(item.products?.images) ? item.products?.images?.[0] : null,
     }));
 
     const estimatedKm = typeof dbOrder.route_distance_km === 'number' ? dbOrder.route_distance_km : 3;

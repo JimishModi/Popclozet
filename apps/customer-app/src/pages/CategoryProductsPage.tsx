@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Helmet } from "react-helmet-async";
 import { thumbImage, markImageLoaded, isImageLoaded, prefetchImages } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
@@ -421,6 +422,10 @@ const CategoryProductsPage: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-screen bg-[#050505] text-white">
+            <Helmet>
+                <title>{`${categoryTitle} | Popclozet`}</title>
+                <meta name="description" content={`Shop premium ${categoryTitle.toLowerCase()} fashion. Rent or buy from our exclusive collection.`} />
+            </Helmet>
             {/* Header */}
             <div className="sticky top-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5">
                 {/* Title row */}

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useRef, useState, useEffect } from 'react';
 import { useActiveRiders, type ActiveRider } from '../hooks/useActiveRiders';
-import { mapboxgl, getMapboxToken } from '@popclozet/map-core';
+import { mapboxgl, isMapboxAvailable } from '@popclozet/map-core';
 
 interface MapContextType {
     riders: ActiveRider[];
@@ -16,7 +16,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { riders, loading } = useActiveRiders();
     const mapInstanceRef = useRef<any>(null);
     const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
-    const token = import.meta.env.VITE_MAPPLS_REST_KEY || getMapboxToken();
+    const mapReady = isMapboxAvailable();
 
     useEffect(() => {
         // Create a hidden persistent container for the map
@@ -35,7 +35,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, []);
 
     const initializePersistentMap = async (targetContainer: HTMLDivElement) => {
-        if (!mapContainer || !token) return null;
+        if (!mapContainer || !mapReady) return null;
 
         if (!mapInstanceRef.current) {
             // Lazy initialization

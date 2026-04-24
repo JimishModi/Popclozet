@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -32,6 +33,10 @@ const BrandsPage: React.FC = () => {
 
     return (
         <MobileShell className="bg-[#111111] text-white">
+            <Helmet>
+                <title>All Brands | Popclozet</title>
+                <meta name="description" content="Discover clothing from top brands." />
+            </Helmet>
             <main className="flex-1 overflow-y-auto pb-24">
 
                 {/* ─── Top Bar ─── */}

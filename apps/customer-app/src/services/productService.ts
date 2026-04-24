@@ -468,9 +468,13 @@ class ProductService {
                         await tx.objectStore('products').put(this.transformFromDB(p));
                     }
                     await tx.done;
-                } catch { /* silent */ }
+                } catch (err) {
+                    console.warn('[productService] Background refresh db error:', err);
+                }
             })
-            .catch(() => { /* silent */ });
+            .catch((err) => {
+                console.warn('[productService] Background refresh network error:', err);
+            });
     }
 
     // Get products by event

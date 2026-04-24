@@ -8,16 +8,15 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
+import { mapboxgl, isMapboxAvailable } from '@popclozet/map-core';
 import { motion } from 'framer-motion';
-import { isMapboxAvailable, getMapboxToken } from '@/services/mapbox/core';
 import { Loader } from '@/components/ui/Loader';
 import { Button } from '@/components/ui/Button';
 
 interface CurrentLocationViewProps {
     onConfirm: (coordinates: [number, number], address: string) => void;
     onBack: () => void;
-    onPermissionDenied: () => void; // Fallback to manual entry
+    onPermissionDenied: () => void;
 }
 
 type LocationState = 'requesting' | 'locating' | 'found' | 'error' | 'denied';
@@ -28,8 +27,8 @@ export const CurrentLocationView: React.FC<CurrentLocationViewProps> = ({
     onPermissionDenied,
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const markerRef = useRef<mapboxgl.Marker | null>(null);
+    const mapRef = useRef<any>(null);
+    const markerRef = useRef<any>(null);
 
     const [locationState, setLocationState] = useState<LocationState>('requesting');
     const [errorMessage, setErrorMessage] = useState<string>('');
@@ -37,28 +36,17 @@ export const CurrentLocationView: React.FC<CurrentLocationViewProps> = ({
     const [resolvedAddress, setResolvedAddress] = useState<string>('');
     const [isGeocoding, setIsGeocoding] = useState(false);
 
-    // Reverse geocode function
     const reverseGeocode = useCallback(async (lng: number, lat: number) => {
-        const token = getMapboxToken();
-        if (!token) {
-            setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-            return;
-        }
-
         setIsGeocoding(true);
         try {
-            const response = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,locality`
-            );
-            const data = await response.json();
-
-            if (data.features && data.features.length > 0) {
-                setResolvedAddress(data.features[0].place_name);
+            const { reverseGeocode: rc } = await import('@popclozet/map-core');
+            const result = await rc(lat, lng);
+            if (result?.fullAddress) {
+                setResolvedAddress(result.fullAddress);
             } else {
                 setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             }
-        } catch (error) {
-            console.error('Reverse geocode error:', error);
+        } catch {
             setResolvedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         } finally {
             setIsGeocoding(false);
@@ -101,43 +89,32 @@ export const CurrentLocationView: React.FC<CurrentLocationViewProps> = ({
     useEffect(() => {
         if (!coordinates || !mapContainer.current || !isMapboxAvailable()) return;
 
-        const token = getMapboxToken();
-        if (!token) return;
+        const { initializeMap } = await import('@popclozet/map-core');
 
-        mapboxgl.accessToken = token;
+        initializeMap(mapContainer.current, coordinates, 17).then((map: any) => {
+            mapRef.current = map;
 
-        const map = new mapboxgl.Map({
-            container: mapContainer.current,
-            style: 'mapbox://styles/mapbox/dark-v11',
-            center: coordinates,
-            zoom: 17,
-            attributionControl: false,
+            const { Marker } = mapboxgl;
+            const marker = new Marker({ color: '#ff4d6d', draggable: true })
+                .setLngLat(coordinates)
+                .addTo(map);
+
+            marker.on('dragend', () => {
+                const lngLat = marker.getLngLat();
+                setCoordinates([lngLat.lng, lngLat.lat]);
+                reverseGeocode(lngLat.lng, lngLat.lat);
+            });
+
+            markerRef.current = marker;
+
+            reverseGeocode(coordinates[0], coordinates[1]);
         });
-
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-        // Add draggable marker
-        const marker = new mapboxgl.Marker({
-            color: '#ff4d6d',
-            draggable: true,
-        })
-            .setLngLat(coordinates)
-            .addTo(map);
-
-        marker.on('dragend', () => {
-            const lngLat = marker.getLngLat();
-            setCoordinates([lngLat.lng, lngLat.lat]);
-            reverseGeocode(lngLat.lng, lngLat.lat);
-        });
-
-        markerRef.current = marker;
-        mapRef.current = map;
-
-        // Initial reverse geocode
-        reverseGeocode(coordinates[0], coordinates[1]);
 
         return () => {
-            map.remove();
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
         };
     }, [coordinates, reverseGeocode]);
 

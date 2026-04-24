@@ -6,6 +6,7 @@
  * Accessed by tapping the ">" on the About Us slider on the home page.
  */
 
+import { Helmet } from "react-helmet-async";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -15,6 +16,10 @@ import { AboutUsProcess } from "@/components/ui/AboutUsProcess";
 export default function AboutUsPage() {
     return (
         <MobileShell className="bg-[#111111] text-white">
+            <Helmet>
+                <title>About Us | Popclozet</title>
+                <meta name="description" content="Learn about Popclozet's mission to make premium fashion rental accessible. Discover our hygiene process and brand story." />
+            </Helmet>
             <MobileHeader />
 
             <main className="flex-1 overflow-y-auto">

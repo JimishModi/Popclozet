@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from "react-helmet-async";
 import { useNavigate } from 'react-router-dom';
 import { Heart, ShoppingBag, Loader2, MapPin, X, Clock, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -226,6 +227,10 @@ const ClosetPage: React.FC = () => {
 
     return (
         <div className="bg-[#111111] text-white min-h-screen relative overflow-x-hidden">
+            <Helmet>
+                <title>My Closet | Popclozet</title>
+                <meta name="description" content="View your active rentals, upcoming deliveries, and returns." />
+            </Helmet>
             {/* ─── Background Gradients ─── */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#f2546d]/10 blur-[100px] pointer-events-none" />
             <div className="absolute bottom-40 left-0 w-80 h-80 bg-purple-600/10 blur-[120px] pointer-events-none" />

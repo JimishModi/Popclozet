@@ -1,5 +1,5 @@
-// src/pages/CartPage.tsx
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Helmet } from "react-helmet-async";
 import { thumbImage, markImageLoaded, isImageLoaded } from "@/lib/optimizeImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "vaul";
@@ -814,6 +814,10 @@ const CartPage = () => {
 
   return (
     <MobileShell className="bg-black text-white">
+      <Helmet>
+        <title>Shopping Bag | Popclozet</title>
+        <meta name="description" content="Review your rental and purchase items." />
+      </Helmet>
 
       {/* Main scrollable area */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-56 lg:pb-12 lg:px-8 w-full max-w-7xl mx-auto flex flex-col">

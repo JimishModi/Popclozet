@@ -25,21 +25,30 @@ export function useRiderLocation(riderId: string | null, onUpdate?: LocationCall
 
         // Initial fetch
         const fetchLocation = async () => {
-            const { data, error } = await supabase
-                .from("rider_locations")
-                .select("*")
-                .eq("rider_id", riderId)
-                .single();
+            try {
+                const { data, error } = await supabase
+                    .from("rider_locations")
+                    .select("*")
+                    .eq("rider_id", riderId)
+                    .single();
 
-            if (!error && data && callbackRef.current) {
-                callbackRef.current({
-                    riderId: data.rider_id,
-                    lat: data.lat,
-                    lng: data.lng,
-                    heading: data.heading,
-                    speed: data.speed,
-                    updatedAt: data.updated_at,
-                });
+                if (error) {
+                    console.error('[useRiderLocation] Failed to fetch rider location:', error);
+                    return;
+                }
+
+                if (data && callbackRef.current) {
+                    callbackRef.current({
+                        riderId: data.rider_id,
+                        lat: data.lat,
+                        lng: data.lng,
+                        heading: data.heading,
+                        speed: data.speed,
+                        updatedAt: data.updated_at,
+                    });
+                }
+            } catch (err) {
+                console.error('[useRiderLocation] Unexpected error fetching rider location:', err);
             }
         };
 

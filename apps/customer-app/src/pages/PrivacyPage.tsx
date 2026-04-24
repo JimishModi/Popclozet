@@ -1,5 +1,6 @@
 // src/pages/PrivacyPage.tsx
 import React from "react";
+import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Shield } from "lucide-react";
@@ -14,6 +15,10 @@ const PrivacyPage: React.FC = () => {
 
     return (
         <MobileShell className="bg-black text-white">
+            <Helmet>
+                <title>Privacy Policy | Popclozet</title>
+                <meta name="description" content="Read Popclozet's privacy policy. Learn how we collect, use, and protect your personal data." />
+            </Helmet>
             {/* Header */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
                 <div className="flex items-center gap-3">

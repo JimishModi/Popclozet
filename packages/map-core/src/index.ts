@@ -6,88 +6,53 @@
  * Core map initialization and cleanup logic.
  */
 
-import { mappls } from 'mappls-web-maps';
-// No more imports from mapbox-gl
 type MapboxMap = any;
-type MapboxOptions = any;
-type MarkerOptions = any;
 
-const CONFIGURED_TOKEN = import.meta.env?.VITE_MAPPLS_REST_KEY || '';
+declare var mappls: any;
 
-export const configureMapbox = (token: string) => {
-    // No-op for Mappls configuration, token is used at initialization
-};
+export const isMapboxAvailable = () => typeof window !== 'undefined' && !!(window as any).mappls;
 
-export const isMapboxAvailable = (): boolean => {
-    return !!CONFIGURED_TOKEN;
-};
-
-export const getMapboxToken = (): string | undefined => {
-    return CONFIGURED_TOKEN;
-};
-
-let mapInstance: MapboxMap | null = null;
-
-/**
- * Initialize a Mappls map instance (wraps Mapbox GL).
- */
-export const initializeMap = async (
-    container: HTMLElement,
-    center: [number, number],
-    zoom: number = 14,
-    token?: string
-): Promise<MapboxMap> => {
-    const activeToken = token || CONFIGURED_TOKEN;
-    if (!activeToken) {
-        throw new Error('Mappls access token is not configured');
-    }
-
-    if (!container.id) {
-        container.id = `mappls-map-${Math.random().toString(36).substring(7)}`;
-    }
-
-    // Destroy existing instance if any
-    const existingMap = (container as any)._mapplsMap;
-    if (existingMap) {
-        try { existingMap.remove(); } catch (_) { }
-    }
-
-    if (mapInstance) {
-        destroyMap();
-    }
-
-    const mapObject = new mappls();
-
-    return new Promise((resolve) => {
-        mapObject.initialize(activeToken, { map: true }, () => {
-            const map = mapObject.Map({
-                id: container.id,
-                center: [center[1], center[0]], // underlying Mapbox engine expects [lng, lat]
-                zoom,
-                addControl: true,
-                attributionControl: false,
-            }) as any; 
-
-            mapInstance = map;
-            (container as any)._mapplsMap = map;
-            resolve(map);
-        });
-    });
-};
-
-export const destroyMap = (map?: MapboxMap | null): void => {
-    const target = map || mapInstance;
-    if (target) {
-        try {
-            target.remove();
-        } catch (e) { }
-        if (target === mapInstance) {
-            mapInstance = null;
+// Expose mapboxgl lazily since Mappls might load it dynamically
+export const mapboxgl = typeof window !== 'undefined' ? new Proxy({}, {
+    get: (_, prop) => {
+        if (typeof window !== 'undefined' && (window as any).mapboxgl) {
+            return (window as any).mapboxgl[prop];
         }
+        return undefined;
+    }
+}) as any : {} as any;
+
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+
+async function edgeFetch(action: string, body: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/location`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ action, ...body }),
+    });
+    return res.json();
+}
+
+export const searchAddress = async (query: string, lat?: number, lng?: number) => {
+    try {
+        const body: any = { query };
+        if (lat !== undefined && lng !== undefined) {
+            body.lat = lat;
+            body.lng = lng;
+        }
+        return await edgeFetch('search', body);
+    } catch (e) {
+        console.error('Failed to search address:', e);
+        return [];
     }
 };
 
-export const getMapInstance = (): MapboxMap | null => mapInstance;
+
 
 export const drawRoute = async (
     map: MapboxMap,
@@ -178,24 +143,16 @@ export interface ReverseGeocodeResult {
 }
 
 export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseGeocodeResult | null> => {
-    if (!CONFIGURED_TOKEN) return null;
     try {
-        const url = `https://atlas.mappls.com/api/places/rev_geocode?lat=${lat}&lng=${lng}&access_token=${CONFIGURED_TOKEN}`;
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const data = await response.json();
-        
-        if (data.results && data.results.length > 0) {
-            const res = data.results[0];
-            return {
-                city: res.city || 'Current location',
-                locality: res.locality || res.city,
-                fullAddress: res.formatted_address || `${res.locality}, ${res.city}`,
-                state: res.state || '',
-                country: 'India',
-            };
-        }
-        return null;
+        const data = await edgeFetch('reverse', { lat, lng });
+        if (!data || !data.formatted_address) return null;
+        return {
+            city: data.city || 'Current location',
+            locality: data.city || 'Current location',
+            fullAddress: data.formatted_address,
+            state: data.state || '',
+            country: 'India',
+        };
     } catch {
         return null;
     }
@@ -232,29 +189,7 @@ export const autoDetectLocation = async () => {
     }
 };
 
-export const createMapInstance = async (
-    container: HTMLElement,
-    center: [number, number],
-    zoom: number = 13
-): Promise<MapboxMap> => {
-    if (!CONFIGURED_TOKEN) throw new Error('Mappls access token is not configured');
-    if (!container.id) {
-        container.id = `mappls-map-${Math.random().toString(36).substring(7)}`;
-    }
-    const mapObject = new mappls();
-    return new Promise((resolve) => {
-        mapObject.initialize(CONFIGURED_TOKEN, { map: true }, () => {
-            const map = mapObject.Map({
-                id: container.id,
-                center: [center[1], center[0]], // Mappls expects [lat, lng], callers pass [lng, lat]
-                zoom,
-                addControl: true,
-                attributionControl: false,
-            }) as any;
-            resolve(map);
-        });
-    });
-};
+
 
 /**
  * Fetch driving route from Mappls Route API.
@@ -266,13 +201,13 @@ export const fetchMapplsRoute = async (
     endLng: number,
     endLat: number
 ): Promise<number[][] | null> => {
-    if (!CONFIGURED_TOKEN) return null;
     try {
-        const url = `https://apis.mappls.com/advancedmaps/v1/${CONFIGURED_TOKEN}/route_adv/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full&steps=false`;
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.routes?.[0]?.geometry?.coordinates ?? null;
+        const data = await edgeFetch('directions', {
+            origin: `${startLng},${startLat}`,
+            destination: `${endLng},${endLat}`,
+        });
+        if (!data || !data.routes?.[0]?.geometry?.coordinates) return null;
+        return data.routes[0].geometry.coordinates;
     } catch (e) {
         console.warn('[map-core] Mappls Route API failed:', e);
         return null;
@@ -326,164 +261,31 @@ export const updateRouteSource = (
     }
 };
 
-/**
- * mapboxgl Shim - Satisfies current app dependencies on Mapbox classes/values
- * Maps Mapbox-style calls to the underlying Mappls/Mapbox instance.
- */
-export const mapboxgl: any = {
-    Map: class {
-        constructor() {
-            console.warn('mapboxgl.Map called directly. Use initializeMap() instead.');
-        }
-    },
-    Marker: class {
-        _lngLat: [number, number] = [0, 0];
-        _options: any;
-        _element: HTMLElement | null = null;
-        _marker: any = null;
+export const createMapInstance = async (
+    container: HTMLElement,
+    center: [number, number],
+    zoom: number = 13
+): Promise<MapboxMap> => {
+    const tokenData = await edgeFetch('token', {});
+    const activeToken = tokenData?.token;
+    if (!activeToken) throw new Error('Mappls access token not available');
 
-        constructor(options?: any) {
-            this._options = options || {};
-            if (options?.element) {
-                this._element = options.element;
-            }
-        }
-
-        setLngLat(lngLat: [number, number] | { lng: number; lat: number }) {
-            const [lng, lat] = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
-            this._lngLat = [lng, lat];
-            
-            if (this._marker) {
-                try {
-                    // Try Mappls style first
-                    if (typeof this._marker.setPosition === 'function') {
-                        this._marker.setPosition({ lat, lng });
-                    } else if (typeof this._marker.setLngLat === 'function') {
-                        // Standard Mapbox style
-                        this._marker.setLngLat([lng, lat]);
-                    }
-                } catch (e) {
-                    console.error('[MapboxShim] Failed to update marker position:', e);
-                }
-            }
-            return this;
-        }
-
-        getLngLat() {
-            if (this._marker) return this._marker.getLngLat();
-            return { lng: this._lngLat[0], lat: this._lngLat[1] };
-        }
-
-        getElement() {
-            return this._element || (this._marker ? this._marker.getElement() : null);
-        }
-
-        setPopup(popup: any) {
-            if (this._marker) this._marker.setPopup(popup);
-            return this;
-        }
-
-        addTo(map: any) {
-            try {
-                const MarkerClass = (window as any).mapboxgl?.Marker || (window as any).mappls?.Marker;
-                if (!MarkerClass) throw new Error('No Marker class found');
-
-                // Mappls v3 style: uses 'map' and 'position' in constructor
-                if ((window as any).mappls && MarkerClass === (window as any).mappls.Marker) {
-                    const mOptions: any = {
-                        map,
-                        position: { lat: this._lngLat[1], lng: this._lngLat[0] },
-                        draggable: this._options.draggable || false,
-                        ...this._options
-                    };
-                    if (this._element) mOptions.html = this._element.innerHTML;
-                    
-                    this._marker = new MarkerClass(mOptions);
-                } else {
-                    // Mapbox style: uses setLngLat and addTo(map)
-                    this._marker = new MarkerClass(this._options)
-                        .setLngLat(this._lngLat)
-                        .addTo(map);
-                }
-            } catch (e) {
-                console.error('[MapboxShim] Failed to add marker:', e);
-            }
-            return this;
-        }
-
-        remove() {
-            if (this._marker) this._marker.remove();
-            return this;
-        }
-
-        on(event: string, cb: Function) {
-            if (this._marker) this._marker.on(event, cb);
-            return this;
-        }
-    },
-    Popup: class {
-        _content: string = '';
-        _lngLat: [number, number] = [0, 0];
-        _popup: any = null;
-        _options: any;
-
-        constructor(options?: any) {
-            this._options = options || {};
-        }
-
-        setHTML(html: string) {
-            this._content = html;
-            if (this._popup) this._popup.setHTML(html);
-            return this;
-        }
-
-        setLngLat(lngLat: [number, number] | { lng: number; lat: number }) {
-            if (Array.isArray(lngLat)) {
-                this._lngLat = lngLat as [number, number];
-            } else {
-                this._lngLat = [lngLat.lng, lngLat.lat];
-            }
-            if (this._popup) this._popup.setLngLat(this._lngLat);
-            return this;
-        }
-
-        addTo(map: any) {
-            const PopupClass = (window as any).mapboxgl?.Popup || (window as any).mappls?.Popup;
-            if (PopupClass) {
-                this._popup = new PopupClass(this._options)
-                    .setLngLat(this._lngLat)
-                    .setHTML(this._content)
-                    .addTo(map);
-            }
-            return this;
-        }
-
-        remove() {
-            if (this._popup) this._popup.remove();
-            return this;
-        }
-    },
-    LngLatBounds: class {
-        _sw: [number, number] = [180, 90];
-        _ne: [number, number] = [-180, -90];
-
-        extend(lngLat: [number, number] | { lng: number; lat: number }) {
-            const [lng, lat] = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
-            this._sw = [Math.min(this._sw[0], lng), Math.min(this._sw[1], lat)];
-            this._ne = [Math.max(this._ne[0], lng), Math.max(this._ne[1], lat)];
-            return this;
-        }
-
-        toArray() {
-            return [this._sw, this._ne];
-        }
-        
-        getSouthWest() { return { lng: this._sw[0], lat: this._sw[1] }; }
-        getNorthEast() { return { lng: this._ne[0], lat: this._ne[1] }; }
-    },
-    GeolocateControl: class {
-        constructor() { }
-        on() { return this; }
-        addTo() { return this; }
+    if (!container.id) {
+        container.id = `mappls-map-${Math.random().toString(36).substring(7)}`;
     }
+    const mapObject = new mappls();
+    return new Promise((resolve) => {
+        mapObject.initialize(activeToken, { map: true }, () => {
+            const map = mapObject.Map({
+                id: container.id,
+                center: [center[1], center[0]],
+                zoom,
+                addControl: true,
+                attributionControl: false,
+            }) as any;
+            resolve(map);
+        });
+    });
 };
+
+

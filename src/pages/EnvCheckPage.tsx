@@ -7,7 +7,7 @@ export const EnvCheckPage: React.FC = () => {
         setEnvVars({
             SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'NOT SET',
             SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET (hidden)' : 'NOT SET',
-            MAPBOX_TOKEN: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ? 'SET (hidden)' : 'NOT SET',
+            MAPPLS_PROXY: import.meta.env.VITE_SUPABASE_URL ? 'SET via Edge Function' : 'NOT SET',
             APP_NAME: import.meta.env.VITE_APP_NAME || 'NOT SET',
             APP_URL: import.meta.env.VITE_APP_URL || 'NOT SET',
         });

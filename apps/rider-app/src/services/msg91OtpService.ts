@@ -17,8 +17,8 @@ const SCRIPT_URLS = [
     'https://verify.msg91.com/otp-provider.js',     // Remote CDN (script tags bypass CORS)
 ];
 
-const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
-const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
+const WIDGET_ID = (import.meta.env.VITE_MSG91_WIDGET_ID as string) || '366377675852303239353739';
+const TOKEN_AUTH = (import.meta.env.VITE_MSG91_TOKEN_AUTH as string) || '502562TzkhrdLp69c0f130P1';
 
 let sdkReady = false;
 let sdkInitPromise: Promise<void> | null = null;

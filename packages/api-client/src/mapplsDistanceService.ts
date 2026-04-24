@@ -1,3 +1,6 @@
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
 export class MapplsDistanceError extends Error {
   constructor(message: string) {
     super(message);
@@ -10,43 +13,43 @@ export interface DistanceResult {
   durationMinutes: number;
 }
 
+async function edgeFetch(action: string, body: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/location`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ action, ...body }),
+    });
+    return res.json();
+}
+
 export async function getRoadDistance(
   fromLat: number,
   fromLng: number,
   toLat: number,
   toLng: number
 ): Promise<DistanceResult> {
-  const restKey = import.meta.env.VITE_MAPPLS_REST_KEY;
-  if (!restKey) {
-    throw new MapplsDistanceError('VITE_MAPPLS_REST_KEY is not defined');
-  }
-
-  // Mappls format: lng1,lat1;lng2,lat2
-  const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`;
-  const url = `https://apis.mappls.com/advancedmaps/v1/${restKey}/distance_matrix/driving/${coordinates}`;
-
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new MapplsDistanceError(`HTTP error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    if (!data.results || !data.results.distances || !data.results.distances[0] || data.results.distances[0][1] === undefined) {
-      throw new MapplsDistanceError('Invalid or empty response from Mappls Distance Matrix API');
-    }
+    const data = await edgeFetch('distance', {
+      origin: `${fromLng},${fromLat}`,
+      destination: `${toLng},${toLat}`,
+    });
 
-    const distanceMeters = data.results.distances[0][1];
-    const durationSeconds = data.results.durations[0][1] || 0;
+    if (data.error) {
+      throw new MapplsDistanceError(data.error);
+    }
 
     return {
-      distanceKm: distanceMeters / 1000,
-      durationMinutes: Math.round(durationSeconds / 60)
+      distanceKm: data.distance ?? 0,
+      durationMinutes: Math.round((data.duration ?? 0) / 60)
     };
   } catch (err: unknown) {
     if (err instanceof MapplsDistanceError) {
       throw err;
     }
-    throw new MapplsDistanceError('Failed to fetch road distance from Mappls');
+    throw new MapplsDistanceError('Failed to fetch road distance via Edge Function');
   }
 }
