@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, Heart, ShoppingBag, Loader, Star, StarHalf, Trash2 } from "lucide-react";
@@ -574,6 +575,10 @@ const MobileProductDetailPage: React.FC = () => {
 
     return (
         <MobileShell className="bg-[#0A0A0A] text-white">
+            <Helmet>
+                <title>{product ? `${product.name} - Rent ${product.category || 'Premium Fashion'}` : 'Product Details | Popclozet'}</title>
+                <meta name="description" content={product?.description ? product.description.substring(0, 150) + "..." : "Rent premium fashion and accessories."} />
+            </Helmet>
             {/* ─── HEADER ─── */}
             <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-50 bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/5">
                 <button

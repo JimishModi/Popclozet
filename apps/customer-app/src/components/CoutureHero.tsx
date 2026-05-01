@@ -85,24 +85,17 @@ const CoutureHero = () => {
                         </Button>
                     </motion.div>
 
-                    {/* Social Proof */}
+                    {/* Beta call-out — replaces fabricated "2,000+ insiders" */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.5 }}
-                        className="mt-16 flex items-center gap-6"
+                        className="mt-16 flex items-center gap-3"
                     >
-                        <div className="flex -space-x-4">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-gray-200 overflow-hidden">
-                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i + 10}`} alt="User" />
-                                </div>
-                            ))}
-                            <div className="w-10 h-10 rounded-full border-2 border-white bg-black text-white flex items-center justify-center text-xs font-bold">
-                                +2k
-                            </div>
-                        </div>
-                        <p className="text-sm font-bold text-gray-600">Join 2,000+ fashion insiders</p>
+                        <span className="inline-flex items-center justify-center w-10 h-10 rounded-full border-2 border-pink-500 bg-pink-50 text-pink-600 font-bold">
+                            β
+                        </span>
+                        <p className="text-sm font-bold text-gray-600">Now serving Powai — be among the first.</p>
                     </motion.div>
                 </div>
 

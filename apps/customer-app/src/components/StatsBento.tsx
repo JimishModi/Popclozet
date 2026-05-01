@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Sparkles, Users, Clock, Leaf, Star, ShoppingBag } from "lucide-react";
+import { Sparkles, MapPin, Clock, Leaf, Wand2, ShoppingBag } from "lucide-react";
 
 const StatsBento = () => {
     return (
@@ -16,13 +16,13 @@ const StatsBento = () => {
                         Why Choose <span className="text-gradient-brand">Popclozet</span>
                     </h2>
                     <p className="text-muted-foreground max-w-lg mx-auto">
-                        Join thousands who've discovered a smarter way to dress
+                        Premium jackets, boots and accessories — delivered to your door in 60 minutes.
                     </p>
                 </motion.div>
 
                 {/* Bento Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
-                    {/* Large Card - Users */}
+                    {/* Large Card - Powai delivery */}
                     <motion.div
                         className="col-span-2 row-span-2 rounded-3xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-8 text-white relative overflow-hidden"
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -32,14 +32,14 @@ const StatsBento = () => {
                         <div className="absolute top-4 right-4 w-20 h-20 bg-white/10 rounded-full blur-xl" />
                         <div className="absolute bottom-4 left-4 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
                         <div className="relative z-10">
-                            <Users className="w-10 h-10 mb-4 opacity-80" />
-                            <h3 className="text-5xl md:text-6xl font-bold mb-2">500+</h3>
-                            <p className="text-xl font-medium opacity-90">Happy Customers</p>
-                            <p className="text-sm opacity-70 mt-2">and counting...</p>
+                            <MapPin className="w-10 h-10 mb-4 opacity-80" />
+                            <h3 className="text-4xl md:text-5xl font-bold mb-2">Powai → Door</h3>
+                            <p className="text-xl font-medium opacity-90">60-minute delivery</p>
+                            <p className="text-sm opacity-70 mt-2">Mumbai, expanding soon</p>
                         </div>
                     </motion.div>
 
-                    {/* Small Card - Rating */}
+                    {/* Small Card - Try-before-you-keep */}
                     <motion.div
                         className="rounded-3xl bg-gradient-to-br from-amber-400 to-orange-500 p-6 text-white relative overflow-hidden"
                         initial={{ opacity: 0, y: 20 }}
@@ -47,12 +47,12 @@ const StatsBento = () => {
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
                     >
-                        <Star className="w-6 h-6 mb-2 opacity-80" />
-                        <h3 className="text-3xl font-bold">4.9</h3>
-                        <p className="text-sm opacity-90 font-medium">Rating</p>
+                        <Wand2 className="w-6 h-6 mb-2 opacity-80" />
+                        <h3 className="text-2xl font-bold">Try first</h3>
+                        <p className="text-sm opacity-90 font-medium">Keep what fits</p>
                     </motion.div>
 
-                    {/* Small Card - Items */}
+                    {/* Small Card - Curated catalog */}
                     <motion.div
                         className="rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white relative overflow-hidden"
                         initial={{ opacity: 0, y: 20 }}
@@ -61,8 +61,8 @@ const StatsBento = () => {
                         transition={{ delay: 0.2 }}
                     >
                         <ShoppingBag className="w-6 h-6 mb-2 opacity-80" />
-                        <h3 className="text-3xl font-bold">1000+</h3>
-                        <p className="text-sm opacity-90 font-medium">Items</p>
+                        <h3 className="text-2xl font-bold">Curated</h3>
+                        <p className="text-sm opacity-90 font-medium">Jackets, boots & accessories</p>
                     </motion.div>
 
                     {/* Medium Card - Delivery */}

@@ -102,6 +102,8 @@ export function useDeliveryTracking({
                 };
                 setTracking(trackingData);
             }
+        }).catch((err) => {
+            console.error('[useDeliveryTracking] Failed to get initial tracking record:', err);
         });
 
         // Set up realtime subscription

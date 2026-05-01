@@ -64,7 +64,7 @@ const ColorfulStats = () => {
                                 The 'Mix & Match' Closet
                             </h3>
                             <p className="text-amber-900 leading-relaxed font-medium">
-                                Just need a new top? Browse thousands of individual pieces to complete the look you already have. Total creative freedom.
+                                Just need a new top? Browse our curated catalog of individual pieces to complete the look you already have. Total creative freedom.
                             </p>
                         </div>
                         {/* Decorative Circle */}

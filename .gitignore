@@ -22,11 +22,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# env
+# env — never commit secrets at any depth; .env.example IS committed
 .env
 .env.local
 .env.*.local
 .env.additions
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
 
 # mac / OS
 .DS_Store

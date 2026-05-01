@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ShoppingBag, Tag } from "lucide-react";
@@ -145,6 +146,10 @@ const CollectionsPage = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-screen">
+      <Helmet>
+        <title>Collections | Popclozet</title>
+        <meta name="description" content="Explore our curated clothing collections." />
+      </Helmet>
       {/* ── Header ── */}
       <div className="px-4 py-3 sticky top-0 z-50 bg-[#0A0A0A]/90 backdrop-blur-xl">
         <div className="flex items-center justify-between mb-3">

@@ -1,17 +1,20 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { fileURLToPath } from "url";
 // import basicSsl from "@vitejs/plugin-basic-ssl";
 
+// ESM doesn't define __dirname — derive it from import.meta.url.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig(({ mode }) => {
-  // Load env file from the current directory
-  const env = loadEnv(mode, path.resolve(__dirname, '../../'), '');
+  // Load env file from this app's own directory (per-app secrets, no key sharing).
+  const env = loadEnv(mode, __dirname, '');
 
 
   return {
     base: "/",
-    // Point specifically to the current directory for .env files
-    envDir: "../../",
+    envDir: __dirname,
 
     define: {
       __SW_VERSION__: JSON.stringify(Date.now().toString(36)),
@@ -23,7 +26,10 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [
-      // basicSsl(),
+      // basicSsl(),  // Phone testing over LAN: keep HTTP. Self-signed certs
+      //              // get rejected by modern mobile browsers; HTTPS-only
+      //              // features (GPS, SW, Razorpay) need a proper cert
+      //              // (mkcert) or a Vercel preview URL.
       react(),
 
       // Service worker lives at public/sw.js (plain JS, no build step).

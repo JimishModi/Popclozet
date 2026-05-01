@@ -1,14 +1,32 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+
+# Don't index private/transactional pages
+Disallow: /cart
+Disallow: /checkout
+Disallow: /profile
+Disallow: /orders
+Disallow: /wishlist
+Disallow: /payments
+Disallow: /notifications
+Disallow: /settings
+Disallow: /auth/
+Disallow: /admin/
+Disallow: /qr-hygiene
+Disallow: /qr-scanner
+Disallow: /product-intake
+Disallow: /product-qr-gallery
+Disallow: /payment-processing
+Disallow: /payment-success
+Disallow: /payment-failed
+Disallow: /tracking/
+Disallow: /pickup-tracking/
+Disallow: /pickup-confirmation
+Disallow: /order/
+Disallow: /order-confirmed/
+Disallow: /order-delivered/
+Disallow: /schedule-return
+Disallow: /map
+Disallow: /map-location
+
+Sitemap: https://www.popclozet.in/sitemap.xml

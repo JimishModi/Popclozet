@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -116,6 +117,10 @@ const SearchResultsPage: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-screen bg-[#111111] text-white">
+            <Helmet>
+                <title>Search | Popclozet</title>
+                <meta name="description" content="Search for dresses, jackets, brands, and more." />
+            </Helmet>
             <main className="flex-1 overflow-y-auto pb-24">
 
                 {/* ─── Top Bar: Back + Search Input ─── */}

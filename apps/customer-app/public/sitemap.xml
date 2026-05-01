@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.popclozet.in</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.popclozet.in/home</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.popclozet.in/collections</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.popclozet.in/brands</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.popclozet.in/closet</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.popclozet.in/live-closet</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.popclozet.in/how-it-works</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.popclozet.in/about-us</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.popclozet.in/shop/men</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.popclozet.in/shop/women</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.popclozet.in/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://www.popclozet.in/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://www.popclozet.in/cookies</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+</urlset>

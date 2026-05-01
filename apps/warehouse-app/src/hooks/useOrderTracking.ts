@@ -84,23 +84,23 @@ export function useOrderTracking(orderId: string | undefined): UseOrderTrackingR
             const needsFallback = isZero || (isMumbai && destAddress && !destAddress.toLowerCase().includes('mumbai') && !destAddress.toLowerCase().includes('maharashtra'));
 
             if ((!destLat || needsFallback) && destAddress) {
-                console.warn('Coordinates seem incorrect or missing. Applying runtime geocoding fallback for address:', destAddress);
+                console.warn('Coordinates seem incorrect or missing. Applying Mappls geocoding fallback for address:', destAddress);
                 try {
-                    const { mapboxgl } = await import('@popclozet/map-core');
-                    const token = (mapboxgl as any).accessToken;
-                    if (token) {
-                        const encoded = encodeURIComponent(destAddress);
-                        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?access_token=${token}&country=IN&limit=1`;
-                        const res = await fetch(url);
-                        const data = await res.json();
-                        if (data.features && data.features.length > 0) {
-                            const [lng, lat] = data.features[0].center;
+                    const { searchAddress } = await import('@popclozet/map-core');
+                    const results = await searchAddress(destAddress);
+                    if (results && results.length > 0) {
+                        const first = results[0];
+                        const lat = first.latitude ?? first.lat;
+                        const lng = first.longitude ?? first.lng;
+                        if (lat && lng) {
                             destLat = lat;
                             destLng = lng;
                             console.log('Geocoding fallback successful:', destLng, destLat);
                         } else {
-                            console.error('Geocoding failed for address:', destAddress);
+                            console.error('Geocoding fallback: no coordinates in result');
                         }
+                    } else {
+                        console.error('Geocoding failed for address:', destAddress);
                     }
                 } catch (err) {
                     console.error('Geocoding fallback error:', err);

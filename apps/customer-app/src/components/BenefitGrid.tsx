@@ -11,7 +11,7 @@ const benefits = [
     icon: Shirt,
     title: "The 'Mix & Match' Closet",
     description:
-      "Just need a new top? Browse thousands of individual pieces to complete the look you already have. Total creative freedom.",
+      "Just need a new top? Browse our curated catalog of individual pieces to complete the look you already have. Total creative freedom.",
   },
   {
     icon: Clock,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, Package, MapPin, Clock, ChevronRight, Filter, Loader2 } from "lucide-react";
@@ -73,6 +74,10 @@ export default function OrdersPage() {
 
     return (
         <div className="bg-black text-white min-h-screen">
+            <Helmet>
+                <title>My Orders | Popclozet</title>
+                <meta name="robots" content="noindex" />
+            </Helmet>
             {/* Header - Matches ProfilePage style */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
                 <div className="flex items-center gap-3">

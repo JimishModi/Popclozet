@@ -4,7 +4,7 @@ import {
     createColorMarker,
     updateRouteSource,
     calculateDistance,
-    getMapboxToken,
+    isMapboxAvailable,
 } from '@popclozet/map-core';
 import { useMap } from '../contexts/MapContext';
 import type { ActiveRider } from '../hooks/useActiveRiders';
@@ -34,7 +34,7 @@ export const LiveRiderMap: React.FC<Props> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef       = useRef<any>(null);
     const entriesRef   = useRef<Map<string, RiderEntry>>(new Map());
-    const token        = import.meta.env.VITE_MAPPLS_REST_KEY || getMapboxToken();
+    const mapReady     = isMapboxAvailable();
 
     // Draw / update Mappls Route for one rider
     const drawRiderRoute = useCallback(async (
@@ -44,14 +44,14 @@ export const LiveRiderMap: React.FC<Props> = ({
         dLng: number, dLat: number,
         color: string,
     ) => {
-        if (!token) return;
+        if (!mapReady) return;
         try {
             const { fetchMapplsRoute } = await import('@popclozet/map-core');
             const coords = await fetchMapplsRoute(rLng, rLat, dLng, dLat);
             if (!coords || !coords.length) return;
             updateRouteSource(map, `route-${orderId}`, `route-layer-${orderId}`, coords as any, color);
         } catch { /* silent */ }
-    }, [token]);
+    }, [mapReady]);
 
     // Fit map to all riders
     const fitAll = useCallback(() => {
@@ -124,7 +124,7 @@ export const LiveRiderMap: React.FC<Props> = ({
 
     // Attach to persistent map instance
     useEffect(() => {
-        if (!containerRef.current || !token) return;
+        if (!containerRef.current || !mapReady) return;
         let mounted = true;
 
         const init = async () => {
@@ -149,7 +149,7 @@ export const LiveRiderMap: React.FC<Props> = ({
             mapRef.current = null;
             entriesRef.current.clear();
         };
-    }, [initializePersistentMap, token]);
+    }, [initializePersistentMap, mapReady]);
 
     // Re-sync when riders change
     useEffect(() => {
@@ -180,13 +180,13 @@ export const LiveRiderMap: React.FC<Props> = ({
         <div className="relative w-full h-full rounded-xl overflow-hidden">
             <div ref={containerRef} className="w-full h-full" />
 
-            {!token && (
+            {!mapReady && (
                 <div className="absolute inset-0 flex items-center justify-center bg-surface-card rounded-xl">
-                    <p className="text-xs text-zinc-500">Map unavailable — Mapbox token missing</p>
+                    <p className="text-xs text-zinc-500">Map unavailable — Mappls SDK not loaded</p>
                 </div>
             )}
 
-            {token && !loading && riders.length === 0 && (
+            {mapReady && !loading && riders.length === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-card/80 backdrop-blur-sm rounded-xl">
                     <p className="text-zinc-500 text-sm font-medium">No active riders</p>
                     <p className="text-zinc-600 text-xs mt-1">Map populates once orders are picked up</p>

@@ -1,5 +1,6 @@
 // src/pages/ProfilePage.tsx
 import React, { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, Heart, ShoppingBag, LogOut, ChevronRight,
@@ -167,7 +168,7 @@ const ProfilePage: React.FC = () => {
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete("kyc_callback");
       newParams.delete("user_id");
-      const newUrl = window.location.pathname + window.location.hash.split('?')[0] + (newParams.toString() ? `?${newParams.toString()}` : '');
+      const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : '');
       window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams, fetchKycStatus]);
@@ -361,6 +362,10 @@ const ProfilePage: React.FC = () => {
 
   return (
     <div className="bg-black text-white min-h-screen">
+      <Helmet>
+        <title>My Profile | Popclozet</title>
+        <meta name="robots" content="noindex" />
+      </Helmet>
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3 flex items-center justify-between lg:hidden">
         <img src={logo} alt="Popclozet" className="h-10 w-auto object-contain" />

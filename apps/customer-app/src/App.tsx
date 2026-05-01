@@ -172,12 +172,7 @@ import CookiePolicyPage from "./pages/CookiePolicyPage";
 import TermsPage from "./pages/TermsPage";
 import AboutUsProcessPage from "./pages/AboutUsProcessPage";
 
-import { configureMapbox } from '@popclozet/map-core';
 
-// Ensure WebWorker has access to Mapbox Token globally on init
-if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
-  configureMapbox(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {

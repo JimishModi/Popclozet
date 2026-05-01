@@ -10,7 +10,7 @@ import {
     InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Button } from "@/components/ui/button";
-import { verifyOtp as msg91Verify, resendOtp as msg91Resend } from "@/services/msg91OtpService";
+import { resendOtp as msg91Resend, verifyOtp as msg91Verify } from "@/services/msg91OtpService";
 
 async function checkAndRoute(user: any, navigate: any) {
     if (!user) {
@@ -82,7 +82,7 @@ export default function VerifyPhonePage() {
     const handleResend = async () => {
         if (resendTimer > 0) return;
         try {
-            await msg91Resend();
+            await msg91Resend(phoneNumber);
             setResendTimer(30);
             setError("");
         } catch (err: any) {
@@ -100,9 +100,26 @@ export default function VerifyPhonePage() {
         setError("");
 
         try {
-            const msg91Data = await msg91Verify(otp);
+            const msg91Data = await msg91Verify(String(otp));
             const accessToken = msg91Data?.message;
-            if (!accessToken) throw new Error("Verification failed. No token received.");
+            if (!accessToken) throw new Error('OTP verification failed. No token received.');
+
+            const res = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-token`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY!,
+                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                    },
+                    body: JSON.stringify({ accessToken, mobile: phoneNumber }),
+                }
+            );
+            const result = await res.json();
+            if (!result.success) {
+                throw new Error(result.details ? `${result.error}: ${result.details}` : (result.error || 'Verification failed.'));
+            }
 
             setVerified(true);
         } catch (err: any) {

@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// ESM doesn't define __dirname — derive it from import.meta.url.
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
     plugins: [
@@ -85,8 +89,8 @@ export default defineConfig({
         ]
     },
 
-    // Load .env from monorepo root
-    envDir: path.resolve(__dirname, '../..'),
+    // Load .env from this app's own directory (per-app secrets, least-privilege).
+    envDir: __dirname,
 
     resolve: {
         alias: {

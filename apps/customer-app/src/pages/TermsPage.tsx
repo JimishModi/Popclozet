@@ -1,5 +1,6 @@
 // src/pages/TermsPage.tsx
 import React from "react";
+import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Scale } from "lucide-react";
@@ -15,6 +16,10 @@ const TermsPage: React.FC = () => {
 
     return (
         <MobileShell className="bg-black text-white">
+            <Helmet>
+                <title>Terms & Conditions | Popclozet</title>
+                <meta name="description" content="Read Popclozet's terms and conditions. Understand the rules for renting fashion items and using our platform." />
+            </Helmet>
             {/* Header */}
             <div className="sticky top-0 z-50 bg-gradient-to-b from-black/90 to-black/70 backdrop-blur-2xl border-b border-white/5 px-4 py-3">
                 <div className="flex items-center gap-3">

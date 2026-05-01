@@ -1,30 +1,49 @@
 #!/bin/sh
 # Pre-commit hook: Secret & Security Scanning
 # Prevents accidental commits of API keys, tokens, and sensitive data
+#
+# NOTE: husky runs this with `sh -e`, so any non-zero exit anywhere will abort
+# the commit. xargs with no matches returns 123 — we capture exit codes into
+# variables instead of using them as `if` conditions.
+
+set +e  # disable abort-on-error; we handle failures explicitly
 
 echo "🔒 Running security checks..."
+
+# Exclude this hook itself from the secret scan — its regex literally contains
+# the patterns it scans for, which would self-flag on every edit.
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v -E '^\.husky/pre-commit$')
 
 # ─── 1. Check for leaked secrets ────────────────────────────
 # Regex looks for sensitive keys followed by a hardcoded string assignment.
 # This prevents flagging environment variable access (import.meta.env, process.env).
 SECRETS_PATTERN='(SUPABASE_KEY|SUPABASE_URL|MAPBOX_TOKEN|STRIPE_SECRET|RAZORPAY_SECRET|RESEND_API_KEY|PRIVATE_KEY|password)\s*=\s*["\x27][^" \x27]{8,}|(BEGIN RSA|BEGIN OPENSSH|supabase_service_role)'
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
-
-if echo "$STAGED_FILES" | xargs grep -lE "$SECRETS_PATTERN" 2>/dev/null; then
-  echo ""
-  echo "❌ BLOCKED: Potential secrets detected in staged files!"
-  echo "   Review the files above and remove any hardcoded keys/tokens."
-  echo "   Use .env files for secrets (they are .gitignored)."
-  echo ""
-  exit 1
+if [ -n "$STAGED_FILES" ]; then
+  SECRET_HITS=$(echo "$STAGED_FILES" | tr '\n' '\0' | xargs -0 grep -lE "$SECRETS_PATTERN" 2>/dev/null)
+  if [ -n "$SECRET_HITS" ]; then
+    echo ""
+    echo "❌ BLOCKED: Potential secrets detected in staged files!"
+    echo "$SECRET_HITS" | sed 's/^/     /'
+    echo "   Review the files above and remove any hardcoded keys/tokens."
+    echo "   Use .env files for secrets (they are .gitignored)."
+    echo ""
+    exit 1
+  fi
 fi
 
 # ─── 2. Check for .env files being committed ────────────────
-if echo "$STAGED_FILES" | grep -E '\.env($|\.)' 2>/dev/null; then
+# Block real env files (.env, .env.local, .env.production, etc.) but allow
+# the documented placeholder templates: .env.example and .env.*.example.
+ENV_FILES=$(echo "$STAGED_FILES" | grep -E '(^|/)\.env($|\.)' | grep -v -E '\.env(\.[a-zA-Z0-9_-]+)?\.example$' | grep -v -E '(^|/)\.env\.example$')
+
+if [ -n "$ENV_FILES" ]; then
   echo ""
   echo "❌ BLOCKED: .env file detected in commit!"
   echo "   Never commit environment files. Add them to .gitignore."
+  echo "   Offending files:"
+  echo "$ENV_FILES" | sed 's/^/     /'
+  echo "   (.env.example and .env.*.example templates are allowed.)"
   echo ""
   exit 1
 fi
@@ -32,12 +51,17 @@ fi
 # ─── 3. Check for console.log with sensitive vars ────────────
 SENSITIVE_LOG_PATTERN='console\.(log|warn|info|debug)\(.*\b(token|password|secret|apiKey|authToken|refreshToken|accessToken)\b'
 
-if echo "$STAGED_FILES" | xargs grep -lE "$SENSITIVE_LOG_PATTERN" 2>/dev/null; then
-  echo ""
-  echo "⚠️  WARNING: console.log with potentially sensitive variable names detected."
-  echo "   Consider using the logSanitizer utility instead."
-  echo ""
-  # Warning only, don't block
+if [ -n "$STAGED_FILES" ]; then
+  LOG_HITS=$(echo "$STAGED_FILES" | tr '\n' '\0' | xargs -0 grep -lE "$SENSITIVE_LOG_PATTERN" 2>/dev/null)
+  if [ -n "$LOG_HITS" ]; then
+    echo ""
+    echo "⚠️  WARNING: console.log with potentially sensitive variable names detected:"
+    echo "$LOG_HITS" | sed 's/^/     /'
+    echo "   Consider using the logSanitizer utility instead."
+    echo ""
+    # Warning only, don't block
+  fi
 fi
 
 echo "✅ Security checks passed!"
+exit 0

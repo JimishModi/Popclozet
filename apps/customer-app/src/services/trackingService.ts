@@ -333,18 +333,23 @@ export async function simulateVehicleMovement(
     let lastUpdate = Date.now();
 
     const intervalId = setInterval(async () => {
-        currentIndex = Math.min(currentIndex + speedMultiplier, route.coordinates.length - 1);
-        const [lat, lng] = route.coordinates[currentIndex];
+        try {
+            currentIndex = Math.min(currentIndex + speedMultiplier, route.coordinates.length - 1);
+            const [lat, lng] = route.coordinates[currentIndex];
 
-        await updateTrackingPosition(orderId, { lat, lng });
+            await updateTrackingPosition(orderId, { lat, lng });
 
-        // Check if reached destination
-        if (currentIndex >= route.coordinates.length - 1) {
-            clearInterval(intervalId);
-            await deactivateTracking(orderId);
+            // Check if reached destination
+            if (currentIndex >= route.coordinates.length - 1) {
+                clearInterval(intervalId);
+                await deactivateTracking(orderId);
+            }
+
+            lastUpdate = Date.now();
+        } catch (err) {
+            console.error('[trackingService] Error in simulateVehicleMovement interval:', err);
+            // Optionally clear interval on consecutive errors, but for now just catch it to prevent crashes
         }
-
-        lastUpdate = Date.now();
     }, intervalMs);
 
     return () => clearInterval(intervalId);

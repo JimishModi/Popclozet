@@ -197,12 +197,18 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setUser(session.user);
 
       if (event === 'SIGNED_IN') {
-        // Always re-fetch on sign in — ensures OTP users hit fetchProfile
-        // even if the page was already initialized before login
-        initialized.current = true;
-        setLoading(true);
-        fetchProfile(session.user);
-        // fetchProfile calls setLoading(false) in its finally block — don't call it here
+        // Supabase re-emits SIGNED_IN on every tab focus / visibility change for
+        // already-authenticated users. Only re-fetch on the genuine first sign-in
+        // (when we haven't initialized yet); otherwise we trigger full reloads —
+        // map re-init, GPS re-fetch, profile re-fetch — every tab switch.
+        if (!initialized.current) {
+          initialized.current = true;
+          setLoading(true);
+          fetchProfile(session.user);
+          // fetchProfile calls setLoading(false) in its finally block — don't call it here
+        } else {
+          setLoading(false);
+        }
       } else {
         setLoading(false);
       }

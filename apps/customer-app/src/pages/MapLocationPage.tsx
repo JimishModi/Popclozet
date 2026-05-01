@@ -100,20 +100,21 @@ export default function MapLocationPage() {
     const [useGps, setUseGps] = useState(!selectedAddress);
 
     // Sync location (GPS or Manual Click) -> selectedAddress.
-    // Watches BOTH `address` (reverse-geocoded) and `location` (raw coords).
+    //
+    // Three legitimate cases for letting `address` overwrite `selectedAddress`:
+    //   1. useGps=true  → user wants the GPS-detected location, sync freely.
+    //   2. isLocating   → after a map click we set "Locating address..." as a
+    //                     placeholder; absorb the reverse-geocoded address but
+    //                     KEEP the click coordinates (don't drift to nearest road).
+    //   3. (removed)    → previously also synced if `address` was within ~110m of
+    //                     `selectedAddress`. That clobbered user search picks
+    //                     whenever the GPS happened to land nearby. Removed.
     useEffect(() => {
         if (address) {
-            // If the address coordinates match our current selection, update it.
-            // This is crucial for replacing the "Locating address..." placeholder after a map click.
-            const isMatch = selectedAddress && 
-                Math.abs(selectedAddress.lat - address.lat) < 0.001 && 
-                Math.abs(selectedAddress.lng - address.lng) < 0.001;
-
             const isLocating = selectedAddress?.formattedAddress === "📍 Locating address...";
 
-            if (isMatch || useGps || isLocating) {
+            if (useGps || isLocating) {
                 console.log('[MapLocation] Address sync:', address.formattedAddress);
-                // Keep the exact user-clicked pin coordinates, just absorb the resolved address components
                 const shouldKeepExistingCoords = isLocating && !useGps;
                 setSelectedAddress({
                     ...address,

@@ -79,6 +79,40 @@ function extractMatrixDistanceKm(data: any): number | null {
 
 // ─── action handlers ────────────────────────────────────────────────
 
+// Mappls returns every POI type — addresses, hostels, but also benches, trees,
+// waste baskets, ATMs, etc. For an address-selection flow these noisy POIs
+// produce wildly wrong coordinates (e.g. picking the lat/lng of a literal trash
+// can near a building). Restrict to address-shaped types and drop the rest.
+const ADDRESS_TYPES = new Set([
+  "address",
+  "street_address",
+  "house",
+  "building",
+  "locality",
+  "sub_locality",
+  "village",
+  "city",
+  "district",
+  "state",
+  "country",
+  "pincode",
+  "postal_code",
+  "landmark",
+  "place",
+  "poi", // Mappls' generic point-of-interest — usually safe
+]);
+
+function isAddressLikePlace(p: any): boolean {
+  const t = (p?.type || "").toString().toLowerCase().replace(/\s+/g, "_");
+  if (!t) return true; // unknown type — let it through, better than dropping all
+  // Allow if type matches whitelist or contains "address"/"locality"/"street"
+  if (ADDRESS_TYPES.has(t)) return true;
+  if (t.includes("address") || t.includes("locality") || t.includes("street") || t.includes("road")) {
+    return true;
+  }
+  return false;
+}
+
 async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
   const { query, lat, lng } = body;
   if (!query) {
@@ -89,15 +123,20 @@ async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
   const truncated = String(query).slice(0, 100);
   const locationBias = lat && lng ? `&location=${lat},${lng}` : "";
 
-  // 1. Mappls AutoSuggest
+  // 1. Mappls AutoSuggest — request more results so we can filter and still have options
   try {
-    const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(truncated)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true${locationBias}`;
+    const url = `https://search.mappls.com/search/places/autosuggest/json?query=${encodeURIComponent(truncated)}&access_token=${REST_KEY}&region=IND&tokenizeAddress=true&pod=Locality,SubLocality,City,SubDistrict,District,State,PinCode,Building,Address,POI&limit=15${locationBias}`;
     const res = await fetch(url, {
       headers: { Referer: "https://popclozet.in/" },
     });
     const data = await res.json();
-    const results =
+    const rawResults =
       data.suggestedLocations || (Array.isArray(data) ? data : []);
+
+    // Drop garbage POI types (waste_basket, bench, etc.) — keep only address-like results
+    const filtered = rawResults.filter(isAddressLikePlace);
+    const results = filtered.length > 0 ? filtered : rawResults;
+
     if (results.length > 0) return json(results, 200, log);
   } catch (e: any) {
     log.warn("Mappls failed", { error: e.message });
@@ -128,6 +167,56 @@ async function handleSearch(body: any, log: ReturnType<typeof makeLogger>) {
   return json([], 200, log);
 }
 
+// Mappls' Atlas API (atlas.mappls.com) requires OAuth tokens for many places
+// endpoints — our REST key alone returns 404 here. The legacy v1 API
+// (apis.mappls.com/advancedmaps/v1/{key}/place_detail) accepts the REST key
+// directly in the URL path. Try v1 first, fall back to Atlas, then surface
+// 404 only if both miss.
+async function tryMapplsV1Detail(eloc: string, log: ReturnType<typeof makeLogger>): Promise<any> {
+  try {
+    const url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/place_detail?eloc=${encodeURIComponent(eloc)}`;
+    const res = await fetch(url, {
+      headers: { Referer: "https://popclozet.in/" },
+    });
+    if (!res.ok) {
+      log.warn("Mappls v1 place_detail non-200", { eloc, status: res.status });
+      return null;
+    }
+    const result = await res.json();
+    // v1 API shape: { results: [{ latitude, longitude, ... }] }
+    const data = result?.results?.[0] ?? (Array.isArray(result) ? result[0] : result);
+    if (data && (data.latitude || data.lat)) return data;
+    return null;
+  } catch (e: any) {
+    log.warn("Mappls v1 place_detail threw", { error: e.message });
+    return null;
+  }
+}
+
+async function tryMapplsAtlasDetail(eloc: string, log: ReturnType<typeof makeLogger>): Promise<any> {
+  try {
+    const url = `https://atlas.mappls.com/api/places/geocode?eLoc=${encodeURIComponent(eloc)}&access_token=${REST_KEY}`;
+    const res = await fetch(url, {
+      headers: { Referer: "https://popclozet.in/" },
+    });
+    if (!res.ok) {
+      log.warn("Mappls Atlas geocode non-200", { eloc, status: res.status });
+      return null;
+    }
+    const result = await res.json();
+    const data = Array.isArray(result)
+      ? result[0]
+      : result.results
+        ? result.results[0]
+        : result;
+    if (data && (data.latitude || data.lat)) return data;
+    return null;
+  } catch (e: any) {
+    log.warn("Mappls Atlas geocode threw", { error: e.message });
+    return null;
+  }
+}
+
 async function handleDetail(body: any, log: ReturnType<typeof makeLogger>) {
   const { eloc } = body;
   if (!eloc) {
@@ -135,37 +224,25 @@ async function handleDetail(body: any, log: ReturnType<typeof makeLogger>) {
     return json({ error: "eloc is required" }, 400, log);
   }
 
-  try {
-    const url = `https://atlas.mappls.com/api/places/geocode?eLoc=${eloc}&access_token=${REST_KEY}`;
-    const res = await fetch(url, {
-      headers: { Referer: "https://popclozet.in/" },
-    });
-    const result = await res.json();
-    const data = Array.isArray(result)
-      ? result[0]
-      : result.results
-        ? result.results[0]
-        : result;
+  // Try v1 first (REST-key compatible), then Atlas as fallback.
+  const data = (await tryMapplsV1Detail(eloc, log)) ?? (await tryMapplsAtlasDetail(eloc, log));
 
-    if (data && (data.latitude || data.lat)) {
-      return json(
-        {
-          latitude: parseFloat(data.latitude || data.lat),
-          longitude: parseFloat(data.longitude || data.lng),
-          eLoc: eloc,
-          placeName:
-            data.placeName || data.formatted_address || data.address || "",
-        },
-        200,
-        log,
-      );
-    }
-    log.warn("Location details not found", { eloc });
-    return json({ error: "Location details not found" }, 404, log);
-  } catch (e: any) {
-    log.error("Failed to fetch location details", { error: e.message });
-    return json({ error: "Failed to fetch location details" }, 500, log);
+  if (data && (data.latitude || data.lat)) {
+    return json(
+      {
+        latitude: parseFloat(data.latitude || data.lat),
+        longitude: parseFloat(data.longitude || data.lng),
+        eLoc: eloc,
+        placeName:
+          data.placeName || data.formatted_address || data.address || "",
+      },
+      200,
+      log,
+    );
   }
+
+  log.warn("Location details not found in v1 or Atlas", { eloc });
+  return json({ error: "Location details not found" }, 404, log);
 }
 
 async function handleReverse(body: any, log: ReturnType<typeof makeLogger>) {
@@ -229,6 +306,55 @@ async function handleReverse(body: any, log: ReturnType<typeof makeLogger>) {
   );
 }
 
+// Atlas API requires OAuth, but the legacy v1 API accepts the REST key in the
+// URL path. Try v1 first (works), then Atlas (sometimes works), then Nominatim.
+async function tryMapplsV1Geocode(address: string, log: ReturnType<typeof makeLogger>): Promise<any> {
+  try {
+    const url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/geo_code?addr=${encodeURIComponent(address)}`;
+    const res = await fetch(url, {
+      headers: { Referer: "https://popclozet.in/" },
+    });
+    if (!res.ok) {
+      log.warn("Mappls v1 geocode non-200", { status: res.status });
+      return null;
+    }
+    const result = await res.json();
+    // v1 API shape: { results: [{ lat, lng, formatted_address, ... }], responseCode: 200 }
+    const data = result?.results?.[0] ?? (Array.isArray(result) ? result[0] : null);
+    if (data && (data.lat || data.latitude)) return data;
+    return null;
+  } catch (e: any) {
+    log.warn("Mappls v1 geocode threw", { error: e.message });
+    return null;
+  }
+}
+
+async function tryMapplsAtlasGeocode(address: string, log: ReturnType<typeof makeLogger>): Promise<any> {
+  try {
+    const url = `https://atlas.mappls.com/api/places/geocode?address=${encodeURIComponent(address)}&access_token=${REST_KEY}`;
+    const res = await fetch(url, {
+      headers: { Referer: "https://popclozet.in/" },
+    });
+    if (!res.ok) {
+      log.warn("Mappls Atlas geocode non-200", { status: res.status });
+      return null;
+    }
+    const result = await res.json();
+    const data = Array.isArray(result)
+      ? result[0]
+      : result.copResults
+        ? result.copResults[0]
+        : result.results
+          ? result.results[0]
+          : result;
+    if (data && (data.latitude || data.lat)) return data;
+    return null;
+  } catch (e: any) {
+    log.warn("Mappls Atlas geocode threw", { error: e.message });
+    return null;
+  }
+}
+
 async function handleGeocode(body: any, log: ReturnType<typeof makeLogger>) {
   const { address } = body;
   if (!address) {
@@ -238,44 +364,28 @@ async function handleGeocode(body: any, log: ReturnType<typeof makeLogger>) {
 
   const fullAddress = String(address).replace(/،/g, ",");
 
-  // 1. Mappls geocode
+  // 1. Mappls geocode — try v1 first, then Atlas
   if (REST_KEY) {
-    try {
-      const url = `https://atlas.mappls.com/api/places/geocode?address=${encodeURIComponent(fullAddress)}&access_token=${REST_KEY}`;
-      const res = await fetch(url, {
-        headers: { Referer: "https://popclozet.in/" },
-      });
-      const result = await res.json();
-      const data = Array.isArray(result)
-        ? result[0]
-        : result.copResults
-          ? result.copResults[0]
-          : result.results
-            ? result.results[0]
-            : result;
-
-      if (data && (data.latitude || data.lat)) {
-        const lat = parseFloat(data.latitude || data.lat);
-        const lng = parseFloat(data.longitude || data.lng);
-        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-          return json(
-            {
-              lat,
-              lng,
-              eLoc: data.eLoc || data.eloc || data.mapplsPin || null,
-              displayAddress:
-                data.formatted_address ||
-                data.placeName ||
-                data.address ||
-                fullAddress,
-            },
-            200,
-            log,
-          );
-        }
+    const data = (await tryMapplsV1Geocode(fullAddress, log)) ?? (await tryMapplsAtlasGeocode(fullAddress, log));
+    if (data) {
+      const lat = parseFloat(data.latitude || data.lat);
+      const lng = parseFloat(data.longitude || data.lng);
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        return json(
+          {
+            lat,
+            lng,
+            eLoc: data.eLoc || data.eloc || data.mapplsPin || null,
+            displayAddress:
+              data.formatted_address ||
+              data.placeName ||
+              data.address ||
+              fullAddress,
+          },
+          200,
+          log,
+        );
       }
-    } catch (e: any) {
-      log.warn("Mappls failed", { error: e.message });
     }
   }
 
@@ -362,6 +472,30 @@ async function handleDistance(body: any, log: ReturnType<typeof makeLogger>) {
   }
 }
 
+async function handleToken(log: ReturnType<typeof makeLogger>) {
+  const clientId = Deno.env.get("MAPPLS_CLIENT_ID") || REST_KEY;
+  const clientSecret = Deno.env.get("MAPPLS_CLIENT_SECRET") || REST_KEY;
+
+  try {
+    const res = await fetch("https://outpost.mappls.com/api/security/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`,
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      log.info("Minted short-lived Mappls OAuth token");
+      return json({ token: data.access_token, expires_in: data.expires_in }, 200, log);
+    }
+    log.warn("Mappls OAuth failed — set MAPPLS_CLIENT_ID + MAPPLS_CLIENT_SECRET as Supabase secrets", { response: data });
+  } catch (e: any) {
+    log.warn("Mappls OAuth token mint failed", { error: e.message });
+  }
+
+  // Fallback: REST key. Rotate MAPPLS_REST_KEY and set MAPPLS_CLIENT_ID/SECRET to eliminate this.
+  return json({ token: REST_KEY }, 200, log);
+}
+
 async function handleDirections(body: any, log: ReturnType<typeof makeLogger>) {
   const { origin, destination } = body;
   if (!origin || !destination) {
@@ -412,6 +546,8 @@ Deno.serve(async (req: Request) => {
         return await handleDistance(body, log);
       case "directions":
         return await handleDirections(body, log);
+      case "token":
+        return await handleToken(log);
       default:
         log.warn("Unknown action", { action });
         return json({ error: `Unknown action: ${action}` }, 400, log);

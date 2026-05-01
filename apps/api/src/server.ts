@@ -35,8 +35,7 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-const REST_KEY = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_REST_KEY;
-const MAPBOX_TOKEN = process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+const REST_KEY = process.env.MAPPLS_REST_KEY;
 
 function extractMatrixDistanceKm(data: any): number | null {
     const rawDistance =
@@ -106,7 +105,8 @@ app.get("/api/location/search", async (req, res) => {
                 headers: { 'User-Agent': 'Popclozet/1.0 (popclozet.in)' }
             });
             
-            const results = nomResponse.data.map((place: any) => ({
+            const responseData = Array.isArray(nomResponse.data) ? nomResponse.data : [];
+            const results = responseData.map((place: any) => ({
                 placeName: place.name || (place.display_name ? place.display_name.split(',')[0] : 'Unknown'),
                 placeAddress: place.display_name,
                 latitude: parseFloat(place.lat),
@@ -223,32 +223,6 @@ app.get("/api/location/reverse", async (req, res) => {
             console.error("[BACKEND] Nominatim Reverse Geocode Fallback failed:", nomError.message);
         }
 
-        // Fallback 2: Mapbox Reverse Geocoding
-        if (MAPBOX_TOKEN) {
-            try {
-                const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=poi,address,place,locality&limit=1`;
-                const mbResponse = await axios.get(mapboxUrl);
-                const feature = mbResponse.data.features?.[0];
-                
-                if (feature) {
-                    // Extract city from context if available
-                    let city = "Mumbai"; 
-                    const placeContext = feature.context?.find((c: any) => c.id.startsWith('place'));
-                    if (placeContext) city = placeContext.text;
-
-                    console.log(`[BACKEND] Mapbox Reverse Geocode Success: ${feature.place_name}`);
-                    return res.json({
-                        formatted_address: feature.place_name,
-                        latitude: parseFloat(lat as string),
-                        longitude: parseFloat(lng as string),
-                        city: city
-                    });
-                }
-            } catch (mbError: any) {
-                console.error("[BACKEND] Mapbox Reverse Geocode Fallback also failed:", mbError.message);
-            }
-        }
-
         // Ultimate hard fallback if ALL fail
         console.warn(`[BACKEND] All reverse geocoding methods failed. Sending raw coords.`);
         res.json({
@@ -335,33 +309,7 @@ app.get("/api/location/geocode", async (req, res) => {
             }
         }
 
-        // --- 2. Fallback to Mapbox Geocoding ---
-        if (MAPBOX_TOKEN) {
-            try {
-                // Mapbox is highly forgiving with complex/messy addresses
-                const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(fullAddress)}.json?access_token=${MAPBOX_TOKEN}&country=in&limit=1`;
-                console.log(`[GeoAPI] Mapbox trying: "${fullAddress}"`);
-                const mbRes = await axios.get(mapboxUrl, { timeout: 5000 });
-                const features = mbRes.data.features;
-                
-                if (features && features.length > 0) {
-                    const feat = features[0];
-                    const lng = feat.center[0];
-                    const lat = feat.center[1];
-                    console.log(`[GeoAPI] ✓ Resolved via Mapbox: lat=${lat} lng=${lng}`);
-                    return res.json({
-                        lat,
-                        lng,
-                        eLoc: null,
-                        displayAddress: feat.place_name || fullAddress
-                    });
-                }
-            } catch (err: any) {
-                console.warn("[GeoAPI] Mapbox geocode failed, falling back to Nominatim:", err.message);
-            }
-        }
-
-        // --- 3. Fallback to Nominatim (OpenStreetMap) ---
+        // --- 2. Fallback to Nominatim (OpenStreetMap) ---
         // Problem: full addresses like "Pizza By The Bay, Churchgate..." include establishment names that Nominatim doesn't recognise.
         // Fix: retry with progressively shorter address tails (drop leading components).
         const parts = fullAddress.split(',').map((p: string) => p.trim()).filter(Boolean);

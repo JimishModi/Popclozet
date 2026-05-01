@@ -17,8 +17,10 @@ const SCRIPT_URLS = [
     'https://verify.msg91.com/otp-provider.js',     // Remote CDN (script tags bypass CORS)
 ];
 
-const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string;
-const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string;
+// Read from env only — no hardcoded fallback (would land in source/bundle).
+// Configure VITE_MSG91_WIDGET_ID and VITE_MSG91_TOKEN_AUTH in apps/rider-app/.env.
+const WIDGET_ID = import.meta.env.VITE_MSG91_WIDGET_ID as string | undefined;
+const TOKEN_AUTH = import.meta.env.VITE_MSG91_TOKEN_AUTH as string | undefined;
 
 let sdkReady = false;
 let sdkInitPromise: Promise<void> | null = null;

@@ -48,6 +48,23 @@ function mapMapplsPlace(place: any): ValidatedAddress {
   return mapped;
 }
 
+// Mappls returns POIs of every kind — including useless ones for an address-
+// selection flow (waste_basket, bench, tree, atm, etc.) whose lat/lng are the
+// coordinates of the literal object, not a deliverable address. Filter these
+// out client-side as defense-in-depth (the location Edge Function does the
+// same on the server).
+const REJECTED_POI_TYPES = new Set([
+  'waste_basket', 'bench', 'tree', 'fountain', 'lamp', 'streetlamp',
+  'atm', 'phone_booth', 'post_box', 'vending_machine', 'recycling',
+  'bicycle_parking', 'bus_stop_pole', 'traffic_signals',
+]);
+
+function isUsableAddressType(place: any): boolean {
+  const t = (place?.type || '').toString().toLowerCase().replace(/\s+/g, '_');
+  if (!t) return true;
+  return !REJECTED_POI_TYPES.has(t);
+}
+
 /**
  * Search for locations using Mappls AutoSuggest
  * Passes user's current location for proximity-biased results
@@ -73,7 +90,11 @@ export async function searchLocations(query: string): Promise<ValidatedAddress[]
     if (!data) throw new Error('Search failed');
     const locations = Array.isArray(data) ? data : (data.suggestedLocations || []);
 
-    return locations.map(mapMapplsPlace);
+    // Drop garbage POI types (waste_basket etc.) so user can't accidentally pick them
+    const filtered = locations.filter(isUsableAddressType);
+    const safeResults = filtered.length > 0 ? filtered : locations;
+
+    return safeResults.map(mapMapplsPlace);
   } catch (error) {
     console.error('Error searching locations:', error);
     return [];

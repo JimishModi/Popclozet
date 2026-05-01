@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Phone, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { loadAndInitMsg91, sendOtp } from "@/services/msg91OtpService";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { supabase } from "@popclozet/api-client";
 
@@ -62,9 +61,12 @@ export default function CollectPhonePage() {
                 return;
             }
 
-            const identifier = `91${phoneNumber}`;
-            await loadAndInitMsg91(identifier);
-            navigate("/auth/verify-phone", { state: { phone: phoneNumber } });
+            const nextPhone = phoneNumber.trim();
+            const params = new URLSearchParams({
+                phone: nextPhone,
+                send: '1',
+            });
+            navigate(`/auth/otp?${params.toString()}`, { state: { phone: nextPhone } });
         } catch (err: any) {
             if (err.code === '23505') {
                 setError("This phone number is already linked to another account.");
