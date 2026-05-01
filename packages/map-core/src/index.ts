@@ -487,3 +487,80 @@ export const mapboxgl: any = {
         addTo() { return this; }
     }
 };
+
+// ==========================================
+// Address search via Supabase location Edge Function
+// ==========================================
+// Used by warehouse-app and rider-app to resolve addresses without exposing
+// the Mappls REST key. The customer-app calls the Edge Function directly
+// (callLocationFn). This export keeps the same shape the apps already consume.
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+
+export interface SearchAddressResult {
+    placeName: string;
+    placeAddress: string;
+    latitude: number;
+    longitude: number;
+    // lat/lng aliases — older callers (warehouse-app, rider-app) read these names.
+    lat: number;
+    lng: number;
+    eLoc?: string;
+    type?: string;
+    pincode?: string;
+    city?: string;
+}
+
+export const searchAddress = async (
+    query: string,
+    lat?: number,
+    lng?: number
+): Promise<SearchAddressResult[]> => {
+    if (!query || query.length < 3) return [];
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.warn('[map-core] searchAddress: SUPABASE_URL/ANON_KEY missing');
+        return [];
+    }
+
+    try {
+        const body: Record<string, unknown> = { action: 'search', query };
+        if (typeof lat === 'number' && typeof lng === 'number') {
+            body.lat = lat;
+            body.lng = lng;
+        }
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/location`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) return [];
+        const data = await res.json();
+        const results = Array.isArray(data) ? data : (data?.suggestedLocations ?? []);
+
+        return results.map((r: any) => {
+            const latitude = parseFloat(r.latitude ?? r.lat ?? 0);
+            const longitude = parseFloat(r.longitude ?? r.lng ?? r.lon ?? 0);
+            return {
+                placeName: r.placeName || '',
+                placeAddress: r.placeAddress || r.formatted_address || '',
+                latitude,
+                longitude,
+                lat: latitude,
+                lng: longitude,
+                eLoc: r.eLoc || r.eloc || '',
+                type: r.type || '',
+                pincode: r.pincode || '',
+                city: r.city || '',
+            };
+        });
+    } catch (e) {
+        console.warn('[map-core] searchAddress failed:', e);
+        return [];
+    }
+};
