@@ -20,7 +20,10 @@ export default defineConfig(function (_a) {
             port: 5500,
         },
         plugins: [
-            // basicSsl(),
+            // basicSsl(),  // Phone testing over LAN: keep HTTP. Self-signed certs
+            //              // get rejected by modern mobile browsers; HTTPS-only
+            //              // features (GPS, SW, Razorpay) need a proper cert
+            //              // (mkcert) or a Vercel preview URL.
             react(),
             // Service worker lives at public/sw.js (plain JS, no build step).
             // In dev mode, main.tsx registers public/dev-sw.js for push testing.

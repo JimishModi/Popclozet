@@ -82,7 +82,9 @@ export default function VerifyPhonePage() {
     const handleResend = async () => {
         if (resendTimer > 0) return;
         try {
-            await msg91Resend(phoneNumber);
+            // resendOtp() takes no args — the MSG91 widget remembers the
+            // identifier from the previous loadAndInitMsg91() call.
+            await msg91Resend();
             setResendTimer(30);
             setError("");
         } catch (err: any) {
